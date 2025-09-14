@@ -6,7 +6,7 @@ Runs a lightweight, leak-free random search over key XGBoost
 hyperparameters using the existing retrospective evaluation engine.
 
 Usage:
-  python3 -m forecasting.hyperparam_search --task regression --trials 100 --anchors 500
+  python3 -m forecasting.hyperparam_search --task regression --trials 50 --anchors 500
 
 Notes:
 - Uses the same temporal safeguards as the main pipeline
@@ -37,18 +37,15 @@ def _sample_loguniform(rng: np.random.Generator, low: float, high: float) -> flo
 
 
 def sample_params(task: str, rng: np.random.Generator) -> Dict:
-    """Sample a candidate hyperparameter set for XGBoost."""
+    """Sample a candidate hyperparameter set for XGBoost Random Forest."""
     params = {
-        "n_estimators": int(rng.integers(150, 1501)),        # 150–800
-        "max_depth": int(rng.integers(3, 11)),              # 3–10
-        "learning_rate": _sample_loguniform(rng, 0.01, 0.2),# 0.01–0.2 (log-uniform)
+        "n_estimators": int(rng.integers(50, 501)),         # 50–500 trees in forest
+        "max_depth": int(rng.integers(3, 15)),              # 3–15 (deeper for RF)
         "subsample": float(rng.uniform(0.6, 1.0)),          # 0.6–1.0
-        "colsample_bytree": float(rng.uniform(0.6, 1.0)),   # 0.6–1.0
-        "colsample_bylevel": float(rng.uniform(0.6, 1.0)),  # 0.6–1.0
+        "colsample_bynode": float(rng.uniform(0.6, 1.0)),   # 0.6–1.0 (RF uses bynode)
         "min_child_weight": int(rng.integers(1, 11)),       # 1–10
-        "reg_alpha": float(rng.uniform(0.0, 1.0)),          # 0.0–1.0
-        "reg_lambda": float(rng.uniform(0.5, 3.0)),         # 0.5–3.0
-        "gamma": float(rng.uniform(0.0, 0.4)),              # 0.0–0.4
+        "reg_alpha": float(rng.uniform(0.0, 0.5)),          # 0.0–0.5
+        "reg_lambda": float(rng.uniform(0.1, 2.0)),         # 0.1–2.0
         "tree_method": "hist",
     }
     if task == "classification":

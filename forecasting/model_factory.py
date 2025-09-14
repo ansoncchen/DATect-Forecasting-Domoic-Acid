@@ -46,29 +46,53 @@ class ModelFactory:
         if model_type == "xgboost" or model_type == "xgb":
             if not HAS_XGBOOST:
                 raise ImportError("XGBoost not installed. Run: pip install xgboost")
-            default_reg_params = {
-                'n_estimators': 400,
-                'max_depth': 6,
-                'learning_rate': 0.05,
-                'subsample': 0.85,
-                'colsample_bytree': 0.85,
-                'colsample_bylevel': 0.8,
-                'reg_alpha': 0.1,
-                'reg_lambda': 1.0,
-                'gamma': 0.1,
-                'min_child_weight': 3,
-                'tree_method': 'hist',
-                'random_state': self.random_seed,
-                'n_jobs': -1,
-            }
-            cfg_params = getattr(config, 'XGB_REGRESSION_PARAMS', None)
-            params = {**default_reg_params, **(cfg_params or {})}
-            if params_override:
-                params.update(params_override)
-            # Ensure seed/n_jobs are enforced
-            params['random_state'] = self.random_seed
-            params['n_jobs'] = -1
-            return xgb.XGBRegressor(**params)
+            try:
+                # Use XGBoost Random Forest instead of gradient boosting
+                from xgboost import XGBRFRegressor
+                default_reg_params = {
+                    'n_estimators': 200,  # Number of trees in the forest
+                    'max_depth': 8,
+                    'subsample': 0.8,
+                    'colsample_bynode': 0.8,
+                    'reg_alpha': 0.01,
+                    'reg_lambda': 0.1,
+                    'min_child_weight': 1,
+                    'random_state': self.random_seed,
+                    'n_jobs': -1,
+                }
+                cfg_params = getattr(config, 'XGB_REGRESSION_PARAMS', None)
+                params = {**default_reg_params, **(cfg_params or {})}
+                if params_override:
+                    params.update(params_override)
+                params['random_state'] = self.random_seed
+                params['n_jobs'] = -1
+                return XGBRFRegressor(**params)
+            except ImportError:
+                # Fallback to manual Random Forest configuration for older XGBoost
+                logger.warning("XGBRFRegressor not available. Using manual Random Forest configuration.")
+                default_reg_params = {
+                    'n_estimators': 1,  # Must be 1 for RF (use num_parallel_tree instead)
+                    'num_parallel_tree': 200,  # Number of trees in the forest
+                    'max_depth': 8,
+                    'learning_rate': 1,  # Must be 1 for RF regression
+                    'subsample': 0.8,
+                    'colsample_bynode': 0.8,
+                    'reg_alpha': 0.01,
+                    'reg_lambda': 0.1,
+                    'min_child_weight': 1,
+                    'tree_method': 'hist',
+                    'random_state': self.random_seed,
+                    'n_jobs': -1,
+                }
+                cfg_params = getattr(config, 'XGB_REGRESSION_PARAMS', None)
+                params = {**default_reg_params, **(cfg_params or {})}
+                if params_override:
+                    params.update(params_override)
+                params['random_state'] = self.random_seed
+                params['n_jobs'] = -1
+                params['learning_rate'] = 1  # Enforce for RF
+                params['n_estimators'] = 1  # Enforce for RF
+                return xgb.XGBRegressor(**params)
         elif model_type == "linear":
             return LinearRegression(
                 n_jobs=-1
@@ -81,29 +105,55 @@ class ModelFactory:
         if model_type == "xgboost" or model_type == "xgb":
             if not HAS_XGBOOST:
                 raise ImportError("XGBoost not installed. Run: pip install xgboost")
-            default_cls_params = {
-                'n_estimators': 500,
-                'max_depth': 7,
-                'learning_rate': 0.03,
-                'subsample': 0.9,
-                'colsample_bytree': 0.9,
-                'colsample_bylevel': 0.8,
-                'reg_alpha': 0.1,
-                'reg_lambda': 2.0,
-                'gamma': 0.2,
-                'min_child_weight': 5,
-                'tree_method': 'hist',
-                'random_state': self.random_seed,
-                'n_jobs': -1,
-                'eval_metric': 'logloss',
-            }
-            cfg_params = getattr(config, 'XGB_CLASSIFICATION_PARAMS', None)
-            params = {**default_cls_params, **(cfg_params or {})}
-            if params_override:
-                params.update(params_override)
-            params['random_state'] = self.random_seed
-            params['n_jobs'] = -1
-            return xgb.XGBClassifier(**params)
+            try:
+                # Use XGBoost Random Forest instead of gradient boosting
+                from xgboost import XGBRFClassifier
+                default_cls_params = {
+                    'n_estimators': 100,  # Number of trees in the forest
+                    'max_depth': 7,
+                    'subsample': 0.8,
+                    'colsample_bynode': 0.8,
+                    'reg_alpha': 0.1,
+                    'reg_lambda': 2.0,
+                    'min_child_weight': 5,
+                    'random_state': self.random_seed,
+                    'n_jobs': -1,
+                    'eval_metric': 'logloss',
+                }
+                cfg_params = getattr(config, 'XGB_CLASSIFICATION_PARAMS', None)
+                params = {**default_cls_params, **(cfg_params or {})}
+                if params_override:
+                    params.update(params_override)
+                params['random_state'] = self.random_seed
+                params['n_jobs'] = -1
+                return XGBRFClassifier(**params)
+            except ImportError:
+                # Fallback to manual Random Forest configuration for older XGBoost
+                logger.warning("XGBRFClassifier not available. Using manual Random Forest configuration.")
+                default_cls_params = {
+                    'n_estimators': 1,  # Must be 1 for RF (use num_parallel_tree instead)
+                    'num_parallel_tree': 100,  # Number of trees in the forest
+                    'max_depth': 7,
+                    'learning_rate': 1,  # Must be 1 for RF
+                    'subsample': 0.8,
+                    'colsample_bynode': 0.8,
+                    'reg_alpha': 0.1,
+                    'reg_lambda': 2.0,
+                    'min_child_weight': 5,
+                    'tree_method': 'hist',
+                    'random_state': self.random_seed,
+                    'n_jobs': -1,
+                    'eval_metric': 'logloss',
+                }
+                cfg_params = getattr(config, 'XGB_CLASSIFICATION_PARAMS', None)
+                params = {**default_cls_params, **(cfg_params or {})}
+                if params_override:
+                    params.update(params_override)
+                params['random_state'] = self.random_seed
+                params['n_jobs'] = -1
+                params['learning_rate'] = 1  # Enforce for RF
+                params['n_estimators'] = 1  # Enforce for RF
+                return xgb.XGBClassifier(**params)
         elif model_type == "logistic":
             return LogisticRegression(
                 solver="lbfgs",
@@ -131,8 +181,8 @@ class ModelFactory:
             
     def get_model_description(self, model_type):
         descriptions = {
-            "xgboost": "XGBoost",
-            "xgb": "XGBoost", 
+            "xgboost": "XGBoost Random Forest",
+            "xgb": "XGBoost Random Forest",
             "linear": "Linear Regression",
             "logistic": "Logistic Regression"
         }

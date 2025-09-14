@@ -196,30 +196,24 @@ FORECAST_HORIZON_DAYS = FORECAST_HORIZON_WEEKS * 7  # Derived days value for int
 # These override defaults in ModelFactory for reproducible tuning and easy experimentation.
 # Regression parameters
 XGB_REGRESSION_PARAMS = {
-    "n_estimators": 400,
-    "max_depth": 6,
-    "learning_rate": 0.05,
-    "subsample": 0.85,
-    "colsample_bytree": 0.85,
-    "colsample_bylevel": 0.8,
-    "reg_alpha": 0.1,
-    "reg_lambda": 1.0,
-    "gamma": 0.1,
-    "min_child_weight": 3,
+    "n_estimators": 200,  # Number of trees in Random Forest
+    "max_depth": 8,
+    "subsample": 0.8,
+    "colsample_bynode": 0.8,  # Random Forest uses colsample_bynode
+    "reg_alpha": 0.01,
+    "reg_lambda": 0.1,
+    "min_child_weight": 1,
     "tree_method": "hist",
 }
 
 # Classification parameters
 XGB_CLASSIFICATION_PARAMS = {
-    "n_estimators": 500,
-    "max_depth": 7,
-    "learning_rate": 0.03,
-    "subsample": 0.9,
-    "colsample_bytree": 0.9,
-    "colsample_bylevel": 0.8,
+    "n_estimators": 200,  # Number of trees in Random Forest
+    "max_depth": 8,
+    "subsample": 0.8,
+    "colsample_bynode": 0.8,  # Random Forest uses colsample_bynode
     "reg_alpha": 0.1,
     "reg_lambda": 2.0,
-    "gamma": 0.2,
     "min_child_weight": 5,
     "tree_method": "hist",
     "eval_metric": "logloss",

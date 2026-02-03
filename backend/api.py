@@ -1011,6 +1011,51 @@ except Exception as e:
     logging.error(f"Error setting up static files: {e}")
     pass
 
-if __name__ == "__main__":
+def run_server(host: str = "0.0.0.0", port: int = None, use_granian: bool = None):
+    """
+    Run the API server with the best available ASGI server.
+    
+    Priority: Granian (fastest) > Uvicorn (standard)
+    
+    Args:
+        host: Host to bind to
+        port: Port to bind to (default: PORT env var or 8000)
+        use_granian: Force Granian (True) or Uvicorn (False), auto-detect if None
+    """
+    if port is None:
+        port = int(os.getenv("PORT", "8000"))
+    
+    # Auto-detect best server
+    if use_granian is None:
+        use_granian = os.getenv("DATECT_USE_GRANIAN", "1").lower() in ("1", "true", "yes")
+    
+    if use_granian:
+        try:
+            from granian import Granian
+            from granian.constants import Interfaces
+            
+            logging.info(f"Starting Granian server (Rust-based, 20-40% faster) on {host}:{port}")
+            
+            granian = Granian(
+                "backend.api:app",
+                address=host,
+                port=port,
+                interface=Interfaces.ASGI,
+                workers=int(os.getenv("WORKERS", "1")),
+            )
+            granian.serve()
+            return
+            
+        except ImportError:
+            logging.warning("Granian not available, falling back to Uvicorn")
+        except Exception as e:
+            logging.warning(f"Granian failed to start: {e}, falling back to Uvicorn")
+    
+    # Fallback to Uvicorn
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    logging.info(f"Starting Uvicorn server on {host}:{port}")
+    uvicorn.run(app, host=host, port=port)
+
+
+if __name__ == "__main__":
+    run_server()

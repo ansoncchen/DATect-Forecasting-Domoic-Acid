@@ -7,7 +7,7 @@ numpy>=1.21.0
 scikit-learn>=1.1.0
 joblib>=1.0.0         # Parallel processing for model training
 
-# Machine Learning Models
+# Machine Learning Models (XGBoost primary; linear/logistic baselines only)
 xgboost>=1.6.0
 
 # Web API and Backend

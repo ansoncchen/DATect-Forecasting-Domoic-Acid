@@ -62,3 +62,6 @@ claude.md
 *.backup
 *\ 2.py
 *\ copy.py
+
+# ML artifact junk (CatBoost/LightGBM logs, etc.)
+catboost_info/

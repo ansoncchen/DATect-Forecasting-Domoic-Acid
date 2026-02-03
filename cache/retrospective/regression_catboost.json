@@ -1,0 +1,902 @@
+[
+  {
+    "date": "2008-01-14",
+    "site": "Cannon Beach",
+    "actual_da": 0.36787944117144233,
+    "actual_category": 0,
+    "predicted_da": 2.1788990027674986,
+    "predicted_category": null,
+    "anchor_date": "2008-01-07"
+  },
+  {
+    "date": "2008-03-03",
+    "site": "Long Beach",
+    "actual_da": 0.36787944117144233,
+    "actual_category": 0,
+    "predicted_da": 6.100128098192074,
+    "predicted_category": null,
+    "anchor_date": "2008-02-25"
+  },
+  {
+    "date": "2008-05-26",
+    "site": "Cannon Beach",
+    "actual_da": 1.309969204924771,
+    "actual_category": 0,
+    "predicted_da": 2.447394397163178,
+    "predicted_category": null,
+    "anchor_date": "2008-05-19"
+  },
+  {
+    "date": "2008-06-09",
+    "site": "Kalaloch",
+    "actual_da": 0.8187307530779818,
+    "actual_category": 0,
+    "predicted_da": 22.527473493983422,
+    "predicted_category": null,
+    "anchor_date": "2008-06-02"
+  },
+  {
+    "date": "2008-08-25",
+    "site": "Long Beach",
+    "actual_da": 0.00247875217666636,
+    "actual_category": 0,
+    "predicted_da": 4.910624101534862,
+    "predicted_category": null,
+    "anchor_date": "2008-08-18"
+  },
+  {
+    "date": "2009-02-02",
+    "site": "Twin Harbors",
+    "actual_da": 0.8187307530779818,
+    "actual_category": 0,
+    "predicted_da": 2.6585003947213,
+    "predicted_category": null,
+    "anchor_date": "2009-01-26"
+  },
+  {
+    "date": "2009-03-02",
+    "site": "Clatsop Beach",
+    "actual_da": 0.8187307530779818,
+    "actual_category": 0,
+    "predicted_da": 14.792756261761962,
+    "predicted_category": null,
+    "anchor_date": "2009-02-23"
+  },
+  {
+    "date": "2009-03-09",
+    "site": "Long Beach",
+    "actual_da": 1.0,
+    "actual_category": 0,
+    "predicted_da": 2.9987836577928615,
+    "predicted_category": null,
+    "anchor_date": "2009-03-02"
+  },
+  {
+    "date": "2009-04-13",
+    "site": "Kalaloch",
+    "actual_da": 0.0009118819655545167,
+    "actual_category": 0,
+    "predicted_da": 16.454642432932573,
+    "predicted_category": null,
+    "anchor_date": "2009-04-06"
+  },
+  {
+    "date": "2009-05-11",
+    "site": "Long Beach",
+    "actual_da": 1.0,
+    "actual_category": 0,
+    "predicted_da": 2.4395063248739675,
+    "predicted_category": null,
+    "anchor_date": "2009-05-04"
+  },
+  {
+    "date": "2009-05-18",
+    "site": "Coos Bay",
+    "actual_da": 0.8232174541410395,
+    "actual_category": 0,
+    "predicted_da": 6.940794752972146,
+    "predicted_category": null,
+    "anchor_date": "2009-05-11"
+  },
+  {
+    "date": "2009-06-01",
+    "site": "Long Beach",
+    "actual_da": 0.8187307530779818,
+    "actual_category": 0,
+    "predicted_da": 3.082741100879391,
+    "predicted_category": null,
+    "anchor_date": "2009-05-25"
+  },
+  {
+    "date": "2009-06-01",
+    "site": "Newport",
+    "actual_da": 4.584892217236698,
+    "actual_category": 0,
+    "predicted_da": 25.168368564320104,
+    "predicted_category": null,
+    "anchor_date": "2009-05-25"
+  },
+  {
+    "date": "2009-07-27",
+    "site": "Clatsop Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 12.854783866711392,
+    "predicted_category": null,
+    "anchor_date": "2009-07-20"
+  },
+  {
+    "date": "2009-09-14",
+    "site": "Clatsop Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 11.835674962262477,
+    "predicted_category": null,
+    "anchor_date": "2009-09-07"
+  },
+  {
+    "date": "2009-11-16",
+    "site": "Quinault",
+    "actual_da": 2.2072766470286536,
+    "actual_category": 0,
+    "predicted_da": 8.070366212937676,
+    "predicted_category": null,
+    "anchor_date": "2009-11-09"
+  },
+  {
+    "date": "2009-12-07",
+    "site": "Twin Harbors",
+    "actual_da": 1.646434908282079,
+    "actual_category": 0,
+    "predicted_da": 4.07127383027168,
+    "predicted_category": null,
+    "anchor_date": "2009-11-30"
+  },
+  {
+    "date": "2010-03-22",
+    "site": "Clatsop Beach",
+    "actual_da": 1.5417361058819703,
+    "actual_category": 0,
+    "predicted_da": 30.07776366357569,
+    "predicted_category": null,
+    "anchor_date": "2010-03-15"
+  },
+  {
+    "date": "2010-05-24",
+    "site": "Kalaloch",
+    "actual_da": 0.8187307530779818,
+    "actual_category": 0,
+    "predicted_da": 16.857490229780794,
+    "predicted_category": null,
+    "anchor_date": "2010-05-17"
+  },
+  {
+    "date": "2010-06-28",
+    "site": "Coos Bay",
+    "actual_da": 0.000500451433440611,
+    "actual_category": 0,
+    "predicted_da": 3.8836397802433686,
+    "predicted_category": null,
+    "anchor_date": "2010-06-21"
+  },
+  {
+    "date": "2010-07-19",
+    "site": "Coos Bay",
+    "actual_da": 0.0002746535699721425,
+    "actual_category": 0,
+    "predicted_da": 4.225988091056697,
+    "predicted_category": null,
+    "anchor_date": "2010-07-12"
+  },
+  {
+    "date": "2010-08-16",
+    "site": "Newport",
+    "actual_da": 19.0,
+    "actual_category": 1,
+    "predicted_da": 36.40696939086989,
+    "predicted_category": null,
+    "anchor_date": "2010-08-09"
+  },
+  {
+    "date": "2011-03-14",
+    "site": "Cannon Beach",
+    "actual_da": 0.30119421191220214,
+    "actual_category": 0,
+    "predicted_da": 0.08678875372565555,
+    "predicted_category": null,
+    "anchor_date": "2011-03-07"
+  },
+  {
+    "date": "2011-04-11",
+    "site": "Copalis",
+    "actual_da": 0.040762203978366225,
+    "actual_category": 0,
+    "predicted_da": 1.8354597137491782,
+    "predicted_category": null,
+    "anchor_date": "2011-04-04"
+  },
+  {
+    "date": "2011-10-03",
+    "site": "Quinault",
+    "actual_da": 0.0009118819655545167,
+    "actual_category": 0,
+    "predicted_da": 1.357008188374068,
+    "predicted_category": null,
+    "anchor_date": "2011-09-26"
+  },
+  {
+    "date": "2011-12-19",
+    "site": "Gold Beach",
+    "actual_da": 1.0,
+    "actual_category": 0,
+    "predicted_da": 7.461448961334427,
+    "predicted_category": null,
+    "anchor_date": "2011-12-12"
+  },
+  {
+    "date": "2012-03-05",
+    "site": "Copalis",
+    "actual_da": 3.3720152341391862e-06,
+    "actual_category": 0,
+    "predicted_da": 1.1125698720107084,
+    "predicted_category": null,
+    "anchor_date": "2012-02-27"
+  },
+  {
+    "date": "2012-03-26",
+    "site": "Newport",
+    "actual_da": 0.6703200460356393,
+    "actual_category": 0,
+    "predicted_da": 19.32589719823892,
+    "predicted_category": null,
+    "anchor_date": "2012-03-19"
+  },
+  {
+    "date": "2012-05-07",
+    "site": "Long Beach",
+    "actual_da": 8.315287191035689e-07,
+    "actual_category": 0,
+    "predicted_da": 1.53445554138343,
+    "predicted_category": null,
+    "anchor_date": "2012-04-30"
+  },
+  {
+    "date": "2012-06-11",
+    "site": "Kalaloch",
+    "actual_da": 0.8187307530779818,
+    "actual_category": 0,
+    "predicted_da": 8.75670467225669,
+    "predicted_category": null,
+    "anchor_date": "2012-06-04"
+  },
+  {
+    "date": "2012-07-09",
+    "site": "Long Beach",
+    "actual_da": 1.3745077279213986e-07,
+    "actual_category": 0,
+    "predicted_da": 1.3237746713909961,
+    "predicted_category": null,
+    "anchor_date": "2012-07-02"
+  },
+  {
+    "date": "2012-07-16",
+    "site": "Kalaloch",
+    "actual_da": 0.30119421191220214,
+    "actual_category": 0,
+    "predicted_da": 9.655751874220957,
+    "predicted_category": null,
+    "anchor_date": "2012-07-09"
+  },
+  {
+    "date": "2012-09-10",
+    "site": "Newport",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 25.957750634553935,
+    "predicted_category": null,
+    "anchor_date": "2012-09-03"
+  },
+  {
+    "date": "2012-09-24",
+    "site": "Clatsop Beach",
+    "actual_da": 2.128699958002753,
+    "actual_category": 0,
+    "predicted_da": 4.737537619183199,
+    "predicted_category": null,
+    "anchor_date": "2012-09-17"
+  },
+  {
+    "date": "2012-10-01",
+    "site": "Clatsop Beach",
+    "actual_da": 2.4,
+    "actual_category": 0,
+    "predicted_da": 5.365337495128225,
+    "predicted_category": null,
+    "anchor_date": "2012-09-24"
+  },
+  {
+    "date": "2012-10-15",
+    "site": "Quinault",
+    "actual_da": 2.4561922592339456,
+    "actual_category": 0,
+    "predicted_da": 2.3909256173501165,
+    "predicted_category": null,
+    "anchor_date": "2012-10-08"
+  },
+  {
+    "date": "2012-11-19",
+    "site": "Kalaloch",
+    "actual_da": 2.4561922592339456,
+    "actual_category": 0,
+    "predicted_da": 6.819474705536527,
+    "predicted_category": null,
+    "anchor_date": "2012-11-12"
+  },
+  {
+    "date": "2013-03-25",
+    "site": "Copalis",
+    "actual_da": 0.4493289641172216,
+    "actual_category": 0,
+    "predicted_da": 0.5182990319699093,
+    "predicted_category": null,
+    "anchor_date": "2013-03-18"
+  },
+  {
+    "date": "2013-07-01",
+    "site": "Newport",
+    "actual_da": 3.6024153135431205,
+    "actual_category": 0,
+    "predicted_da": 17.23678148461337,
+    "predicted_category": null,
+    "anchor_date": "2013-06-24"
+  },
+  {
+    "date": "2014-01-20",
+    "site": "Clatsop Beach",
+    "actual_da": 4.829542397627432,
+    "actual_category": 0,
+    "predicted_da": 5.915509137509283,
+    "predicted_category": null,
+    "anchor_date": "2014-01-13"
+  },
+  {
+    "date": "2014-02-24",
+    "site": "Gold Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 3.747750321848255,
+    "predicted_category": null,
+    "anchor_date": "2014-02-17"
+  },
+  {
+    "date": "2014-05-19",
+    "site": "Cannon Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 0.8429155687180329,
+    "predicted_category": null,
+    "anchor_date": "2014-05-12"
+  },
+  {
+    "date": "2014-07-07",
+    "site": "Newport",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 15.279896490563218,
+    "predicted_category": null,
+    "anchor_date": "2014-06-30"
+  },
+  {
+    "date": "2014-09-01",
+    "site": "Kalaloch",
+    "actual_da": 0.5488116360940264,
+    "actual_category": 0,
+    "predicted_da": 4.027109133461142,
+    "predicted_category": null,
+    "anchor_date": "2014-08-25"
+  },
+  {
+    "date": "2014-12-22",
+    "site": "Twin Harbors",
+    "actual_da": 2.0,
+    "actual_category": 0,
+    "predicted_da": 3.28823005704738,
+    "predicted_category": null,
+    "anchor_date": "2014-12-15"
+  },
+  {
+    "date": "2015-02-23",
+    "site": "Clatsop Beach",
+    "actual_da": 1.309969204924771,
+    "actual_category": 0,
+    "predicted_da": 4.485269346247359,
+    "predicted_category": null,
+    "anchor_date": "2015-02-16"
+  },
+  {
+    "date": "2015-05-11",
+    "site": "Gold Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 3.977850245720471,
+    "predicted_category": null,
+    "anchor_date": "2015-05-04"
+  },
+  {
+    "date": "2015-11-09",
+    "site": "Gold Beach",
+    "actual_da": 7.373520506392032,
+    "actual_category": 1,
+    "predicted_da": 17.074302551316464,
+    "predicted_category": null,
+    "anchor_date": "2015-11-02"
+  },
+  {
+    "date": "2016-01-04",
+    "site": "Quinault",
+    "actual_da": 20.0,
+    "actual_category": 1,
+    "predicted_da": 7.273153153935948,
+    "predicted_category": null,
+    "anchor_date": "2015-12-28"
+  },
+  {
+    "date": "2016-02-01",
+    "site": "Twin Harbors",
+    "actual_da": 43.39272991313304,
+    "actual_category": 3,
+    "predicted_da": 43.03415600797651,
+    "predicted_category": null,
+    "anchor_date": "2016-01-25"
+  },
+  {
+    "date": "2016-05-02",
+    "site": "Copalis",
+    "actual_da": 2.4561922592339456,
+    "actual_category": 0,
+    "predicted_da": 27.199699919051145,
+    "predicted_category": null,
+    "anchor_date": "2016-04-25"
+  },
+  {
+    "date": "2016-05-02",
+    "site": "Twin Harbors",
+    "actual_da": 20.468268826949547,
+    "actual_category": 2,
+    "predicted_da": 27.921122717681893,
+    "predicted_category": null,
+    "anchor_date": "2016-04-25"
+  },
+  {
+    "date": "2016-06-27",
+    "site": "Twin Harbors",
+    "actual_da": 12.280961296169727,
+    "actual_category": 1,
+    "predicted_da": 39.31489398850622,
+    "predicted_category": null,
+    "anchor_date": "2016-06-20"
+  },
+  {
+    "date": "2016-08-15",
+    "site": "Gold Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 7.544495680006067,
+    "predicted_category": null,
+    "anchor_date": "2016-08-08"
+  },
+  {
+    "date": "2016-11-21",
+    "site": "Kalaloch",
+    "actual_da": 2.4561922592339456,
+    "actual_category": 0,
+    "predicted_da": 15.443315524801243,
+    "predicted_category": null,
+    "anchor_date": "2016-11-14"
+  },
+  {
+    "date": "2017-03-13",
+    "site": "Twin Harbors",
+    "actual_da": 21.0,
+    "actual_category": 2,
+    "predicted_da": 22.601495025578473,
+    "predicted_category": null,
+    "anchor_date": "2017-03-06"
+  },
+  {
+    "date": "2017-04-24",
+    "site": "Quinault",
+    "actual_da": 1.6374615061559636,
+    "actual_category": 0,
+    "predicted_da": 20.23085070623334,
+    "predicted_category": null,
+    "anchor_date": "2017-04-17"
+  },
+  {
+    "date": "2017-05-08",
+    "site": "Coos Bay",
+    "actual_da": 63.0,
+    "actual_category": 3,
+    "predicted_da": 51.355516573063504,
+    "predicted_category": null,
+    "anchor_date": "2017-05-01"
+  },
+  {
+    "date": "2017-07-24",
+    "site": "Coos Bay",
+    "actual_da": 49.0,
+    "actual_category": 3,
+    "predicted_da": 35.630174381031765,
+    "predicted_category": null,
+    "anchor_date": "2017-07-17"
+  },
+  {
+    "date": "2017-07-24",
+    "site": "Newport",
+    "actual_da": 16.0,
+    "actual_category": 1,
+    "predicted_da": 34.59807753018116,
+    "predicted_category": null,
+    "anchor_date": "2017-07-17"
+  },
+  {
+    "date": "2017-08-14",
+    "site": "Cannon Beach",
+    "actual_da": 9.824769036935782,
+    "actual_category": 1,
+    "predicted_da": 3.6793863381184604,
+    "predicted_category": null,
+    "anchor_date": "2017-08-07"
+  },
+  {
+    "date": "2018-02-12",
+    "site": "Newport",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 40.76923362117882,
+    "predicted_category": null,
+    "anchor_date": "2018-02-05"
+  },
+  {
+    "date": "2018-03-05",
+    "site": "Gold Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 34.58402713815265,
+    "predicted_category": null,
+    "anchor_date": "2018-02-26"
+  },
+  {
+    "date": "2018-05-21",
+    "site": "Copalis",
+    "actual_da": 3.0,
+    "actual_category": 0,
+    "predicted_da": 5.843836544050109,
+    "predicted_category": null,
+    "anchor_date": "2018-05-14"
+  },
+  {
+    "date": "2018-06-11",
+    "site": "Cannon Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 1.2783815371179177,
+    "predicted_category": null,
+    "anchor_date": "2018-06-04"
+  },
+  {
+    "date": "2018-06-25",
+    "site": "Coos Bay",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 41.87556675102406,
+    "predicted_category": null,
+    "anchor_date": "2018-06-18"
+  },
+  {
+    "date": "2018-08-13",
+    "site": "Cannon Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 1.311808544256355,
+    "predicted_category": null,
+    "anchor_date": "2018-08-06"
+  },
+  {
+    "date": "2018-08-13",
+    "site": "Copalis",
+    "actual_da": 2.0,
+    "actual_category": 0,
+    "predicted_da": 5.307627898501869,
+    "predicted_category": null,
+    "anchor_date": "2018-08-06"
+  },
+  {
+    "date": "2018-08-13",
+    "site": "Newport",
+    "actual_da": 6.2,
+    "actual_category": 1,
+    "predicted_da": 38.03652043273758,
+    "predicted_category": null,
+    "anchor_date": "2018-08-06"
+  },
+  {
+    "date": "2018-10-22",
+    "site": "Copalis",
+    "actual_da": 1.6374615061559636,
+    "actual_category": 0,
+    "predicted_da": 5.2778862610276756,
+    "predicted_category": null,
+    "anchor_date": "2018-10-15"
+  },
+  {
+    "date": "2018-11-26",
+    "site": "Kalaloch",
+    "actual_da": 1.6374615061559636,
+    "actual_category": 0,
+    "predicted_da": 19.60083406565449,
+    "predicted_category": null,
+    "anchor_date": "2018-11-19"
+  },
+  {
+    "date": "2019-02-25",
+    "site": "Clatsop Beach",
+    "actual_da": 9.824769036935782,
+    "actual_category": 1,
+    "predicted_da": 28.855276576529842,
+    "predicted_category": null,
+    "anchor_date": "2019-02-18"
+  },
+  {
+    "date": "2019-03-25",
+    "site": "Quinault",
+    "actual_da": 5.0,
+    "actual_category": 0,
+    "predicted_da": 6.854246920093294,
+    "predicted_category": null,
+    "anchor_date": "2019-03-18"
+  },
+  {
+    "date": "2019-05-06",
+    "site": "Quinault",
+    "actual_da": 3.0,
+    "actual_category": 0,
+    "predicted_da": 6.234995879390171,
+    "predicted_category": null,
+    "anchor_date": "2019-04-29"
+  },
+  {
+    "date": "2019-07-29",
+    "site": "Kalaloch",
+    "actual_da": 1.0,
+    "actual_category": 0,
+    "predicted_da": 12.43613418335142,
+    "predicted_category": null,
+    "anchor_date": "2019-07-22"
+  },
+  {
+    "date": "2019-07-29",
+    "site": "Long Beach",
+    "actual_da": 0.8187307530779818,
+    "actual_category": 0,
+    "predicted_da": 5.839848856274105,
+    "predicted_category": null,
+    "anchor_date": "2019-07-22"
+  },
+  {
+    "date": "2019-10-14",
+    "site": "Cannon Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 2.09412428867456,
+    "predicted_category": null,
+    "anchor_date": "2019-10-07"
+  },
+  {
+    "date": "2019-12-09",
+    "site": "Copalis",
+    "actual_da": 2.6812801841425573,
+    "actual_category": 0,
+    "predicted_da": 7.75445236269972,
+    "predicted_category": null,
+    "anchor_date": "2019-12-02"
+  },
+  {
+    "date": "2020-06-01",
+    "site": "Long Beach",
+    "actual_da": 0.5488116360940264,
+    "actual_category": 0,
+    "predicted_da": 8.493896596206918,
+    "predicted_category": null,
+    "anchor_date": "2020-05-25"
+  },
+  {
+    "date": "2020-10-12",
+    "site": "Gold Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 44.41601769095415,
+    "predicted_category": null,
+    "anchor_date": "2020-10-05"
+  },
+  {
+    "date": "2020-12-14",
+    "site": "Twin Harbors",
+    "actual_da": 23.743191839261474,
+    "actual_category": 2,
+    "predicted_da": 27.828971103085074,
+    "predicted_category": null,
+    "anchor_date": "2020-12-07"
+  },
+  {
+    "date": "2020-12-21",
+    "site": "Coos Bay",
+    "actual_da": 22.10573033310551,
+    "actual_category": 2,
+    "predicted_da": 40.00319950992776,
+    "predicted_category": null,
+    "anchor_date": "2020-12-14"
+  },
+  {
+    "date": "2021-03-01",
+    "site": "Newport",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 44.69256273846083,
+    "predicted_category": null,
+    "anchor_date": "2021-02-22"
+  },
+  {
+    "date": "2021-03-15",
+    "site": "Gold Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 35.40067117210516,
+    "predicted_category": null,
+    "anchor_date": "2021-03-08"
+  },
+  {
+    "date": "2021-03-29",
+    "site": "Twin Harbors",
+    "actual_da": 32.749230123119276,
+    "actual_category": 2,
+    "predicted_da": 32.98566690487496,
+    "predicted_category": null,
+    "anchor_date": "2021-03-22"
+  },
+  {
+    "date": "2021-07-26",
+    "site": "Gold Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 12.378633027406526,
+    "predicted_category": null,
+    "anchor_date": "2021-07-19"
+  },
+  {
+    "date": "2021-11-29",
+    "site": "Long Beach",
+    "actual_da": 5.0,
+    "actual_category": 0,
+    "predicted_da": 27.880903188067542,
+    "predicted_category": null,
+    "anchor_date": "2021-11-22"
+  },
+  {
+    "date": "2022-01-10",
+    "site": "Gold Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 24.53863715483204,
+    "predicted_category": null,
+    "anchor_date": "2022-01-03"
+  },
+  {
+    "date": "2022-03-21",
+    "site": "Quinault",
+    "actual_da": 2.0,
+    "actual_category": 0,
+    "predicted_da": 6.242167306190082,
+    "predicted_category": null,
+    "anchor_date": "2022-03-14"
+  },
+  {
+    "date": "2022-05-02",
+    "site": "Twin Harbors",
+    "actual_da": 1.3406400920712787,
+    "actual_category": 0,
+    "predicted_da": 20.41497495020623,
+    "predicted_category": null,
+    "anchor_date": "2022-04-25"
+  },
+  {
+    "date": "2022-05-09",
+    "site": "Copalis",
+    "actual_da": 0.8187307530779818,
+    "actual_category": 0,
+    "predicted_da": 16.97982639906989,
+    "predicted_category": null,
+    "anchor_date": "2022-05-02"
+  },
+  {
+    "date": "2022-05-23",
+    "site": "Coos Bay",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 22.733774173759947,
+    "predicted_category": null,
+    "anchor_date": "2022-05-16"
+  },
+  {
+    "date": "2022-11-07",
+    "site": "Copalis",
+    "actual_da": 18.0120765677156,
+    "actual_category": 1,
+    "predicted_da": 15.455589274408181,
+    "predicted_category": null,
+    "anchor_date": "2022-10-31"
+  },
+  {
+    "date": "2022-12-12",
+    "site": "Coos Bay",
+    "actual_da": 73.57588823428847,
+    "actual_category": 3,
+    "predicted_da": 56.5571650954073,
+    "predicted_category": null,
+    "anchor_date": "2022-12-05"
+  },
+  {
+    "date": "2022-12-26",
+    "site": "Cannon Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 0.0,
+    "predicted_category": null,
+    "anchor_date": "2022-12-19"
+  },
+  {
+    "date": "2023-01-23",
+    "site": "Coos Bay",
+    "actual_da": 120.0,
+    "actual_category": 3,
+    "predicted_da": 18.617610085876198,
+    "predicted_category": null,
+    "anchor_date": "2023-01-16"
+  },
+  {
+    "date": "2023-04-24",
+    "site": "Cannon Beach",
+    "actual_da": 0.0,
+    "actual_category": 0,
+    "predicted_da": 0.20688873683395945,
+    "predicted_category": null,
+    "anchor_date": "2023-04-17"
+  },
+  {
+    "date": "2023-06-05",
+    "site": "Quinault",
+    "actual_da": 9.0060382838578,
+    "actual_category": 1,
+    "predicted_da": 8.138458183354622,
+    "predicted_category": null,
+    "anchor_date": "2023-05-29"
+  },
+  {
+    "date": "2023-11-13",
+    "site": "Clatsop Beach",
+    "actual_da": 6.3,
+    "actual_category": 1,
+    "predicted_da": 35.77961036941984,
+    "predicted_category": null,
+    "anchor_date": "2023-11-06"
+  },
+  {
+    "date": "2023-11-13",
+    "site": "Quinault",
+    "actual_da": 4.0219202762138355,
+    "actual_category": 0,
+    "predicted_da": 10.419099446927031,
+    "predicted_category": null,
+    "anchor_date": "2023-11-06"
+  }
+]

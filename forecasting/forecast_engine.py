@@ -3,6 +3,7 @@ Leak-Free Forecasting Engine
 Core forecasting with complete temporal integrity protection
 """
 
+import os
 import pandas as pd
 import numpy as np
 import warnings
@@ -137,7 +138,8 @@ class ForecastEngine:
         
         logger.info(f"Generated {len(anchor_infos)} leak-free anchor points")
         
-        results = Parallel(n_jobs=-1, verbose=1)(
+        n_jobs = int(os.getenv("DATECT_RETRO_N_JOBS", getattr(config, "RETROSPECTIVE_N_JOBS", -1)))
+        results = Parallel(n_jobs=n_jobs, verbose=1)(
             delayed(self._forecast_single_anchor_leak_free)(ai, self.data, min_target_date, task, model_type, model_params_override) 
             for ai in tqdm(anchor_infos, desc="Processing Leak-Free Anchors")
         )
@@ -188,6 +190,23 @@ class ForecastEngine:
         site_data_with_lags = self.data_processor.create_lag_features_safe(
             site_data, "site", "da", config.LAG_FEATURES, anchor_date
         )
+
+        if config.PN_LAG_FEATURES:
+            if "pn" in site_data_with_lags.columns:
+                site_data_with_lags = self.data_processor.create_lag_features_safe(
+                    site_data_with_lags, "site", "pn", config.PN_LAG_FEATURES, anchor_date
+                )
+
+        if config.ENVIRONMENTAL_LAG_FEATURES:
+            for feature_name, lags in config.ENVIRONMENTAL_LAG_FEATURES.items():
+                if feature_name in site_data_with_lags.columns and lags:
+                    site_data_with_lags = self.data_processor.create_lag_features_safe(
+                        site_data_with_lags, "site", feature_name, lags, anchor_date
+                    )
+
+        if "pn" in site_data_with_lags.columns and "da_lag_1" in site_data_with_lags.columns:
+            denom = site_data_with_lags["da_lag_1"].replace(0, np.nan)
+            site_data_with_lags["pn_da_lag_ratio"] = site_data_with_lags["pn"] / denom
         
         train_df = site_data_with_lags[site_data_with_lags["date"] <= anchor_date].copy()
         test_df = site_data_with_lags[site_data_with_lags["date"] == test_date].copy()
@@ -235,11 +254,21 @@ class ForecastEngine:
         if task == "regression" or task == "both":
             reg_model = self.model_factory.get_model("regression", model_type, params_override=model_params_override)
             
-            y_train = train_df["da"]
+            y_train_raw = train_df["da"]
+            y_train = np.log1p(y_train_raw) if config.USE_LOG_TARGET_TRANSFORM else y_train_raw
             
-            reg_model.fit(X_train_processed, y_train)
+            if config.USE_REGRESSION_SAMPLE_WEIGHTS:
+                sample_weights = self.model_factory.compute_spike_focused_weights(y_train_raw)
+                try:
+                    reg_model.fit(X_train_processed, y_train, sample_weight=sample_weights)
+                except TypeError:
+                    reg_model.fit(X_train_processed, y_train)
+            else:
+                reg_model.fit(X_train_processed, y_train)
             
             pred_da = reg_model.predict(X_test_processed)[0]
+            if config.USE_LOG_TARGET_TRANSFORM:
+                pred_da = np.expm1(pred_da)
             pred_da = max(0.0, float(pred_da))
             result['predicted_da'] = pred_da
         
@@ -295,6 +324,8 @@ class ForecastEngine:
             n_bootstrap = config.N_BOOTSTRAP_ITERATIONS
             
         predictions = []
+        y_train_raw = y_train
+        y_train_model = np.log1p(y_train_raw) if config.USE_LOG_TARGET_TRANSFORM else y_train_raw
         
         # Generate bootstrap predictions with subsampling for efficiency
         for _ in range(n_bootstrap):
@@ -306,10 +337,13 @@ class ForecastEngine:
             # Handle both DataFrame and numpy array cases
             if hasattr(X_train_processed, 'iloc'):
                 X_bootstrap = X_train_processed.iloc[bootstrap_indices]
-                y_bootstrap = y_train.iloc[bootstrap_indices]
+                y_bootstrap = y_train_model.iloc[bootstrap_indices]
             else:
                 X_bootstrap = X_train_processed[bootstrap_indices]
-                y_bootstrap = y_train[bootstrap_indices] if hasattr(y_train, '__getitem__') else y_train.iloc[bootstrap_indices]
+                if hasattr(y_train_model, '__getitem__'):
+                    y_bootstrap = y_train_model[bootstrap_indices]
+                else:
+                    y_bootstrap = y_train_model.iloc[bootstrap_indices]
             
             # Train model on bootstrap sample
             bootstrap_model = self.model_factory.get_model("regression", model_type)
@@ -317,7 +351,13 @@ class ForecastEngine:
             # Apply consistent sample weighting strategy to bootstrap
             if config.USE_REGRESSION_SAMPLE_WEIGHTS:
                 # Use sample weights in bootstrap for consistency with main model
-                bootstrap_weights = self.model_factory.compute_spike_focused_weights(y_bootstrap)
+                if hasattr(y_train_raw, 'iloc'):
+                    raw_bootstrap = y_train_raw.iloc[bootstrap_indices]
+                elif hasattr(y_train_raw, '__getitem__'):
+                    raw_bootstrap = y_train_raw[bootstrap_indices]
+                else:
+                    raw_bootstrap = y_train_raw.iloc[bootstrap_indices]
+                bootstrap_weights = self.model_factory.compute_spike_focused_weights(raw_bootstrap)
                 try:
                     bootstrap_model.fit(X_bootstrap, y_bootstrap, sample_weight=bootstrap_weights)
                 except TypeError:
@@ -328,6 +368,8 @@ class ForecastEngine:
             
             # Make prediction
             pred = bootstrap_model.predict(X_forecast)[0]
+            if config.USE_LOG_TARGET_TRANSFORM:
+                pred = np.expm1(pred)
             pred = max(0.0, float(pred))
             predictions.append(pred)
         
@@ -382,6 +424,23 @@ class ForecastEngine:
         df_site_with_lags = self.data_processor.create_lag_features_safe(
             df_site, "site", "da", config.LAG_FEATURES, anchor_date
         )
+
+        if config.PN_LAG_FEATURES:
+            if "pn" in df_site_with_lags.columns:
+                df_site_with_lags = self.data_processor.create_lag_features_safe(
+                    df_site_with_lags, "site", "pn", config.PN_LAG_FEATURES, anchor_date
+                )
+
+        if config.ENVIRONMENTAL_LAG_FEATURES:
+            for feature_name, lags in config.ENVIRONMENTAL_LAG_FEATURES.items():
+                if feature_name in df_site_with_lags.columns and lags:
+                    df_site_with_lags = self.data_processor.create_lag_features_safe(
+                        df_site_with_lags, "site", feature_name, lags, anchor_date
+                    )
+
+        if "pn" in df_site_with_lags.columns and "da_lag_1" in df_site_with_lags.columns:
+            denom = df_site_with_lags["da_lag_1"].replace(0, np.nan)
+            df_site_with_lags["pn_da_lag_ratio"] = df_site_with_lags["pn"] / denom
         
         df_train = df_site_with_lags[df_site_with_lags['date'] <= anchor_date].copy()
         df_train_clean = df_train.dropna(subset=['da']).copy()
@@ -426,11 +485,12 @@ class ForecastEngine:
                 logger.debug("Training new regression model")
                 model = self.model_factory.get_model("regression", model_type)
             
-            y_train = df_train_clean["da"]
+            y_train_raw = df_train_clean["da"]
+            y_train = np.log1p(y_train_raw) if config.USE_LOG_TARGET_TRANSFORM else y_train_raw
             
             if model_cache_key not in self._model_cache:
                 if config.USE_REGRESSION_SAMPLE_WEIGHTS:
-                    sample_weights = self.model_factory.compute_spike_focused_weights(y_train)
+                    sample_weights = self.model_factory.compute_spike_focused_weights(y_train_raw)
                     try:
                         model.fit(X_train_processed, y_train, sample_weight=sample_weights)
                     except TypeError:
@@ -440,6 +500,8 @@ class ForecastEngine:
                 self._model_cache[model_cache_key] = model
             
             prediction = model.predict(X_forecast)[0]
+            if config.USE_LOG_TARGET_TRANSFORM:
+                prediction = np.expm1(prediction)
             prediction = max(0.0, float(prediction))
             result['predicted_da'] = prediction
             result['feature_importance'] = self.data_processor.get_feature_importance(model, X_train_processed.columns)
@@ -447,7 +509,7 @@ class ForecastEngine:
             # Generate bootstrap confidence intervals for regression tasks
             if len(df_train_clean) >= 5:
                 bootstrap_quantiles = self.generate_bootstrap_confidence_intervals(
-                    X_train_processed, y_train, X_forecast, model_type
+                    X_train_processed, y_train_raw, X_forecast, model_type
                 )
                 result['bootstrap_quantiles'] = bootstrap_quantiles
                 logger.debug(f"Bootstrap confidence intervals: q05={bootstrap_quantiles['q05']:.3f}, q50={bootstrap_quantiles['q50']:.3f}, q95={bootstrap_quantiles['q95']:.3f}")

@@ -41,6 +41,11 @@ class DataProcessor:
         self._duckdb_conn = None
         self._duckdb_enabled = duckdb is not None
         logger.info(f"DA category configuration loaded: {len(self.da_category_bins)-1} categories")
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["_duckdb_conn"] = None
+        return state
         
     def validate_data_integrity(self, df, required_columns=None):
         """
@@ -149,6 +154,11 @@ class DataProcessor:
             data = self.add_rolling_statistics_safe(data)
         else:
             logger.debug("Rolling statistics features disabled by config")
+
+        data = self.add_interaction_features(data)
+
+        if config.USE_SITE_ENCODING:
+            data = self.add_site_encoding(data)
         
         sites_count = data['site'].nunique()
         logger.info(f"Data preparation completed: {len(data)} records across {sites_count} sites")
@@ -201,7 +211,19 @@ class DataProcessor:
         
         # Key environmental features to compute rolling stats for
         # Note: Each time step in final_output.parquet represents 1 week
-        target_features = ['sst', 'chla', 'par', 'k490', 'fluorescence', 'pdo', 'oni', 'beuti', 'streamflow']
+        target_features = [
+            'modis-sst',
+            'modis-chla',
+            'modis-par',
+            'modis-k490',
+            'modis-flr',
+            'pdo',
+            'oni',
+            'beuti',
+            'discharge',
+            'sst-anom',
+            'chla-anom'
+        ]
         windows = [2, 4, 8]  # 2-week, 4-week (monthly), 8-week (bi-monthly) patterns
         
         created_features = 0
@@ -232,6 +254,35 @@ class DataProcessor:
                     
         logger.info(f"Created {created_features} rolling statistics features")
         return df
+
+    def add_interaction_features(self, df):
+        """
+        Add interaction features derived from same-timestep environmental predictors.
+        """
+        df = df.copy()
+
+        if "modis-chla" in df.columns and "modis-sst" in df.columns:
+            df["chla_x_sst"] = df["modis-chla"] * df["modis-sst"]
+
+        if "beuti" in df.columns and "modis-chla" in df.columns:
+            df["beuti_x_chla"] = df["beuti"] * df["modis-chla"]
+
+        if "modis-par" in df.columns and "modis-k490" in df.columns:
+            denom = df["modis-k490"].replace(0, np.nan)
+            df["par_div_k490"] = df["modis-par"] / denom
+
+        return df
+
+    def add_site_encoding(self, df):
+        """
+        Add one-hot encoded site columns for site-specific effects.
+        """
+        if "site" not in df.columns:
+            return df
+
+        df = df.copy()
+        site_dummies = pd.get_dummies(df["site"], prefix="site", dtype=float)
+        return pd.concat([df, site_dummies], axis=1)
         
     def create_da_categories_safe(self, da_values):
         """

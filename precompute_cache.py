@@ -30,18 +30,31 @@ class DATectCacheGenerator:
         (self.cache_dir / "retrospective").mkdir(exist_ok=True)
         (self.cache_dir / "spectral").mkdir(exist_ok=True)
         (self.cache_dir / "visualizations").mkdir(exist_ok=True)
+
+        self._precompute_anchor_override = None
+        env_anchor_override = os.getenv("DATECT_PRECOMPUTE_ANCHORS")
+        if env_anchor_override:
+            try:
+                self._precompute_anchor_override = max(1, int(env_anchor_override))
+            except ValueError:
+                self._precompute_anchor_override = None
+
+    def _get_precompute_anchor_count(self):
+        if self._precompute_anchor_override is not None:
+            return self._precompute_anchor_override
+        return getattr(config, 'N_RANDOM_ANCHORS', 500)
         
     def precompute_retrospective_forecasts(self):
         """Pre-compute all retrospective forecast combinations."""
         print("Pre-computing retrospective forecasts...")
         
+        # Canonical four task/model pairs (main baseline): XGBoost vs linear/logistic baselines
         combinations = [
             ("regression", "xgboost"),
-            ("regression", "linear"),  
+            ("regression", "linear"),
             ("classification", "xgboost"),
-            ("classification", "logistic")
+            ("classification", "logistic"),
         ]
-        
         for task, model_type in combinations:
             print(f"  {task} + {model_type}...")
             
@@ -49,7 +62,7 @@ class DATectCacheGenerator:
                 from backend.api import get_forecast_engine, clean_float_for_json, _compute_summary
                 
                 engine = get_forecast_engine()
-                n_anchors = getattr(config, 'N_RANDOM_ANCHORS', 500)
+                n_anchors = self._get_precompute_anchor_count()
                 
                 results_df = engine.run_retrospective_evaluation(
                     task=task,
@@ -181,7 +194,7 @@ class DATectCacheGenerator:
             'generated_at': datetime.now().isoformat(),
             'cache_version': '2.0', 
             'config': {
-                'N_RANDOM_ANCHORS': getattr(config, 'N_RANDOM_ANCHORS', 500),
+                'N_RANDOM_ANCHORS': self._get_precompute_anchor_count(),
                 'RANDOM_SEED': config.RANDOM_SEED,
                 'FORECAST_HORIZON_DAYS': config.FORECAST_HORIZON_DAYS,
                 'MIN_TRAINING_SAMPLES': getattr(config, 'MIN_TRAINING_SAMPLES', 5)
@@ -206,7 +219,7 @@ class DATectCacheGenerator:
         print("Starting DATect cache pre-computation")
         print("=====================================")
         print(f"Configuration:")
-        print(f"  N_RANDOM_ANCHORS: {getattr(config, 'N_RANDOM_ANCHORS', 500)}")
+        print(f"  N_RANDOM_ANCHORS: {self._get_precompute_anchor_count()}")
         print(f"  RANDOM_SEED: {config.RANDOM_SEED}")
         print(f"  FORECAST_HORIZON_DAYS: {config.FORECAST_HORIZON_DAYS}")
         print("=====================================")

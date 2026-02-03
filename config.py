@@ -192,35 +192,35 @@ FORECAST_MODEL = "xgboost"
 FORECAST_HORIZON_WEEKS = 1
 FORECAST_HORIZON_DAYS = FORECAST_HORIZON_WEEKS * 7  # Derived days value for internal calculations
 
-# XGBoost Hyperparameters (configurable)
-# These override defaults in ModelFactory for reproducible tuning and easy experimentation.
-# Regression parameters
+# XGBoost Hyperparameters (best from hyperparam_search; R² ~0.50 at 500 anchors)
+# To re-tune: python3 -m forecasting.hyperparam_search --task regression --trials 100 --anchors 500
+# ModelFactory optionally loads cache/hyperparams/regression_xgboost_best.json when present
 XGB_REGRESSION_PARAMS = {
-    "n_estimators": 400,
+    "n_estimators": 1403,
     "max_depth": 6,
-    "learning_rate": 0.05,
-    "subsample": 0.85,
-    "colsample_bytree": 0.85,
-    "colsample_bylevel": 0.8,
-    "reg_alpha": 0.1,
-    "reg_lambda": 1.0,
-    "gamma": 0.1,
-    "min_child_weight": 3,
+    "learning_rate": 0.01830309688651229,
+    "subsample": 0.6499694717222572,
+    "colsample_bytree": 0.8018123960771946,
+    "colsample_bylevel": 0.8980752513315378,
+    "min_child_weight": 1,
+    "reg_alpha": 0.6300118445763987,
+    "reg_lambda": 2.6278277494048377,
+    "gamma": 0.06208519697643636,
     "tree_method": "hist",
 }
 
-# Classification parameters
+# Classification: mirror regression best params (eval_metric added)
 XGB_CLASSIFICATION_PARAMS = {
-    "n_estimators": 500,
-    "max_depth": 7,
-    "learning_rate": 0.03,
-    "subsample": 0.9,
-    "colsample_bytree": 0.9,
-    "colsample_bylevel": 0.8,
-    "reg_alpha": 0.1,
-    "reg_lambda": 2.0,
-    "gamma": 0.2,
-    "min_child_weight": 5,
+    "n_estimators": 1403,
+    "max_depth": 6,
+    "learning_rate": 0.01830309688651229,
+    "subsample": 0.6499694717222572,
+    "colsample_bytree": 0.8018123960771946,
+    "colsample_bylevel": 0.8980752513315378,
+    "min_child_weight": 1,
+    "reg_alpha": 0.6300118445763987,
+    "reg_lambda": 2.6278277494048377,
+    "gamma": 0.06208519697643636,
     "tree_method": "hist",
     "eval_metric": "logloss",
 }
@@ -234,18 +234,22 @@ RANDOM_SEED = 42
 
 # Retrospective evaluation anchor points (higher = more thorough)
 N_RANDOM_ANCHORS = 500
+RETROSPECTIVE_N_JOBS = -1
 
 # Bootstrap confidence intervals
 N_BOOTSTRAP_ITERATIONS = 20  # Number of bootstrap iterations for confidence intervals
 
-# Lag Feature Configuration
+# Lag Feature Configuration (main baseline: disabled)
 
-# Enable/disable lag features for time series modeling
 USE_LAG_FEATURES = False
+LAG_FEATURES = [] if not USE_LAG_FEATURES else [1, 2, 3, 52]
 
-# Time series lags optimized via ACF/PACF analysis
-# Lag 1: immediate dependency (60% sites), Lag 3: cyclical pattern (70% sites)
-LAG_FEATURES = [1, 2, 3, 52] if USE_LAG_FEATURES else []
+PN_LAG_FEATURES = [] if not USE_LAG_FEATURES else [1, 2, 3, 4]
+ENVIRONMENTAL_LAG_FEATURES = {} if not USE_LAG_FEATURES else {
+    "modis-chla": [1, 2, 3, 4],
+    "modis-sst": [1, 2, 3, 4],
+    "beuti": [1, 2, 3, 4],
+}
 
 # DA Category Configuration
 
@@ -271,9 +275,11 @@ CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 
 # Data Quality Configuration
 
-# Feature engineering toggles
-USE_ROLLING_FEATURES = False  # Enable/disable rolling statistics features
-USE_ENHANCED_TEMPORAL_FEATURES = True  # Enable/disable sin/cos temporal encoding and derived features
+# Feature engineering toggles (main baseline)
+USE_ROLLING_FEATURES = False
+USE_ENHANCED_TEMPORAL_FEATURES = True
+USE_SITE_ENCODING = False
+USE_LOG_TARGET_TRANSFORM = False
 
 # Polynomial trend analysis minimum periods
 MIN_TREND_PERIODS = 2  # Minimum data points required for trend calculation

@@ -4,7 +4,11 @@ Model Factory
 
 Creates and configures machine learning models for DA forecasting.
 Supports both regression and classification tasks with multiple algorithms.
+Optionally loads best XGBoost params from cache/hyperparams/ when present.
 """
+
+import json
+from pathlib import Path
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.utils.class_weight import compute_class_weight
@@ -18,6 +22,31 @@ import config
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Canonical cache paths (relative to repo root)
+_HYPERPARAM_CACHE_DIR = Path(__file__).resolve().parents[1] / "cache" / "hyperparams"
+_REGRESSION_BEST_JSON = _HYPERPARAM_CACHE_DIR / "regression_xgboost_best.json"
+_CLASSIFICATION_BEST_JSON = _HYPERPARAM_CACHE_DIR / "classification_xgboost_best.json"
+
+
+def _load_cached_xgb_params(task: str) -> dict | None:
+    """Load best_params from cache/hyperparams/ if present. Used when params_override is None."""
+    path = _REGRESSION_BEST_JSON if task == "regression" else _CLASSIFICATION_BEST_JSON
+    if not path.exists():
+        if task == "classification" and _REGRESSION_BEST_JSON.exists():
+            path = _REGRESSION_BEST_JSON
+        else:
+            return None
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        best = data.get("best_params")
+        if not best:
+            return None
+        return dict(best)
+    except Exception as e:
+        logger.debug("Could not load cached hyperparams from %s: %s", path, e)
+        return None
 
 
 class ModelFactory:
@@ -63,7 +92,11 @@ class ModelFactory:
             }
             cfg_params = getattr(config, 'XGB_REGRESSION_PARAMS', None)
             params = {**default_reg_params, **(cfg_params or {})}
-            if params_override:
+            if params_override is None:
+                cached = _load_cached_xgb_params("regression")
+                if cached:
+                    params.update(cached)
+            elif params_override:
                 params.update(params_override)
             # Ensure seed/n_jobs are enforced
             params['random_state'] = self.random_seed
@@ -74,8 +107,7 @@ class ModelFactory:
                 n_jobs=-1
             )
         else:
-            raise ValueError(f"Unknown regression model: {model_type}. "
-                           f"Supported: 'xgboost', 'linear')")
+            raise ValueError(f"Unknown regression model: {model_type}. Supported: 'xgboost', 'linear'")
             
     def _get_classification_model(self, model_type, params_override=None):
         if model_type == "xgboost" or model_type == "xgb":
@@ -99,7 +131,11 @@ class ModelFactory:
             }
             cfg_params = getattr(config, 'XGB_CLASSIFICATION_PARAMS', None)
             params = {**default_cls_params, **(cfg_params or {})}
-            if params_override:
+            if params_override is None:
+                cached = _load_cached_xgb_params("classification")
+                if cached:
+                    params.update(cached)
+            elif params_override:
                 params.update(params_override)
             params['random_state'] = self.random_seed
             params['n_jobs'] = -1
@@ -132,11 +168,10 @@ class ModelFactory:
     def get_model_description(self, model_type):
         descriptions = {
             "xgboost": "XGBoost",
-            "xgb": "XGBoost", 
+            "xgb": "XGBoost",
             "linear": "Linear Regression",
             "logistic": "Logistic Regression"
         }
-        
         return descriptions.get(model_type, f"Unknown model: {model_type}")
         
     def compute_sample_weights_for_classification(self, y_train):

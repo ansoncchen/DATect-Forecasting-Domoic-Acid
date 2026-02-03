@@ -19,7 +19,7 @@ from pathlib import Path
 warnings.filterwarnings('ignore')
 
 import config
-from backend.visualizations import generate_spectral_analysis
+from backend.visualizations import generate_spectral_analysis, generate_correlation_heatmap
 
 class DATectCacheGenerator:
     """Generates pre-computed cache for all expensive operations."""
@@ -154,22 +154,16 @@ class DATectCacheGenerator:
         data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
         
         for site in data['site'].unique():
-            site_data = data[data['site'] == site]
-            numeric_cols = site_data.select_dtypes(include=[np.number]).columns
-            numeric_cols = [col for col in numeric_cols if col not in ['date', 'lat', 'lon']]
-            
-            if len(numeric_cols) > 1:
-                corr_matrix = site_data[numeric_cols].corr()
+            print(f"  Generating correlation heatmap for {site}...")
+            try:
+                # Use generate_correlation_heatmap to get Plotly-ready format
+                plot_data = generate_correlation_heatmap(data, site=site)
                 cache_file = self.cache_dir / "visualizations" / f"{site}_correlation.json"
                 
-                corr_data = {
-                    'matrix': corr_matrix.to_dict(),
-                    'columns': corr_matrix.columns.tolist(),
-                    'site': site
-                }
-                
                 with open(cache_file, 'w') as f:
-                    json.dump(corr_data, f, default=str, indent=2)
+                    json.dump(plot_data, f, default=str, indent=2)
+            except Exception as e:
+                print(f"    Error generating heatmap for {site}: {e}")
         
         print("  Correlation matrices cached")
         

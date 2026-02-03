@@ -200,6 +200,10 @@ class CacheManager:
                 with open(cache_file, 'r') as f:
                     data = json.load(f)
                 
+                # Check if data is in old format (matrix/columns) and convert to Plotly format
+                if 'matrix' in data and 'columns' in data and 'data' not in data:
+                    data = self._convert_raw_correlation_to_plotly(data, site)
+                
                 # Populate Redis cache for next time
                 if self.use_redis:
                     self._redis_cache.set_correlation_heatmap(site, data)
@@ -211,6 +215,86 @@ class CacheManager:
 
         logger.warning(f"No cached correlation heatmap for site: {site}")
         return None
+
+    def _convert_raw_correlation_to_plotly(self, raw_data: Dict[str, Any], site: str) -> Dict[str, Any]:
+        """
+        Convert old raw correlation format to Plotly heatmap format.
+        
+        Args:
+            raw_data: Dict with 'matrix' and 'columns' keys
+            site: Site name for title
+            
+        Returns:
+            Plotly-ready dict with 'data' and 'layout' keys
+        """
+        import pandas as pd
+        
+        columns = raw_data['columns']
+        matrix_dict = raw_data['matrix']
+        
+        # Reconstruct correlation matrix from dict format
+        corr_matrix = pd.DataFrame(matrix_dict)[columns].reindex(columns)
+        
+        title = f'Correlation Heatmap - {site}'
+        
+        # Build annotations for heatmap values
+        annotations = []
+        for i in range(len(columns)):
+            for j in range(len(columns)):
+                value = corr_matrix.iloc[i, j]
+                color = "white" if abs(value) > 0.7 else "black"
+                annotations.append({
+                    "x": columns[j],
+                    "y": columns[i],
+                    "text": f"{value:.2f}",
+                    "font": {"color": color, "size": 10},
+                    "showarrow": False
+                })
+        
+        return {
+            "data": [{
+                "type": "heatmap",
+                "z": corr_matrix.values.tolist(),
+                "x": columns,
+                "y": columns,
+                "colorscale": [
+                    [0.0, "rgb(178, 24, 43)"],
+                    [0.25, "rgb(239, 138, 98)"],
+                    [0.5, "rgb(255, 255, 255)"],
+                    [0.75, "rgb(103, 169, 207)"],
+                    [1.0, "rgb(33, 102, 172)"]
+                ],
+                "zmid": 0,
+                "zmin": -1,
+                "zmax": 1,
+                "colorbar": {
+                    "title": "Correlation (r)",
+                    "titleside": "right",
+                    "tickmode": "linear",
+                    "tick0": -1,
+                    "dtick": 0.5
+                }
+            }],
+            "layout": {
+                "title": {
+                    "text": title,
+                    "font": {"size": 20}
+                },
+                "height": 600,
+                "width": 800,
+                "xaxis": {
+                    "side": "bottom",
+                    "tickangle": -45,
+                    "tickfont": {"size": 12}
+                },
+                "yaxis": {
+                    "side": "left",
+                    "tickfont": {"size": 12}
+                },
+                "annotations": annotations,
+                "margin": {"l": 150, "r": 150, "t": 100, "b": 150}
+            }
+        }
     
     def health_check(self) -> Dict[str, Any]:
         """Get cache health status."""

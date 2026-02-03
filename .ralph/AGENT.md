@@ -14,14 +14,14 @@ python3 -m pip install -r requirements.txt
 # Run full system (backend + frontend)
 python3 run_datect.py
 
-# Run model evaluation (~8 min)
+# Run model evaluation (~5 min)
 python3 precompute_cache.py
 ```
 
 ## Test Commands
 ```bash
-# Verify temporal integrity (REQUIRED after changes)
-python3 verify_temporal_integrity.py
+# Temporal integrity is automatically validated during precompute_cache.py
+# No separate test script needed
 ```
 
 ## Other Commands

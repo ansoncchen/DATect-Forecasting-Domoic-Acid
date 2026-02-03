@@ -1,12 +1,27 @@
 # DATect Fix Plan - Ralph Task List
 
 ## Current Metrics to Beat
-- XGBoost Regression: R² = 0.467, MAE = 5.48, F1 = 0.686 (3.1 min) → Target: **R² > 0.55**
-- XGBoost Classification: Accuracy = 81.8% (4.7 min) → Target: **> 85%**
+- **🎯 PRIMARY GOAL**: XGBoost Regression R² = 0.467 → **MINIMUM Target: R² = 0.6-0.7** (MAE = 5.48, F1 = 0.686)
+- Secondary Goal: XGBoost Classification Accuracy = 81.8% → Target: **> 85%**
+
+**⚠️ CRITICAL**: You MUST achieve **R² ≥ 0.60** minimum. The 0.6-0.7 range is the non-negotiable goal.
+
+**📊 MANDATORY TESTING**: Always run `python3 precompute_cache.py` with **N_RANDOM_ANCHORS=500** to compare against baseline.
+
+**FOCUS**: Prioritize R² regression improvements. Try any approach that might work!
 
 ---
 
 ## Phase 1: Model Performance Improvement (PRIORITY)
+
+**⚠️ IMPORTANT**: The tasks below are just IDEAS to get you started. You have COMPLETE freedom to:
+- ✅ Skip any/all of these tasks if they don't seem promising
+- ✅ Add your own tasks based on creative ideas
+- ✅ Try completely different approaches not listed here
+- ✅ Experiment with anything that might improve R² - no restrictions!
+- ✅ Work on tasks in any order (or ignore the order entirely)
+
+**Don't feel constrained by this list. It's guidance, not rules.**
 
 ### 1.1 Hyperparameter Optimization
 - [ ] Implement Bayesian optimization for XGBoost hyperparameters (use Optuna or scikit-optimize)
@@ -56,9 +71,11 @@ Date: YYYY-MM-DD
 Experiment: [brief description]
 Changes: [what was modified]
 Results:
-  - Regression R²: X.XXX (baseline: 0.467)
-  - Classification Accuracy: XX.X% (baseline: 81.8%)
+  - Regression R²: X.XXX (baseline: 0.467, delta: +/-X.XXX)
+  - Regression MAE: X.XX (baseline: 5.48)
+  - Classification Accuracy: XX.X% (baseline: 81.8%) [if measured]
 Conclusion: [keep/revert and why]
+Next idea: [what to try next]
 ```
 
 ### Experiments Conducted
@@ -68,16 +85,16 @@ Conclusion: [keep/revert and why]
 
 ## Notes & Learnings
 
-- Many features were disabled because they DECREASED performance - be cautious when re-enabling
+- Many features were disabled because they DECREASED performance - but feel free to re-test them with different configurations
 - Data is noisy and spikey - real-world HAB data with gaps that were filled
-- ~10,000 data points total after filling gaps
-- Always run `python3 verify_temporal_integrity.py` after changes
-- Evaluation takes ~8 min total (3.1 min regression + 4.7 min classification)
-- Use smaller N_RANDOM_ANCHORS (50-100) for quick sanity checks
+- 10,950 rows in final_output.parquet (verified actual dataset size)
+- Temporal integrity is built into DataProcessor - automatically validated during precompute_cache.py
+- Evaluation takes ~5 min total with N_RANDOM_ANCHORS=500 - fast enough for regular testing
+- **Focus on R² regression** - that's the primary metric to improve
+- Try anything that might work - you have full experimental freedom!
 
 ---
 
-## Hyak Cluster (NOW AVAILABLE)
-- **Access**: `ssh ac283@klone.hyak.uw.edu`
-- **Resources**: 44,184 CPU cores, 954 GPU cards
-- Can be used for large-scale hyperparameter tuning, ensemble training, etc.
+## Remote Compute (For Reference Only)
+A Hyak compute cluster is available for heavy workloads, but Ralph runs locally.
+Local evaluation is fast enough (~5 min) - no remote compute needed for model experiments.

@@ -1,5 +1,5 @@
 # .ralphrc - Ralph project configuration
-# Documentation: https://github.com/frankbria/ralph-claude-code
+# FIX: Use text output to force legacy stdin mode (avoids -p flag bug)
 
 # Project identification
 PROJECT_NAME="DATect-Forecasting-Domoic-Acid"
@@ -8,7 +8,10 @@ PROJECT_TYPE="python"
 # Loop settings
 MAX_CALLS_PER_HOUR=100
 CLAUDE_TIMEOUT_MINUTES=30
-CLAUDE_OUTPUT_FORMAT="json"
+
+# CRITICAL: Use "text" output to force legacy stdin piping mode
+# The -p flag with JSON mode causes hangs/memory issues
+CLAUDE_OUTPUT_FORMAT="text"
 
 # Tool permissions
 ALLOWED_TOOLS="Write,Read,Edit,Bash(git *),Bash(python3 *),Bash(python *),Bash(pip *),Bash(pip3 *),Bash(pytest *),Bash(ls *),Bash(cd *),Bash(cat *),Bash(head *),Bash(tail *)"
@@ -20,7 +23,7 @@ SESSION_EXPIRY_HOURS=24
 # Task sources
 TASK_SOURCES="local"
 
-# Circuit breaker thresholds (increased for ML experiments)
+# Circuit breaker thresholds
 CB_NO_PROGRESS_THRESHOLD=5
 CB_SAME_ERROR_THRESHOLD=7
 CB_OUTPUT_DECLINE_THRESHOLD=70

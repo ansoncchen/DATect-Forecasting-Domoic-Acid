@@ -6,7 +6,7 @@ Manages pre-computed results for Google Cloud deployment
 import os
 import json
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -104,6 +104,33 @@ class CacheManager:
                 logger.error(f"Failed to load cached spectral analysis: {e}")
                 
         logger.warning(f"No cached spectral analysis for site: {site_name}")
+        return None
+
+    def get_correlation_heatmap(self, site: Optional[str]) -> Optional[Dict[str, Any]]:
+        """
+        Get cached correlation heatmap results for a site.
+
+        Args:
+            site: Site name or None for all sites (not currently cached)
+
+        Returns:
+            Correlation heatmap JSON or None if not cached
+        """
+        if not self.enabled or site is None:
+            return None
+
+        cache_file = self.cache_dir / "visualizations" / f"{site}_correlation.json"
+
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r') as f:
+                    data = json.load(f)
+                logger.info(f"Served cached correlation heatmap: {site}")
+                return data
+            except Exception as e:
+                logger.error(f"Failed to load cached correlation heatmap: {e}")
+
+        logger.warning(f"No cached correlation heatmap for site: {site}")
         return None
 
 # Global cache manager instance

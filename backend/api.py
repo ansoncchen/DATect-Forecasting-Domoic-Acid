@@ -9,6 +9,7 @@ import os
 import re
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -74,6 +75,15 @@ app.add_middleware(
 # Lazy singletons for Cloud Run optimization
 forecast_engine = None
 model_factory = None
+
+@lru_cache(maxsize=1)
+def load_data_cached() -> pd.DataFrame:
+    """Load final output data once per process for reuse."""
+    return pd.read_parquet(config.FINAL_OUTPUT_PATH)
+
+def get_data_copy() -> pd.DataFrame:
+    """Return a safe copy of cached data for mutation."""
+    return load_data_cached().copy()
 
 def get_forecast_engine() -> ForecastEngine:
     global forecast_engine
@@ -156,7 +166,7 @@ async def get_sites():
     """Get available sites and date range from the dataset."""
     try:
         # Load data to get site information
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         data['date'] = pd.to_datetime(data['date'])
         
         sites = sorted(data['site'].unique().tolist())
@@ -200,7 +210,7 @@ async def generate_forecast(request: ForecastRequest):
         if request.task not in ["regression", "classification"]:
             raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
         
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         site_mapping = get_site_mapping(data)
         actual_site = resolve_site_name(request.site, site_mapping)
         
@@ -271,7 +281,7 @@ async def get_historical_data(
     """Get historical DA measurements for a site."""
     try:
         # Load data
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         data['date'] = pd.to_datetime(data['date'])
         
         site_mapping = get_site_mapping(data)
@@ -388,7 +398,7 @@ async def get_all_sites_historical(
 ):
     """Get historical data for all sites."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         
         # Apply date filters
         if start_date:
@@ -432,9 +442,9 @@ async def get_all_sites_historical(
 async def get_correlation_heatmap_all():
     """Generate correlation heatmap for all sites combined."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plot_data = generate_correlation_heatmap(data, site=None)
-        return {"success": True, "plot": plot_data}
+        return {"success": True, "plot": plot_data, "cached": False, "source": "computed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate correlation heatmap: {str(e)}")
 
@@ -442,13 +452,17 @@ async def get_correlation_heatmap_all():
 async def get_correlation_heatmap_single(site: str):
     """Generate correlation heatmap for a single site."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         
         site_mapping = get_site_mapping(data)
         actual_site = resolve_site_name(site, site_mapping)
-        
+
+        cached_plot = cache_manager.get_correlation_heatmap(actual_site)
+        if cached_plot is not None:
+            return {"success": True, "plot": cached_plot, "cached": True, "source": "precomputed"}
+
         plot_data = generate_correlation_heatmap(data, actual_site)
-        return {"success": True, "plot": plot_data}
+        return {"success": True, "plot": plot_data, "cached": False, "source": "computed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate correlation heatmap: {str(e)}")
 
@@ -456,7 +470,7 @@ async def get_correlation_heatmap_single(site: str):
 async def get_sensitivity_analysis_all():
     """Generate sensitivity analysis plots for all sites combined."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plots = generate_sensitivity_analysis(data, site=None)
         return {"success": True, "plots": plots}
     except Exception as e:
@@ -466,7 +480,7 @@ async def get_sensitivity_analysis_all():
 async def get_sensitivity_analysis_single(site: str):
     """Generate sensitivity analysis plots for a single site."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         
         site_mapping = get_site_mapping(data)
         actual_site = resolve_site_name(site, site_mapping)
@@ -481,7 +495,7 @@ async def get_sensitivity_analysis_single(site: str):
 async def get_time_series_comparison_all():
     """Generate time series comparison for all sites."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plot_data = generate_time_series_comparison(data, site=None)
         return {"success": True, "plot": plot_data}
     except Exception as e:
@@ -491,7 +505,7 @@ async def get_time_series_comparison_all():
 async def get_time_series_comparison_single(site: str):
     """Generate time series comparison for a single site."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         
         site_mapping = get_site_mapping(data)
         actual_site = resolve_site_name(site, site_mapping)
@@ -505,7 +519,7 @@ async def get_time_series_comparison_single(site: str):
 async def get_waterfall_plot():
     """Generate waterfall plot for all sites."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plot_data = generate_waterfall_plot(data)
         return {"success": True, "plot": plot_data}
     except Exception as e:
@@ -523,7 +537,7 @@ async def get_spectral_analysis_all():
 
         # Compute on server (expensive - only for local development)
         logging.warning("Computing spectral analysis on server - this is very expensive!")
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plots = generate_spectral_analysis(data, site=None)
         return {"success": True, "plots": plots, "cached": False, "source": "computed"}
     except Exception as e:
@@ -533,7 +547,7 @@ async def get_spectral_analysis_all():
 async def get_spectral_analysis_single(site: str):
     """Generate spectral analysis for a single site (uses pre-computed cache)."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         site_mapping = get_site_mapping(data)
         actual_site = resolve_site_name(site, site_mapping)
 
@@ -748,7 +762,7 @@ async def get_site_map():
 async def generate_enhanced_forecast(request: ForecastRequest):
     """Generate enhanced forecast with both regression and classification for frontend."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         site_mapping = get_site_mapping(data)
         actual_site = resolve_site_name(request.site, site_mapping)
         

@@ -22,11 +22,13 @@ matplotlib>=3.5.0
 # Data Processing and I/O
 xarray>=0.20.0        # NetCDF satellite data processing
 pyarrow>=8.0.0        # Parquet file format
+duckdb>=0.10.0        # Fast in-memory analytics and Parquet reads
 requests>=2.27.0      # HTTP data downloads
 netcdf4>=1.5.8        # NetCDF data handling
 
 # Scientific Analysis
 scipy>=1.8.0          # Spectral analysis and statistics
+numba>=0.58.0         # Optional JIT acceleration for interpolation
 tqdm>=4.62.0          # Progress bars for data processing
 SALib>=1.4.0          # Sensitivity analysis (Sobol indices)
 

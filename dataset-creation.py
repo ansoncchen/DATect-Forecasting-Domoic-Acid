@@ -24,6 +24,11 @@ from tqdm import tqdm
 import warnings
 import shutil
 import config
+from concurrent.futures import ThreadPoolExecutor, as_completed
+try:
+    from numba import jit
+except ImportError:  # Optional dependency for faster interpolation
+    jit = None
 
 from forecasting.logging_config import setup_logging, get_logger
 
@@ -43,6 +48,20 @@ FORCE_SATELLITE_REPROCESSING = False
 downloaded_files = []
 generated_parquet_files = []
 temporary_nc_files_for_stitching = []
+
+def _idw_interpolate(lats, values, target_lat, power):
+    distances = np.abs(lats - target_lat)
+    weights = 1.0 / (distances ** power + 1e-9)
+    weighted_sum = 0.0
+    weight_total = 0.0
+    for idx in range(values.shape[0]):
+        if not np.isnan(weights[idx]) and not np.isnan(values[idx]):
+            weighted_sum += values[idx] * weights[idx]
+            weight_total += weights[idx]
+    return weighted_sum / weight_total if weight_total > 0 else np.nan
+
+if jit is not None:
+    _idw_interpolate = jit(nopython=True)(_idw_interpolate)
 
 
 logger.info("Starting dataset creation pipeline")
@@ -130,7 +149,7 @@ def process_stitched_dataset(yearly_nc_files, data_type, site):
     logger.info(f"Processing stitched dataset for {data_type} at site {site}")
     logger.debug(f"Processing {len(yearly_nc_files)} yearly files: {yearly_nc_files[:3]}...")
     
-    ds = xr.open_mfdataset(yearly_nc_files, combine='nested', concat_dim='time', engine='netcdf4', decode_times=True, parallel=False)
+    ds = xr.open_mfdataset(yearly_nc_files, combine='nested', concat_dim='time', engine='netcdf4', decode_times=True, parallel=True)
     ds = ds.sortby('time')
     logger.debug(f"Dataset loaded: {ds.dims} dimensions, {len(ds.data_vars)} variables")
 
@@ -262,58 +281,70 @@ def generate_satellite_parquet(satellite_metadata_dict, main_sites_list, output_
 
             monthly_files_for_dataset = [] # Changed from yearly_files_for_dataset
 
-            # Inner progress bar: Use position=1, leave=False
-            for month_iterator_start_dt in tqdm(monthly_periods, desc=f"Download {site}-{data_type}", unit="month", position=1, leave=False):
+            def download_month_chunk(chunk_url, tmp_nc_path, year_month_str, site, data_type):
+                try:
+                    response = requests.get(chunk_url, timeout=5000, stream=True)
+                    response.raise_for_status()
+                    with open(tmp_nc_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+
+                    if os.path.getsize(tmp_nc_path) > 100:
+                        return tmp_nc_path
+
+                    print(f"\n          Warning: Downloaded file for month {year_month_str} ({site}-{data_type}) seems empty. Skipping.")
+                    if os.path.exists(tmp_nc_path):
+                        os.unlink(tmp_nc_path)
+                    return None
+                except requests.exceptions.RequestException as req_err:
+                    print(f"\n          ERROR downloading month {year_month_str} ({site}-{data_type}): {req_err}. Skipping month.")
+                    if os.path.exists(tmp_nc_path):
+                        os.unlink(tmp_nc_path)
+                    return None
+                except Exception as e:
+                    print(f"\n          ERROR processing download for month {year_month_str} ({site}-{data_type}): {e}. Skipping.")
+                    if os.path.exists(tmp_nc_path):
+                        os.unlink(tmp_nc_path)
+                    return None
+
+            download_jobs = []
+            for month_iterator_start_dt in monthly_periods:
                 # Define the start and end of the current month for iteration
                 current_month_loop_start_dt = month_iterator_start_dt
-                current_month_loop_end_dt = (month_iterator_start_dt + pd.offsets.MonthEnd(0)).replace(hour=23, minute=59, second=59, microsecond=999999) # End of the month
+                current_month_loop_end_dt = (month_iterator_start_dt + pd.offsets.MonthEnd(0)).replace(hour=23, minute=59, second=59, microsecond=999999)
 
                 # Clamp these loop dates with the actual overall start/end dates for the data request.
-                # This handles partial first and last months correctly.
                 effective_chunk_start_dt = max(current_overall_start_dt, current_month_loop_start_dt)
                 effective_chunk_end_dt = min(current_overall_end_dt, current_month_loop_end_dt)
 
                 if effective_chunk_start_dt > effective_chunk_end_dt:
-                    # This can happen if current_overall_start_dt is after current_month_loop_end_dt
-                    # or current_overall_end_dt is before current_month_loop_start_dt.
-                    # Essentially, the generated month is outside the effective range.
                     continue
 
                 month_start_str_url = effective_chunk_start_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
                 month_end_str_url = effective_chunk_end_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
                 # Replace placeholders in URL
-                # Using a more generic "chunk_url" as it's now monthly
                 chunk_url = url_template.replace("{start_date}", month_start_str_url)\
                                          .replace("{end_date}", month_end_str_url)
                 if "{anom_start_date}" in chunk_url:
-                    # Assuming anom_start_date in the template should also use the chunk's start date
                     chunk_url = chunk_url.replace("{anom_start_date}", month_start_str_url)
 
-                # Use year and month in the temporary file name for clarity
                 year_month_str = month_iterator_start_dt.strftime('%Y-%m')
                 fd, tmp_nc_path = tempfile.mkstemp(suffix=f'_{year_month_str}.nc', prefix=f"{site}_{data_type}_", dir=sat_temp_dir)
                 os.close(fd)
 
-                # Download Logic
-                try:
-                    response = requests.get(chunk_url, timeout = 5000, stream=True)
-                    response.raise_for_status()
-                    with open(tmp_nc_path, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            f.write(chunk)
+                download_jobs.append((chunk_url, tmp_nc_path, year_month_str))
 
-                    if os.path.getsize(tmp_nc_path) > 100: # Basic content check
-                        monthly_files_for_dataset.append(tmp_nc_path)
-                    else:
-                        print(f"\n          Warning: Downloaded file for month {year_month_str} ({site}-{data_type}) seems empty. Skipping.")
-                        if os.path.exists(tmp_nc_path): os.unlink(tmp_nc_path) # Ensure removal if empty
-                except requests.exceptions.RequestException as req_err:
-                    print(f"\n          ERROR downloading month {year_month_str} ({site}-{data_type}): {req_err}. Skipping month.")
-                    if os.path.exists(tmp_nc_path): os.unlink(tmp_nc_path)
-                except Exception as e:
-                    print(f"\n          ERROR processing download for month {year_month_str} ({site}-{data_type}): {e}. Skipping.")
-                    if os.path.exists(tmp_nc_path): os.unlink(tmp_nc_path)
+            max_workers = min(10, max(2, os.cpu_count() or 2))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(download_month_chunk, chunk_url, tmp_nc_path, year_month_str, site, data_type)
+                    for chunk_url, tmp_nc_path, year_month_str in download_jobs
+                ]
+                for future in tqdm(as_completed(futures), total=len(futures), desc=f"Download {site}-{data_type}", unit="month", position=1, leave=False):
+                    result_path = future.result()
+                    if result_path:
+                        monthly_files_for_dataset.append(result_path)
             # --- End of Monthly Download Loop (Inner progress bar finishes here) ---
 
             # Process the collected monthly files
@@ -489,27 +520,84 @@ def add_satellite_data(target_df, satellite_parquet_path):
     target_df_proc['timestamp_dt'] = pd.to_datetime(target_df_proc['Date'])
     satellite_df['timestamp'] = pd.to_datetime(satellite_df['timestamp'])
 
+    def normalize_site(value):
+        return str(value).lower().replace('_', ' ').replace('-', ' ').strip()
+
+    target_df_proc['site_key'] = target_df_proc['Site'].apply(normalize_site)
+    satellite_df['site_key'] = satellite_df['site'].apply(normalize_site)
+
     # Drop rows with missing keys essential for matching
-    target_df_proc = target_df_proc.dropna(subset=['timestamp_dt', 'Site'])
-    satellite_df = satellite_df.dropna(subset=['timestamp', 'site'])
+    target_df_proc = target_df_proc.dropna(subset=['timestamp_dt', 'Site', 'site_key'])
+    satellite_df = satellite_df.dropna(subset=['timestamp', 'site_key'])
 
-    # Index satellite data for efficient lookup
-    satellite_pivot_indexed = satellite_df.set_index(['site', 'timestamp']).sort_index()
+    if satellite_df.empty:
+        return target_df_proc.drop(columns=['timestamp_dt', 'site_key'], errors='ignore')
 
-    # Apply matching function
-    print(f"Applying satellite matching function...")
-    tqdm.pandas(desc="Satellite Matching")
-    matched_data = target_df_proc.progress_apply(
-        find_best_satellite_match, axis=1, sat_pivot_indexed=satellite_pivot_indexed
-    )
+    data_cols = [c for c in satellite_df.columns if c not in ['site', 'timestamp', 'site_key']]
+    anomaly_cols = [c for c in data_cols if 'anom' in c.lower()]
+    regular_cols = [c for c in data_cols if c not in anomaly_cols]
+
+    matched_regular = pd.DataFrame(index=target_df_proc.index)
+    if regular_cols:
+        target_regular = target_df_proc[['timestamp_dt', 'site_key']].copy()
+        target_regular['row_id'] = target_df_proc.index
+        target_regular['cutoff_ts'] = target_regular['timestamp_dt'] - pd.Timedelta(days=7)
+        target_regular = target_regular.sort_values(['site_key', 'cutoff_ts'])
+
+        satellite_regular = satellite_df[['timestamp', 'site_key'] + regular_cols].copy()
+        satellite_regular = satellite_regular.sort_values(['site_key', 'timestamp'])
+
+        regular_match = pd.merge_asof(
+            target_regular,
+            satellite_regular,
+            left_on='cutoff_ts',
+            right_on='timestamp',
+            by='site_key',
+            direction='backward',
+            allow_exact_matches=True
+        )
+        matched_regular = (
+            regular_match.set_index('row_id')[regular_cols]
+            .reindex(target_df_proc.index)
+        )
+
+    matched_anomaly = pd.DataFrame(index=target_df_proc.index)
+    if anomaly_cols:
+        satellite_anom = satellite_df[['timestamp', 'site_key'] + anomaly_cols].copy()
+        satellite_anom['month'] = satellite_anom['timestamp'].dt.to_period('M')
+        satellite_anom = satellite_anom.dropna(subset=['month'])
+        satellite_monthly = (
+            satellite_anom.groupby(['site_key', 'month'], as_index=False)[anomaly_cols]
+            .last()
+        )
+
+        target_anom = target_df_proc[['site_key', 'timestamp_dt']].copy()
+        target_anom['row_id'] = target_df_proc.index
+        target_anom['safe_month'] = target_anom['timestamp_dt'].dt.to_period('M') - 2
+        target_anom['fallback_month'] = target_anom['timestamp_dt'].dt.to_period('M') - 1
+
+        safe_match = target_anom.merge(
+            satellite_monthly,
+            left_on=['site_key', 'safe_month'],
+            right_on=['site_key', 'month'],
+            how='left'
+        )
+        fallback_match = target_anom.merge(
+            satellite_monthly,
+            left_on=['site_key', 'fallback_month'],
+            right_on=['site_key', 'month'],
+            how='left'
+        )
+
+        matched_anomaly = safe_match.set_index('row_id')[anomaly_cols]
+        fallback_values = fallback_match.set_index('row_id')[anomaly_cols]
+        matched_anomaly = matched_anomaly.combine_first(fallback_values).reindex(target_df_proc.index)
 
     # Join results
-    target_df_proc.reset_index(drop=True, inplace=True)
-    matched_data.reset_index(drop=True, inplace=True)
-    result_df = target_df_proc.join(matched_data)
+    result_df = pd.concat([target_df_proc, matched_regular, matched_anomaly], axis=1)
 
-    # Clean up by dropping the temporary timestamp column
-    result_df = result_df.drop(columns=['timestamp_dt'], errors='ignore')
+    # Clean up by dropping the temporary columns
+    result_df = result_df.drop(columns=['timestamp_dt', 'site_key'], errors='ignore')
     return result_df
 
 # --- Environmental Data Processing ---
@@ -630,17 +718,8 @@ def fetch_beuti_data(url, sites_dict, temp_dir, power=2):
             if exact_match_indices.size > 0:
                 interpolated_beuti = np.mean(beuti_vals[exact_match_indices])
             else:
-                # Inverse distance weighting
-                distances = np.abs(lats - site_lat)
-                weights = 1.0 / (distances ** power + 1e-9)
-                
-                valid_indices = ~np.isnan(weights) & ~np.isnan(beuti_vals)
-                if np.any(valid_indices):
-                    valid_weights = weights[valid_indices]
-                    valid_beuti = beuti_vals[valid_indices]
-                    interpolated_beuti = np.sum(valid_beuti * valid_weights) / np.sum(valid_weights)
-                else:
-                    interpolated_beuti = np.nan
+                # Inverse distance weighting (Numba-accelerated if available)
+                interpolated_beuti = _idw_interpolate(lats, beuti_vals, site_lat, power)
                     
             if pd.notna(interpolated_beuti):
                 site_results.append({'Date': date, 'Site': site, 'beuti': interpolated_beuti})

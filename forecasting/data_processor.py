@@ -8,6 +8,10 @@ All operations maintain strict temporal integrity to prevent data leakage.
 
 import pandas as pd
 import numpy as np
+try:
+    import duckdb
+except ImportError:  # Optional dependency for faster parquet reads
+    duckdb = None
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -34,6 +38,8 @@ class DataProcessor:
         logger.info("Initializing DataProcessor")
         self.da_category_bins = config.DA_CATEGORY_BINS
         self.da_category_labels = config.DA_CATEGORY_LABELS
+        self._duckdb_conn = None
+        self._duckdb_enabled = duckdb is not None
         logger.info(f"DA category configuration loaded: {len(self.da_category_bins)-1} categories")
         
     def validate_data_integrity(self, df, required_columns=None):
@@ -95,8 +101,16 @@ class DataProcessor:
         Load base data WITHOUT any target-based preprocessing.
         """
         logger.info(f"Loading base data from {file_path}")
-        
-        data = pd.read_parquet(file_path, engine="pyarrow")
+
+        if self._duckdb_enabled:
+            if self._duckdb_conn is None:
+                self._duckdb_conn = duckdb.connect(database=":memory:")
+            data = self._duckdb_conn.execute(
+                "SELECT * FROM read_parquet(?)",
+                [file_path]
+            ).fetchdf()
+        else:
+            data = pd.read_parquet(file_path, engine="pyarrow")
         logger.info(f"Raw data loaded: {len(data)} records, {len(data.columns)} columns")
         
         data["date"] = pd.to_datetime(data["date"])

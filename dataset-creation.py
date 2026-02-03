@@ -23,7 +23,6 @@ from datetime import datetime
 from tqdm import tqdm
 import warnings
 import shutil
-import asyncio
 import config
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -41,16 +40,6 @@ try:
 except ImportError:
     jit = None
     NUMBA_AVAILABLE = False
-
-try:
-    import httpx
-    HTTPX_AVAILABLE = True
-except ImportError:
-    httpx = None
-    HTTPX_AVAILABLE = False
-
-# Use async downloads if httpx is available (2-5x faster for multiple files)
-USE_ASYNC_DOWNLOADS = os.environ.get('DATECT_ASYNC_DOWNLOADS', '1').lower() in ('1', 'true', 'yes') and HTTPX_AVAILABLE
 
 from forecasting.logging_config import setup_logging, get_logger
 
@@ -86,6 +75,11 @@ if jit is not None:
     _idw_interpolate = jit(nopython=True)(_idw_interpolate)
 
 
+def normalize_site_name(value: str) -> str:
+    """Normalize site name for consistent matching across data sources."""
+    return str(value).lower().replace('_', ' ').replace('-', ' ').strip()
+
+
 logger.info("Starting dataset creation pipeline")
 logger.info("Loading configuration from config.py")
 print(f"--- Loading Configuration from config.py ---")
@@ -99,7 +93,7 @@ streamflow_url = config.STREAMFLOW_URL
 start_date = pd.to_datetime(config.START_DATE)
 end_date = pd.to_datetime(config.END_DATE)
 final_output_path = config.FINAL_OUTPUT_PATH
-SATELLITE_OUTPUT_PARQUET = './data/intermediate/satellite_data_intermediate.parquet'
+SATELLITE_OUTPUT_PARQUET = config.SATELLITE_CACHE_PATH  # Use centralized config
 
 logger.info(f"Configuration loaded: {len(da_files)} DA files, {len(pn_files)} PN files, {len(sites)} sites")
 logger.info(f"Date range: {start_date.date()} to {end_date.date()}, Output: {final_output_path}")
@@ -142,78 +136,6 @@ def download_file(url, filename):
     
     downloaded_files.append(filename)
     return filename
-
-
-async def download_file_async(url: str, filename: str, client: "httpx.AsyncClient") -> str:
-    """
-    Async file download using httpx (2-5x faster for concurrent downloads).
-    
-    Args:
-        url: URL to download
-        filename: Local path to save file
-        client: Shared httpx AsyncClient for connection pooling
-    
-    Returns:
-        filename if successful
-    """
-    try:
-        logger.debug(f"Async downloading: {url}")
-        
-        async with client.stream('GET', url, timeout=300.0) as response:
-            response.raise_for_status()
-            
-            with open(filename, 'wb') as f:
-                async for chunk in response.aiter_bytes(chunk_size=65536):
-                    f.write(chunk)
-        
-        downloaded_files.append(filename)
-        return filename
-        
-    except Exception as e:
-        logger.error(f"Async download failed for {url}: {e}")
-        raise
-
-
-async def download_files_batch_async(urls_and_filenames: list) -> list:
-    """
-    Download multiple files concurrently using httpx with HTTP/2.
-    
-    This is 2-5x faster than sequential downloads for satellite data.
-    
-    Args:
-        urls_and_filenames: List of (url, filename) tuples
-    
-    Returns:
-        List of successfully downloaded filenames
-    """
-    if not HTTPX_AVAILABLE:
-        logger.warning("httpx not available, falling back to sequential downloads")
-        results = []
-        for url, filename in urls_and_filenames:
-            try:
-                results.append(download_file(url, filename))
-            except Exception:
-                pass
-        return results
-    
-    logger.info(f"Starting async batch download of {len(urls_and_filenames)} files")
-    
-    # Use HTTP/2 for better multiplexing
-    async with httpx.AsyncClient(http2=True, limits=httpx.Limits(max_connections=20)) as client:
-        tasks = [
-            download_file_async(url, filename, client)
-            for url, filename in urls_and_filenames
-        ]
-        
-        results = []
-        for coro in asyncio.as_completed(tasks):
-            try:
-                result = await coro
-                results.append(result)
-            except Exception as e:
-                logger.warning(f"Download failed: {e}")
-        
-        return results
 
 
 def local_filename(url, ext, temp_dir=None):
@@ -345,8 +267,8 @@ def generate_satellite_parquet(satellite_metadata_dict, main_sites_list, output_
         if data_type in ["satellite_end_date", "satellite_start_date", "satellite_anom_start_date"] or not isinstance(sat_sites_dict, dict):
             continue
         for site, url_template in sat_sites_dict.items():
-            normalized_site_name = site.lower().replace("_", " ").replace("-", " ")
-            relevant_main_site = next((s for s in main_sites_list if s.lower().replace("_", " ").replace("-", " ") == normalized_site_name), None)
+            normalized_site_name = normalize_site_name(site)
+            relevant_main_site = next((s for s in main_sites_list if normalize_site_name(s) == normalized_site_name), None)
             if relevant_main_site and isinstance(url_template, str) and url_template.strip():
                 if (relevant_main_site, data_type) not in processed_site_datatype_pairs:
                      tasks.append({
@@ -538,12 +460,12 @@ def find_best_satellite_match(target_row, sat_pivot_indexed):
     if pd.isna(target_ts):
         return result_series
 
-    target_site_normalized = str(target_site).lower().replace('_', ' ').replace('-', ' ')
+    target_site_normalized = normalize_site_name(target_site)
 
     unique_original_index_sites = sat_pivot_indexed.index.get_level_values('site').unique()
     original_index_site = None
     for s_val in unique_original_index_sites:
-        if str(s_val).lower().replace('_', ' ').replace('-', ' ') == target_site_normalized:
+        if normalize_site_name(s_val) == target_site_normalized:
             original_index_site = s_val
             break
 
@@ -623,11 +545,8 @@ def add_satellite_data(target_df, satellite_parquet_path):
     target_df_proc['timestamp_dt'] = pd.to_datetime(target_df_proc['Date'])
     satellite_df['timestamp'] = pd.to_datetime(satellite_df['timestamp'])
 
-    def normalize_site(value):
-        return str(value).lower().replace('_', ' ').replace('-', ' ').strip()
-
-    target_df_proc['site_key'] = target_df_proc['Site'].apply(normalize_site)
-    satellite_df['site_key'] = satellite_df['site'].apply(normalize_site)
+    target_df_proc['site_key'] = target_df_proc['Site'].apply(normalize_site_name)
+    satellite_df['site_key'] = satellite_df['site'].apply(normalize_site_name)
 
     # Drop rows with missing keys essential for matching
     target_df_proc = target_df_proc.dropna(subset=['timestamp_dt', 'Site', 'site_key'])
@@ -1066,12 +985,11 @@ def compile_da_pn(lt_df, da_df, pn_df):
     print("  Applying biological decay interpolation (prevents temporal leakage in retrospective tests)...")
     lt_df_merged = lt_df_merged.sort_values(by=['Site', 'Date'])
     
-    # Decay parameters based on raw data analysis and biological principles
-    da_max_gap_weeks = 2  # Conservative - DA data shows frequent zeros
-    da_decay_rate = 0.2   # Per week (half-life ~3.5 weeks)
-    
-    pn_max_gap_weeks = 4  # More aggressive - PN data is sparser 
-    pn_decay_rate = 0.3   # Per week (half-life ~2.3 weeks)
+    # Use decay parameters from config
+    da_max_gap_weeks = config.DA_MAX_GAP_WEEKS
+    da_decay_rate = config.DA_DECAY_RATE
+    pn_max_gap_weeks = config.PN_MAX_GAP_WEEKS
+    pn_decay_rate = config.PN_DECAY_RATE
     
     print(f"  DA parameters: max_gap={da_max_gap_weeks} weeks, decay_rate={da_decay_rate}/week")
     print(f"  PN parameters: max_gap={pn_max_gap_weeks} weeks, decay_rate={pn_decay_rate}/week")

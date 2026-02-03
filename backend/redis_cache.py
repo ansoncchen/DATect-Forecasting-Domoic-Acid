@@ -215,16 +215,6 @@ class RedisCacheManager:
         key = f"correlation:{site}"
         return self.set(key, data)
     
-    def get_forecast(self, site: str, date: str, task: str) -> Optional[dict]:
-        """Get cached single forecast."""
-        key = f"forecast:{site}:{date}:{task}"
-        return self.get(key)
-    
-    def set_forecast(self, site: str, date: str, task: str, result: dict, ttl_hours: int = 1) -> bool:
-        """Cache single forecast with shorter TTL."""
-        key = f"forecast:{site}:{date}:{task}"
-        return self.set(key, result, ttl=timedelta(hours=ttl_hours))
-    
     def health_check(self) -> Dict[str, Any]:
         """Get cache health status."""
         if not self.is_available:
@@ -263,37 +253,3 @@ def get_redis_cache() -> RedisCacheManager:
     if _redis_cache is None:
         _redis_cache = RedisCacheManager()
     return _redis_cache
-
-
-# Convenience decorators for caching
-def cache_result(key_func, ttl: Optional[timedelta] = None):
-    """
-    Decorator to cache function results in Redis.
-    
-    Args:
-        key_func: Function to generate cache key from args
-        ttl: Time to live for cached result
-    
-    Example:
-        @cache_result(lambda site, date: f"forecast:{site}:{date}")
-        def get_forecast(site, date):
-            # expensive computation
-            return result
-    """
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            cache = get_redis_cache()
-            key = key_func(*args, **kwargs)
-            
-            # Try cache first
-            cached = cache.get(key)
-            if cached is not None:
-                return cached
-            
-            # Compute and cache
-            result = func(*args, **kwargs)
-            cache.set(key, result, ttl=ttl)
-            return result
-        
-        return wrapper
-    return decorator

@@ -97,6 +97,12 @@ const Historical = () => {
 
   const siteOptions = sites.map(site => ({ value: site, label: site }))
 
+  // Check if current visualization supports site scope selection
+  const supportsSiteScope = ['correlation', 'spectral', 'sensitivity'].includes(visualizationType)
+  // DA vs Pseudo-nitzschia only supports single site
+  const forceSingleSite = visualizationType === 'comparison'
+  // Waterfall plot and map are all-sites only; hide site controls
+  const hideSiteControls = visualizationType === 'waterfall' || visualizationType === 'map'
 
   const renderVisualization = () => {
     if (!visualizationData) {
@@ -152,13 +158,6 @@ const Historical = () => {
 
     return <p className="text-center text-gray-500">No visualization data available.</p>
   }
-
-  // Check if current visualization supports site scope selection
-  const supportsSiteScope = ['correlation', 'spectral', 'sensitivity'].includes(visualizationType)
-  // DA vs Pseudo-nitzschia only supports single site
-  const forceSingleSite = visualizationType === 'comparison'
-  // Waterfall plot and map are all-sites only; hide site controls
-  const hideSiteControls = visualizationType === 'waterfall' || visualizationType === 'map'
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

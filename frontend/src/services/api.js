@@ -16,7 +16,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Log API requests in development only
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
     }
     return config
@@ -30,14 +30,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     // Log API responses in development only
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log(`API Response: ${response.status} ${response.config.url}`)
     }
     return response
   },
   (error) => {
     // Log API errors in development only
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.error('API Error:', error.response?.data || error.message)
     }
     return Promise.reject(error)

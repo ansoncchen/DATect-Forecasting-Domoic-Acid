@@ -36,13 +36,45 @@ from backend.cache_manager import cache_manager
 # Configure logging
 logger = logging.getLogger(__name__)
 
-def clean_float_for_json(value):
-    """Handle inf/nan values for JSON serialization"""
-    if value is None or (isinstance(value, float) and (math.isinf(value) or math.isnan(value))):
+def clean_for_json(obj):
+    """
+    Clean values for JSON serialization - handles inf/nan, numpy types, and nested structures.
+    
+    Args:
+        obj: Value to clean (can be dict, list, numpy array, scalar, etc.)
+    
+    Returns:
+        JSON-serializable value
+    """
+    if obj is None:
         return None
-    if isinstance(value, (np.floating, np.integer)):
-        return float(value) if isinstance(value, np.floating) else int(value)
-    return value
+    if isinstance(obj, dict):
+        return {k: clean_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [clean_for_json(item) for item in obj]
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, pd.DataFrame):
+        return obj.head(10).to_dict('records') if not obj.empty else []
+    if isinstance(obj, (np.floating, np.integer)):
+        return obj.item()
+    if isinstance(obj, float):
+        if math.isinf(obj) or math.isnan(obj):
+            return None
+        return obj
+    # Check for pandas NA values
+    try:
+        if pd.isna(obj):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return obj
+
+
+# Backwards compatibility alias
+def clean_float_for_json(value):
+    """Deprecated: Use clean_for_json instead."""
+    return clean_for_json(value)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not os.path.isabs(config.FINAL_OUTPUT_PATH):
@@ -98,13 +130,16 @@ def get_model_factory() -> ModelFactory:
         model_factory = ModelFactory()
     return model_factory
 
-def get_site_mapping(data):
-    """Get site name mapping for flexible API access"""
+@lru_cache(maxsize=1)
+def get_site_mapping() -> dict:
+    """Get cached site name mapping for flexible API access"""
+    data = load_data_cached()
     return {s.lower().replace(' ', '-'): s for s in data['site'].unique()}
 
-def resolve_site_name(site: str, site_mapping: dict) -> str:
-    """Resolve site name from mapping or return original"""
-    return site_mapping.get(site.lower(), site)
+def resolve_site(site: str) -> str:
+    """Resolve site name to canonical form using cached mapping"""
+    mapping = get_site_mapping()
+    return mapping.get(site.lower(), site)
 
 
 # Pydantic models
@@ -211,8 +246,7 @@ async def generate_forecast(request: ForecastRequest):
             raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
         
         data = get_data_copy()
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(request.site, site_mapping)
+        actual_site = resolve_site(request.site)
         
         forecast_date = pd.to_datetime(request.date)
         
@@ -283,9 +317,7 @@ async def get_historical_data(
         # Load data
         data = get_data_copy()
         data['date'] = pd.to_datetime(data['date'])
-        
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
+        actual_site = resolve_site(site)
         
         # Filter by site
         site_data = data[data['site'] == actual_site].copy()
@@ -453,9 +485,7 @@ async def get_correlation_heatmap_single(site: str):
     """Generate correlation heatmap for a single site."""
     try:
         data = get_data_copy()
-        
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
+        actual_site = resolve_site(site)
 
         cached_plot = cache_manager.get_correlation_heatmap(actual_site)
         if cached_plot is not None:
@@ -481,9 +511,7 @@ async def get_sensitivity_analysis_single(site: str):
     """Generate sensitivity analysis plots for a single site."""
     try:
         data = get_data_copy()
-        
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
+        actual_site = resolve_site(site)
         
         plots = generate_sensitivity_analysis(data, actual_site)
         return {"success": True, "plots": plots}
@@ -506,9 +534,7 @@ async def get_time_series_comparison_single(site: str):
     """Generate time series comparison for a single site."""
     try:
         data = get_data_copy()
-        
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
+        actual_site = resolve_site(site)
         
         plot_data = generate_time_series_comparison(data, actual_site)
         return {"success": True, "plot": plot_data}  # plot_data is already in correct format
@@ -548,8 +574,7 @@ async def get_spectral_analysis_single(site: str):
     """Generate spectral analysis for a single site (uses pre-computed cache)."""
     try:
         data = get_data_copy()
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
+        actual_site = resolve_site(site)
 
         # First try pre-computed cache
         plots = cache_manager.get_spectral_analysis(site=actual_site)
@@ -763,8 +788,7 @@ async def generate_enhanced_forecast(request: ForecastRequest):
     """Generate enhanced forecast with both regression and classification for frontend."""
     try:
         data = get_data_copy()
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(request.site, site_mapping)
+        actual_site = resolve_site(request.site)
         
         forecast_date = pd.to_datetime(request.date)
         
@@ -777,35 +801,13 @@ async def generate_enhanced_forecast(request: ForecastRequest):
             config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "classification", "xgboost"
         )
         
-        # Clean numpy values for JSON serialization
-        def clean_numpy_values(obj):
-            if isinstance(obj, dict):
-                return {k: clean_numpy_values(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [clean_numpy_values(item) for item in obj]
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            elif isinstance(obj, (np.integer, np.floating)):
-                return obj.item()
-            elif isinstance(obj, pd.DataFrame):
-                return obj.head(10).to_dict('records') if not obj.empty else []
-            elif obj is None:
-                return None
-            else:
-                try:
-                    if pd.isna(obj):
-                        return None
-                except (TypeError, ValueError):
-                    pass
-                return obj
-        
         # Create response structure expected by frontend
         response_data = {
             "success": True,
             "forecast_date": forecast_date.strftime('%Y-%m-%d'),
             "site": actual_site,
-            "regression": clean_numpy_values(regression_result),
-            "classification": clean_numpy_values(classification_result),
+            "regression": clean_for_json(regression_result),
+            "classification": clean_for_json(classification_result),
             "graphs": {}
         }
         

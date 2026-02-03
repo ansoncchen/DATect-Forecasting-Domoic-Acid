@@ -277,3 +277,14 @@ USE_ENHANCED_TEMPORAL_FEATURES = True  # Enable/disable sin/cos temporal encodin
 
 # Polynomial trend analysis minimum periods
 MIN_TREND_PERIODS = 2  # Minimum data points required for trend calculation
+
+# Biological Decay Interpolation Parameters
+# Used for filling gaps in DA/PN measurements with exponential decay
+
+# DA (Domoic Acid) parameters - conservative due to frequent zeros in data
+DA_MAX_GAP_WEEKS = 2  # Maximum gap to interpolate (larger gaps filled with 0)
+DA_DECAY_RATE = 0.2   # Per week decay rate (half-life ~3.5 weeks)
+
+# PN (Pseudo-nitzschia) parameters - more aggressive due to sparser data
+PN_MAX_GAP_WEEKS = 4  # Maximum gap to interpolate
+PN_DECAY_RATE = 0.3   # Per week decay rate (half-life ~2.3 weeks)

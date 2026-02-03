@@ -564,14 +564,15 @@ def add_satellite_data(target_df, satellite_parquet_path):
         target_regular = target_df_proc[['timestamp_dt', 'site_key']].copy()
         target_regular['row_id'] = target_df_proc.index
         target_regular['cutoff_ts'] = target_regular['timestamp_dt'] - pd.Timedelta(days=7)
-        target_regular = target_regular.sort_values(['site_key', 'cutoff_ts'])
+        # Sort by site_key first, then cutoff_ts - required for merge_asof with 'by' parameter
+        target_regular = target_regular.sort_values(['site_key', 'cutoff_ts']).reset_index(drop=True)
 
         satellite_regular = satellite_df[['timestamp', 'site_key'] + regular_cols].copy()
-        satellite_regular = satellite_regular.sort_values(['site_key', 'timestamp'])
+        satellite_regular = satellite_regular.sort_values(['site_key', 'timestamp']).reset_index(drop=True)
 
         regular_match = pd.merge_asof(
-            target_regular,
-            satellite_regular,
+            target_regular.sort_values('cutoff_ts'),  # Ensure globally sorted by merge key
+            satellite_regular.sort_values('timestamp'),  # Ensure globally sorted by merge key
             left_on='cutoff_ts',
             right_on='timestamp',
             by='site_key',

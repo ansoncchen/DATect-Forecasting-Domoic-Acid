@@ -115,7 +115,7 @@ Previous testing from **August 2025** found these results. **IMPORTANT**: Datase
 - **Spikey/irregular**: DA concentrations are inherently volatile and unpredictable
 - **Features often HURT**: Many features are disabled because they decreased performance - be careful!
 - **TEMPORAL INTEGRITY**: NEVER use future data - always run `python3 verify_temporal_integrity.py`
-- **Future compute**: Hyak cluster (44K CPUs, 954 GPUs) available later but NOT for testing now
+- **Hyak cluster**: NOW AVAILABLE at `ssh ac283@klone.hyak.uw.edu` (44K CPUs, 954 GPUs) - can be used for large-scale experiments
 
 ---
 

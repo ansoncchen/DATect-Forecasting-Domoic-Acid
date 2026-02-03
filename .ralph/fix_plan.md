@@ -77,7 +77,7 @@ Conclusion: [keep/revert and why]
 
 ---
 
-## Blocked Items
-(Items waiting on external dependencies or decisions)
-
-- [ ] Hyak cluster testing - not available yet for large-scale experiments
+## Hyak Cluster (NOW AVAILABLE)
+- **Access**: `ssh ac283@klone.hyak.uw.edu`
+- **Resources**: 44,184 CPU cores, 954 GPU cards
+- Can be used for large-scale hyperparameter tuning, ensemble training, etc.

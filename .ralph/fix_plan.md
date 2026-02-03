@@ -95,6 +95,20 @@ Next idea: [what to try next]
 
 ---
 
+## Git Workflow Reminder
+
+**EVERY iteration must end with a commit and push to `ralph-improvement` branch!**
+
+```bash
+git add -A
+git commit -m "Ralph: [description] - R² = X.XXX"
+git push origin ralph-improvement
+```
+
+This ensures all progress is tracked on GitHub for review.
+
+---
+
 ## Remote Compute (For Reference Only)
 A Hyak compute cluster is available for heavy workloads, but Ralph runs locally.
 Local evaluation is fast enough (~5 min) - no remote compute needed for model experiments.

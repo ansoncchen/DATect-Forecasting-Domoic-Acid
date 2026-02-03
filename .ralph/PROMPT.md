@@ -150,6 +150,45 @@ Previous testing from **August 2025** found these results. **IMPORTANT**: Datase
 5. **Experiment freely** - Try ANY idea that might improve R² - you're not limited to the suggested strategies
 6. **Focus on regression** - R² is the primary metric, classification accuracy is secondary
 7. **Temporal integrity** - Built into DataProcessor, automatically validated during evaluation
+8. **Commit progress** - Commit and push changes to GitHub at each iteration (see Git Workflow below)
+
+---
+
+## Git Workflow (MANDATORY)
+
+**Branch**: `ralph-improvement`
+
+**At the END of EACH iteration**, you MUST:
+
+1. **Stage your changes**:
+   ```bash
+   git add -A
+   ```
+
+2. **Commit with descriptive message**:
+   ```bash
+   git commit -m "Ralph: [brief description of what was tried/changed]
+   
+   - R² result: X.XXX (baseline: 0.467)
+   - Changes: [list key modifications]
+   - Next: [what to try next]"
+   ```
+
+3. **Push to remote**:
+   ```bash
+   git push origin ralph-improvement
+   ```
+
+**Commit Message Examples**:
+- `"Ralph: Test LightGBM model - R² = 0.52 (improvement)"`
+- `"Ralph: Hyperparameter tuning XGBoost - R² = 0.48 (no improvement)"`
+- `"Ralph: Add log transform to target - R² = 0.55 (+0.08 vs baseline)"`
+
+**Important**:
+- ALWAYS commit at the end of each loop, even if the experiment failed (document what didn't work)
+- Include R² results in commit messages for easy tracking
+- Push to `ralph-improvement` branch - do NOT push to `main`
+- If an experiment decreases R², you can revert but still document the attempt
 
 ## Testing Guidelines
 - LIMIT testing to ~20% of your total effort per loop

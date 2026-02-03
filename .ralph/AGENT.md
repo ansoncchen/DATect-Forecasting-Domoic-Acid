@@ -14,7 +14,7 @@ python3 -m pip install -r requirements.txt
 # Run full system (backend + frontend)
 python3 run_datect.py
 
-# Run model evaluation (~5 min)
+# Run model evaluation (~5 min) - MANDATORY after each model change
 python3 precompute_cache.py
 ```
 
@@ -22,6 +22,14 @@ python3 precompute_cache.py
 ```bash
 # Temporal integrity is automatically validated during precompute_cache.py
 # No separate test script needed
+```
+
+## Git Commands (MANDATORY - END OF EVERY ITERATION)
+```bash
+# Commit and push to ralph-improvement branch
+git add -A
+git commit -m "Ralph: [description] - R² = X.XXX"
+git push origin ralph-improvement
 ```
 
 ## Other Commands

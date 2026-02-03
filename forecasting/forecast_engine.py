@@ -3,6 +3,8 @@ Leak-Free Forecasting Engine
 Core forecasting with complete temporal integrity protection
 """
 
+from typing import Dict, Optional, Tuple
+
 import pandas as pd
 import numpy as np
 import warnings
@@ -61,9 +63,9 @@ class ForecastEngine:
         
         logger.info("ForecastEngine initialization completed successfully")
         
-    def run_retrospective_evaluation(self, task="regression", model_type="xgboost", 
-                                   n_anchors=50, min_test_date="2008-01-01", 
-                                   model_params_override=None):
+    def run_retrospective_evaluation(self, task: str = "regression", model_type: str = "xgboost",
+                                   n_anchors: int = 50, min_test_date: str = "2008-01-01",
+                                   model_params_override: Optional[Dict] = None) -> Optional[pd.DataFrame]:
         """
         Run leak-free retrospective evaluation matching original behavior.
         
@@ -157,7 +159,9 @@ class ForecastEngine:
         
         return final_df
         
-    def _forecast_single_anchor_leak_free(self, anchor_info, full_data, min_target_date, task, model_type, model_params_override=None):
+    def _forecast_single_anchor_leak_free(self, anchor_info: Tuple[str, pd.Timestamp], full_data: pd.DataFrame,
+                                          min_target_date: pd.Timestamp, task: str, model_type: str,
+                                          model_params_override: Optional[Dict] = None) -> Optional[pd.DataFrame]:
         """Process single anchor forecast with ZERO data leakage - original algorithm."""
         site, anchor_date = anchor_info
         
@@ -188,6 +192,9 @@ class ForecastEngine:
         site_data_with_lags = self.data_processor.create_lag_features_safe(
             site_data, "site", "da", config.LAG_FEATURES, anchor_date
         )
+        site_data_with_lags = self.data_processor.create_lag_features_safe(
+            site_data_with_lags, "site", "pn", getattr(config, 'PN_LAG_FEATURES', []), anchor_date
+        )
         
         train_df = site_data_with_lags[site_data_with_lags["date"] <= anchor_date].copy()
         test_df = site_data_with_lags[site_data_with_lags["date"] == test_date].copy()
@@ -199,6 +206,10 @@ class ForecastEngine:
         if train_df_clean.empty or len(train_df_clean) < self.min_training_samples:
             return None
         
+        site_mean_da = float(train_df_clean["da"].mean())
+        train_df_clean["site_mean_da"] = site_mean_da
+        test_df["site_mean_da"] = site_mean_da
+
         train_df_clean["da-category"] = self.data_processor.create_da_categories_safe(train_df_clean["da"])
         train_df = train_df_clean
         
@@ -236,10 +247,24 @@ class ForecastEngine:
             reg_model = self.model_factory.get_model("regression", model_type, params_override=model_params_override)
             
             y_train = train_df["da"]
-            
-            reg_model.fit(X_train_processed, y_train)
+
+            if config.USE_LOG_TARGET:
+                y_train_model = np.log1p(y_train)
+            else:
+                y_train_model = y_train
+
+            if config.USE_REGRESSION_SAMPLE_WEIGHTS:
+                sample_weights = self.model_factory.compute_spike_focused_weights(y_train)
+                try:
+                    reg_model.fit(X_train_processed, y_train_model, sample_weight=sample_weights)
+                except TypeError:
+                    reg_model.fit(X_train_processed, y_train_model)
+            else:
+                reg_model.fit(X_train_processed, y_train_model)
             
             pred_da = reg_model.predict(X_test_processed)[0]
+            if config.USE_LOG_TARGET:
+                pred_da = np.expm1(pred_da)
             pred_da = max(0.0, float(pred_da))
             result['predicted_da'] = pred_da
         
@@ -276,7 +301,8 @@ class ForecastEngine:
         
         return pd.DataFrame([result])
     
-    def generate_bootstrap_confidence_intervals(self, X_train_processed, y_train, X_forecast, model_type, n_bootstrap=None):
+    def generate_bootstrap_confidence_intervals(self, X_train_processed, y_train, X_forecast,
+                                                model_type: str, n_bootstrap: Optional[int] = None) -> Dict:
         """
         Generate bootstrap confidence intervals using resampling.
         
@@ -318,16 +344,26 @@ class ForecastEngine:
             if config.USE_REGRESSION_SAMPLE_WEIGHTS:
                 # Use sample weights in bootstrap for consistency with main model
                 bootstrap_weights = self.model_factory.compute_spike_focused_weights(y_bootstrap)
+                if config.USE_LOG_TARGET:
+                    y_bootstrap_model = np.log1p(y_bootstrap)
+                else:
+                    y_bootstrap_model = y_bootstrap
                 try:
-                    bootstrap_model.fit(X_bootstrap, y_bootstrap, sample_weight=bootstrap_weights)
+                    bootstrap_model.fit(X_bootstrap, y_bootstrap_model, sample_weight=bootstrap_weights)
                 except TypeError:
-                    bootstrap_model.fit(X_bootstrap, y_bootstrap)
+                    bootstrap_model.fit(X_bootstrap, y_bootstrap_model)
             else:
                 # No sample weights for fair baseline comparison (current default)
-                bootstrap_model.fit(X_bootstrap, y_bootstrap)
+                if config.USE_LOG_TARGET:
+                    y_bootstrap_model = np.log1p(y_bootstrap)
+                else:
+                    y_bootstrap_model = y_bootstrap
+                bootstrap_model.fit(X_bootstrap, y_bootstrap_model)
             
             # Make prediction
             pred = bootstrap_model.predict(X_forecast)[0]
+            if config.USE_LOG_TARGET:
+                pred = np.expm1(pred)
             pred = max(0.0, float(pred))
             predictions.append(pred)
         
@@ -340,7 +376,8 @@ class ForecastEngine:
             "bootstrap_predictions": predictions.tolist()
         }
 
-    def generate_single_forecast(self, data_path, forecast_date, site, task, model_type):
+    def generate_single_forecast(self, data_path: str, forecast_date, site: str, task: str,
+                                 model_type: str) -> Optional[Dict]:
         """
         Generate a single forecast for a specific date and site using original algorithm.
         
@@ -382,6 +419,9 @@ class ForecastEngine:
         df_site_with_lags = self.data_processor.create_lag_features_safe(
             df_site, "site", "da", config.LAG_FEATURES, anchor_date
         )
+        df_site_with_lags = self.data_processor.create_lag_features_safe(
+            df_site_with_lags, "site", "pn", getattr(config, 'PN_LAG_FEATURES', []), anchor_date
+        )
         
         df_train = df_site_with_lags[df_site_with_lags['date'] <= anchor_date].copy()
         df_train_clean = df_train.dropna(subset=['da']).copy()
@@ -389,6 +429,9 @@ class ForecastEngine:
         if df_train_clean.empty or len(df_train_clean) < self.min_training_samples:
             return None
         
+        site_mean_da = float(df_train_clean["da"].mean())
+        df_train_clean["site_mean_da"] = site_mean_da
+
         df_train_clean["da-category"] = self.data_processor.create_da_categories_safe(df_train_clean["da"])
         
         drop_cols = ["date", "site", "da", "da-category"]
@@ -405,6 +448,7 @@ class ForecastEngine:
         X_train_processed = transformer.fit_transform(X_train)
         
         latest_data = df_train_clean.iloc[-1:].copy()
+        latest_data["site_mean_da"] = site_mean_da
         X_forecast = transformer.transform(latest_data.drop(columns=drop_cols, errors='ignore'))
         
         result = {
@@ -429,17 +473,23 @@ class ForecastEngine:
             y_train = df_train_clean["da"]
             
             if model_cache_key not in self._model_cache:
+                if config.USE_LOG_TARGET:
+                    y_train_model = np.log1p(y_train)
+                else:
+                    y_train_model = y_train
                 if config.USE_REGRESSION_SAMPLE_WEIGHTS:
                     sample_weights = self.model_factory.compute_spike_focused_weights(y_train)
                     try:
-                        model.fit(X_train_processed, y_train, sample_weight=sample_weights)
+                        model.fit(X_train_processed, y_train_model, sample_weight=sample_weights)
                     except TypeError:
-                        model.fit(X_train_processed, y_train)
+                        model.fit(X_train_processed, y_train_model)
                 else:
-                    model.fit(X_train_processed, y_train)
+                    model.fit(X_train_processed, y_train_model)
                 self._model_cache[model_cache_key] = model
             
             prediction = model.predict(X_forecast)[0]
+            if config.USE_LOG_TARGET:
+                prediction = np.expm1(prediction)
             prediction = max(0.0, float(prediction))
             result['predicted_da'] = prediction
             result['feature_importance'] = self.data_processor.get_feature_importance(model, X_train_processed.columns)
@@ -518,6 +568,14 @@ class ForecastEngine:
         
         if task == "regression" or task == "both":
             valid_results = self.results_df.dropna(subset=['actual_da', 'predicted_da'])
+            # Filter out infinite values to avoid sklearn errors
+            if not valid_results.empty:
+                import numpy as np
+                finite_mask = np.isfinite(valid_results['predicted_da']) & np.isfinite(valid_results['actual_da'])
+                valid_results = valid_results[finite_mask]
+                if len(valid_results) < len(self.results_df.dropna(subset=['actual_da', 'predicted_da'])):
+                    n_filtered = len(self.results_df.dropna(subset=['actual_da', 'predicted_da'])) - len(valid_results)
+                    logger.warning(f"Filtered out {n_filtered} predictions with infinite values")
             if not valid_results.empty:
                 r2 = r2_score(valid_results['actual_da'], valid_results['predicted_da'])
                 mae = mean_absolute_error(valid_results['actual_da'], valid_results['predicted_da'])

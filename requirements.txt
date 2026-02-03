@@ -9,6 +9,9 @@ joblib>=1.0.0         # Parallel processing for model training
 
 # Machine Learning Models
 xgboost>=1.6.0
+lightgbm
+catboost
+optuna
 
 # Web API and Backend
 fastapi>=0.95.0
@@ -25,6 +28,8 @@ pyarrow>=8.0.0        # Parquet file format
 duckdb>=0.10.0        # Fast in-memory analytics and Parquet reads
 requests>=2.27.0      # HTTP data downloads
 netcdf4>=1.5.8        # NetCDF data handling
+polars
+pandera
 
 # Scientific Analysis
 scipy>=1.8.0          # Spectral analysis and statistics

@@ -26,6 +26,10 @@ import shutil
 import config
 from concurrent.futures import ThreadPoolExecutor, as_completed
 try:
+    import polars as pl
+except ImportError:  # Optional dependency for faster CSV/Parquet conversion
+    pl = None
+try:
     from numba import jit
 except ImportError:  # Optional dependency for faster interpolation
     jit = None
@@ -132,8 +136,12 @@ def local_filename(url, ext, temp_dir=None):
 def csv_to_parquet(csv_path):
     """Convert CSV to Parquet for faster I/O"""
     parquet_path = csv_path[:-4] + '.parquet'
-    df = pd.read_csv(csv_path, low_memory=False)
-    df.to_parquet(parquet_path, index=False)
+    if pl is not None:
+        df = pl.read_csv(csv_path)
+        df.write_parquet(parquet_path)
+    else:
+        df = pd.read_csv(csv_path, low_memory=False)
+        df.to_parquet(parquet_path, index=False)
     generated_parquet_files.append(parquet_path)
     return parquet_path
 

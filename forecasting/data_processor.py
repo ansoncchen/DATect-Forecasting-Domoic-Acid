@@ -6,12 +6,22 @@ Handles all data loading, cleaning, and feature engineering with temporal safegu
 All operations maintain strict temporal integrity to prevent data leakage.
 """
 
+from typing import List, Optional, Tuple
+
 import pandas as pd
 import numpy as np
 try:
     import duckdb
 except ImportError:  # Optional dependency for faster parquet reads
     duckdb = None
+try:
+    import polars as pl
+except ImportError:  # Optional dependency for faster parquet reads
+    pl = None
+try:
+    import pandera as pa
+except ImportError:  # Optional dependency for data validation
+    pa = None
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -40,9 +50,11 @@ class DataProcessor:
         self.da_category_labels = config.DA_CATEGORY_LABELS
         self._duckdb_conn = None
         self._duckdb_enabled = duckdb is not None
+        self._polars_enabled = pl is not None
+        self._pandera_enabled = pa is not None
         logger.info(f"DA category configuration loaded: {len(self.da_category_bins)-1} categories")
         
-    def validate_data_integrity(self, df, required_columns=None):
+    def validate_data_integrity(self, df: pd.DataFrame, required_columns: Optional[List[str]] = None) -> bool:
         """
         Validate data integrity for scientific forecasting.
         Keep only essential validation for temporal integrity.
@@ -60,11 +72,23 @@ class DataProcessor:
             da_values = df['da'].dropna()
             if not da_values.empty and (da_values < 0).any():
                 raise ValueError("Negative DA values detected - invalid biological data")
-                
+
+        if self._pandera_enabled:
+            schema = pa.DataFrameSchema({
+                "date": pa.Column(pa.DateTime, nullable=False),
+                "site": pa.Column(str, nullable=False),
+                "da": pa.Column(float, checks=pa.Check.ge(0), nullable=True),
+            }, coerce=True)
+            try:
+                schema.validate(df, lazy=True)
+                logger.debug("Pandera validation passed")
+            except Exception as exc:
+                logger.warning(f"Pandera validation issues detected: {exc}")
+
         logger.info(f"Data integrity validation passed: {len(df)} records, {len(df.columns)} features")
         return True
         
-    def validate_forecast_inputs(self, data, site, forecast_date):
+    def validate_forecast_inputs(self, data: pd.DataFrame, site: str, forecast_date) -> bool:
         """
         Validate inputs for a specific forecast - CRITICAL for temporal integrity.
         """
@@ -96,19 +120,23 @@ class DataProcessor:
         logger.info(f"Forecast input validation passed for {site} on {forecast_date.date()}")
         return True
         
-    def load_and_prepare_base_data(self, file_path):
+    def load_and_prepare_base_data(self, file_path: str) -> pd.DataFrame:
         """
         Load base data WITHOUT any target-based preprocessing.
         """
         logger.info(f"Loading base data from {file_path}")
 
-        if self._duckdb_enabled:
-            if self._duckdb_conn is None:
-                self._duckdb_conn = duckdb.connect(database=":memory:")
-            data = self._duckdb_conn.execute(
-                "SELECT * FROM read_parquet(?)",
-                [file_path]
-            ).fetchdf()
+        if self._polars_enabled:
+            data = pl.read_parquet(file_path).to_pandas()
+        elif self._duckdb_enabled:
+            conn = duckdb.connect(database=":memory:")
+            try:
+                data = conn.execute(
+                    "SELECT * FROM read_parquet(?)",
+                    [file_path]
+                ).fetchdf()
+            finally:
+                conn.close()
         else:
             data = pd.read_parquet(file_path, engine="pyarrow")
         logger.info(f"Raw data loaded: {len(data)} records, {len(data.columns)} columns")
@@ -149,13 +177,17 @@ class DataProcessor:
             data = self.add_rolling_statistics_safe(data)
         else:
             logger.debug("Rolling statistics features disabled by config")
+
+        logger.debug("Adding interaction features")
+        data = self.create_interaction_features(data)
         
         sites_count = data['site'].nunique()
         logger.info(f"Data preparation completed: {len(data)} records across {sites_count} sites")
         print(f"[INFO] Loaded {len(data)} records across {sites_count} sites")
         return data
         
-    def create_lag_features_safe(self, df, group_col, value_col, lags, cutoff_date):
+    def create_lag_features_safe(self, df: pd.DataFrame, group_col: str, value_col: str,
+                                 lags: List[int], cutoff_date) -> pd.DataFrame:
         """
         Create lag features with strict temporal cutoff to prevent leakage - CRITICAL for temporal integrity.
         """
@@ -163,6 +195,9 @@ class DataProcessor:
         logger.debug(f"Lag periods: {lags}")
         
         df = df.copy()
+        if value_col not in df.columns or not lags:
+            logger.debug(f"Skipping lag features for {value_col}: column missing or no lags")
+            return df
         df_sorted = df.sort_values([group_col, 'date'])
         
         created_features = []
@@ -190,7 +225,7 @@ class DataProcessor:
             
         return df_sorted
         
-    def add_rolling_statistics_safe(self, df):
+    def add_rolling_statistics_safe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Add rolling statistics features for better temporal pattern recognition.
         Focus on key oceanographic variables that influence DA blooms.
@@ -201,7 +236,20 @@ class DataProcessor:
         
         # Key environmental features to compute rolling stats for
         # Note: Each time step in final_output.parquet represents 1 week
-        target_features = ['sst', 'chla', 'par', 'k490', 'fluorescence', 'pdo', 'oni', 'beuti', 'streamflow']
+        target_features = [
+            'modis-sst',
+            'modis-chla',
+            'modis-par',
+            'modis-k490',
+            'modis-flr',
+            'chla-anom',
+            'sst-anom',
+            'pdo',
+            'oni',
+            'beuti',
+            'discharge',
+            'pn'
+        ]
         windows = [2, 4, 8]  # 2-week, 4-week (monthly), 8-week (bi-monthly) patterns
         
         created_features = 0
@@ -232,8 +280,28 @@ class DataProcessor:
                     
         logger.info(f"Created {created_features} rolling statistics features")
         return df
+
+    def create_interaction_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Create oceanographic interaction features for bloom dynamics.
+        """
+        df = df.copy()
+
+        if {'modis-sst', 'modis-chla'}.issubset(df.columns):
+            df['sst_chla_interaction'] = df['modis-sst'] * df['modis-chla']
+
+        if {'modis-par', 'modis-chla'}.issubset(df.columns):
+            df['par_chla_ratio'] = df['modis-par'] / (df['modis-chla'] + 0.01)
+
+        if {'beuti', 'modis-sst'}.issubset(df.columns):
+            df['beuti_sst_interaction'] = df['beuti'] * (1 / (df['modis-sst'] + 1))
+
+        if {'pdo', 'oni'}.issubset(df.columns):
+            df['climate_composite'] = df['pdo'] + df['oni']
+
+        return df
         
-    def create_da_categories_safe(self, da_values):
+    def create_da_categories_safe(self, da_values: pd.Series) -> pd.Series:
         """
         Create DA categories from training data only.
         """
@@ -262,7 +330,7 @@ class DataProcessor:
         
         return categories
         
-    def create_numeric_transformer(self, df, drop_cols):
+    def create_numeric_transformer(self, df: pd.DataFrame, drop_cols: List[str]):
         """
         Create preprocessing transformer for numeric features.
         

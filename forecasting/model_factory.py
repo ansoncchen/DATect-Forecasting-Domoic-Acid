@@ -16,6 +16,7 @@ except ImportError:
 
 import config
 from .logging_config import get_logger
+from .ensemble_model import build_regression_ensemble
 
 logger = get_logger(__name__)
 
@@ -73,9 +74,11 @@ class ModelFactory:
             return LinearRegression(
                 n_jobs=-1
             )
+        elif model_type == "ensemble":
+            return build_regression_ensemble()
         else:
             raise ValueError(f"Unknown regression model: {model_type}. "
-                           f"Supported: 'xgboost', 'linear')")
+                           f"Supported: 'xgboost', 'linear', 'ensemble')")
             
     def _get_classification_model(self, model_type, params_override=None):
         if model_type == "xgboost" or model_type == "xgb":
@@ -118,7 +121,7 @@ class ModelFactory:
             
     def get_supported_models(self, task=None):
         models = {
-            "regression": ["xgboost", "linear"],
+            "regression": ["xgboost", "linear", "ensemble"],
             "classification": ["xgboost", "logistic"]
         }
         
@@ -134,7 +137,8 @@ class ModelFactory:
             "xgboost": "XGBoost",
             "xgb": "XGBoost", 
             "linear": "Linear Regression",
-            "logistic": "Logistic Regression"
+            "logistic": "Logistic Regression",
+            "ensemble": "XGBoost/LightGBM/CatBoost Ensemble"
         }
         
         return descriptions.get(model_type, f"Unknown model: {model_type}")

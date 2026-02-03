@@ -196,16 +196,16 @@ FORECAST_HORIZON_DAYS = FORECAST_HORIZON_WEEKS * 7  # Derived days value for int
 # These override defaults in ModelFactory for reproducible tuning and easy experimentation.
 # Regression parameters
 XGB_REGRESSION_PARAMS = {
-    "n_estimators": 400,
+    "n_estimators": 1403,
     "max_depth": 6,
-    "learning_rate": 0.05,
-    "subsample": 0.85,
-    "colsample_bytree": 0.85,
-    "colsample_bylevel": 0.8,
-    "reg_alpha": 0.1,
-    "reg_lambda": 1.0,
-    "gamma": 0.1,
-    "min_child_weight": 3,
+    "learning_rate": 0.01830309688651229,
+    "subsample": 0.6499694717222572,
+    "colsample_bytree": 0.8018123960771946,
+    "colsample_bylevel": 0.8980752513315378,
+    "reg_alpha": 0.6300118445763987,
+    "reg_lambda": 2.6278277494048377,
+    "gamma": 0.06208519697643636,
+    "min_child_weight": 1,
     "tree_method": "hist",
 }
 
@@ -225,12 +225,31 @@ XGB_CLASSIFICATION_PARAMS = {
     "eval_metric": "logloss",
 }
 
-
 # Temporal Validation - prevents data leakage (handled by forecast horizon)
 
 # Model Performance
 MIN_TRAINING_SAMPLES = 3
 RANDOM_SEED = 42
+
+# LightGBM and CatBoost parameters for ensemble regression
+LGBM_REGRESSION_PARAMS = {
+    "n_estimators": 600,
+    "learning_rate": 0.05,
+    "max_depth": -1,
+    "num_leaves": 64,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "random_state": RANDOM_SEED,
+}
+
+CATBOOST_REGRESSION_PARAMS = {
+    "iterations": 600,
+    "learning_rate": 0.05,
+    "depth": 8,
+    "loss_function": "RMSE",
+    "random_seed": RANDOM_SEED,
+    "verbose": False,
+}
 
 # Retrospective evaluation anchor points (higher = more thorough)
 N_RANDOM_ANCHORS = 500
@@ -241,11 +260,15 @@ N_BOOTSTRAP_ITERATIONS = 20  # Number of bootstrap iterations for confidence int
 # Lag Feature Configuration
 
 # Enable/disable lag features for time series modeling
-USE_LAG_FEATURES = False
+USE_LAG_FEATURES = True
 
 # Time series lags optimized via ACF/PACF analysis
 # Lag 1: immediate dependency (60% sites), Lag 3: cyclical pattern (70% sites)
-LAG_FEATURES = [1, 2, 3, 52] if USE_LAG_FEATURES else []
+LAG_FEATURES = [1, 2, 3] if USE_LAG_FEATURES else []
+
+# Pseudo-nitzschia lag feature configuration (predictor for DA)
+USE_PN_LAG_FEATURES = True
+PN_LAG_FEATURES = [1, 2] if USE_PN_LAG_FEATURES else []
 
 # DA Category Configuration
 
@@ -266,13 +289,16 @@ BOOTSTRAP_SUBSAMPLE_FRACTION = 0.75  # Use 75% of data for each bootstrap iterat
 # Sample weighting strategy for regression models
 USE_REGRESSION_SAMPLE_WEIGHTS = True  # False = fair baseline comparison, True = handle imbalance
 
+# Target transformation configuration
+USE_LOG_TARGET = True  # Apply log1p transform to stabilize DA distribution
+
 # Confidence interval percentiles for bootstrap predictions
 CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 
 # Data Quality Configuration
 
 # Feature engineering toggles
-USE_ROLLING_FEATURES = False  # Enable/disable rolling statistics features
+USE_ROLLING_FEATURES = True  # Enable/disable rolling statistics features
 USE_ENHANCED_TEMPORAL_FEATURES = True  # Enable/disable sin/cos temporal encoding and derived features
 
 # Polynomial trend analysis minimum periods

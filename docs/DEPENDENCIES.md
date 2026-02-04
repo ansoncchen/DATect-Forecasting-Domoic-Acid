@@ -8,7 +8,7 @@
 | pandas, numpy | Everywhere |
 | scikit-learn | data_processor, model_factory, visualizations |
 | joblib | forecast_engine (parallel) |
-| xgboost | model_factory (GPU auto-detected via tree_method='gpu_hist') |
+| xgboost | model_factory (GPU auto-detected via tree_method='hist', device='cuda') |
 | fastapi, uvicorn, pydantic | backend/api |
 | plotly | backend/visualizations, api map |
 | xarray, netcdf4 | dataset-creation (NetCDF) |
@@ -27,6 +27,12 @@
 | numba | data_processor, dataset-creation | Falls back to pure Python |
 | granian | run_datect, api | Falls back to uvicorn |
 | redis | backend/redis_cache, cache_manager | File cache only |
+| torch | forecasting models | Neural models unavailable |
+| pytorch-forecasting | TFT/TCN models | TFT/TCN unavailable |
+| pytorch-lightning | PyTorch Forecasting | TFT/TCN unavailable |
+| gpytorch | GPyTorch model | GP model unavailable |
+| pytorch-tabnet | TabNet model | TabNet unavailable |
+| torchmetrics | PyTorch Forecasting | TFT/TCN unavailable |
 
 ### Not used in current code
 | Package | Note |

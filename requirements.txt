@@ -17,6 +17,12 @@ pyarrow>=14.0.0       # Parquet file format
 
 # Machine Learning
 xgboost>=2.0.0        # Primary model (linear/logistic are in sklearn)
+torch>=2.0.0          # PyTorch backend for TFT/TCN/TabNet/GPyTorch
+pytorch-forecasting>=1.0.0
+pytorch-lightning>=2.0.0
+gpytorch>=1.11
+pytorch-tabnet>=4.1.0
+torchmetrics>=0.11
 
 # Web API and Backend
 fastapi>=0.109.0

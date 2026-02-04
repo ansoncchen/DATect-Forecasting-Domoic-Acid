@@ -6,8 +6,8 @@ Creates and configures machine learning models for DA forecasting.
 Supports both regression and classification tasks with multiple algorithms.
 
 GPU Support:
-- XGBoost uses tree_method='gpu_hist' when USE_GPU is True or auto-detected.
-- Fallback to 'hist' (CPU) when GPU unavailable or USE_GPU=False.
+- XGBoost 2.0+: uses tree_method='hist' with device='cuda' when USE_GPU is True or auto-detected.
+- Fallback to tree_method='hist' with device='cpu' when GPU unavailable or USE_GPU=False.
 """
 
 import os
@@ -26,16 +26,16 @@ from .logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def _xgboost_tree_method():
+def _xgboost_device():
     """
-    Determine tree_method for XGBoost: gpu_hist when GPU available, else hist.
+    Determine device for XGBoost 2.0+: 'cuda' when GPU available, else 'cpu'.
     Respects config.USE_GPU: True=force GPU, False=force CPU, None=auto-detect.
     """
     use_gpu = getattr(config, "USE_GPU", None)
     if use_gpu is False:
-        return "hist"
+        return "cpu"
     if use_gpu is True:
-        return "gpu_hist"
+        return "cuda"
     # Auto-detect via nvidia-smi
     try:
         import subprocess
@@ -43,10 +43,10 @@ def _xgboost_tree_method():
             ["nvidia-smi", "-L"], capture_output=True, text=True, timeout=2
         )
         if result.returncode == 0 and result.stdout.strip():
-            return "gpu_hist"
+            return "cuda"
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
-    return "hist"
+    return "cpu"
 
 
 class ModelFactory:
@@ -94,20 +94,34 @@ class ModelFactory:
             params = {**default_reg_params, **(cfg_params or {})}
             if params_override:
                 params.update(params_override)
-            # GPU: use gpu_hist when available unless explicitly overridden
+            # XGBoost 2.0+: tree_method='hist', device='cuda' or 'cpu' (no more gpu_hist)
             if not (params_override and 'tree_method' in params_override):
-                params['tree_method'] = _xgboost_tree_method()
+                params['tree_method'] = 'hist'
+            if not (params_override and 'device' in params_override):
+                params['device'] = _xgboost_device()
             params['random_state'] = self.random_seed
             params['n_jobs'] = -1
-            logger.debug(f"XGBoost regression tree_method={params['tree_method']}")
+            logger.debug(f"XGBoost regression tree_method={params['tree_method']} device={params.get('device', 'cpu')}")
             return xgb.XGBRegressor(**params)
+        elif model_type == "tft":
+            from .models.tft_model import TFTRegressor
+            return TFTRegressor(**(params_override or {}))
+        elif model_type == "tcn":
+            from .models.tcn_model import TCNRegressor
+            return TCNRegressor(**(params_override or {}))
+        elif model_type == "gpytorch":
+            from .models.gpytorch_model import GPyTorchRegressor
+            return GPyTorchRegressor(**(params_override or {}))
+        elif model_type == "tabnet":
+            from .models.tabnet_model import TabNetRegressorWrapper
+            return TabNetRegressorWrapper(**(params_override or {}))
         elif model_type == "linear":
             return LinearRegression(
                 n_jobs=-1
             )
         else:
             raise ValueError(f"Unknown regression model: {model_type}. "
-                           f"Supported: 'xgboost', 'linear')")
+                           f"Supported: 'xgboost', 'linear', 'tft', 'tcn', 'gpytorch', 'tabnet')")
             
     def _get_classification_model(self, model_type, params_override=None):
         if model_type == "xgboost" or model_type == "xgb":
@@ -133,12 +147,14 @@ class ModelFactory:
             params = {**default_cls_params, **(cfg_params or {})}
             if params_override:
                 params.update(params_override)
-            # GPU: use gpu_hist when available unless explicitly overridden
+            # XGBoost 2.0+: tree_method='hist', device='cuda' or 'cpu' (no more gpu_hist)
             if not (params_override and 'tree_method' in params_override):
-                params['tree_method'] = _xgboost_tree_method()
+                params['tree_method'] = 'hist'
+            if not (params_override and 'device' in params_override):
+                params['device'] = _xgboost_device()
             params['random_state'] = self.random_seed
             params['n_jobs'] = -1
-            logger.debug(f"XGBoost classification tree_method={params['tree_method']}")
+            logger.debug(f"XGBoost classification tree_method={params['tree_method']} device={params.get('device', 'cpu')}")
             return xgb.XGBClassifier(**params)
         elif model_type == "logistic":
             return LogisticRegression(
@@ -154,7 +170,7 @@ class ModelFactory:
             
     def get_supported_models(self, task=None):
         models = {
-            "regression": ["xgboost", "linear"],
+            "regression": ["xgboost", "linear", "tft", "tcn", "gpytorch", "tabnet"],
             "classification": ["xgboost", "logistic"]
         }
         
@@ -170,7 +186,11 @@ class ModelFactory:
             "xgboost": "XGBoost",
             "xgb": "XGBoost", 
             "linear": "Linear Regression",
-            "logistic": "Logistic Regression"
+            "logistic": "Logistic Regression",
+            "tft": "Temporal Fusion Transformer",
+            "tcn": "Temporal Convolutional Network",
+            "gpytorch": "GPyTorch Gaussian Process",
+            "tabnet": "TabNet"
         }
         
         return descriptions.get(model_type, f"Unknown model: {model_type}")

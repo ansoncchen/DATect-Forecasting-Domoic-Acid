@@ -184,9 +184,9 @@ scancel --name vsc-proxy-jump  # cancel the job
 **conda activate doesn't work**
 - Make sure you ran `module load foster/python/miniconda/3.8` first.
 
-**XGBoost "gpu_hist" or CUDA errors**
+**XGBoost GPU or CUDA errors**
 - Request a GPU node: `salloc --partition=ckpt-g2 --gres=gpu:1 ...`
-- Force CPU: set `USE_GPU = False` in `config.py`
+- Force CPU: set `USE_GPU = False` in `config.py` (uses tree_method='hist', device='cpu')
 - Ensure `nvidia-smi` works on the node before running
 
 **Environment already exists error**

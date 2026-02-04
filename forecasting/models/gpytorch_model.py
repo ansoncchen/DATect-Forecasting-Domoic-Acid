@@ -15,6 +15,8 @@ except ImportError:
     gpytorch = None
     HAS_GP = False
 
+from forecasting.models import get_torch_device
+
 
 if HAS_GP:
     class _ExactGPModel(gpytorch.models.ExactGP):
@@ -39,6 +41,7 @@ class GPyTorchRegressor:
         self.learning_rate = learning_rate
         self.model = None
         self.likelihood = None
+        self.device = None
         self.x_mean = None
         self.x_std = None
 
@@ -52,11 +55,12 @@ class GPyTorchRegressor:
         Xs = self._standardize(np.asarray(X, dtype=np.float32))
         ys = np.asarray(y, dtype=np.float32)
 
-        train_x = torch.from_numpy(Xs)
-        train_y = torch.from_numpy(ys)
+        self.device = get_torch_device()
+        train_x = torch.from_numpy(Xs).to(self.device)
+        train_y = torch.from_numpy(ys).to(self.device)
 
-        self.likelihood = gpytorch.likelihoods.GaussianLikelihood()
-        self.model = _ExactGPModel(train_x, train_y, self.likelihood)
+        self.likelihood = gpytorch.likelihoods.GaussianLikelihood().to(self.device)
+        self.model = _ExactGPModel(train_x, train_y, self.likelihood).to(self.device)
 
         self.model.train()
         self.likelihood.train()
@@ -76,7 +80,7 @@ class GPyTorchRegressor:
         if self.model is None:
             raise RuntimeError("GPyTorchRegressor model is not fit yet.")
         Xs = self._standardize(np.asarray(X, dtype=np.float32))
-        test_x = torch.from_numpy(Xs)
+        test_x = torch.from_numpy(Xs).to(self.device)
 
         self.model.eval()
         self.likelihood.eval()

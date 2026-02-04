@@ -16,6 +16,7 @@ except ImportError:
     HAS_TFT = False
 
 from forecasting.torch_forecasting_adapter import make_dataloaders
+from forecasting.models import get_accelerator_for_lightning
 
 
 class TFTRegressor:
@@ -53,7 +54,7 @@ class TFTRegressor:
             learning_rate=self.learning_rate,
         )
 
-        accelerator = "gpu" if torch.cuda.is_available() else "cpu"
+        accelerator = get_accelerator_for_lightning()
         trainer = pl.Trainer(
             max_epochs=self.max_epochs,
             accelerator=accelerator,

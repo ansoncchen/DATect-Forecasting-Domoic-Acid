@@ -9,6 +9,7 @@ import torch
 from torch import nn
 
 from forecasting.torch_forecasting_adapter import make_dataloaders
+from forecasting.models import get_torch_device
 
 
 class _TCN(nn.Module):
@@ -51,7 +52,7 @@ class TCNRegressor:
 
     def fit(self, dataset):
         train_loader, _ = make_dataloaders(dataset, batch_size=self.batch_size)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = get_torch_device()
 
         # Initialize model based on first batch
         first = next(iter(train_loader))

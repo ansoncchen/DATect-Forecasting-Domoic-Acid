@@ -13,6 +13,8 @@ except ImportError:
     TabNetRegressor = None
     HAS_TABNET = False
 
+import config
+
 
 class TabNetRegressorWrapper:
     def __init__(
@@ -28,6 +30,18 @@ class TabNetRegressorWrapper:
     ):
         if not HAS_TABNET:
             raise ImportError("pytorch-tabnet is required for TabNetRegressorWrapper.")
+        
+        # Determine device based on config.USE_GPU
+        use_gpu = getattr(config, "USE_GPU", None)
+        if use_gpu is False:
+            device_name = "cpu"
+        elif use_gpu is True:
+            device_name = "cuda"
+        else:
+            # Auto-detect
+            import torch
+            device_name = "cuda" if torch.cuda.is_available() else "cpu"
+        
         self.model = TabNetRegressor(
             n_d=n_d,
             n_a=n_a,
@@ -35,6 +49,7 @@ class TabNetRegressorWrapper:
             gamma=gamma,
             n_independent=n_independent,
             n_shared=n_shared,
+            device_name=device_name,
         )
         self.max_epochs = max_epochs
         self.batch_size = batch_size

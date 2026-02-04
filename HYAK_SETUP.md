@@ -145,10 +145,7 @@ cd /gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid
 ## Running the Project
 
 ```bash
-# Precompute cache
-python precompute_cache.py
-
-# Pre-compute cache (includes temporal validation)
+# Precompute cache (uses CPU parallelization - fast!)
 python precompute_cache.py
 
 # Generate dataset (30-60 min)
@@ -156,6 +153,51 @@ python dataset-creation.py
 
 # Run the full system
 python run_datect.py
+```
+
+---
+
+## GPU vs CPU Usage
+
+**Important:** The choice between GPU and CPU depends on your workload type.
+
+### Use CPU (`USE_GPU = False` in config.py) for:
+- `precompute_cache.py` - runs 5000 small parallel training jobs
+- Any joblib-parallelized workload with many small models
+- **Expected performance:** ~5 minutes for full cache generation
+
+### Use GPU (`USE_GPU = True` in config.py) for:
+- Single large model training with 100K+ rows
+- Deep learning models (TFT, TCN) with large batch sizes
+- Hyperparameter search on a single large dataset
+
+### Why CPU is faster for parallel small jobs:
+
+The retrospective evaluation trains thousands of small models (one per anchor point). With GPU:
+- Each of 32 parallel workers initializes CUDA context
+- Each transfers tiny datasets to GPU
+- GPU memory contention causes crashes or slowdowns
+- Overhead dominates actual compute time
+
+With CPU:
+- 32 workers run independently on CPU cores
+- No data transfer overhead
+- No memory contention
+- ~5 minutes total vs hours with GPU
+
+### Commands:
+
+```bash
+# Force CPU (recommended for precompute_cache.py)
+# Option 1: Set in config.py (USE_GPU = False) - already the default
+python precompute_cache.py
+
+# Option 2: Hide GPUs via environment variable
+CUDA_VISIBLE_DEVICES="" python precompute_cache.py
+
+# Force GPU (for single large training jobs)
+# Set USE_GPU = True in config.py, then:
+python your_single_model_training.py
 ```
 
 ---
@@ -188,6 +230,12 @@ scancel --name vsc-proxy-jump  # cancel the job
 - Request a GPU node: `salloc --partition=ckpt-g2 --gres=gpu:1 ...`
 - Force CPU: set `USE_GPU = False` in `config.py` (uses tree_method='hist', device='cpu')
 - Ensure `nvidia-smi` works on the node before running
+
+**"cudaErrorMemoryAllocation: out of memory" during precompute_cache.py**
+- This happens when parallel workers all try to use GPU simultaneously
+- **Solution:** Set `USE_GPU = False` in `config.py` (already the default)
+- Or run: `CUDA_VISIBLE_DEVICES="" python precompute_cache.py`
+- CPU mode is actually faster for this workload (5 min vs hours)
 
 **Environment already exists error**
 - Use: `conda activate datect` (it's already created)

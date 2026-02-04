@@ -193,8 +193,20 @@ FORECAST_HORIZON_WEEKS = 1
 FORECAST_HORIZON_DAYS = FORECAST_HORIZON_WEEKS * 7  # Derived days value for internal calculations
 
 # GPU Configuration
-# Set to True to use GPU for XGBoost (tree_method='hist', device='cuda'). None = auto-detect.
-USE_GPU = None  # Auto-detect: use GPU when CUDA is available
+# Controls GPU usage for XGBoost, TFT, TCN, GPyTorch, and TabNet models.
+# 
+# IMPORTANT: For precompute_cache.py and other joblib-parallelized workloads,
+# set USE_GPU = False. GPU mode with parallel workers causes memory contention
+# and is slower than CPU for small-dataset parallel training (many small jobs).
+#
+# GPU mode is beneficial for: single large training jobs with 100K+ rows
+# CPU mode is beneficial for: parallel small training jobs (retrospective evaluation)
+#
+# Values:
+#   True  = Force GPU (cuda) - use for single large training runs
+#   False = Force CPU - use for parallel joblib workloads like precompute_cache.py
+#   None  = Auto-detect (uses GPU if available, but may cause issues with parallel jobs)
+USE_GPU = False  # Default to CPU for parallel workloads; set True for single large jobs
 
 # XGBoost Hyperparameters (configurable)
 # These override defaults in ModelFactory for reproducible tuning and easy experimentation.

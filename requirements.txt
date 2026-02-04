@@ -2,6 +2,7 @@
 # ====================================================
 # Install with: uv pip install -r requirements.txt (10x faster)
 # Or standard: pip install -r requirements.txt
+# See docs/DEPENDENCIES.md for optional/experimental packages.
 
 # Core Scientific Computing
 pandas>=2.0.0
@@ -9,48 +10,37 @@ numpy>=1.24.0
 scikit-learn>=1.3.0
 joblib>=1.3.0         # Parallel processing for model training
 
-# High-Performance Data Processing
-polars>=0.20.0        # 2-50x faster than Pandas for large datasets
-duckdb>=0.10.0        # Fast in-memory analytics and Parquet reads
-pyarrow>=14.0.0       # Parquet file format with optimized I/O
-pandera>=0.18.0       # Data validation
+# High-Performance Data Processing (optional fallbacks in code)
+polars>=0.20.0        # 2-50x faster than Pandas when available
+duckdb>=0.10.0        # Fast Parquet reads when available
+pyarrow>=14.0.0       # Parquet file format
 
-# Machine Learning Models
-xgboost>=2.0.0
-lightgbm>=4.0.0
-catboost>=1.2.0
-optuna>=3.4.0
+# Machine Learning
+xgboost>=2.0.0        # Primary model (linear/logistic are in sklearn)
 
 # Web API and Backend
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
-granian>=1.0.0        # Rust-based ASGI server (20-40% faster than Uvicorn)
-pydantic>=2.5.0       # API data validation and models
-
-# Async HTTP Client (faster downloads with HTTP/2)
-httpx[http2]>=0.26.0  # Replaces requests for async/concurrent downloads
+granian>=1.0.0        # Optional: Rust ASGI server (falls back to uvicorn)
+pydantic>=2.5.0       # API validation
 
 # Data Visualization
 plotly>=5.18.0
-matplotlib>=3.8.0
 
 # Data Processing and I/O
-xarray>=2024.1.0      # NetCDF satellite data processing
-netcdf4>=1.6.0        # NetCDF data handling
-requests>=2.31.0      # Fallback HTTP client
+xarray>=2024.1.0      # NetCDF satellite data (dataset-creation)
+netcdf4>=1.6.0        # NetCDF handling
+requests>=2.31.0      # HTTP client
 
 # Scientific Analysis
-scipy>=1.12.0         # Spectral analysis and statistics
-numba>=0.59.0         # JIT acceleration for numerical operations
-tqdm>=4.66.0          # Progress bars for data processing
-SALib>=1.4.7          # Sensitivity analysis (Sobol indices)
+scipy>=1.12.0         # Spectral analysis (visualizations)
+numba>=0.59.0         # Optional: JIT speedups (graceful fallback)
+tqdm>=4.66.0          # Progress bars
+SALib>=1.4.7          # Sensitivity analysis (Sobol in visualizations)
 
-# Temporal processing and date utilities
-python-dateutil>=2.8.2   # Date parsing and manipulation
+# Date parsing (used by pandas)
+python-dateutil>=2.8.2
 
 # Optional: Redis caching for production (uncomment if needed)
 # redis>=5.0.0
 # hiredis>=2.3.0
-
-# Standard Library (included with Python)
-# json, os, tempfile, datetime, warnings, shutil, random, sys, asyncio, pickle

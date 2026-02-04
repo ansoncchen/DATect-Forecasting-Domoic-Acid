@@ -119,7 +119,7 @@ class DATectLauncher:
                 subprocess.run([
                     'uv', 'pip', 'install', '--quiet', 
                     'fastapi', 'uvicorn', 'granian', 'pandas', 'scikit-learn', 
-                    'plotly', 'xgboost', 'polars', 'httpx[http2]'
+                    'plotly', 'xgboost', 'polars'
                 ], check=True, capture_output=True)
             else:
                 subprocess.run([

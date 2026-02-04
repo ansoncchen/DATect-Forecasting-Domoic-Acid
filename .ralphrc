@@ -9,8 +9,8 @@ PROJECT_TYPE="python"
 MAX_CALLS_PER_HOUR=100
 CLAUDE_TIMEOUT_MINUTES=30
 
-# CRITICAL: Use "text" output to force legacy stdin piping mode
-# The -p flag with JSON mode causes hangs/memory issues
+# Use text mode (avoids 130GB memory issue with JSON/-p flag)
+# I patched ~/.ralph/ralph_loop.sh to pass --allowedTools in text mode
 CLAUDE_OUTPUT_FORMAT="text"
 
 # Tool permissions

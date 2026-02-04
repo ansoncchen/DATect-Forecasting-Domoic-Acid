@@ -139,8 +139,8 @@ cd /gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid
 # Precompute cache
 python precompute_cache.py
 
-# Verify temporal integrity
-python verify_temporal_integrity.py
+# Pre-compute cache (includes temporal validation)
+python precompute_cache.py
 
 # Generate dataset (30-60 min)
 python dataset-creation.py

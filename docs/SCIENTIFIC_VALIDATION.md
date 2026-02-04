@@ -76,7 +76,7 @@ train_data['category'] = categorize_from_training_only(train_data['da'])
 
 ## Temporal Integrity Test Suite
 
-The system runs 7 validation tests on startup (`verify_temporal_integrity.py`):
+The system validates temporal integrity through checks built into `DataProcessor`:
 
 ### Test 1: Chronological Split Validation
 
@@ -123,11 +123,9 @@ Verifies uniform rules across all sites:
 ## Running Validation
 
 ```bash
-# Automatic (runs on system startup)
-python run_datect.py
-
-# Manual standalone test
-python verify_temporal_integrity.py
+# Temporal validation runs automatically during:
+python run_datect.py       # System startup
+python precompute_cache.py # Cache generation
 ```
 
 **Expected output:**

@@ -216,8 +216,8 @@ python run_datect.py
 ### Validation
 
 ```bash
-# Run temporal integrity tests
-python verify_temporal_integrity.py
+# Temporal validation runs automatically during cache generation
+python precompute_cache.py
 ```
 
 ### Programmatic Use
@@ -262,7 +262,7 @@ DATect-Forecasting-Domoic-Acid/
 ├── dataset-creation.py       # Data ingestion pipeline
 ├── run_datect.py             # Application launcher
 ├── config.py                 # Configuration
-├── verify_temporal_integrity.py  # Validation tests
+├── precompute_cache.py       # Cache generation with validation
 ├── forecasting/
 │   ├── forecast_engine.py    # Core forecasting logic
 │   ├── data_processor.py     # Feature engineering

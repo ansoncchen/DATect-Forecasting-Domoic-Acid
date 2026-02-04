@@ -34,7 +34,7 @@ Opens at http://localhost:3000
 | Command | Description |
 |---------|-------------|
 | `python run_datect.py` | Start system (backend + frontend) |
-| `python verify_temporal_integrity.py` | Run 7 temporal validation tests |
+| `python precompute_cache.py` | Pre-compute cache and validate |
 | `python dataset-creation.py` | Regenerate dataset (30-60 min) |
 | `./deploy_gcloud.sh` | Deploy to Google Cloud |
 

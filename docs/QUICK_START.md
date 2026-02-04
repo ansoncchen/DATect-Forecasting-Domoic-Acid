@@ -171,8 +171,8 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com
 After setup, verify the system works:
 
 ```bash
-# Run temporal integrity tests
-python verify_temporal_integrity.py
+# Pre-compute cache (includes validation)
+python precompute_cache.py
 
 # Check API health
 curl http://localhost:8000/health

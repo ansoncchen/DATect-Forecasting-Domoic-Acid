@@ -11,6 +11,7 @@ GPU Support:
 """
 
 import os
+import numpy as np
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.utils.class_weight import compute_class_weight
@@ -24,6 +25,21 @@ import config
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def asymmetric_mse_loss(y_true, y_pred, spike_threshold=None, under_penalty=3.0):
+    """
+    Penalize under-predictions more heavily for spike events.
+    Intended for evaluation or custom objectives.
+    """
+    if spike_threshold is None:
+        spike_threshold = config.SPIKE_THRESHOLD
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    error = y_true - y_pred
+    under_mask = (y_true > spike_threshold) & (error > 0)
+    weights = np.where(under_mask, under_penalty, 1.0)
+    return np.mean(weights * error ** 2)
 
 
 def _xgboost_device():

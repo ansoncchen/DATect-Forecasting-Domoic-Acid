@@ -253,6 +253,22 @@ class DataProcessor:
             logger.debug(f"Data contains dates after cutoff ({cutoff_date}) - temporal leakage risk exists (expected for retrospective evaluation)")
             
         return df_sorted
+
+    def create_raw_lag_features(self, df, group_col, value_col, lags):
+        """
+        Create lag features from raw measurements WITHOUT interpolation.
+        Leaves missing values as NaN to preserve measurement sparsity.
+        """
+        logger.info("Creating raw lag features for %s (no interpolation)", value_col)
+        df = df.copy()
+        df_sorted = df.sort_values([group_col, "date"])
+        created_features = []
+        for lag in lags:
+            feature_name = f"{value_col}_lag_{lag}"
+            df_sorted[feature_name] = df_sorted.groupby(group_col)[value_col].shift(lag)
+            created_features.append(feature_name)
+        logger.info("Created %d raw lag features", len(created_features))
+        return df_sorted
         
     def add_rolling_statistics_safe(self, df):
         """

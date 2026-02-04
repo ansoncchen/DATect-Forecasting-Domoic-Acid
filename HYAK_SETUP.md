@@ -105,15 +105,20 @@ git checkout ralph-improvement
 
 Using Miniconda (Hyak's preferred method):
 
+**IMPORTANT:** Create the conda environment in scratch space (`/gscratch`) to avoid home directory quota issues:
+
 ```bash
 # Load miniconda module
 module load foster/python/miniconda/3.8
 
-# Create conda environment with Python 3.10
-conda create -n datect python=3.10 -y
+# Create environment directory in scratch space (avoids home quota limits)
+mkdir -p /gscratch/stf/YOUR_UWNETID/conda_envs
 
-# Activate the environment
-conda activate datect
+# Create conda environment with Python 3.10 in scratch space
+conda create --prefix /gscratch/stf/YOUR_UWNETID/conda_envs/datect python=3.10 -y
+
+# Activate the environment (use full path)
+conda activate /gscratch/stf/YOUR_UWNETID/conda_envs/datect
 
 # Upgrade pip
 pip install --upgrade pip
@@ -125,19 +130,24 @@ pip install -r requirements.txt
 
 **GPU support (XGBoost):** XGBoost auto-detects GPUs via `nvidia-smi`. On GPU nodes, set `config.USE_GPU = True` or leave as `None` for auto-detect. Ensure `xgboost` is built with CUDA (default pip wheel on Linux usually includes GPU support).
 
-**Note:** The conda environment is stored in `~/.conda/envs/datect` and persists across sessions.
+**Note:** The conda environment is stored in `/gscratch/stf/YOUR_UWNETID/conda_envs/datect` (scratch space) to avoid home directory quota limits (~10GB). This persists across sessions.
 
 ---
 
 ## Python Environment Setup (subsequent sessions)
 
 ```bash
-# Load miniconda and activate existing environment
+# Load miniconda and activate existing environment (use full path)
 module load foster/python/miniconda/3.8
-conda activate datect
+conda activate /gscratch/stf/YOUR_UWNETID/conda_envs/datect
 
 # Navigate to project
 cd /gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid
+```
+
+**Tip:** Create an alias in `~/.bashrc` for convenience:
+```bash
+echo 'alias datect-env="conda activate /gscratch/stf/YOUR_UWNETID/conda_envs/datect"' >> ~/.bashrc
 ```
 
 ---
@@ -238,5 +248,10 @@ scancel --name vsc-proxy-jump  # cancel the job
 - CPU mode is actually faster for this workload (5 min vs hours)
 
 **Environment already exists error**
-- Use: `conda activate datect` (it's already created)
-- Or remove and recreate: `conda env remove -n datect` then create again
+- Use: `conda activate /gscratch/stf/YOUR_UWNETID/conda_envs/datect` (use full path)
+- Or remove and recreate: `conda env remove --prefix /gscratch/stf/YOUR_UWNETID/conda_envs/datect` then create again
+
+**Disk quota exceeded**
+- Your conda environment is likely in home directory (`~/.conda/envs/datect`)
+- **Solution:** Move environment to scratch space (see `HYAK_DISK_QUOTA_FIX.md` for detailed instructions)
+- Quick fix: `conda create --prefix /gscratch/stf/YOUR_UWNETID/conda_envs/datect --clone datect -y` then `conda env remove -n datect`

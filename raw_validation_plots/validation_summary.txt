@@ -1,0 +1,114 @@
+RAW DATA VALIDATION SUMMARY
+Generated: 2026-02-03T23:31:33.175716
+============================================================
+
+CONFIGURATION
+  Forecast horizon: 7 days
+  Test samples: 500
+  Min training samples: 10
+  Min test date: 2008-01-01
+  Spike threshold: 20.0 μg/g
+  Random seed: 42
+
+  Use log target: True
+  Prediction clip quantile: 0.99
+  Parallel enabled: True (n_jobs=-1)
+  Calibration fraction: 0.7
+
+CRITICAL: Uses test-date environmental features (matching original pipeline)
+
+OVERALL METRICS
+  r2: 0.5924603159224631
+  mae: 6.457893953957252
+  rmse: 13.732210050216228
+  correlation: 0.7955617215374439
+  f1: 0.68
+  precision: 0.6538461538461539
+  recall: 0.7083333333333334
+  naive_r2: -0.5005791936913031
+  naive_mae: 10.876666666666667
+  naive_f1: 0.6129032258064516
+  n_samples: 150
+  n_spikes: 24
+
+SITE-SPECIFIC METRICS
+
+  Cannon Beach:
+    n: 8
+    r2: -2.0387444247889355
+    naive_r2: 0.4666666666666667
+    mae: 0.8223395766174029
+    naive_mae: 0.125
+    f1: 0.0
+
+  Clatsop Beach:
+    n: 32
+    r2: 0.7404482277683171
+    naive_r2: 0.6411407229220738
+    mae: 6.575847914759457
+    naive_mae: 7.665625
+    f1: 0.75
+
+  Coos Bay:
+    n: 6
+    r2: 0.5547260418110608
+    naive_r2: 0.891108218501728
+    mae: 17.75333463838782
+    naive_mae: 10.833333333333334
+    f1: 0.8
+
+  Copalis:
+    n: 8
+    r2: 0.8633597744265923
+    naive_r2: 0.8498862774829417
+    mae: 2.621051924930929
+    naive_mae: 2.375
+    f1: 1.0
+
+  Gold Beach:
+    n: 26
+    r2: 0.2887090992881205
+    naive_r2: -4.971108598994685
+    mae: 8.708780857605555
+    naive_mae: 26.873076923076926
+    f1: 0.2857142857142857
+
+  Kalaloch:
+    n: 8
+    r2: 0.6946620363243421
+    naive_r2: 0.06592150155039467
+    mae: 11.29145687303706
+    naive_mae: 24.375
+    f1: 1.0
+
+  Long Beach:
+    n: 15
+    r2: 0.798118490313428
+    naive_r2: 0.643509272467903
+    mae: 4.567405886935498
+    naive_mae: 7.2
+    f1: 0.8
+
+  Newport:
+    n: 24
+    r2: -5.777587715866128
+    naive_r2: -7.60183287383008
+    mae: 7.403033713364544
+    naive_mae: 8.270833333333334
+    f1: 0.0
+
+  Quinault:
+    n: 13
+    r2: 0.8308404097790131
+    naive_r2: 0.6102036249720295
+    mae: 3.1862181290911407
+    naive_mae: 4.923076923076923
+    f1: 0.6666666666666666
+
+  Twin Harbors:
+    n: 10
+    r2: 0.7593166949903433
+    naive_r2: 0.2921297001065609
+    mae: 1.9825129593564328
+    naive_mae: 3.7
+    f1: 0.0

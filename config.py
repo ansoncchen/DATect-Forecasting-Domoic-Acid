@@ -258,11 +258,11 @@ N_BOOTSTRAP_ITERATIONS = 20  # Number of bootstrap iterations for confidence int
 # Lag Feature Configuration
 
 # Enable/disable lag features for time series modeling
-USE_LAG_FEATURES = False
+USE_LAG_FEATURES = True
 
 # Time series lags optimized via ACF/PACF analysis
 # Lag 1: immediate dependency (60% sites), Lag 3: cyclical pattern (70% sites)
-LAG_FEATURES = [1, 2, 3, 52] if USE_LAG_FEATURES else []
+LAG_FEATURES = [1, 2, 3, 4, 52] if USE_LAG_FEATURES else []
 
 # DA Category Configuration
 
@@ -289,7 +289,7 @@ CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 # Data Quality Configuration
 
 # Feature engineering toggles
-USE_ROLLING_FEATURES = False  # Enable/disable rolling statistics features
+USE_ROLLING_FEATURES = True  # Enable/disable rolling statistics features
 USE_ENHANCED_TEMPORAL_FEATURES = True  # Enable/disable sin/cos temporal encoding and derived features
 
 # Polynomial trend analysis minimum periods

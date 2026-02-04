@@ -192,8 +192,13 @@ FORECAST_MODEL = "xgboost"
 FORECAST_HORIZON_WEEKS = 1
 FORECAST_HORIZON_DAYS = FORECAST_HORIZON_WEEKS * 7  # Derived days value for internal calculations
 
+# GPU Configuration
+# Set to True to use GPU for XGBoost (tree_method='gpu_hist'). None = auto-detect.
+USE_GPU = None  # Auto-detect: use GPU when CUDA is available
+
 # XGBoost Hyperparameters (configurable)
 # These override defaults in ModelFactory for reproducible tuning and easy experimentation.
+# Note: tree_method is set dynamically (gpu_hist or hist) based on USE_GPU; do not set here.
 # Regression parameters
 XGB_REGRESSION_PARAMS = {
     "n_estimators": 400,
@@ -206,7 +211,7 @@ XGB_REGRESSION_PARAMS = {
     "reg_lambda": 1.0,
     "gamma": 0.1,
     "min_child_weight": 3,
-    "tree_method": "hist",
+    "tree_method": "hist",  # Overridden by ModelFactory based on USE_GPU
 }
 
 # Classification parameters
@@ -221,7 +226,7 @@ XGB_CLASSIFICATION_PARAMS = {
     "reg_lambda": 2.0,
     "gamma": 0.2,
     "min_child_weight": 5,
-    "tree_method": "hist",
+    "tree_method": "hist",  # Overridden by ModelFactory based on USE_GPU
     "eval_metric": "logloss",
 }
 

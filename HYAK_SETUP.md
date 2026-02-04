@@ -50,12 +50,19 @@ ssh-copy-id klone-login
 
 ### 1. Request a compute node
 
+**CPU-only (default):**
 ```bash
 ssh klone-login
 salloc --partition=ckpt --cpus-per-task=4 --mem=32G --time=4:00:00 --job-name=vsc-proxy-jump
 ```
 
-Note the node number (e.g., `n3285`).
+**GPU (for XGBoost acceleration, TFT, etc.):**
+```bash
+ssh klone-login
+salloc --partition=ckpt-g2 --gres=gpu:1 --cpus-per-task=4 --mem=32G --time=4:00:00 --job-name=vsc-proxy-jump
+```
+
+Partitions: `ckpt` (CPU), `ckpt-g2` (L40/L40S GPUs), `ckpt-all` (either). Note the node number (e.g., `n3285`).
 
 ### 2. Update local config with node number
 
@@ -116,6 +123,8 @@ cd /gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid
 pip install -r requirements.txt
 ```
 
+**GPU support (XGBoost):** XGBoost auto-detects GPUs via `nvidia-smi`. On GPU nodes, set `config.USE_GPU = True` or leave as `None` for auto-detect. Ensure `xgboost` is built with CUDA (default pip wheel on Linux usually includes GPU support).
+
 **Note:** The conda environment is stored in `~/.conda/envs/datect` and persists across sessions.
 
 ---
@@ -174,6 +183,11 @@ scancel --name vsc-proxy-jump  # cancel the job
 
 **conda activate doesn't work**
 - Make sure you ran `module load foster/python/miniconda/3.8` first.
+
+**XGBoost "gpu_hist" or CUDA errors**
+- Request a GPU node: `salloc --partition=ckpt-g2 --gres=gpu:1 ...`
+- Force CPU: set `USE_GPU = False` in `config.py`
+- Ensure `nvidia-smi` works on the node before running
 
 **Environment already exists error**
 - Use: `conda activate datect` (it's already created)

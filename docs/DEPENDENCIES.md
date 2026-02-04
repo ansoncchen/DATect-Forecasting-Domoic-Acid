@@ -8,7 +8,7 @@
 | pandas, numpy | Everywhere |
 | scikit-learn | data_processor, model_factory, visualizations |
 | joblib | forecast_engine (parallel) |
-| xgboost | model_factory |
+| xgboost | model_factory (GPU auto-detected via tree_method='gpu_hist') |
 | fastapi, uvicorn, pydantic | backend/api |
 | plotly | backend/visualizations, api map |
 | xarray, netcdf4 | dataset-creation (NetCDF) |

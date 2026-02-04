@@ -4,7 +4,13 @@ Model Factory
 
 Creates and configures machine learning models for DA forecasting.
 Supports both regression and classification tasks with multiple algorithms.
+
+GPU Support:
+- XGBoost uses tree_method='gpu_hist' when USE_GPU is True or auto-detected.
+- Fallback to 'hist' (CPU) when GPU unavailable or USE_GPU=False.
 """
+
+import os
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.utils.class_weight import compute_class_weight
@@ -18,6 +24,29 @@ import config
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def _xgboost_tree_method():
+    """
+    Determine tree_method for XGBoost: gpu_hist when GPU available, else hist.
+    Respects config.USE_GPU: True=force GPU, False=force CPU, None=auto-detect.
+    """
+    use_gpu = getattr(config, "USE_GPU", None)
+    if use_gpu is False:
+        return "hist"
+    if use_gpu is True:
+        return "gpu_hist"
+    # Auto-detect via nvidia-smi
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["nvidia-smi", "-L"], capture_output=True, text=True, timeout=2
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return "gpu_hist"
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+    return "hist"
 
 
 class ModelFactory:
@@ -65,9 +94,12 @@ class ModelFactory:
             params = {**default_reg_params, **(cfg_params or {})}
             if params_override:
                 params.update(params_override)
-            # Ensure seed/n_jobs are enforced
+            # GPU: use gpu_hist when available unless explicitly overridden
+            if not (params_override and 'tree_method' in params_override):
+                params['tree_method'] = _xgboost_tree_method()
             params['random_state'] = self.random_seed
             params['n_jobs'] = -1
+            logger.debug(f"XGBoost regression tree_method={params['tree_method']}")
             return xgb.XGBRegressor(**params)
         elif model_type == "linear":
             return LinearRegression(
@@ -101,8 +133,12 @@ class ModelFactory:
             params = {**default_cls_params, **(cfg_params or {})}
             if params_override:
                 params.update(params_override)
+            # GPU: use gpu_hist when available unless explicitly overridden
+            if not (params_override and 'tree_method' in params_override):
+                params['tree_method'] = _xgboost_tree_method()
             params['random_state'] = self.random_seed
             params['n_jobs'] = -1
+            logger.debug(f"XGBoost classification tree_method={params['tree_method']}")
             return xgb.XGBClassifier(**params)
         elif model_type == "logistic":
             return LogisticRegression(

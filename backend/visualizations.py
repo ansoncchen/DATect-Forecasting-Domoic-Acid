@@ -591,29 +591,27 @@ def generate_spectral_analysis(data, site=None):
         from pathlib import Path
         cache_dir = Path("cache/retrospective")
 
-        # Load XGBoost predictions (cache or run retrospective)
+        # Load ensemble predictions from cache
+        cache_file_ensemble = cache_dir / "regression_ensemble.json"
         cache_file_xgb = cache_dir / "regression_xgboost.parquet"
-        if cache_file_xgb.exists():
+
+        results_df = None
+        if cache_file_ensemble.exists():
+            import json
+            with open(cache_file_ensemble) as f:
+                cache_data = json.load(f)
+            if "results" in cache_data:
+                results_df = pd.DataFrame(cache_data["results"])
+                if 'date' in results_df.columns:
+                    results_df['date'] = pd.to_datetime(results_df['date'])
+        elif cache_file_xgb.exists():
+            # Legacy parquet cache fallback
             results_df = pd.read_parquet(cache_file_xgb)
-            if site and not results_df.empty:
+
+        if results_df is not None and not results_df.empty:
+            if site:
                 results_df = results_df[results_df['site'] == site]
             if not results_df.empty:
-                results_df = results_df.sort_values('date')
-                xgb_predictions = results_df['predicted_da'].dropna().values
-                actual_for_comparison = results_df['actual_da'].dropna().values
-        else:
-            from forecasting.forecast_engine import ForecastEngine
-            import config
-            engine = ForecastEngine()
-            n_anchors = int(os.getenv('SPECTRAL_N_ANCHORS', getattr(config, 'N_RANDOM_ANCHORS', 200)))
-            results_df = engine.run_retrospective_evaluation(
-                task="regression",
-                model_type="xgboost",
-                n_anchors=n_anchors
-            )
-            if site and results_df is not None and not results_df.empty:
-                results_df = results_df[results_df['site'] == site]
-            if results_df is not None and not results_df.empty:
                 results_df = results_df.sort_values('date')
                 xgb_predictions = results_df['predicted_da'].dropna().values
                 actual_for_comparison = results_df['actual_da'].dropna().values

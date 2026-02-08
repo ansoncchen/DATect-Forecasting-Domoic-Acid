@@ -135,18 +135,50 @@ cd /gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid
 
 ## Running the Project
 
+### Workflow A: validate_on_raw_data.py (analysis + validation)
+
+Use this when you want full validation plots, metrics analysis, and the detailed CSV.
+
 ```bash
-# Precompute cache
-python precompute_cache.py
+# On Hyak compute node:
+python validate_on_raw_data.py
+```
 
-# Pre-compute cache (includes temporal validation)
-python precompute_cache.py
+Then on your **local Mac**:
+```bash
+# Download results
+scp -r klone-node:/gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/raw_validation_plots/ ./raw_validation_plots/
 
-# Generate dataset (30-60 min)
-python dataset-creation.py
+# Convert CSV to API cache format
+python convert_results_to_cache.py
 
-# Run the full system
+# Start local dashboard
 python run_datect.py
+```
+
+### Workflow B: precompute_cache.py (deployment cache)
+
+Use this when you just need the API cache for the local dashboard or production deployment.
+
+```bash
+# On Hyak compute node:
+python precompute_cache.py
+```
+
+Then on your **local Mac**:
+```bash
+# Download cache
+scp -r klone-node:/gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/ ./cache/
+
+# Start local dashboard
+python run_datect.py
+```
+
+### Other Commands
+
+```bash
+# Generate dataset (30-60 min, only when data sources change)
+python dataset-creation.py
 ```
 
 ---

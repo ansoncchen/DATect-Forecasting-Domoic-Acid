@@ -184,8 +184,8 @@ FORECAST_MODE = "retrospective"
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
 FORECAST_TASK = "regression"
 
-# ML algorithm: "xgboost" (primary) or "linear" (interpretable)
-FORECAST_MODEL = "xgboost"
+# ML algorithm: "ensemble" (primary), "xgboost", "rf", "naive", or "linear" (interpretable)
+FORECAST_MODEL = "ensemble"
 
 # Forecast Horizon Configuration
 # How many weeks ahead to forecast from the data cutoff point
@@ -229,7 +229,7 @@ XGB_CLASSIFICATION_PARAMS = {
 # Temporal Validation - prevents data leakage (handled by forecast horizon)
 
 # Model Performance
-MIN_TRAINING_SAMPLES = 3
+MIN_TRAINING_SAMPLES = 10
 RANDOM_SEED = 42
 
 # Retrospective evaluation anchor points (higher = more thorough)
@@ -241,11 +241,10 @@ N_BOOTSTRAP_ITERATIONS = 20  # Number of bootstrap iterations for confidence int
 # Lag Feature Configuration
 
 # Enable/disable lag features for time series modeling
-USE_LAG_FEATURES = False
+USE_LAG_FEATURES = True
 
-# Time series lags optimized via ACF/PACF analysis
-# Lag 1: immediate dependency (60% sites), Lag 3: cyclical pattern (70% sites)
-LAG_FEATURES = [1, 2, 3, 52] if USE_LAG_FEATURES else []
+# Time series lags for raw observation-order lag features
+LAG_FEATURES = [1, 2, 3, 4]
 
 # DA Category Configuration
 
@@ -272,7 +271,7 @@ CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 # Data Quality Configuration
 
 # Feature engineering toggles
-USE_ROLLING_FEATURES = False  # Enable/disable rolling statistics features
+USE_ROLLING_FEATURES = True  # Enable rolling statistics features for raw pipeline
 USE_ENHANCED_TEMPORAL_FEATURES = True  # Enable/disable sin/cos temporal encoding and derived features
 
 # Polynomial trend analysis minimum periods
@@ -288,3 +287,95 @@ DA_DECAY_RATE = 0.2   # Per week decay rate (half-life ~3.5 weeks)
 # PN (Pseudo-nitzschia) parameters - more aggressive due to sparser data
 PN_MAX_GAP_WEEKS = 4  # Maximum gap to interpolate
 PN_DECAY_RATE = 0.3   # Per week decay rate (half-life ~2.3 weeks)
+
+
+# =============================================================================
+# RAW DATA PIPELINE CONFIGURATION
+# Parameters for the raw-data ensemble forecasting pipeline.
+# =============================================================================
+
+# Random Forest Regression parameters
+# RF uses the same feature pipeline as XGBoost. No per-anchor tuning (RF is robust to hyperparams).
+RF_REGRESSION_PARAMS = {
+    "n_estimators": 400,
+    "max_depth": 12,
+    "min_samples_split": 5,
+    "min_samples_leaf": 3,
+    "max_features": 0.85,
+}
+
+# Target and model toggles
+USE_LOG_TARGET = False           # Log transform hurts spike detection
+USE_TWO_STAGE_MODEL = False      # DISABLED — single-stage outperforms
+USE_PER_SITE_MODELS = True       # Enable per-site XGB/RF params, features, ensemble weights
+USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
+
+# Prediction clipping
+PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training targets
+
+# Parallelization
+ENABLE_PARALLEL = True
+N_JOBS = -1                      # Use all cores (-1)
+
+# Per-anchor tuning / calibration
+CALIBRATION_FRACTION = 0.3       # Fraction of pre-anchor history used for tuning
+MAX_CALIBRATION_ROWS = 20        # Hard cap on calibration rows per anchor
+MIN_TUNING_SAMPLES = 10          # Skip tuning if fewer calibration rows available
+
+# Default XGB search grid (used when site has no custom param_grid)
+PARAM_GRID = [
+    {"max_depth": 4, "n_estimators": 500, "learning_rate": 0.05, "min_child_weight": 5},
+    {"max_depth": 6, "n_estimators": 400, "learning_rate": 0.05, "min_child_weight": 3},
+]
+
+# Quantile prediction intervals
+ENABLE_QUANTILE_INTERVALS = True
+
+# History requirement: anchor must have >= this fraction of site's total history
+HISTORY_REQUIREMENT_FRACTION = 0.33
+
+# Zero/near-zero importance features to always drop.
+# Original Phase 4 drops + 8 features confirmed < 1% of max importance
+# in leak-free pipeline.
+ZERO_IMPORTANCE_FEATURES = [
+    # Phase 4 original drops
+    'lat', 'lon', 'weeks_since_last_raw',
+    'is_bloom_season', 'quarter',
+    # Leak-free feature importance < 1% of max (0.0037 threshold)
+    'raw_obs_roll_mean_12',
+    'modis-par',
+    'raw_obs_roll_mean_8',
+    'sin_week_of_year',
+    'cos_month',
+    'modis-k490',
+    'cos_week_of_year',
+    'da_raw_prev_obs_4_weeks_ago',
+]
+
+# Output directory for validation plots
+PLOTS_OUTPUT_DIR = "./raw_validation_plots"
+
+# Minimum test date (early lower bound; per-site history fraction is the real filter)
+MIN_TEST_DATE = "2003-01-01"
+
+
+def verify_no_data_leakage(train_data, test_date, anchor_date):
+    """Assert that no training data leaks past the anchor date.
+
+    Call this inside the validation loop for every test point.
+    Raises AssertionError on temporal leakage.
+    """
+    import pandas as _pd
+
+    anchor = _pd.Timestamp(anchor_date)
+    if train_data['date'].max() > anchor:
+        raise AssertionError(
+            f"TEMPORAL LEAK: training data max date "
+            f"{train_data['date'].max().date()} > anchor {anchor.date()}"
+        )
+
+    test = _pd.Timestamp(test_date)
+    if test <= anchor:
+        raise AssertionError(
+            f"TEMPORAL LEAK: test_date {test.date()} <= anchor {anchor.date()}"
+        )

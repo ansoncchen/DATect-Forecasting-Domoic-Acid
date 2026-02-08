@@ -33,3 +33,14 @@ export const DA_CATEGORIES = {
 
 // Get category info by value
 export const getCategoryInfo = (category) => DA_CATEGORIES[category] || DA_CATEGORIES[0]
+
+// Model descriptions for UI display
+export const MODEL_DESCRIPTIONS = {
+  ensemble: 'Ensemble (XGBoost + RF + Naive)',
+  xgboost: 'XGBoost Only',
+  rf: 'Random Forest Only',
+  naive: 'Naive Baseline (Last Known DA)',
+  threshold: 'Threshold Classification (from regression)',
+  linear: 'Linear Regression',
+  logistic: 'Logistic Regression'
+}

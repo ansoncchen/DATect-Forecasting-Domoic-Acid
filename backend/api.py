@@ -20,8 +20,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 
-from forecasting.forecast_engine import ForecastEngine
-from forecasting.model_factory import ModelFactory
+from forecasting import ForecastEngine, ModelFactory
 import config
 from backend.visualizations import (
     generate_correlation_heatmap,
@@ -150,9 +149,9 @@ class ForecastRequest(BaseModel):
     model: str = "xgboost"
 
 class ConfigUpdateRequest(BaseModel):
-    forecast_mode: str = "realtime"  # "realtime" or "retrospective" 
+    forecast_mode: str = "realtime"  # "realtime" or "retrospective"
     forecast_task: str = "regression"  # "regression" or "classification"
-    forecast_model: str = "xgboost"  # "xgboost" or "linear" (linear models)
+    forecast_model: str = "ensemble"  # "ensemble", "xgboost", "rf", "naive", or "linear"
     selected_sites: List[str] = []  # For retrospective site filtering
     forecast_horizon_weeks: int = 1  # Weeks ahead to forecast from data cutoff
 
@@ -166,6 +165,10 @@ class ForecastResponse(BaseModel):
     predicted_category: Optional[int] = None
     training_samples: Optional[int] = None
     feature_importance: Optional[List[Dict[str, Any]]] = None
+    naive_prediction: Optional[float] = None
+    xgb_prediction: Optional[float] = None
+    rf_prediction: Optional[float] = None
+    ensemble_weights: Optional[List[float]] = None
     error: Optional[str] = None
 
 class SiteInfo(BaseModel):
@@ -356,9 +359,10 @@ async def get_config():
     return {
         "forecast_mode": getattr(config, 'FORECAST_MODE', 'realtime'),
         "forecast_task": getattr(config, 'FORECAST_TASK', 'regression'),
-        "forecast_model": getattr(config, 'FORECAST_MODEL', 'xgboost'),
+        "forecast_model": getattr(config, 'FORECAST_MODEL', 'ensemble'),
         "forecast_horizon_weeks": getattr(config, 'FORECAST_HORIZON_WEEKS', 1),
-        "forecast_horizon_days": getattr(config, 'FORECAST_HORIZON_DAYS', 7)
+        "forecast_horizon_days": getattr(config, 'FORECAST_HORIZON_DAYS', 7),
+        "spike_threshold": getattr(config, 'SPIKE_THRESHOLD', 20.0),
     }
 
 @app.post("/api/config")
@@ -792,13 +796,14 @@ async def generate_enhanced_forecast(request: ForecastRequest):
         
         forecast_date = pd.to_datetime(request.date)
         
-        # Generate regression and classification forecasts
+        # Generate regression and classification forecasts using ensemble
+        model_type = getattr(request, 'model', None) or config.FORECAST_MODEL or "ensemble"
         regression_result = get_forecast_engine().generate_single_forecast(
-            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "regression", "xgboost"
+            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "regression", model_type
         )
-        
+
         classification_result = get_forecast_engine().generate_single_forecast(
-            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "classification", "xgboost"
+            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "classification", model_type
         )
         
         # Create response structure expected by frontend
@@ -844,8 +849,23 @@ async def generate_enhanced_forecast(request: ForecastRequest):
                 "category_labels": ['Low (≤5)', 'Moderate (5-20]', 'High (20-40]', 'Extreme (>40)'],
                 "type": "category_range"
             }
-        
-        
+
+        # Add ensemble breakdown if available
+        if regression_result:
+            ensemble_data = {}
+            if 'naive_prediction' in regression_result:
+                ensemble_data['naive_prediction'] = clean_float_for_json(regression_result['naive_prediction'])
+            if 'xgb_prediction' in regression_result:
+                ensemble_data['xgb_prediction'] = clean_float_for_json(regression_result['xgb_prediction'])
+            if 'rf_prediction' in regression_result:
+                ensemble_data['rf_prediction'] = clean_float_for_json(regression_result['rf_prediction'])
+            if 'ensemble_prediction' in regression_result:
+                ensemble_data['ensemble_prediction'] = clean_float_for_json(regression_result['ensemble_prediction'])
+            if 'ensemble_weights' in regression_result:
+                ensemble_data['ensemble_weights'] = regression_result['ensemble_weights']
+            if ensemble_data:
+                response_data['ensemble'] = ensemble_data
+
         return response_data
         
     except Exception as e:
@@ -865,6 +885,8 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
         # Map model names for API compatibility
         if config.FORECAST_MODEL == "linear":
             actual_model = "linear" if config.FORECAST_TASK == "regression" else "logistic"
+        elif config.FORECAST_MODEL in ("ensemble", "rf", "naive"):
+            actual_model = config.FORECAST_MODEL
         else:
             actual_model = config.FORECAST_MODEL
         

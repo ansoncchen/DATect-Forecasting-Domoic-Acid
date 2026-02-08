@@ -26,7 +26,7 @@ const Dashboard = () => {
   
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedSite, setSelectedSite] = useState(null)
-  const [selectedModel, setSelectedModel] = useState('xgboost')
+  const [selectedModel, setSelectedModel] = useState('ensemble')
   const [task, setTask] = useState('regression')
   
   const [forecast, setForecast] = useState(null)
@@ -189,8 +189,8 @@ const Dashboard = () => {
     ) / actuals.length
     
     // F1 score for spike detection
-    const actualSpikes = actuals.map(val => val > 15 ? 1 : 0)
-    const predictedSpikes = predictions.map(val => val > 15 ? 1 : 0)
+    const actualSpikes = actuals.map(val => val > 20 ? 1 : 0)
+    const predictedSpikes = predictions.map(val => val > 20 ? 1 : 0)
     
     const truePositives = actualSpikes.reduce((sum, actual, i) => 
       sum + (actual === 1 && predictedSpikes[i] === 1 ? 1 : 0), 0
@@ -874,9 +874,59 @@ const Dashboard = () => {
                   </p>
                 </div>
               )}
-              
+
             </div>
           </div>
+
+          {/* Ensemble Breakdown */}
+          {forecast.ensemble && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-medium text-purple-800 mb-4">🔬 Ensemble Model Breakdown</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-purple-50 p-4 rounded-lg text-center">
+                  <p className="text-sm text-gray-600 mb-1">XGBoost</p>
+                  <p className="text-xl font-bold text-purple-700">
+                    {forecast.ensemble.xgb_prediction?.toFixed(2)} μg/g
+                  </p>
+                  {forecast.ensemble.ensemble_weights && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      weight: {(forecast.ensemble.ensemble_weights[0] * 100).toFixed(0)}%
+                    </p>
+                  )}
+                </div>
+                <div className="bg-purple-50 p-4 rounded-lg text-center">
+                  <p className="text-sm text-gray-600 mb-1">Random Forest</p>
+                  <p className="text-xl font-bold text-purple-700">
+                    {forecast.ensemble.rf_prediction?.toFixed(2)} μg/g
+                  </p>
+                  {forecast.ensemble.ensemble_weights && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      weight: {(forecast.ensemble.ensemble_weights[1] * 100).toFixed(0)}%
+                    </p>
+                  )}
+                </div>
+                <div className="bg-purple-50 p-4 rounded-lg text-center">
+                  <p className="text-sm text-gray-600 mb-1">Naive Baseline</p>
+                  <p className="text-xl font-bold text-purple-700">
+                    {forecast.ensemble.naive_prediction?.toFixed(2)} μg/g
+                  </p>
+                  {forecast.ensemble.ensemble_weights && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      weight: {(forecast.ensemble.ensemble_weights[2] * 100).toFixed(0)}%
+                    </p>
+                  )}
+                </div>
+              </div>
+              {forecast.ensemble.ensemble_prediction != null && (
+                <div className="mt-4 bg-purple-100 p-3 rounded-lg text-center">
+                  <p className="text-sm text-gray-600">Ensemble Prediction</p>
+                  <p className="text-2xl font-bold text-purple-800">
+                    {forecast.ensemble.ensemble_prediction?.toFixed(3)} μg/g
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Level Range and Category Range Graphs - Match modular-forecast exactly */}
           <div className="bg-white rounded-lg shadow-md p-6">

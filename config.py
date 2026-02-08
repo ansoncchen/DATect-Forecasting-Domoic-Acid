@@ -269,6 +269,8 @@ USE_REGRESSION_SAMPLE_WEIGHTS = True  # False = fair baseline comparison, True =
 # Linear baseline regularization (ridge)
 LINEAR_REGRESSION_ALPHA = 1.0
 
+# Linear/logistic models use the full feature set (no whitelist)
+
 # Persistence baseline configuration
 PERSISTENCE_MAX_DAYS = None  # Set to an int (e.g., 28) to cap lookback
 

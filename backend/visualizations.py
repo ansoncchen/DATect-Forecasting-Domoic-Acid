@@ -561,7 +561,7 @@ def generate_waterfall_plot(data):
 
 
 def generate_spectral_analysis(data, site=None):
-    """Generate spectral analysis with optional XGBoost comparison."""
+    """Generate spectral analysis with optional XGBoost and Random Forest comparison."""
     
     # Ensure date column is datetime
     data['date'] = pd.to_datetime(data['date'])
@@ -583,56 +583,56 @@ def generate_spectral_analysis(data, site=None):
     if len(da_values) < 20:
         return []
     
-    if True:
-        try:
-            from pathlib import Path
-            
-            cache_dir = Path("cache/retrospective")
-            cache_file = cache_dir / "regression_xgboost.parquet"
-            
-            if cache_file.exists():
-                results_df = pd.read_parquet(cache_file)
-                
-                if site and not results_df.empty:
-                    results_df = results_df[results_df['site'] == site]
-                
-                if not results_df.empty:
-                    results_df = results_df.sort_values('date')
-                    xgb_predictions = results_df['predicted_da'].dropna().values
-                    actual_for_comparison = results_df['actual_da'].dropna().values
-                else:
-                    xgb_predictions = None
-                    actual_for_comparison = da_values
-            else:
-                from forecasting.forecast_engine import ForecastEngine
-                import config
-                
-                engine = ForecastEngine()
-                n_anchors = int(os.getenv('SPECTRAL_N_ANCHORS', getattr(config, 'N_RANDOM_ANCHORS', 200)))
-                results_df = engine.run_retrospective_evaluation(
-                    task="regression",
-                    model_type="xgboost",
-                    n_anchors=n_anchors
-                )
-                
-                if site and results_df is not None and not results_df.empty:
-                    results_df = results_df[results_df['site'] == site]
-                
-                if results_df is not None and not results_df.empty:
-                    results_df = results_df.sort_values('date')
-                    xgb_predictions = results_df['predicted_da'].dropna().values
-                    actual_for_comparison = results_df['actual_da'].dropna().values
-                else:
-                    xgb_predictions = None
-                    actual_for_comparison = da_values
-        except Exception as e:
-            logger.error(f"Loading XGBoost results failed: {e}")
-            xgb_predictions = None
-            actual_for_comparison = da_values
-    
+    xgb_predictions = None
+    rf_predictions = None
+    actual_for_comparison = da_values
+
+    try:
+        from pathlib import Path
+        cache_dir = Path("cache/retrospective")
+
+        # Load XGBoost predictions (cache or run retrospective)
+        cache_file_xgb = cache_dir / "regression_xgboost.parquet"
+        if cache_file_xgb.exists():
+            results_df = pd.read_parquet(cache_file_xgb)
+            if site and not results_df.empty:
+                results_df = results_df[results_df['site'] == site]
+            if not results_df.empty:
+                results_df = results_df.sort_values('date')
+                xgb_predictions = results_df['predicted_da'].dropna().values
+                actual_for_comparison = results_df['actual_da'].dropna().values
+        else:
+            from forecasting.forecast_engine import ForecastEngine
+            import config
+            engine = ForecastEngine()
+            n_anchors = int(os.getenv('SPECTRAL_N_ANCHORS', getattr(config, 'N_RANDOM_ANCHORS', 200)))
+            results_df = engine.run_retrospective_evaluation(
+                task="regression",
+                model_type="xgboost",
+                n_anchors=n_anchors
+            )
+            if site and results_df is not None and not results_df.empty:
+                results_df = results_df[results_df['site'] == site]
+            if results_df is not None and not results_df.empty:
+                results_df = results_df.sort_values('date')
+                xgb_predictions = results_df['predicted_da'].dropna().values
+                actual_for_comparison = results_df['actual_da'].dropna().values
+
+        # Load Random Forest predictions from cache when available
+        cache_file_rf = cache_dir / "regression_rf.parquet"
+        if cache_file_rf.exists():
+            rf_df = pd.read_parquet(cache_file_rf)
+            if site and not rf_df.empty:
+                rf_df = rf_df[rf_df['site'] == site]
+            if not rf_df.empty:
+                rf_df = rf_df.sort_values('date')
+                rf_predictions = rf_df['predicted_da'].dropna().values
+    except Exception as e:
+        logger.error(f"Loading model results failed: {e}")
+
     plots = []
     
-    # 1. Power Spectral Density - Actual vs XGBoost
+    # 1. Power Spectral Density - Actual vs XGBoost vs Random Forest
     freqs, psd = signal.welch(da_values, fs=1.0, nperseg=min(256, len(da_values)//4))
     
     dominant_idx = np.argsort(psd[1:])[-3:][::-1]
@@ -657,6 +657,16 @@ def generate_spectral_analysis(data, site=None):
             "mode": "lines",
             "name": "XGBoost Predictions",
             "line": {"color": "red", "width": 2, "dash": "dash"}
+        })
+    if rf_predictions is not None and len(rf_predictions) >= 20:
+        freqs_rf, psd_rf = signal.welch(rf_predictions, fs=1.0, nperseg=min(256, len(rf_predictions)//4))
+        traces.append({
+            "x": freqs_rf[1:].tolist(),
+            "y": psd_rf[1:].tolist(),
+            "type": "scatter",
+            "mode": "lines",
+            "name": "Random Forest Predictions",
+            "line": {"color": "green", "width": 2, "dash": "dot"}
         })
     
     plot1 = {
@@ -708,6 +718,16 @@ def generate_spectral_analysis(data, site=None):
             "name": "XGBoost Predictions",
             "line": {"color": "red", "width": 2, "dash": "dash"}
         })
+    if rf_predictions is not None and len(rf_predictions) >= 20:
+        freqs_p_rf, pgram_rf = signal.periodogram(rf_predictions, fs=1.0)
+        traces2.append({
+            "x": (1/freqs_p_rf[1:]).tolist(),
+            "y": pgram_rf[1:].tolist(),
+            "type": "scatter",
+            "mode": "lines",
+            "name": "Random Forest Predictions",
+            "line": {"color": "green", "width": 2, "dash": "dot"}
+        })
     
     plot2 = {
         "data": traces2,
@@ -750,25 +770,47 @@ def generate_spectral_analysis(data, site=None):
         }
         plots.append(plot3)
     
-    # 4. Coherence plot if XGBoost predictions available
-    if xgb_predictions is not None and len(xgb_predictions) >= 20 and len(actual_for_comparison) >= 20:
-        min_len = min(len(actual_for_comparison), len(xgb_predictions))
-        actual_trimmed = actual_for_comparison[:min_len]
-        xgb_trimmed = xgb_predictions[:min_len]
-        
-        freqs_coh, coherence = signal.coherence(actual_trimmed, xgb_trimmed, fs=1.0, nperseg=min(256, min_len//4))
-        
-        plot_coherence = {
-            "data": [{
+    # 4. Coherence plot: Actual vs XGBoost and/or Random Forest
+    coherence_traces = []
+    coherence_annotations = []
+    has_coherence = False
+    if len(actual_for_comparison) >= 20:
+        nperseg = min(256, len(actual_for_comparison) // 4)
+        if xgb_predictions is not None and len(xgb_predictions) >= 20:
+            min_len = min(len(actual_for_comparison), len(xgb_predictions))
+            actual_trimmed = actual_for_comparison[:min_len]
+            xgb_trimmed = xgb_predictions[:min_len]
+            freqs_coh, coh_xgb = signal.coherence(actual_trimmed, xgb_trimmed, fs=1.0, nperseg=min(256, min_len//4))
+            coherence_traces.append({
                 "x": freqs_coh[1:].tolist(),
-                "y": coherence[1:].tolist(),
+                "y": coh_xgb[1:].tolist(),
                 "type": "scatter",
                 "mode": "lines",
-                "name": "Coherence",
-                "line": {"color": "green", "width": 2}
-            }],
+                "name": "Coherence (Actual vs XGBoost)",
+                "line": {"color": "red", "width": 2, "dash": "dash"}
+            })
+            coherence_annotations.append(f"XGBoost mean: {np.mean(coh_xgb):.3f}")
+            has_coherence = True
+        if rf_predictions is not None and len(rf_predictions) >= 20:
+            min_len = min(len(actual_for_comparison), len(rf_predictions))
+            actual_trimmed = actual_for_comparison[:min_len]
+            rf_trimmed = rf_predictions[:min_len]
+            freqs_coh_rf, coh_rf = signal.coherence(actual_trimmed, rf_trimmed, fs=1.0, nperseg=min(256, min_len//4))
+            coherence_traces.append({
+                "x": freqs_coh_rf[1:].tolist(),
+                "y": coh_rf[1:].tolist(),
+                "type": "scatter",
+                "mode": "lines",
+                "name": "Coherence (Actual vs Random Forest)",
+                "line": {"color": "green", "width": 2, "dash": "dot"}
+            })
+            coherence_annotations.append(f"RF mean: {np.mean(coh_rf):.3f}")
+            has_coherence = True
+    if has_coherence and coherence_traces:
+        plot_coherence = {
+            "data": coherence_traces,
             "layout": {
-                "title": f"Coherence: Actual vs XGBoost - {site_name}",
+                "title": f"Coherence: Actual vs Models - {site_name}",
                 "xaxis": {
                     "title": "Frequency (1/weeks)",
                     "type": "log"
@@ -778,12 +820,13 @@ def generate_spectral_analysis(data, site=None):
                     "range": [0, 1]
                 },
                 "height": 400,
+                "showlegend": True,
                 "annotations": [{
                     "x": 0.5,
                     "y": 1.1,
                     "xref": "paper",
                     "yref": "paper",
-                    "text": f"Mean coherence: {np.mean(coherence):.3f}",
+                    "text": "  ".join(coherence_annotations),
                     "showarrow": False,
                     "font": {"size": 12}
                 }]
@@ -809,6 +852,12 @@ def generate_spectral_analysis(data, site=None):
             f"- XGBoost predictions: {len(xgb_predictions)} points",
             f"- XGBoost mean: {np.mean(xgb_predictions):.2f} μg/g",
             f"- XGBoost std: {np.std(xgb_predictions):.2f} μg/g"
+        ])
+    if rf_predictions is not None:
+        summary_lines.extend([
+            f"- Random Forest predictions: {len(rf_predictions)} points",
+            f"- Random Forest mean: {np.mean(rf_predictions):.2f} μg/g",
+            f"- Random Forest std: {np.std(rf_predictions):.2f} μg/g"
         ])
     
     summary_text = "\n".join(summary_lines)

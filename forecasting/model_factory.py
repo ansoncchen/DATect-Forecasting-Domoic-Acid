@@ -6,7 +6,7 @@ Creates and configures machine learning models for DA forecasting.
 Supports both regression and classification tasks with multiple algorithms.
 """
 
-from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.linear_model import Ridge, LogisticRegression
 from sklearn.utils.class_weight import compute_class_weight
 try:
     import xgboost as xgb
@@ -26,8 +26,8 @@ class ModelFactory:
     
     Supported Models:
     - XGBoost (regression & classification) - PRIMARY MODEL
-    - Linear models (Linear/Logistic) - ALTERNATIVE MODEL
-    - Linear Regression (regression)
+    - Linear models (Ridge/Logistic) - ALTERNATIVE MODEL
+    - Ridge Regression (regression)
     - Logistic Regression (classification)
     """
     
@@ -70,8 +70,10 @@ class ModelFactory:
             params['n_jobs'] = -1
             return xgb.XGBRegressor(**params)
         elif model_type == "linear":
-            return LinearRegression(
-                n_jobs=-1
+            alpha = getattr(config, "LINEAR_REGRESSION_ALPHA", 1.0)
+            return Ridge(
+                alpha=alpha,
+                random_state=self.random_seed
             )
         else:
             raise ValueError(f"Unknown regression model: {model_type}. "

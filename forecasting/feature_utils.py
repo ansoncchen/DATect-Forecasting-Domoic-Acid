@@ -9,6 +9,8 @@ between RawForecastEngine, validation scripts, and future modules.
 
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -59,6 +61,7 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
 def create_transformer(
     df: pd.DataFrame,
     drop_cols: list[str],
+    include_cols: Optional[list[str]] = None,
 ) -> tuple[ColumnTransformer, pd.DataFrame]:
     """
     Create an Impute → MinMaxScale preprocessing transformer.
@@ -74,6 +77,9 @@ def create_transformer(
     """
     X = df.drop(columns=drop_cols, errors="ignore")
     numeric_cols = X.select_dtypes(include=[np.number]).columns.tolist()
+    if include_cols:
+        include_set = set(include_cols)
+        numeric_cols = [c for c in numeric_cols if c in include_set]
     # Drop columns that are entirely NaN so median imputation succeeds
     numeric_cols = [c for c in numeric_cols if X[c].notna().any()]
 

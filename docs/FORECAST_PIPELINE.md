@@ -144,6 +144,7 @@ XGB_CLASSIFICATION_PARAMS = {
 
 - **Regression**: Ridge Regression
 - **Classification**: Logistic Regression
+- Uses the full feature set as a linear competitor to the nonlinear models.
 
 ### Naive Baseline
 

@@ -21,8 +21,9 @@ Input:
 
 Output:
     cache/retrospective/regression_ensemble.json + .parquet
-    cache/retrospective/classification_ensemble.json + .parquet
     cache/retrospective/regression_xgboost.json + .parquet
+    cache/retrospective/regression_rf.json + .parquet
+    cache/retrospective/classification_ensemble.json + .parquet
 """
 
 from __future__ import annotations
@@ -108,6 +109,21 @@ def convert(input_csv: str, output_dir: str) -> None:
             model="xgboost",
             output_dir=retro_dir,
         )
+
+    # ------------------------------------------------------------------
+    # 2b. Regression — random forest
+    #     Uses predicted_da_rf (RF-only prediction)
+    # ------------------------------------------------------------------
+    if "predicted_da_rf" in df.columns:
+        _write_cache(
+            df,
+            pred_col="predicted_da_rf",
+            task="regression",
+            model="rf",
+            output_dir=retro_dir,
+        )
+    else:
+        print("  WARNING: 'predicted_da_rf' column not found, skipping regression_rf")
 
     # ------------------------------------------------------------------
     # 3. Classification — ensemble

@@ -43,7 +43,12 @@ from .raw_data_forecaster import (
     get_site_training_frame,
     recompute_test_row_persistence_features,
 )
-from .raw_model_factory import build_xgb_regressor, build_rf_regressor
+from .raw_model_factory import (
+    build_xgb_regressor,
+    build_rf_regressor,
+    build_linear_regressor,
+    build_logistic_classifier,
+)
 from .per_site_models import (
     apply_site_xgb_params,
     apply_site_rf_params,
@@ -308,6 +313,18 @@ class RawForecastEngine:
         if naive_prediction is None:
             naive_prediction = 0.0
 
+        # --- Linear regression baseline ---
+        linear_prediction = None
+        if model_type == "linear":
+            try:
+                linear_model = build_linear_regressor()
+                linear_model.fit(X_train_processed, y_train)
+                linear_raw = float(linear_model.predict(X_test_processed)[0])
+                linear_prediction = _postprocess(linear_raw)
+            except Exception as exc:
+                logger.warning("Linear regression failed: %s", exc)
+                linear_prediction = None
+
         # --- Ensemble blend ---
         w_xgb, w_rf, w_naive = get_site_ensemble_weights(site)
         ensemble_prediction = (
@@ -325,6 +342,12 @@ class RawForecastEngine:
             primary_prediction = rf_prediction
         elif model_type == "naive":
             primary_prediction = naive_prediction
+        elif model_type == "linear":
+            primary_prediction = (
+                linear_prediction
+                if linear_prediction is not None
+                else ensemble_prediction
+            )
         else:
             primary_prediction = ensemble_prediction
 
@@ -373,23 +396,51 @@ class RawForecastEngine:
             result["predicted_category"] = cls_result["predicted_category"]
             result["class_probabilities"] = cls_result["class_probabilities"]
 
-            # Also try dedicated ML classifier for richer probabilities
-            try:
-                classifier_result = (
-                    self.classification_adapter.train_dedicated_classifier(
-                        X_train_processed,
-                        train_data["da_raw"],
-                        site=site,
-                    )
+            if model_type == "logistic":
+                # Train LogisticRegression on category labels
+                y_categories = self.classification_adapter.threshold_classify_series(
+                    train_data["da_raw"]
                 )
-                if classifier_result is not None:
-                    full_cls = self.classification_adapter.classify_prediction(
-                        primary_prediction, classifier_result, X_test_processed,
+                unique_cats = sorted(y_categories.unique())
+                if len(unique_cats) >= 2:
+                    try:
+                        logistic_model = build_logistic_classifier()
+                        logistic_model.fit(X_train_processed, y_categories)
+                        result["predicted_category"] = int(
+                            logistic_model.predict(X_test_processed)[0]
+                        )
+                        if hasattr(logistic_model, "predict_proba"):
+                            probs = logistic_model.predict_proba(X_test_processed)[0]
+                            prob_array = [0.0, 0.0, 0.0, 0.0]
+                            for i, cls in enumerate(logistic_model.classes_):
+                                cls_id = int(cls)
+                                if 0 <= cls_id <= 3:
+                                    prob_array[cls_id] = float(probs[i])
+                            result["class_probabilities"] = prob_array
+                    except Exception as exc:
+                        logger.debug("Logistic classifier failed: %s", exc)
+                else:
+                    result["predicted_category"] = (
+                        self.classification_adapter.threshold_classify(primary_prediction)
                     )
-                    result["predicted_category_ml"] = full_cls["predicted_category_ml"]
-                    result["class_probabilities"] = full_cls["class_probabilities"]
-            except Exception as exc:
-                logger.debug("Dedicated classifier failed: %s", exc)
+            else:
+                # Also try dedicated ML classifier for richer probabilities
+                try:
+                    classifier_result = (
+                        self.classification_adapter.train_dedicated_classifier(
+                            X_train_processed,
+                            train_data["da_raw"],
+                            site=site,
+                        )
+                    )
+                    if classifier_result is not None:
+                        full_cls = self.classification_adapter.classify_prediction(
+                            primary_prediction, classifier_result, X_test_processed,
+                        )
+                        result["predicted_category_ml"] = full_cls["predicted_category_ml"]
+                        result["class_probabilities"] = full_cls["class_probabilities"]
+                except Exception as exc:
+                    logger.debug("Dedicated classifier failed: %s", exc)
         elif task == "regression":
             # Even for regression, provide threshold classification for the UI
             result["predicted_category"] = (
@@ -514,6 +565,7 @@ class RawForecastEngine:
         """
         validate_runtime_parameters(n_anchors, min_test_date)
         logger.info("Running LEAK-FREE %s evaluation with %s", task, model_type)
+        self._retro_model_type = model_type
 
         feature_frame = self._load_feature_frame()
         raw_data = self._raw_data_cache
@@ -661,13 +713,21 @@ class RawForecastEngine:
                     results_df["actual_da"]
                 )
             )
-        # Use ensemble prediction for predicted_category if available
-        pred_col = (
-            "ensemble_prediction"
-            if "ensemble_prediction" in results_df.columns
-            else "predicted_da"
-        )
-        if pred_col in results_df.columns:
+        if model_type == "naive":
+            results_df["predicted_da"] = results_df["naive_prediction"]
+        elif model_type == "linear":
+            if "predicted_da_linear" in results_df.columns:
+                results_df["predicted_da"] = results_df["predicted_da_linear"]
+        elif model_type in ("ensemble",):
+            if "ensemble_prediction" in results_df.columns:
+                results_df["predicted_da"] = results_df["ensemble_prediction"]
+        # else: predicted_da stays as XGBoost prediction (default from _run_single_raw_validation)
+
+        # For predicted_category, use the final predicted_da
+        pred_col = "predicted_da"
+        if model_type == "logistic" and "predicted_category_logistic" in results_df.columns:
+            results_df["predicted_category"] = results_df["predicted_category_logistic"]
+        elif pred_col in results_df.columns:
             results_df["predicted_category"] = (
                 self.classification_adapter.threshold_classify_series(
                     results_df[pred_col]
@@ -874,6 +934,34 @@ class RawForecastEngine:
         if naive_prediction is None:
             return None
 
+        # Linear regression (only when needed for retrospective)
+        linear_prediction = None
+        if getattr(self, "_retro_model_type", None) == "linear":
+            try:
+                linear_model = build_linear_regressor()
+                linear_model.fit(X_train_processed, y_train)
+                linear_raw = float(linear_model.predict(X_test_processed)[0])
+                linear_prediction = _postprocess(linear_raw)
+            except Exception:
+                linear_prediction = prediction
+
+        # Logistic classification (only when needed for retrospective)
+        predicted_category_logistic = None
+        if getattr(self, "_retro_model_type", None) == "logistic":
+            try:
+                y_categories = self.classification_adapter.threshold_classify_series(
+                    train_data["da_raw"]
+                )
+                unique_cats = sorted(y_categories.unique())
+                if len(unique_cats) >= 2:
+                    logistic_model = build_logistic_classifier()
+                    logistic_model.fit(X_train_processed, y_categories)
+                    predicted_category_logistic = int(
+                        logistic_model.predict(X_test_processed)[0]
+                    )
+            except Exception:
+                predicted_category_logistic = None
+
         # Quantile intervals
         quantile_predictions = {}
         enable_qi = getattr(config, "ENABLE_QUANTILE_INTERVALS", True)
@@ -914,6 +1002,8 @@ class RawForecastEngine:
             "predicted_da": prediction,
             "predicted_da_rf": rf_prediction if rf_prediction is not None else prediction,
             "naive_prediction": naive_prediction,
+            "predicted_da_linear": linear_prediction,
+            "predicted_category_logistic": predicted_category_logistic,
             "training_samples": len(train_data),
             "days_ahead": (test_date - anchor_date).days,
             "date_diff_to_processed": int(

@@ -36,10 +36,12 @@ class DATectCacheGenerator:
         print("Pre-computing retrospective forecasts...")
         
         combinations = [
-            ("regression", "ensemble"),       # Primary ensemble model
-            ("regression", "xgboost"),         # Backward compat
-            ("classification", "ensemble"),    # Ensemble with threshold classification
-            ("classification", "xgboost"),     # Backward compat
+            ("regression", "ensemble"),       # Primary ML ensemble (XGBoost + RF + Naive)
+            ("regression", "naive"),          # Naive persistence baseline
+            ("regression", "linear"),         # Linear regression baseline
+            ("classification", "ensemble"),   # Ensemble + threshold classification
+            ("classification", "naive"),      # Naive + threshold classification
+            ("classification", "logistic"),   # Logistic regression classifier
         ]
         
         for task, model_type in combinations:

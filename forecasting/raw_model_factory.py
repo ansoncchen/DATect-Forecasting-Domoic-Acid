@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Optional
 
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from xgboost import XGBClassifier, XGBRegressor
 
 import config
@@ -57,3 +58,19 @@ def build_xgb_classifier(param_overrides: Optional[dict] = None) -> XGBClassifie
     params.pop("tree_method", None)
     params.update(_resolve_xgb_device_params())
     return XGBClassifier(**params, random_state=config.RANDOM_SEED, verbosity=0)
+
+
+def build_linear_regressor() -> LinearRegression:
+    """Linear regression for interpretable baseline."""
+    return LinearRegression(n_jobs=1)
+
+
+def build_logistic_classifier() -> LogisticRegression:
+    """Logistic regression classifier for interpretable baseline."""
+    return LogisticRegression(
+        solver="lbfgs",
+        max_iter=1000,
+        C=1.0,
+        random_state=config.RANDOM_SEED,
+        n_jobs=1,
+    )

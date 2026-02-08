@@ -146,12 +146,12 @@ class ForecastRequest(BaseModel):
     date: date
     site: str
     task: str = "regression"  # "regression" or "classification"
-    model: str = "xgboost"
+    model: str = "ensemble"
 
 class ConfigUpdateRequest(BaseModel):
     forecast_mode: str = "realtime"  # "realtime" or "retrospective"
     forecast_task: str = "regression"  # "regression" or "classification"
-    forecast_model: str = "ensemble"  # "ensemble", "xgboost", "rf", "naive", or "linear"
+    forecast_model: str = "ensemble"  # "ensemble", "naive", or "linear"
     selected_sites: List[str] = []  # For retrospective site filtering
     forecast_horizon_weeks: int = 1  # Weeks ahead to forecast from data cutoff
 
@@ -885,10 +885,8 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
         # Map model names for API compatibility
         if config.FORECAST_MODEL == "linear":
             actual_model = "linear" if config.FORECAST_TASK == "regression" else "logistic"
-        elif config.FORECAST_MODEL in ("ensemble", "rf", "naive"):
-            actual_model = config.FORECAST_MODEL
         else:
-            actual_model = config.FORECAST_MODEL
+            actual_model = config.FORECAST_MODEL  # "ensemble" or "naive" pass through
         
         # First try to get from pre-computed cache (for production)
         base_results = cache_manager.get_retrospective_forecast(config.FORECAST_TASK, actual_model)

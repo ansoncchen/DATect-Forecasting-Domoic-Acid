@@ -184,7 +184,7 @@ FORECAST_MODE = "retrospective"
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
 FORECAST_TASK = "regression"
 
-# ML algorithm: "ensemble" (primary), "xgboost", "rf", "naive", or "linear" (interpretable)
+# ML algorithm: "ensemble", "naive", or "linear"
 FORECAST_MODEL = "ensemble"
 
 # Forecast Horizon Configuration

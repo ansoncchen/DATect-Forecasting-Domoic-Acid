@@ -23,6 +23,8 @@ from .raw_model_factory import (
     build_xgb_regressor,
     build_rf_regressor,
     build_xgb_classifier,
+    build_linear_regressor,
+    build_logistic_classifier,
 )
 from .per_site_models import (
     apply_site_xgb_params,
@@ -39,14 +41,13 @@ class EnsembleModelFactory:
 
     Supported regression models:
       - ensemble: 3-model blend (XGBoost + Random Forest + Naive)
-      - xgboost:  XGBoost regressor only
-      - rf:       Random Forest regressor only
       - naive:    Last-known-DA baseline
+      - linear:   Linear regression baseline
 
     Supported classification models:
       - ensemble:  Threshold classification from ensemble regression output
-      - xgboost:   Dedicated XGBoost classifier
-      - threshold: Threshold classification from single-model regression output
+      - naive:     Threshold classification from naive regression output
+      - logistic:  Logistic regression classifier
     """
 
     def __init__(self):
@@ -109,13 +110,16 @@ class EnsembleModelFactory:
                 base_params.update(params_override)
             return build_rf_regressor(base_params)
 
+        if model_type == "linear":
+            return build_linear_regressor()
+
         raise ValueError(
             f"Unknown regression model: {model_type}. "
             f"Supported: {self.get_supported_models()['regression']}"
         )
 
     def _get_classification_model(self, model_type, site=None, params_override=None):
-        if model_type in ("ensemble", "threshold"):
+        if model_type in ("ensemble", "naive"):
             # Threshold classification is derived from regression output
             return None
 
@@ -124,6 +128,9 @@ class EnsembleModelFactory:
             if params_override:
                 base_params.update(params_override)
             return build_xgb_classifier(base_params)
+
+        if model_type == "logistic":
+            return build_logistic_classifier()
 
         raise ValueError(
             f"Unknown classification model: {model_type}. "
@@ -137,8 +144,8 @@ class EnsembleModelFactory:
     def get_supported_models(self, task: Optional[str] = None) -> dict:
         """Return supported model types, matching the API's expected interface."""
         models = {
-            "regression": ["ensemble", "xgboost", "rf", "naive"],
-            "classification": ["ensemble", "xgboost", "threshold"],
+            "regression": ["ensemble", "naive", "linear"],
+            "classification": ["ensemble", "naive", "logistic"],
         }
         if task is None:
             return models

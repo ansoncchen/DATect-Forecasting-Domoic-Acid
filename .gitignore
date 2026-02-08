@@ -17,6 +17,7 @@ outputs/logs/
 
 # Data files (keep structure but not data)
 data/raw/*/*.parquet
+cache/
 
 # Node.js (frontend)
 node_modules/

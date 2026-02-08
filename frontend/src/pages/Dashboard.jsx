@@ -668,8 +668,9 @@ const Dashboard = () => {
                     onChange={(e) => setConfig({...config, forecast_model: e.target.value})}
                     className="w-full p-3 border border-gray-300 rounded-md text-lg"
                   >
-                    <option value="xgboost">XGBoost - Advanced gradient boosting (Recommended)</option>
-                    <option value="linear">Linear Models - Linear regression & Logistic classification</option>
+                    <option value="ensemble">Ensemble - XGBoost + RF + Naive combined (Recommended)</option>
+                    <option value="naive">Naive Baseline - Last known DA value (persistence)</option>
+                    <option value="linear">Linear / Logistic - Interpretable linear models</option>
                   </select>
                 </div>
               </>

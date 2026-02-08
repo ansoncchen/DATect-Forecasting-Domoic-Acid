@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This analysis compares the performance of XGBoost predictions against a naive baseline using the previous week's Domoic Acid (DA) concentration. The system has been **optimized for spike detection** with enhanced hyperparameters and 5x performance improvements. Current metrics show significant improvements over the baseline approach.
+This analysis compares the performance of XGBoost predictions against a naive baseline using the most recent DA measurement available at or before the anchor date. The system has been **optimized for spike detection** with enhanced hyperparameters and 5x performance improvements. Current metrics show significant improvements over the baseline approach.
 
 **📊 LATEST XGBOOST METRICS (Spike-Optimized Pipeline)**
 - **R² Score**: 0.4932
@@ -22,13 +22,13 @@ This analysis compares the performance of XGBoost predictions against a naive ba
 
 ### Data Source
 - **XGBoost Predictions**: `cache/retrospective/regression_xgboost.parquet` (5000 predictions)
-- **Naive Baseline**: Previous week's DA value from `final_output.parquet`
+- **Naive Baseline**: Most recent DA measurement at or before the anchor date
 - **Analysis Method**: Uses exact `_compute_summary()` function from pipeline
 - **Date Range**: 2008-2023 across all monitoring sites
 - **Sites**: 10 monitoring locations along the Pacific Coast
 
 ### Naive Baseline Strategy
-For each prediction, use the actual DA value from exactly one week prior (±3 days window if exact match unavailable).
+For each prediction, use the most recent raw DA value available at or before the anchor date.
 Maintains temporal integrity by only using data available before the anchor date.
 
 ### Metrics Evaluated

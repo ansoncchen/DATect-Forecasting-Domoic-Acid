@@ -185,7 +185,7 @@ FORECAST_MODE = "retrospective"
 FORECAST_TASK = "regression"
 
 # ML algorithm: "ensemble", "naive", or "linear"
-FORECAST_MODEL = "linear"
+FORECAST_MODEL = "ensemble"
 
 # Forecast Horizon Configuration
 # How many weeks ahead to forecast from the data cutoff point
@@ -236,6 +236,7 @@ RANDOM_SEED = 42
 N_RANDOM_ANCHORS = 500
 
 # Bootstrap confidence intervals
+ENABLE_BOOTSTRAP_INTERVALS = True  # Disable to skip bootstrap uncertainty
 N_BOOTSTRAP_ITERATIONS = 20  # Number of bootstrap iterations for confidence intervals
 
 # Lag Feature Configuration
@@ -257,13 +258,19 @@ SPIKE_THRESHOLD = 20.0  # DA > 20 μg/g considered a spike event
 SPIKE_FALSE_NEGATIVE_WEIGHT = 500.0  # Heavy penalty for missing actual spikes
 SPIKE_TRUE_NEGATIVE_WEIGHT = 0.1  # Very low weight for correct non-spike predictions
 
-# Bootstrap subsample fraction for speed optimization
-BOOTSTRAP_SUBSAMPLE_FRACTION = 0.75  # Use 75% of data for each bootstrap iteration
+# Bootstrap subsample fraction for uncertainty estimation
+BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
 
 # Scientific Methodology Configuration
 
 # Sample weighting strategy for regression models
 USE_REGRESSION_SAMPLE_WEIGHTS = True  # False = fair baseline comparison, True = handle imbalance
+
+# Linear baseline regularization (ridge)
+LINEAR_REGRESSION_ALPHA = 1.0
+
+# Persistence baseline configuration
+PERSISTENCE_MAX_DAYS = None  # Set to an int (e.g., 28) to cap lookback
 
 # Confidence interval percentiles for bootstrap predictions
 CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile

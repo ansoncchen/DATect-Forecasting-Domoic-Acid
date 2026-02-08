@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Optional
 
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.linear_model import Ridge, LogisticRegression
 from xgboost import XGBClassifier, XGBRegressor
 
 import config
@@ -60,9 +60,10 @@ def build_xgb_classifier(param_overrides: Optional[dict] = None) -> XGBClassifie
     return XGBClassifier(**params, random_state=config.RANDOM_SEED, verbosity=0)
 
 
-def build_linear_regressor() -> LinearRegression:
-    """Linear regression for interpretable baseline."""
-    return LinearRegression(n_jobs=1)
+def build_linear_regressor() -> Ridge:
+    """Ridge regression for an interpretable baseline with regularization."""
+    alpha = getattr(config, "LINEAR_REGRESSION_ALPHA", 1.0)
+    return Ridge(alpha=alpha, random_state=config.RANDOM_SEED)
 
 
 def build_logistic_classifier() -> LogisticRegression:

@@ -133,7 +133,7 @@ class ModelFactory:
         descriptions = {
             "xgboost": "XGBoost",
             "xgb": "XGBoost", 
-            "linear": "Linear Regression",
+            "linear": "Ridge Regression",
             "logistic": "Logistic Regression"
         }
         

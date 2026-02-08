@@ -159,7 +159,7 @@ All temporal integrity tests passed (7/7)
 ### Statistical Rigor
 
 - Chronological cross-validation
-- Bootstrap confidence intervals
+- Quantile/bootstrap confidence intervals (configurable)
 - Proper hypothesis testing
 
 ## Configuration Parameters
@@ -176,7 +176,13 @@ MIN_TRAINING_SAMPLES = 3
 N_RANDOM_ANCHORS = 500
 
 # Bootstrap
+ENABLE_BOOTSTRAP_INTERVALS = True
 N_BOOTSTRAP_ITERATIONS = 20
+BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0
+
+# Baselines
+LINEAR_REGRESSION_ALPHA = 1.0
+PERSISTENCE_MAX_DAYS = None
 CONFIDENCE_PERCENTILES = [5, 50, 95]
 
 # Spike detection

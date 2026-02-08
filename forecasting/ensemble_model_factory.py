@@ -159,9 +159,9 @@ class EnsembleModelFactory:
             "xgboost": "XGBoost",
             "xgb": "XGBoost",
             "rf": "Random Forest",
-            "naive": "Naive Baseline (Last Known DA)",
+            "naive": "Naive Baseline (Most recent DA before anchor date)",
             "threshold": "Threshold Classification",
-            "linear": "Linear Regression",
+            "linear": "Ridge Regression",
             "logistic": "Logistic Regression",
         }
         return descriptions.get(model_type, f"Unknown model: {model_type}")

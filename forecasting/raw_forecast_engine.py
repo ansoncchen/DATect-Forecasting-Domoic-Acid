@@ -309,7 +309,11 @@ class RawForecastEngine:
         rf_prediction = _postprocess(rf_raw)
 
         # --- Naive baseline ---
-        naive_prediction = get_last_known_raw_da(train_data)
+        naive_prediction = get_last_known_raw_da(
+            train_data,
+            anchor_date=anchor_date,
+            max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
+        )
         if naive_prediction is None:
             naive_prediction = 0.0
 
@@ -473,6 +477,7 @@ class RawForecastEngine:
         """
         quantiles = {}
         enable_quantile = getattr(config, "ENABLE_QUANTILE_INTERVALS", True)
+        enable_bootstrap = getattr(config, "ENABLE_BOOTSTRAP_INTERVALS", True)
 
         if enable_quantile and model_type in ("xgboost", "xgb"):
             try:
@@ -490,6 +495,9 @@ class RawForecastEngine:
                 return quantiles
             except Exception:
                 logger.debug("Quantile objectives unavailable, falling back to bootstrap")
+
+        if not enable_bootstrap:
+            return {}
 
         # Bootstrap fallback
         return self.generate_bootstrap_confidence_intervals(
@@ -997,7 +1005,11 @@ class RawForecastEngine:
                 rf_prediction = prediction
 
         # Naive
-        naive_prediction = get_last_known_raw_da(train_data)
+        naive_prediction = get_last_known_raw_da(
+            train_data,
+            anchor_date=anchor_date,
+            max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
+        )
         if naive_prediction is None:
             return None
 

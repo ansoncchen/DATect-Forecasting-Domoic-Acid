@@ -23,7 +23,7 @@ DATect provides scientific visualizations for understanding forecasts, validatin
 
 ### Gradient Uncertainty Plot
 
-Visualizes prediction confidence using bootstrap intervals:
+Visualizes prediction confidence using quantile/bootstrap intervals (configurable):
 
 - **Q50 line**: Median prediction
 - **Q05/Q95 markers**: 90% confidence interval

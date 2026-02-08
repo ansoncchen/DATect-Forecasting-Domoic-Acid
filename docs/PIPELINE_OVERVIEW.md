@@ -71,9 +71,9 @@ The DATect forecasting system processes environmental data to predict domoic aci
         │  (forecasting/model_factory.py)         │
         │  • Train/test split at anchor date      │
         │  • Fit transformer on training only     │
-        │  • Train XGBoost or linear model        │
+        │  • Train XGBoost or ridge model         │
         │  • Generate prediction                  │
-        │  • Bootstrap confidence intervals       │
+        │  • Quantile/bootstrap intervals         │
         └─────────────────────────────────────────┘
                               │
                               ▼
@@ -124,8 +124,8 @@ Generates predictions with temporal safeguards:
 2. **Lag Feature Creation**: With temporal cutoffs
 3. **Train/Test Split**: Chronological (training ≤ anchor_date)
 4. **DA Category Creation**: Per-forecast from training data only
-5. **Model Training**: XGBoost or linear models
-6. **Prediction**: With bootstrap confidence intervals
+5. **Model Training**: XGBoost or ridge models
+6. **Prediction**: With configurable confidence intervals
 
 ### Data Processor (`forecasting/data_processor.py`)
 
@@ -141,7 +141,7 @@ Handles feature engineering:
 Creates and configures models:
 
 - **XGBoost**: Primary model with tuned hyperparameters
-- **Linear**: Interpretable alternative (regression/logistic)
+- **Ridge**: Interpretable alternative (regression/logistic)
 - Sample weighting for class imbalance
 
 ### Web API (`backend/api.py`)

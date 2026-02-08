@@ -254,12 +254,16 @@ async def generate_forecast(request: ForecastRequest):
         
         forecast_date = pd.to_datetime(request.date)
         
+        model_type = request.model or config.FORECAST_MODEL or "ensemble"
+        if model_type == "linear" and request.task == "classification":
+            model_type = "logistic"
+
         result = get_forecast_engine().generate_single_forecast(
             config.FINAL_OUTPUT_PATH,
             forecast_date,
             actual_site,
             request.task,
-            "xgboost"
+            model_type
         )
         
         if result is None:

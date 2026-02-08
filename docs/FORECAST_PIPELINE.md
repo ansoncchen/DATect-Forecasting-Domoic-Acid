@@ -11,7 +11,7 @@ Raw Data Sources → Data Ingestion → Feature Engineering → Model Training �
        ↓                 ↓                 ↓                  ↓              ↓
    MODIS Satellite   dataset-creation.py  data_processor.py  model_factory.py  Results
    Climate Indices        ↓                    ↓                  ↓
-   Streamflow        final_output.parquet  Temporal validation  XGBoost/Linear
+Streamflow        final_output.parquet  Temporal validation  XGBoost/Ridge
    DA Measurements
 ```
 
@@ -140,10 +140,15 @@ XGB_CLASSIFICATION_PARAMS = {
 }
 ```
 
-### Linear Models (Alternative)
+### Ridge Models (Alternative)
 
-- **Regression**: Linear Regression
+- **Regression**: Ridge Regression
 - **Classification**: Logistic Regression
+
+### Naive Baseline
+
+- Uses the most recent raw DA measurement at or before the anchor date.
+- Optional max lookback can be set via `PERSISTENCE_MAX_DAYS`.
 
 ## Stage 6: Prediction Generation (`forecasting/forecast_engine.py`)
 
@@ -170,8 +175,8 @@ def generate_single_forecast(site, date, task, model_type):
     model.fit(X_train_processed, y_train)
     prediction = model.predict(X_forecast)
     
-    # 7. Generate bootstrap confidence intervals
-    bootstrap_quantiles = generate_bootstrap_ci(...)
+    # 7. Generate quantile/bootstrap confidence intervals (configurable)
+    bootstrap_quantiles = generate_confidence_intervals(...)
     
     return prediction, bootstrap_quantiles
 ```
@@ -205,7 +210,7 @@ Key parameters:
 
 ```python
 FORECAST_HORIZON_WEEKS = 1          # Weeks ahead to forecast
-FORECAST_MODEL = "xgboost"          # Primary model
+FORECAST_MODEL = "ensemble"         # Primary model ("ensemble", "naive", "linear")
 FORECAST_TASK = "regression"        # or "classification"
 N_RANDOM_ANCHORS = 500              # Retrospective evaluation points
 N_BOOTSTRAP_ITERATIONS = 20         # Confidence interval samples

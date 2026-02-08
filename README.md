@@ -12,9 +12,9 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 **Key Features:**
 - 10 monitoring sites from Oregon to Washington
 - 21 years of integrated data (2003-2023)
-- XGBoost and linear model options
+- XGBoost and ridge regression model options
 - Comprehensive temporal validation (7 integrity tests)
-- Bootstrap confidence intervals for uncertainty quantification
+- Quantile/Bootstrap confidence intervals for uncertainty quantification (configurable)
 
 ## Quick Start
 
@@ -48,7 +48,7 @@ DATect-Forecasting-Domoic-Acid/
 ├── forecasting/            # ML engine
 │   ├── forecast_engine.py  # Core forecasting with temporal safeguards
 │   ├── data_processor.py   # Feature engineering
-│   ├── model_factory.py    # XGBoost/linear model creation
+│   ├── model_factory.py    # XGBoost/ridge model creation
 │   └── validation.py       # Temporal integrity checks
 ├── backend/                # FastAPI server
 │   ├── api.py              # REST endpoints
@@ -71,7 +71,7 @@ DATect-Forecasting-Domoic-Acid/
 - **High** (20-40 μg/g): Avoid consumption (above federal limit)
 - **Extreme** (>40 μg/g): Health hazard
 
-**Retrospective Mode:** Compare XGBoost vs linear model performance across 500 anchor points per site.
+**Retrospective Mode:** Compare XGBoost vs ridge model performance across 500 anchor points per site.
 
 ## Data Sources
 

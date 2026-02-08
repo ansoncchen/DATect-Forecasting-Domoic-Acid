@@ -680,8 +680,8 @@ const Dashboard = () => {
                     className="w-full p-3 border border-gray-300 rounded-md text-lg"
                   >
                     <option value="ensemble">Ensemble - XGBoost + RF + Naive combined (Recommended)</option>
-                    <option value="naive">Naive Baseline - Last known DA value (persistence)</option>
-                    <option value="linear">Linear / Logistic - Interpretable linear models</option>
+                    <option value="naive">Naive Baseline - Most recent DA before anchor date</option>
+                    <option value="linear">Ridge / Logistic - Interpretable linear models</option>
                   </select>
                 </div>
               </>

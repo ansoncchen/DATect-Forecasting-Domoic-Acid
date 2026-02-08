@@ -289,7 +289,22 @@ def get_site_anchor_row(
 
 def get_last_known_raw_da(
     train_data: pd.DataFrame,
+    anchor_date: Optional[pd.Timestamp] = None,
+    max_age_days: Optional[int] = None,
 ) -> Optional[float]:
     if train_data is None or train_data.empty:
         return None
-    return float(train_data["da_raw"].iloc[-1])
+    df = train_data.copy()
+    if "date" in df.columns:
+        df = df.sort_values("date")
+        if anchor_date is not None:
+            anchor_date = pd.Timestamp(anchor_date)
+            df = df[df["date"] <= anchor_date]
+    if df.empty:
+        return None
+    if max_age_days is not None and "date" in df.columns and anchor_date is not None:
+        last_date = df["date"].iloc[-1]
+        age_days = (anchor_date - last_date).days
+        if age_days > max_age_days:
+            return None
+    return float(df["da_raw"].iloc[-1])

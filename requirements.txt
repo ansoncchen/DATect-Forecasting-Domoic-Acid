@@ -11,15 +11,10 @@ joblib>=1.3.0         # Parallel processing for model training
 
 # High-Performance Data Processing
 polars>=0.20.0        # 2-50x faster than Pandas for large datasets
-duckdb>=0.10.0        # Fast in-memory analytics and Parquet reads
-pyarrow>=14.0.0       # Parquet file format with optimized I/O
-pandera>=0.18.0       # Data validation
+pyarrow>=14.0.0       # Parquet file format with optimized I/O (pandas/xarray)
 
 # Machine Learning Models
 xgboost>=2.0.0
-lightgbm>=4.0.0
-catboost>=1.2.0
-optuna>=3.4.0
 
 # Web API and Backend
 fastapi>=0.109.0
@@ -32,7 +27,6 @@ httpx[http2]>=0.26.0  # Replaces requests for async/concurrent downloads
 
 # Data Visualization
 plotly>=5.18.0
-matplotlib>=3.8.0
 
 # Data Processing and I/O
 xarray>=2024.1.0      # NetCDF satellite data processing

@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import re
+from pathlib import Path
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from functools import lru_cache
@@ -889,6 +890,7 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
             actual_model = config.FORECAST_MODEL  # "ensemble" or "naive" pass through
         
         # First try to get from pre-computed cache (for production)
+        cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{config.FORECAST_TASK}_{actual_model}.json"
         base_results = cache_manager.get_retrospective_forecast(config.FORECAST_TASK, actual_model)
         
         if base_results is None:
@@ -937,6 +939,13 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
                 "forecast_mode": config.FORECAST_MODE,
                 "forecast_task": config.FORECAST_TASK,
                 "forecast_model": config.FORECAST_MODEL
+            },
+            "cache": {
+                "enabled": cache_manager.enabled,
+                "path": str(cache_manager.cache_dir),
+                "file": str(cache_file),
+                "file_exists": cache_file.exists(),
+                "hit": base_results is not None,
             },
             "summary": summary,
             "results": filtered

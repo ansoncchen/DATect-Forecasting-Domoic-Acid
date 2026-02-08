@@ -36,8 +36,8 @@ class CacheManager:
     2. File-based cache (default)
     """
     
-    def __init__(self, cache_dir: str = "./cache"):
-        self.cache_dir = Path(cache_dir)
+    def __init__(self, cache_dir: Optional[str] = None):
+        self.cache_dir = Path(os.getenv("CACHE_DIR", cache_dir or "./cache"))
         self.enabled = self._should_enable_cache()
         self._redis_cache: Optional[RedisCacheManager] = None
         
@@ -50,8 +50,11 @@ class CacheManager:
             except Exception as e:
                 logger.warning(f"Failed to initialize Redis cache: {e}")
         
-        if self.enabled and not self.cache_dir.exists():
-            logger.warning(f"Cache directory {cache_dir} not found. Run precompute_cache.py first.")
+        if self.enabled:
+            if self.cache_dir.exists():
+                logger.info(f"Precomputed cache enabled: {self.cache_dir}")
+            else:
+                logger.warning(f"Cache directory {self.cache_dir} not found. Run precompute_cache.py first.")
     
     @property
     def use_redis(self) -> bool:

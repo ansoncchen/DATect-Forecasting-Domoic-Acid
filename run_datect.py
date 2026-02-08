@@ -152,7 +152,10 @@ class DATectLauncher:
     
     def start_backend(self):
         """Launch FastAPI backend server using fastest available ASGI server."""
-        
+        # Forward current env so ENABLE_PRECOMPUTED_CACHE and CACHE_DIR are set in the backend
+        env = os.environ.copy()
+        env.setdefault("CACHE_DIR", str(self.project_root / "cache"))
+
         if self.use_granian:
             print("Starting backend with Granian (Rust-based, 20-40% faster)...")
             self.backend_process = subprocess.Popen([
@@ -160,7 +163,7 @@ class DATectLauncher:
                 'backend.api:app', 
                 '--host', '0.0.0.0', 
                 '--port', '8000'
-            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.project_root)
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.project_root, env=env)
         else:
             print("Starting backend with Uvicorn...")
             self.backend_process = subprocess.Popen([
@@ -168,7 +171,7 @@ class DATectLauncher:
                 'backend.api:app',
                 '--host', '0.0.0.0',
                 '--port', '8000'
-            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.project_root)
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.project_root, env=env)
         
         return self.wait_for_service("http://localhost:8000/health", "Backend")
     

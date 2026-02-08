@@ -179,13 +179,13 @@ SATELLITE_DATA = {
 # Forecast Configuration
 
 # Operation mode: "retrospective" (historical validation) or "realtime" (dashboard)
-FORECAST_MODE = "realtime"
+FORECAST_MODE = "retrospective"
 
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
 FORECAST_TASK = "regression"
 
 # ML algorithm: "ensemble", "naive", or "linear"
-FORECAST_MODEL = "xgboost"
+FORECAST_MODEL = "linear"
 
 # Forecast Horizon Configuration
 # How many weeks ahead to forecast from the data cutoff point

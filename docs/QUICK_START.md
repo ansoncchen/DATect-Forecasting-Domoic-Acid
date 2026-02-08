@@ -96,8 +96,8 @@ The deployment will build a container and deploy to Cloud Run.
 
 1. **Select date**: Choose forecast target date (2008-2024)
 2. **Select site**: Pick from 10 Pacific Coast locations
-3. **Select model**: XGBoost (recommended) or Ridge
-4. **Click Forecast**: View prediction with confidence intervals (configurable)
+3. **Select model**: Ensemble (recommended), Naive, or Linear
+4. **Click Forecast**: View prediction with confidence intervals
 
 ### Risk Categories
 

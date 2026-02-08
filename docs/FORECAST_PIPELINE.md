@@ -7,11 +7,11 @@ This document describes the DATect forecasting pipeline from raw data ingestion 
 ## Pipeline Architecture
 
 ```
-Raw Data Sources → Data Ingestion → Feature Engineering → Model Training → Prediction
-       ↓                 ↓                 ↓                  ↓              ↓
-   MODIS Satellite   dataset-creation.py  data_processor.py  model_factory.py  Results
-   Climate Indices        ↓                    ↓                  ↓
-Streamflow        final_output.parquet  Temporal validation  XGBoost/Ridge
+Raw Data Sources → Data Ingestion → Feature Engineering → Ensemble Training → Prediction
+       ↓                 ↓                 ↓                    ↓                ↓
+   MODIS Satellite   dataset-creation.py  raw_data_processor.py  raw_forecast_engine.py  Results
+   Climate Indices        ↓                    ↓                       ↓
+   Streamflow      final_output.parquet  Observation-order lags  XGBoost + RF + Naive
    DA Measurements
 ```
 
@@ -71,7 +71,7 @@ PN_DECAY_RATE = 0.3
 
 Longer gaps are filled with zeros (assumes non-detection).
 
-## Stage 3: Feature Engineering (`forecasting/data_processor.py`)
+## Stage 3: Feature Engineering (`forecasting/raw_data_processor.py`, `forecasting/feature_utils.py`)
 
 ### Temporal Features
 
@@ -81,23 +81,17 @@ sin_day_of_year = sin(2π × day_of_year / 365)
 cos_day_of_year = cos(2π × day_of_year / 365)
 ```
 
-### Lag Features (Optional)
+### Observation-Order Lag Features
 
-When enabled (`USE_LAG_FEATURES = True`):
-- **Lag 1**: Previous week's value
-- **Lag 3**: 3-week lag (captures bloom cycles)
+Uses the Nth most recent actual observation (not grid-shift lags), which is critical for sparse/irregular measurement data:
+- **Lag 1-4**: Previous 1st through 4th most recent DA observations
+- All lag features use only past data (observation-order, not time-shift)
 
-All lag features respect temporal cutoffs to prevent leakage.
+### Rolling Statistics
 
-### Feature Processing
-
-```python
-# Numeric pipeline
-Pipeline([
-    ("imputer", SimpleImputer(strategy="median")),
-    ("scaler", MinMaxScaler())
-])
-```
+When enabled (`USE_ROLLING_FEATURES = True`):
+- Rolling mean/std over 2/4/8/12-week windows
+- Captures bloom trends and volatility
 
 ## Stage 4: Temporal Validation (`forecasting/validation.py`)
 
@@ -115,12 +109,14 @@ anchor_date = forecast_date - FORECAST_HORIZON_DAYS  # Default: 7 days
 training_data = data[data['date'] <= anchor_date]
 ```
 
-## Stage 5: Model Training (`forecasting/model_factory.py`)
+## Stage 5: Model Training (`forecasting/raw_forecast_engine.py`, `forecasting/per_site_models.py`)
 
-### XGBoost (Primary)
+### 3-Model Ensemble (Primary)
 
+The ensemble blends XGBoost, Random Forest, and a Naive baseline with per-site weights configured in `per_site_models.py`.
+
+**XGBoost** (per-site hyperparameters):
 ```python
-# Regression parameters
 XGB_REGRESSION_PARAMS = {
     "n_estimators": 400,
     "max_depth": 6,
@@ -130,28 +126,31 @@ XGB_REGRESSION_PARAMS = {
     "reg_alpha": 0.1,
     "reg_lambda": 1.0,
 }
-
-# Classification parameters
-XGB_CLASSIFICATION_PARAMS = {
-    "n_estimators": 500,
-    "max_depth": 7,
-    "learning_rate": 0.03,
-    ...
-}
 ```
 
-### Ridge Models (Alternative)
-
-- **Regression**: Ridge Regression
-- **Classification**: Logistic Regression
-- Uses the full feature set as a linear competitor to the nonlinear models.
+**Random Forest** (robust to hyperparameters):
+```python
+RF_REGRESSION_PARAMS = {
+    "n_estimators": 400,
+    "max_depth": 12,
+    "min_samples_split": 5,
+    "min_samples_leaf": 3,
+    "max_features": 0.85,
+}
+```
 
 ### Naive Baseline
 
 - Uses the most recent raw DA measurement at or before the anchor date.
 - Optional max lookback can be set via `PERSISTENCE_MAX_DAYS`.
 
-## Stage 6: Prediction Generation (`forecasting/forecast_engine.py`)
+### Linear Models (Competitor)
+
+- **Regression**: Ridge Regression
+- **Classification**: Logistic Regression
+- Uses the full feature set as a linear competitor (not a baseline).
+
+## Stage 6: Prediction Generation (`forecasting/raw_forecast_engine.py`)
 
 ### Single Forecast Workflow
 
@@ -215,8 +214,9 @@ FORECAST_MODEL = "ensemble"         # Primary model ("ensemble", "naive", "linea
 FORECAST_TASK = "regression"        # or "classification"
 N_RANDOM_ANCHORS = 500              # Retrospective evaluation points
 N_BOOTSTRAP_ITERATIONS = 20         # Confidence interval samples
-USE_LAG_FEATURES = False            # Lag features toggle
-USE_ROLLING_FEATURES = False        # Rolling statistics toggle
+USE_LAG_FEATURES = True             # Observation-order lag features
+USE_ROLLING_FEATURES = True         # Rolling statistics features
+USE_PER_SITE_MODELS = True          # Per-site XGB/RF hyperparams and ensemble weights
 ```
 
 ## Temporal Safeguards Summary

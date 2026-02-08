@@ -76,7 +76,7 @@ train_data['category'] = categorize_from_training_only(train_data['da'])
 
 ## Temporal Integrity Test Suite
 
-The system validates temporal integrity through checks built into `DataProcessor`:
+The system validates temporal integrity through checks built into the forecasting pipeline (`verify_no_data_leakage()` in `config.py` is called for every prediction):
 
 ### Test 1: Chronological Split Validation
 
@@ -172,7 +172,7 @@ FORECAST_HORIZON_WEEKS = 1
 FORECAST_HORIZON_DAYS = 7
 
 # Validation
-MIN_TRAINING_SAMPLES = 3
+MIN_TRAINING_SAMPLES = 10
 N_RANDOM_ANCHORS = 500
 
 # Bootstrap

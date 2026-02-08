@@ -44,22 +44,22 @@ The DATect forecasting system processes environmental data to predict domoic aci
 
 ┌─────────────────────────────────────────────────────────────────┐
 │                    FORECASTING STAGE                             │
-│  (forecasting/forecast_engine.py - Per request)                 │
+│  (forecasting/raw_forecast_engine.py - Per request)             │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
         ┌─────────────────────────────────────────┐
         │  Data Loading & Preparation              │
-        │  (forecasting/data_processor.py)        │
+        │  (forecasting/raw_data_forecaster.py)   │
         │  • Load final_output.parquet            │
+        │  • Build observation-order lag features  │
         │  • Add temporal features (sin/cos)      │
-        │  • Create lag features (optional)       │
         └─────────────────────────────────────────┘
                               │
                               ▼
         ┌─────────────────────────────────────────┐
         │  Temporal Validation                     │
-        │  (forecasting/validation.py)            │
+        │  (config.verify_no_data_leakage)        │
         │  • Calculate anchor date                │
         │  • Verify no future data leakage        │
         │  • Create per-forecast DA categories    │
@@ -67,11 +67,11 @@ The DATect forecasting system processes environmental data to predict domoic aci
                               │
                               ▼
         ┌─────────────────────────────────────────┐
-        │  Model Training & Prediction            │
-        │  (forecasting/model_factory.py)         │
+        │  Ensemble Training & Prediction          │
+        │  (forecasting/raw_forecast_engine.py)   │
         │  • Train/test split at anchor date      │
-        │  • Fit transformer on training only     │
-        │  • Train XGBoost or ridge model         │
+        │  • Per-site XGB + RF + Naive ensemble   │
+        │  • Weighted blending via per_site_models │
         │  • Generate prediction                  │
         │  • Quantile/bootstrap intervals         │
         └─────────────────────────────────────────┘
@@ -116,33 +116,34 @@ Downloads and processes environmental data:
 
 **Output**: `data/processed/final_output.parquet` (weekly time series, 2003-2023)
 
-### Forecasting Engine (`forecasting/forecast_engine.py`)
+### Forecasting Engine (`forecasting/raw_forecast_engine.py`)
 
-Generates predictions with temporal safeguards:
+Generates predictions with the 3-model ensemble:
 
 1. **Anchor Date Calculation**: `forecast_date - FORECAST_HORIZON_DAYS`
-2. **Lag Feature Creation**: With temporal cutoffs
+2. **Observation-Order Lag Features**: Past-only shifts on raw DA measurements
 3. **Train/Test Split**: Chronological (training ≤ anchor_date)
 4. **DA Category Creation**: Per-forecast from training data only
-5. **Model Training**: XGBoost or ridge models
+5. **Ensemble Training**: XGBoost + Random Forest + Naive with per-site weights
 6. **Prediction**: With configurable confidence intervals
 
-### Data Processor (`forecasting/data_processor.py`)
+### Per-Site Configuration (`forecasting/per_site_models.py`)
 
-Handles feature engineering:
+Custom tuning for each of the 10 monitoring sites:
 
+- XGBoost/RF hyperparameters per site
+- Feature subsets per site
+- Ensemble weights per site
+- Prediction clipping per site
+
+### Data Pipeline (`forecasting/raw_data_forecaster.py`, `forecasting/raw_data_processor.py`)
+
+Handles feature engineering for raw measurements:
+
+- Observation-order lag features (not grid-shift)
 - Temporal encoding (sin/cos day-of-year)
-- Lag features with cutoff validation
-- Rolling statistics (optional)
-- Numeric transformation pipeline
-
-### Model Factory (`forecasting/model_factory.py`)
-
-Creates and configures models:
-
-- **XGBoost**: Primary model with tuned hyperparameters
-- **Ridge**: Interpretable alternative (regression/logistic)
-- Sample weighting for class imbalance
+- Rolling statistics (mean/std over multiple windows)
+- Leak-free test row construction
 
 ### Web API (`backend/api.py`)
 
@@ -166,13 +167,14 @@ FORECAST_HORIZON_WEEKS = 1
 FORECAST_HORIZON_DAYS = 7
 
 # Models
-FORECAST_MODEL = "xgboost"
+FORECAST_MODEL = "ensemble"   # "ensemble", "naive", or "linear"
 FORECAST_TASK = "regression"
 
 # Features
-USE_LAG_FEATURES = False
-USE_ROLLING_FEATURES = False
+USE_LAG_FEATURES = True
+USE_ROLLING_FEATURES = True
 USE_ENHANCED_TEMPORAL_FEATURES = True
+USE_PER_SITE_MODELS = True
 
 # Evaluation
 N_RANDOM_ANCHORS = 500
@@ -187,9 +189,9 @@ DA_CATEGORY_BINS = [-inf, 5, 20, 40, inf]  # Low, Moderate, High, Extreme
 ```
 Raw Data → dataset-creation.py → final_output.parquet
                                         ↓
-                              forecasting/data_processor.py
+                              forecasting/raw_data_forecaster.py
                                         ↓
-                              forecasting/forecast_engine.py
+                              forecasting/raw_forecast_engine.py
                                         ↓
                               backend/api.py → JSON responses
                                         ↓
@@ -223,7 +225,7 @@ python precompute_cache.py
 ### Programmatic Use
 
 ```python
-from forecasting.forecast_engine import ForecastEngine
+from forecasting import ForecastEngine
 
 engine = ForecastEngine()
 
@@ -233,13 +235,13 @@ result = engine.generate_single_forecast(
     forecast_date="2020-06-15",
     site="Newport",
     task="regression",
-    model_type="xgboost"
+    model_type="ensemble"
 )
 
 # Retrospective evaluation
 results_df = engine.run_retrospective_evaluation(
     task="regression",
-    model_type="xgboost",
+    model_type="ensemble",
     n_anchors=500
 )
 ```
@@ -259,20 +261,24 @@ results_df = engine.run_retrospective_evaluation(
 
 ```
 DATect-Forecasting-Domoic-Acid/
-├── dataset-creation.py       # Data ingestion pipeline
-├── run_datect.py             # Application launcher
-├── config.py                 # Configuration
-├── precompute_cache.py       # Cache generation with validation
+├── dataset-creation.py           # Data ingestion pipeline
+├── run_datect.py                 # Application launcher
+├── config.py                     # Configuration
+├── precompute_cache.py           # Cache generation with validation
 ├── forecasting/
-│   ├── forecast_engine.py    # Core forecasting logic
-│   ├── data_processor.py     # Feature engineering
-│   ├── model_factory.py      # Model creation
-│   └── validation.py         # Temporal integrity checks
+│   ├── raw_forecast_engine.py    # Ensemble pipeline (XGB + RF + Naive)
+│   ├── raw_data_forecaster.py    # Raw DA loading, feature frame building
+│   ├── raw_data_processor.py     # Observation-order lag features
+│   ├── per_site_models.py        # Per-site hyperparams and ensemble weights
+│   ├── ensemble_model_factory.py # Ensemble model wrapper
+│   ├── classification_adapter.py # DA risk category classification
+│   ├── feature_utils.py          # Shared temporal feature engineering
+│   └── validation.py             # System startup validation
 ├── backend/
-│   ├── api.py                # FastAPI endpoints
-│   ├── visualizations.py     # Plot generation
-│   └── cache_manager.py      # Result caching
-├── frontend/                 # React web interface
+│   ├── api.py                    # FastAPI endpoints
+│   ├── visualizations.py         # Plot generation
+│   └── cache_manager.py          # Result caching
+├── frontend/                     # React web interface
 └── data/
     └── processed/
         └── final_output.parquet  # Unified dataset

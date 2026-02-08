@@ -12,9 +12,10 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 **Key Features:**
 - 10 monitoring sites from Oregon to Washington
 - 21 years of integrated data (2003-2023)
-- XGBoost and ridge regression model options
-- Comprehensive temporal validation (7 integrity tests)
-- Quantile/Bootstrap confidence intervals for uncertainty quantification (configurable)
+- 3-model ensemble (XGBoost + Random Forest + Naive baseline) with per-site tuning
+- Observation-order lag features for sparse/irregular measurement data
+- Comprehensive temporal validation (no data leakage guarantees)
+- Quantile/bootstrap confidence intervals for uncertainty quantification
 
 ## Quick Start
 
@@ -42,27 +43,31 @@ Opens at http://localhost:3000
 
 ```
 DATect-Forecasting-Domoic-Acid/
-├── run_datect.py           # System launcher
-├── dataset-creation.py     # Data pipeline (satellite, climate, toxins)
-├── config.py               # Configuration (sites, models, parameters)
-├── forecasting/            # ML engine
-│   ├── forecast_engine.py  # Core forecasting with temporal safeguards
-│   ├── data_processor.py   # Feature engineering
-│   ├── model_factory.py    # XGBoost/ridge model creation
-│   └── validation.py       # Temporal integrity checks
-├── backend/                # FastAPI server
-│   ├── api.py              # REST endpoints
-│   ├── visualizations.py   # Chart generation
-│   └── cache_manager.py    # Result caching
-├── frontend/               # React + Vite interface
-└── data/processed/         # Processed dataset (parquet)
+├── run_datect.py               # System launcher
+├── dataset-creation.py         # Data pipeline (satellite, climate, toxins)
+├── config.py                   # Configuration (sites, models, parameters)
+├── forecasting/                # ML engine
+│   ├── raw_forecast_engine.py  # Ensemble pipeline (XGBoost + RF + Naive)
+│   ├── raw_data_forecaster.py  # Raw DA loading and feature frame building
+│   ├── raw_data_processor.py   # Observation-order lag features
+│   ├── per_site_models.py      # Per-site hyperparams and ensemble weights
+│   ├── ensemble_model_factory.py # Ensemble model wrapper
+│   ├── classification_adapter.py # DA risk category classification
+│   ├── feature_utils.py        # Shared temporal feature engineering
+│   └── validation.py           # System startup validation
+├── backend/                    # FastAPI server
+│   ├── api.py                  # REST endpoints
+│   ├── visualizations.py       # Chart generation
+│   └── cache_manager.py        # Result caching
+├── frontend/                   # React + Vite interface
+└── data/processed/             # Processed dataset (parquet)
 ```
 
 ## Using the Dashboard
 
 1. **Select date** (2008-2024 range)
 2. **Select site** (10 Pacific Coast locations)
-3. **Select model** (XGBoost recommended)
+3. **Select model** (ensemble recommended, also: naive, linear)
 4. **Click "Forecast"**
 
 **Risk Categories:**
@@ -71,7 +76,7 @@ DATect-Forecasting-Domoic-Acid/
 - **High** (20-40 μg/g): Avoid consumption (above federal limit)
 - **Extreme** (>40 μg/g): Health hazard
 
-**Retrospective Mode:** Compare XGBoost vs ridge model performance across 500 anchor points per site.
+**Retrospective Mode:** Evaluate model performance across 500 anchor points per site.
 
 ## Data Sources
 
@@ -92,11 +97,13 @@ DATect-Forecasting-Domoic-Acid/
 
 The system enforces strict temporal integrity to prevent data leakage:
 
-1. **Chronological splits**: Training data always precedes test data
+1. **Chronological splits**: Training only uses `date <= anchor_date`
 2. **Satellite buffer**: 7-day processing delay
 3. **Climate buffer**: 2-month reporting delay
 4. **Per-forecast categories**: DA risk levels computed from training data only
-5. **Lag feature cutoffs**: No future data in feature calculations
+5. **Observation-order lags**: Past-only shifts on raw measurements
+6. **Fresh model per test point**: No lookahead via shared state
+7. **`verify_no_data_leakage()`**: Called for every prediction
 
 ## Google Cloud Deployment
 

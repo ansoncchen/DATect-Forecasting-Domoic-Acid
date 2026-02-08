@@ -20,8 +20,10 @@ warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
 
 
-def generate_gradient_uncertainty_plot(gradient_quantiles, xgboost_prediction, actual_da=None):
-    """Create gradient visualization with quantile uncertainty bands (robust at q05==q50==q95)."""
+def generate_gradient_uncertainty_plot(gradient_quantiles, ensemble_prediction,
+                                       actual_da=None, xgb_prediction=None,
+                                       rf_prediction=None):
+    """Create gradient visualization with quantile uncertainty bands and model markers."""
     q05 = float(gradient_quantiles['q05'])
     q50 = float(gradient_quantiles['q50'])
     q95 = float(gradient_quantiles['q95'])
@@ -61,31 +63,62 @@ def generate_gradient_uncertainty_plot(gradient_quantiles, xgboost_prediction, a
         x=[q50, q50], y=[0.35, 0.65],
         mode='lines',
         line=dict(color='rgb(30, 60, 90)', width=3),
-        name='Bootstrap Median (Q50)',
-        hovertemplate='Bootstrap Median: %{x:.2f}<extra></extra>'
+        name='Ensemble Median (Q50)',
+        hovertemplate='Ensemble Median: %{x:.2f}<extra></extra>'
     ))
-    
+
     fig.add_trace(go.Scatter(
         x=[q05, q95], y=[0.5, 0.5],
         mode='markers',
         marker=dict(size=12, color='rgba(70, 130, 180, 0.4)', symbol='line-ns-open'),
-        name='Bootstrap Range (Q05-Q95)',
-        hovertemplate='Bootstrap Range: %{x:.2f}<extra></extra>'
+        name='Confidence Range (Q05-Q95)',
+        hovertemplate='Range: %{x:.2f}<extra></extra>'
     ))
-    
+
+    # Ensemble prediction (primary)
     fig.add_trace(go.Scatter(
-        x=[xgboost_prediction], y=[0.5],
+        x=[ensemble_prediction], y=[0.5],
         mode='markers',
         marker=dict(
-            size=14,
-            color='darkorange',
+            size=16,
+            color='rgb(30, 60, 90)',
             symbol='diamond-tall',
             line=dict(width=2, color='black')
         ),
-        name='XGBoost Prediction',
-        hovertemplate='XGBoost: %{x:.2f}<extra></extra>'
+        name='Ensemble Prediction',
+        hovertemplate='Ensemble: %{x:.2f}<extra></extra>'
     ))
-    
+
+    # XGBoost component
+    if xgb_prediction is not None:
+        fig.add_trace(go.Scatter(
+            x=[xgb_prediction], y=[0.55],
+            mode='markers',
+            marker=dict(
+                size=12,
+                color='darkorange',
+                symbol='diamond',
+                line=dict(width=1.5, color='black')
+            ),
+            name='XGBoost',
+            hovertemplate='XGBoost: %{x:.2f}<extra></extra>'
+        ))
+
+    # Random Forest component
+    if rf_prediction is not None:
+        fig.add_trace(go.Scatter(
+            x=[rf_prediction], y=[0.45],
+            mode='markers',
+            marker=dict(
+                size=12,
+                color='forestgreen',
+                symbol='diamond',
+                line=dict(width=1.5, color='black')
+            ),
+            name='Random Forest',
+            hovertemplate='RF: %{x:.2f}<extra></extra>'
+        ))
+
     if actual_da is not None:
         fig.add_trace(go.Scatter(
             x=[actual_da], y=[0.5],
@@ -94,19 +127,15 @@ def generate_gradient_uncertainty_plot(gradient_quantiles, xgboost_prediction, a
             name='Actual Value',
             hovertemplate='Actual: %{x:.2f}<extra></extra>'
         ))
-    
+
     # Compute x-axis range with padding to avoid degenerate axis
-    x_candidates = [display_q05, display_q95, q50]
-    if xgboost_prediction is not None:
-        try:
-            x_candidates.append(float(xgboost_prediction))
-        except Exception:
-            pass
-    if actual_da is not None:
-        try:
-            x_candidates.append(float(actual_da))
-        except Exception:
-            pass
+    x_candidates = [display_q05, display_q95, q50, ensemble_prediction]
+    for val in (xgb_prediction, rf_prediction, actual_da):
+        if val is not None:
+            try:
+                x_candidates.append(float(val))
+            except Exception:
+                pass
     x_min = min(x_candidates)
     x_max = max(x_candidates)
     if not np.isfinite(x_min) or not np.isfinite(x_max) or abs(x_max - x_min) < 1e-9:
@@ -118,15 +147,15 @@ def generate_gradient_uncertainty_plot(gradient_quantiles, xgboost_prediction, a
         x_max += pad
 
     fig.update_layout(
-        title="DA Level Forecasts with Bootstrap Confidence Intervals ",
-        xaxis=dict(title="DA Level (μg/L)", range=[x_min, x_max]),
+        title="DA Level Forecasts with Confidence Intervals",
+        xaxis=dict(title="DA Level (\u03bcg/L)", range=[x_min, x_max]),
         yaxis=dict(visible=False, range=[0, 1]),
         showlegend=True,
         height=350,
         plot_bgcolor='white',
         hovermode='closest'
     )
-    
+
     return pio.to_json(fig)
 
 

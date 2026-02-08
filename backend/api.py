@@ -824,6 +824,8 @@ async def generate_enhanced_forecast(request: ForecastRequest):
         # Add level_range graph for regression (only when quantiles available)
         if regression_result and 'predicted_da' in regression_result:
             predicted_da = float(regression_result['predicted_da'])
+            xgb_pred = regression_result.get('xgb_prediction')
+            rf_pred = regression_result.get('rf_prediction')
             bootstrap_quantiles = regression_result.get('bootstrap_quantiles') or {}
             if all(k in bootstrap_quantiles for k in ('q05', 'q50', 'q95')):
                 quantiles = {
@@ -831,7 +833,11 @@ async def generate_enhanced_forecast(request: ForecastRequest):
                     "q50": bootstrap_quantiles['q50'],
                     "q95": bootstrap_quantiles['q95'],
                 }
-                gradient_plot_json = generate_gradient_uncertainty_plot(quantiles, predicted_da)
+                gradient_plot_json = generate_gradient_uncertainty_plot(
+                    quantiles, predicted_da,
+                    xgb_prediction=float(xgb_pred) if xgb_pred is not None else None,
+                    rf_prediction=float(rf_pred) if rf_pred is not None else None,
+                )
                 response_data["graphs"]["level_range"] = {
                     "gradient_quantiles": quantiles,
                     "xgboost_prediction": predicted_da,

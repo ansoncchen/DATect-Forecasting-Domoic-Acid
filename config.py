@@ -179,7 +179,7 @@ SATELLITE_DATA = {
 # Forecast Configuration
 
 # Operation mode: "retrospective" (historical validation) or "realtime" (dashboard)
-FORECAST_MODE = "retrospective"
+FORECAST_MODE = "realtime"
 
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
 FORECAST_TASK = "regression"
@@ -237,7 +237,7 @@ N_RANDOM_ANCHORS = 500
 
 # Bootstrap confidence intervals
 ENABLE_BOOTSTRAP_INTERVALS = True  # Disable to skip bootstrap uncertainty
-N_BOOTSTRAP_ITERATIONS = 20  # Number of bootstrap iterations for confidence intervals
+N_BOOTSTRAP_ITERATIONS = 100  # Number of bootstrap iterations for confidence intervals
 
 # Lag Feature Configuration
 
@@ -355,25 +355,3 @@ ZERO_IMPORTANCE_FEATURES = [
 
 # Minimum test date (early lower bound; per-site history fraction is the real filter)
 MIN_TEST_DATE = "2003-01-01"
-
-
-def verify_no_data_leakage(train_data, test_date, anchor_date):
-    """Assert that no training data leaks past the anchor date.
-
-    Call this inside the validation loop for every test point.
-    Raises AssertionError on temporal leakage.
-    """
-    import pandas as _pd
-
-    anchor = _pd.Timestamp(anchor_date)
-    if train_data['date'].max() > anchor:
-        raise AssertionError(
-            f"TEMPORAL LEAK: training data max date "
-            f"{train_data['date'].max().date()} > anchor {anchor.date()}"
-        )
-
-    test = _pd.Timestamp(test_date)
-    if test <= anchor:
-        raise AssertionError(
-            f"TEMPORAL LEAK: test_date {test.date()} <= anchor {anchor.date()}"
-        )

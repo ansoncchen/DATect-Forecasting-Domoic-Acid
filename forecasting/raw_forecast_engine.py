@@ -27,8 +27,6 @@ from sklearn.metrics import (
     r2_score,
     mean_absolute_error,
     accuracy_score,
-    precision_score,
-    recall_score,
     f1_score,
 )
 from tqdm import tqdm
@@ -472,9 +470,10 @@ class RawForecastEngine:
         enable_quantile = getattr(config, "ENABLE_QUANTILE_INTERVALS", True)
         enable_bootstrap = getattr(config, "ENABLE_BOOTSTRAP_INTERVALS", True)
 
-        if enable_quantile and model_type in ("xgboost", "xgb"):
+        if enable_quantile and model_type in ("xgboost", "xgb", "ensemble", "threshold"):
             try:
                 for q in (0.05, 0.50, 0.95):
+                    # XGBoost quantile regression for the XGB component
                     q_params = {
                         **xgb_params,
                         "objective": "reg:quantile",
@@ -482,9 +481,22 @@ class RawForecastEngine:
                     }
                     q_model = build_xgb_regressor(q_params)
                     q_model.fit(X_train_processed, y_train)
-                    q_pred = float(q_model.predict(X_test_processed)[0])
+                    xgb_q_pred = postprocess_fn(float(q_model.predict(X_test_processed)[0]))
+
                     key = f"q{int(q * 100):02d}"
-                    quantiles[key] = postprocess_fn(q_pred)
+                    if model_type in ("ensemble", "threshold"):
+                        # Blend XGB quantile with RF + naive for ensemble CI
+                        rf_model = build_rf_regressor(rf_params)
+                        rf_model.fit(X_train_processed, y_train)
+                        rf_q_pred = postprocess_fn(float(rf_model.predict(X_test_processed)[0]))
+                        w_xgb, w_rf, w_naive = ensemble_weights
+                        quantiles[key] = (
+                            w_xgb * xgb_q_pred
+                            + w_rf * rf_q_pred
+                            + w_naive * float(naive_prediction)
+                        )
+                    else:
+                        quantiles[key] = xgb_q_pred
                 return quantiles
             except Exception:
                 logger.debug("Quantile objectives unavailable, falling back to bootstrap")

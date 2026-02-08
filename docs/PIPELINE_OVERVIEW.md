@@ -59,7 +59,7 @@ The DATect forecasting system processes environmental data to predict domoic aci
                               ▼
         ┌─────────────────────────────────────────┐
         │  Temporal Validation                     │
-        │  (config.verify_no_data_leakage)        │
+        │  (_verify_no_data_leakage)               │
         │  • Calculate anchor date                │
         │  • Verify no future data leakage        │
         │  • Create per-forecast DA categories    │

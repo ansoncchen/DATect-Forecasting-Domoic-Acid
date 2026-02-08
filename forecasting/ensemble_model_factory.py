@@ -15,9 +15,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-import numpy as np
-from sklearn.utils.class_weight import compute_class_weight
-
 import config
 from .raw_model_factory import (
     build_xgb_regressor,
@@ -165,36 +162,3 @@ class EnsembleModelFactory:
             "logistic": "Logistic Regression",
         }
         return descriptions.get(model_type, f"Unknown model: {model_type}")
-
-    # ------------------------------------------------------------------
-    # Sample weighting helpers (ported from original ModelFactory)
-    # ------------------------------------------------------------------
-
-    def compute_sample_weights_for_classification(self, y_train) -> np.ndarray:
-        """
-        Compute balanced sample weights for classification training.
-
-        Uses sklearn's ``compute_class_weight('balanced')`` to address
-        class imbalance in DA risk categories.
-        """
-        unique_classes = np.unique(y_train)
-        class_weights = compute_class_weight("balanced", classes=unique_classes, y=y_train)
-        class_weight_dict = dict(zip(unique_classes, class_weights))
-        sample_weights = np.array([class_weight_dict[y] for y in y_train])
-        return sample_weights
-
-    def compute_spike_focused_weights(self, y_actual) -> np.ndarray:
-        """
-        Compute sample weights that heavily penalise missed spikes.
-
-        Spike events (DA > ``config.SPIKE_THRESHOLD``) receive weight
-        ``SPIKE_FALSE_NEGATIVE_WEIGHT``; non-spike events receive
-        ``SPIKE_TRUE_NEGATIVE_WEIGHT``.
-        """
-        actual_spikes = (y_actual > config.SPIKE_THRESHOLD).astype(int)
-        sample_weights = np.ones(len(actual_spikes))
-        spike_mask = actual_spikes == 1
-        sample_weights[spike_mask] = getattr(config, "SPIKE_FALSE_NEGATIVE_WEIGHT", 500.0)
-        non_spike_mask = actual_spikes == 0
-        sample_weights[non_spike_mask] = getattr(config, "SPIKE_TRUE_NEGATIVE_WEIGHT", 0.1)
-        return sample_weights

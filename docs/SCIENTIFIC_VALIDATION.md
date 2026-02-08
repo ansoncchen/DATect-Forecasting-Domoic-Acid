@@ -76,7 +76,7 @@ train_data['category'] = categorize_from_training_only(train_data['da'])
 
 ## Per-Prediction Validation
 
-The system validates temporal integrity on **every single prediction** via `verify_no_data_leakage()` (defined in `config.py`), which raises an `AssertionError` if any temporal violation is detected:
+The system validates temporal integrity on **every single prediction** via `_verify_no_data_leakage()` (defined in `raw_forecast_engine.py`), which raises an `AssertionError` if any temporal violation is detected:
 
 ```python
 def verify_no_data_leakage(train_data, test_date, anchor_date):

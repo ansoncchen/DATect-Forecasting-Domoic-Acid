@@ -212,34 +212,6 @@ def recompute_test_row_persistence_features(
     return test_row
 
 
-def get_site_test_row(
-    feature_frame: pd.DataFrame,
-    site: str,
-    test_date: pd.Timestamp,
-    anchor_date: pd.Timestamp,
-    max_date_diff_days: int = 14,
-) -> Optional[pd.DataFrame]:
-    """
-    LEGACY: Find closest processed row to test_date (after anchor_date).
-
-    WARNING: This uses environmental features from the test date, which
-    constitutes data leakage for a forecasting task.  Use
-    get_site_anchor_row() instead for leak-free validation.
-    """
-    test_date = pd.Timestamp(test_date)
-    anchor_date = pd.Timestamp(anchor_date)
-    site_data = feature_frame[feature_frame["site"] == site].copy()
-    site_data = site_data.sort_values("date")
-    future_data = site_data[site_data["date"] > anchor_date].copy()
-    if future_data.empty:
-        return None
-    future_data["date_diff"] = abs((future_data["date"] - test_date).dt.days)
-    closest_idx = future_data["date_diff"].idxmin()
-    if future_data.loc[closest_idx, "date_diff"] > max_date_diff_days:
-        return None
-    return future_data.loc[[closest_idx]].drop(columns=["date_diff"])
-
-
 def get_site_anchor_row(
     feature_frame: pd.DataFrame,
     site: str,

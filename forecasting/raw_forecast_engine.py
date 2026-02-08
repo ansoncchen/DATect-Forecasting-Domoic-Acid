@@ -384,7 +384,8 @@ class RawForecastEngine:
         if task == "regression":
             quantiles = self._compute_confidence_intervals(
                 X_train_processed, y_train, X_test_processed, xgb_params,
-                _postprocess, model_type,
+                _postprocess, model_type, site, naive_prediction,
+                rf_params, (w_xgb, w_rf, w_naive),
             )
             result["bootstrap_quantiles"] = quantiles
 
@@ -461,6 +462,10 @@ class RawForecastEngine:
         xgb_params: dict,
         postprocess_fn,
         model_type: str,
+        site: str,
+        naive_prediction: float,
+        rf_params: dict,
+        ensemble_weights: tuple[float, float, float],
     ) -> dict:
         """
         Compute prediction intervals via XGBoost quantile objectives
@@ -469,7 +474,7 @@ class RawForecastEngine:
         quantiles = {}
         enable_quantile = getattr(config, "ENABLE_QUANTILE_INTERVALS", True)
 
-        if enable_quantile:
+        if enable_quantile and model_type in ("xgboost", "xgb"):
             try:
                 for q in (0.05, 0.50, 0.95):
                     q_params = {
@@ -489,6 +494,10 @@ class RawForecastEngine:
         # Bootstrap fallback
         return self.generate_bootstrap_confidence_intervals(
             X_train_processed, y_train, X_test_processed, model_type,
+            postprocess_fn=postprocess_fn,
+            naive_prediction=naive_prediction,
+            rf_params=rf_params,
+            ensemble_weights=ensemble_weights,
         )
 
     def generate_bootstrap_confidence_intervals(
@@ -498,6 +507,10 @@ class RawForecastEngine:
         X_forecast,
         model_type: str,
         n_bootstrap: Optional[int] = None,
+        postprocess_fn=None,
+        naive_prediction: Optional[float] = None,
+        rf_params: Optional[dict] = None,
+        ensemble_weights: Optional[tuple[float, float, float]] = None,
     ) -> dict:
         """
         Generate bootstrap confidence intervals using resampling.
@@ -509,6 +522,15 @@ class RawForecastEngine:
 
         predictions = []
         subsample_frac = getattr(config, "BOOTSTRAP_SUBSAMPLE_FRACTION", 0.75)
+        if postprocess_fn is None:
+            postprocess_fn = lambda val: max(0.0, float(val))
+
+        rf_params = rf_params or dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
+        if ensemble_weights is None:
+            ensemble_weights = (0.50, 0.15, 0.35)
+        w_xgb, w_rf, w_naive = ensemble_weights
+        if naive_prediction is None:
+            naive_prediction = 0.0
 
         for _ in range(n_bootstrap):
             n_samples = len(X_train_processed)
@@ -522,15 +544,45 @@ class RawForecastEngine:
                 X_bs = X_train_processed[idx]
                 y_bs = y_train[idx]
 
+            if model_type in ("naive",):
+                predictions.append(float(naive_prediction))
+                continue
+
+            if model_type in ("rf",):
+                rf_model = build_rf_regressor(rf_params)
+                rf_model.fit(X_bs, y_bs)
+                rf_raw = float(rf_model.predict(X_forecast)[0])
+                predictions.append(postprocess_fn(rf_raw))
+                continue
+
+            # Default to XGBoost-based bootstrap
             bs_model = self.model_factory.get_model(
                 "regression", "xgboost", params_override=None,
             )
             if bs_model is None:
                 bs_model = build_xgb_regressor()
             bs_model.fit(X_bs, y_bs)
+            xgb_raw = float(bs_model.predict(X_forecast)[0])
+            xgb_pred = postprocess_fn(xgb_raw)
 
-            pred = max(0.0, float(bs_model.predict(X_forecast)[0]))
-            predictions.append(pred)
+            if model_type in ("ensemble", "threshold"):
+                rf_model = build_rf_regressor(rf_params)
+                rf_model.fit(X_bs, y_bs)
+                rf_raw = float(rf_model.predict(X_forecast)[0])
+                rf_pred = postprocess_fn(rf_raw)
+                pred = (
+                    w_xgb * xgb_pred
+                    + w_rf * rf_pred
+                    + w_naive * float(naive_prediction)
+                )
+                predictions.append(float(pred))
+            elif model_type in ("linear",):
+                linear_model = build_linear_regressor()
+                linear_model.fit(X_bs, y_bs)
+                linear_raw = float(linear_model.predict(X_forecast)[0])
+                predictions.append(postprocess_fn(linear_raw))
+            else:
+                predictions.append(float(xgb_pred))
 
         predictions = np.array(predictions)
         percentiles = getattr(config, "CONFIDENCE_PERCENTILES", [5, 50, 95])
@@ -661,11 +713,19 @@ class RawForecastEngine:
                 for row in tqdm(sample_rows, desc="Retrospective", unit="sample")
             ]
 
+        n_processed = len(results)
         results = [r for r in results if r is not None]
+        n_success = len(results)
 
         if not results:
             logger.warning("No successful retrospective predictions")
             return None
+
+        if n_success < n_processed:
+            logger.info(
+                "Retrospective: %d/%d samples produced a prediction (%d failed: no train data, no test row, or exception)",
+                n_success, n_processed, n_processed - n_success,
+            )
 
         results_df = pd.DataFrame(results)
 
@@ -735,9 +795,16 @@ class RawForecastEngine:
             )
 
         # Sort and deduplicate
+        n_before_dedup = len(results_df)
         results_df = results_df.sort_values(["date", "site"]).drop_duplicates(
             ["date", "site"]
         )
+        n_after_dedup = len(results_df)
+        if n_after_dedup < n_before_dedup:
+            logger.info(
+                "Retrospective: dropped %d duplicate (date, site) rows -> %d unique predictions",
+                n_before_dedup - n_after_dedup, n_after_dedup,
+            )
 
         self.results_df = results_df
         self._display_evaluation_metrics(task)
@@ -943,7 +1010,7 @@ class RawForecastEngine:
                 linear_raw = float(linear_model.predict(X_test_processed)[0])
                 linear_prediction = _postprocess(linear_raw)
             except Exception:
-                linear_prediction = prediction
+                linear_prediction = None
 
         # Logistic classification (only when needed for retrospective)
         predicted_category_logistic = None

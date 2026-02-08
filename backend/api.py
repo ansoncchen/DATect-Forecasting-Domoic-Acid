@@ -930,7 +930,7 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
         # Filter by sites if specified
         filtered = [r for r in base_results if r['site'] in request.selected_sites] if request.selected_sites else base_results
         
-        summary = _compute_summary(filtered)
+        summary = _compute_summary(filtered, config.FORECAST_TASK)
         return {
             "success": True,
             "config": {
@@ -948,7 +948,7 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
             "error": str(e)
         }
 
-def _compute_summary(results_json: list) -> dict:
+def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
     """Compute summary metrics for retrospective results using canonical keys only."""
     summary = {"total_forecasts": len(results_json)}
 
@@ -970,7 +970,7 @@ def _compute_summary(results_json: list) -> dict:
     summary["classification_forecasts"] = len(valid_classification)
 
     # Regression metrics
-    if valid_regression:
+    if task != "classification" and valid_regression:
         from sklearn.metrics import r2_score, mean_absolute_error, f1_score
         actual_vals = [r[0] for r in valid_regression]
         pred_vals = [r[1] for r in valid_regression]
@@ -989,7 +989,7 @@ def _compute_summary(results_json: list) -> dict:
             pass
 
     # Classification metrics
-    if valid_classification:
+    if task == "classification" and valid_classification:
         from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_recall_fscore_support
         actual_cats = [r[0] for r in valid_classification]
         pred_cats = [r[1] for r in valid_classification]

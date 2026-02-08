@@ -36,6 +36,17 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  const parsePlotlyJson = (plotJson) => {
+    if (!plotJson) return null
+    if (typeof plotJson === 'object') return plotJson
+    try {
+      return JSON.parse(plotJson)
+    } catch (err) {
+      console.warn('Failed to parse plot JSON', err)
+      return null
+    }
+  }
+
   useEffect(() => {
     loadInitialData()
     loadConfig()
@@ -825,7 +836,13 @@ const Dashboard = () => {
     } else if (config.forecast_mode === 'retrospective' && retrospectiveResults) {
       return renderRetrospectiveResults()
     }
-    return null
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-lg shadow-md p-6 text-center text-gray-600">
+          No results available yet.
+        </div>
+      </div>
+    )
   }
 
   const renderRealtimeResults = () => (
@@ -842,6 +859,17 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
+
+      {forecast && !forecast.success && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
+            <span className="text-red-800">
+              {forecast.error || 'Realtime forecast failed. Please try another date or site.'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {forecast && forecast.success && (
         <div className="space-y-6">
@@ -935,10 +963,10 @@ const Dashboard = () => {
               {/* Level Range Graph - Advanced Gradient Visualization */}
               {forecast.graphs && forecast.graphs.level_range && (
                 <div>
-                  {forecast.graphs.level_range.type === 'gradient_uncertainty' && forecast.graphs.level_range.gradient_plot ? (
+                  {forecast.graphs.level_range.type === 'gradient_uncertainty' && forecast.graphs.level_range.gradient_plot && parsePlotlyJson(forecast.graphs.level_range.gradient_plot) ? (
                     // Use the advanced gradient plot from backend
                     <Plot
-                      {...JSON.parse(forecast.graphs.level_range.gradient_plot)}
+                      {...parsePlotlyJson(forecast.graphs.level_range.gradient_plot)}
                       config={{ responsive: true }}
                       style={{ width: '100%' }}
                     />
@@ -1103,12 +1131,26 @@ const Dashboard = () => {
               <h3 className="text-lg font-semibold mb-4">Top Feature Importance</h3>
               <Plot
                 data={[{
-                  x: (forecast.regression?.feature_importance || forecast.classification?.feature_importance)
-                    ?.slice(0, 15)
-                    ?.map(f => f.importance) || [],
-                  y: (forecast.regression?.feature_importance || forecast.classification?.feature_importance)
-                    ?.slice(0, 15)
-                    ?.map(f => f.feature) || [],
+                  x: (() => {
+                    const raw = forecast.regression?.feature_importance || forecast.classification?.feature_importance
+                    const items = Array.isArray(raw)
+                      ? raw
+                      : Object.entries(raw || {}).map(([feature, importance]) => ({ feature, importance }))
+                    return items
+                      .sort((a, b) => b.importance - a.importance)
+                      .slice(0, 15)
+                      .map(f => f.importance)
+                  })(),
+                  y: (() => {
+                    const raw = forecast.regression?.feature_importance || forecast.classification?.feature_importance
+                    const items = Array.isArray(raw)
+                      ? raw
+                      : Object.entries(raw || {}).map(([feature, importance]) => ({ feature, importance }))
+                    return items
+                      .sort((a, b) => b.importance - a.importance)
+                      .slice(0, 15)
+                      .map(f => f.feature)
+                  })(),
                   type: 'bar',
                   orientation: 'h',
                   marker: { color: 'steelblue' }
@@ -1185,26 +1227,26 @@ const Dashboard = () => {
               <div className="text-2xl font-bold text-blue-600">{filteredResults?.summary?.total_forecasts || 0}</div>
               <div className="text-sm text-gray-600">Total Forecasts</div>
             </div>
-            {filteredResults?.summary?.r2_score !== undefined && (
+            {config.forecast_task === 'regression' && filteredResults?.summary?.r2_score !== undefined && (
               <div className="bg-green-50 p-4 rounded-lg text-center">
                 <div className="text-2xl font-bold text-green-600">{filteredResults.summary.r2_score.toFixed(3)}</div>
                 <div className="text-sm text-gray-600">R² Score</div>
               </div>
             )}
-            {filteredResults?.summary?.mae !== undefined && (
+            {config.forecast_task === 'regression' && filteredResults?.summary?.mae !== undefined && (
               <div className="bg-yellow-50 p-4 rounded-lg text-center">
                 <div className="text-2xl font-bold text-yellow-600">{filteredResults.summary.mae.toFixed(2)}</div>
                 <div className="text-sm text-gray-600">MAE (μg/g)</div>
               </div>
             )}
-            {filteredResults?.summary?.f1_score !== undefined && (
+            {config.forecast_task === 'regression' && filteredResults?.summary?.f1_score !== undefined && (
               <div className="bg-orange-50 p-4 rounded-lg text-center">
                 <div className="text-2xl font-bold text-orange-600">{filteredResults.summary.f1_score.toFixed(3)}</div>
                 <div className="text-sm text-gray-600">F1 Score</div>
                 <div className="text-xs text-gray-500 mt-1">Spike Detection (&gt;20 μg/g)</div>
               </div>
             )}
-            {filteredResults?.summary?.accuracy !== undefined && (
+            {config.forecast_task === 'classification' && filteredResults?.summary?.accuracy !== undefined && (
               <>
                 <div className="bg-purple-50 p-4 rounded-lg text-center">
                   <div className="text-2xl font-bold text-purple-600">{(filteredResults.summary.accuracy * 100).toFixed(1)}%</div>
@@ -1223,7 +1265,7 @@ const Dashboard = () => {
         </div>
 
         {/* Per-class recall metrics for classification */}
-        {filteredResults?.summary?.per_class_metrics && (
+        {config.forecast_task === 'classification' && filteredResults?.summary?.per_class_metrics && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">Per-Class Performance</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

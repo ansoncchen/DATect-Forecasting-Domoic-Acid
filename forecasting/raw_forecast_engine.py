@@ -317,7 +317,7 @@ class RawForecastEngine:
         if naive_prediction is None:
             naive_prediction = 0.0
 
-        # --- Linear regression baseline ---
+        # --- Ridge (linear competitor) ---
         linear_prediction = None
         if model_type == "linear":
             try:
@@ -724,15 +724,16 @@ class RawForecastEngine:
         n_processed = len(results)
         results = [r for r in results if r is not None]
         n_success = len(results)
+        n_failed = n_processed - n_success
 
         if not results:
             logger.warning("No successful retrospective predictions")
             return None
 
-        if n_success < n_processed:
+        if n_failed > 0:
             logger.info(
-                "Retrospective: %d/%d samples produced a prediction (%d failed: no train data, no test row, or exception)",
-                n_success, n_processed, n_processed - n_success,
+                "Retrospective: %d/%d samples produced a prediction (%d failed: no train data, no test row, naive=None, or exception)",
+                n_success, n_processed, n_failed,
             )
 
         results_df = pd.DataFrame(results)
@@ -802,16 +803,23 @@ class RawForecastEngine:
                 )
             )
 
-        # Sort and deduplicate
+        # Sort and deduplicate (same date+site can appear multiple times in test_samples)
         n_before_dedup = len(results_df)
         results_df = results_df.sort_values(["date", "site"]).drop_duplicates(
             ["date", "site"]
         )
         n_after_dedup = len(results_df)
-        if n_after_dedup < n_before_dedup:
+        n_dedup_dropped = n_before_dedup - n_after_dedup
+        if n_dedup_dropped > 0:
             logger.info(
                 "Retrospective: dropped %d duplicate (date, site) rows -> %d unique predictions",
-                n_before_dedup - n_after_dedup, n_after_dedup,
+                n_dedup_dropped, n_after_dedup,
+            )
+        # One-line summary: why run count (n_processed) can exceed saved count (n_after_dedup)
+        if n_processed != n_after_dedup:
+            logger.info(
+                "Retrospective: %d samples run -> %d saved (%d failed, %d duplicate date+site)",
+                n_processed, n_after_dedup, n_failed, n_dedup_dropped,
             )
 
         self.results_df = results_df
@@ -1013,7 +1021,7 @@ class RawForecastEngine:
         if naive_prediction is None:
             return None
 
-        # Linear regression (only when needed for retrospective)
+        # Ridge (linear competitor, only when needed for retrospective)
         linear_prediction = None
         if getattr(self, "_retro_model_type", None) == "linear":
             try:

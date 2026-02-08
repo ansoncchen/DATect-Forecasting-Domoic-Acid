@@ -801,14 +801,18 @@ async def generate_enhanced_forecast(request: ForecastRequest):
         
         forecast_date = pd.to_datetime(request.date)
         
-        # Generate regression and classification forecasts using ensemble
+        # Generate regression and classification forecasts
         model_type = getattr(request, 'model', None) or config.FORECAST_MODEL or "ensemble"
+        if model_type == "linear":
+            classification_model = "logistic"
+        else:
+            classification_model = model_type
+
         regression_result = get_forecast_engine().generate_single_forecast(
             config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "regression", model_type
         )
-
         classification_result = get_forecast_engine().generate_single_forecast(
-            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "classification", model_type
+            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "classification", classification_model
         )
         
         # Create response structure expected by frontend
@@ -821,26 +825,23 @@ async def generate_enhanced_forecast(request: ForecastRequest):
             "graphs": {}
         }
         
-        # Add level_range graph for regression
+        # Add level_range graph for regression (only when quantiles available)
         if regression_result and 'predicted_da' in regression_result:
             predicted_da = float(regression_result['predicted_da'])
-            
-            # Use bootstrap confidence intervals if available, otherwise fall back to simple multipliers
-            bootstrap_quantiles = regression_result['bootstrap_quantiles']
-            quantiles = {
-                "q05": bootstrap_quantiles['q05'],
-                "q50": bootstrap_quantiles['q50'],
-                "q95": bootstrap_quantiles['q95'],
-            }
-            # Provide a robust gradient plot (handles degenerate quantile ranges)
-            gradient_plot_json = generate_gradient_uncertainty_plot(quantiles, predicted_da)
-
-            response_data["graphs"]["level_range"] = {
-                "gradient_quantiles": quantiles,
-                "xgboost_prediction": predicted_da,
-                "type": "gradient_uncertainty",
-                "gradient_plot": gradient_plot_json,
-            }
+            bootstrap_quantiles = regression_result.get('bootstrap_quantiles') or {}
+            if all(k in bootstrap_quantiles for k in ('q05', 'q50', 'q95')):
+                quantiles = {
+                    "q05": bootstrap_quantiles['q05'],
+                    "q50": bootstrap_quantiles['q50'],
+                    "q95": bootstrap_quantiles['q95'],
+                }
+                gradient_plot_json = generate_gradient_uncertainty_plot(quantiles, predicted_da)
+                response_data["graphs"]["level_range"] = {
+                    "gradient_quantiles": quantiles,
+                    "xgboost_prediction": predicted_da,
+                    "type": "gradient_uncertainty",
+                    "gradient_plot": gradient_plot_json,
+                }
         
         # Add category_range graph for classification
         if classification_result and 'predicted_category' in classification_result:

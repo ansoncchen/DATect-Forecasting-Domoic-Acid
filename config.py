@@ -179,7 +179,7 @@ SATELLITE_DATA = {
 # Forecast Configuration
 
 # Operation mode: "retrospective" (historical validation) or "realtime" (dashboard)
-FORECAST_MODE = "retrospective"
+FORECAST_MODE = "realtime"
 
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
 FORECAST_TASK = "regression"
@@ -266,7 +266,7 @@ BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
 # Sample weighting strategy for regression models
 USE_REGRESSION_SAMPLE_WEIGHTS = True  # False = fair baseline comparison, True = handle imbalance
 
-# Linear baseline regularization (ridge)
+# Ridge (linear competitor) regularization
 LINEAR_REGRESSION_ALPHA = 1.0
 
 # Linear/logistic models use the full feature set (no whitelist)

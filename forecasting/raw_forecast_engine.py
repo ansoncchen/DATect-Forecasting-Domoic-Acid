@@ -780,6 +780,9 @@ class RawForecastEngine:
         elif model_type == "linear":
             if "predicted_da_linear" in results_df.columns:
                 results_df["predicted_da"] = results_df["predicted_da_linear"]
+        elif model_type == "rf":
+            if "predicted_da_rf" in results_df.columns:
+                results_df["predicted_da"] = results_df["predicted_da_rf"]
         elif model_type in ("ensemble",):
             if "ensemble_prediction" in results_df.columns:
                 results_df["predicted_da"] = results_df["ensemble_prediction"]

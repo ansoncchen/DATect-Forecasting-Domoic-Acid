@@ -182,7 +182,7 @@ SATELLITE_DATA = {
 FORECAST_MODE = "retrospective"
 
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
-FORECAST_TASK = "classification"
+FORECAST_TASK = "regression"
 
 # ML algorithm: "ensemble", "naive", or "linear"
 FORECAST_MODEL = "ensemble"

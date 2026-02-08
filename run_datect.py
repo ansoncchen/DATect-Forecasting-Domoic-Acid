@@ -159,7 +159,7 @@ class DATectLauncher:
         if self.use_granian:
             print("Starting backend with Granian (Rust-based, 20-40% faster)...")
             self.backend_process = subprocess.Popen([
-                'granian', '--interface', 'asgi', 
+                sys.executable, '-m', 'granian', '--interface', 'asgi', 
                 'backend.api:app', 
                 '--host', '0.0.0.0', 
                 '--port', '8000'

@@ -18,7 +18,7 @@ outputs/logs/
 # Data files (keep structure but not data)
 data/raw/*/*.parquet
 data/intermediate/
-cache/
+cache/retrospective/
 raw_validation_plots/
 
 # ML training artifacts

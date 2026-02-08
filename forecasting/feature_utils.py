@@ -34,7 +34,6 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
       quarter, sin_week_of_year, cos_week_of_year, is_bloom_season,
       days_since_start
 
-    Ported from validate_on_raw_data.py lines 198-219.
     """
     df = df.copy()
 
@@ -73,7 +72,6 @@ def create_transformer(
     Returns:
         (transformer, X)  where X = df.drop(drop_cols).select(numeric)
 
-    Ported from validate_on_raw_data.py lines 222-244.
     """
     X = df.drop(columns=drop_cols, errors="ignore")
     numeric_cols = X.select_dtypes(include=[np.number]).columns.tolist()

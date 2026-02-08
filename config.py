@@ -263,9 +263,6 @@ BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
 
 # Scientific Methodology Configuration
 
-# Sample weighting strategy for regression models
-USE_REGRESSION_SAMPLE_WEIGHTS = True  # False = fair baseline comparison, True = handle imbalance
-
 # Ridge (linear competitor) regularization
 LINEAR_REGRESSION_ALPHA = 1.0
 
@@ -282,9 +279,6 @@ CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 # Feature engineering toggles
 USE_ROLLING_FEATURES = True  # Enable rolling statistics features for raw pipeline
 USE_ENHANCED_TEMPORAL_FEATURES = True  # Enable/disable sin/cos temporal encoding and derived features
-
-# Polynomial trend analysis minimum periods
-MIN_TREND_PERIODS = 2  # Minimum data points required for trend calculation
 
 # Biological Decay Interpolation Parameters
 # Used for filling gaps in DA/PN measurements with exponential decay
@@ -358,9 +352,6 @@ ZERO_IMPORTANCE_FEATURES = [
     'cos_week_of_year',
     'da_raw_prev_obs_4_weeks_ago',
 ]
-
-# Output directory for validation plots
-PLOTS_OUTPUT_DIR = "./raw_validation_plots"
 
 # Minimum test date (early lower bound; per-site history fraction is the real filter)
 MIN_TEST_DATE = "2003-01-01"

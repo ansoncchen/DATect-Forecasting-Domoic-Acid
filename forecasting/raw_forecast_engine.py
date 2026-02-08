@@ -609,9 +609,6 @@ class RawForecastEngine:
         """
         Run leak-free retrospective evaluation on raw DA measurements.
 
-        Faithful port of the source ``validate_on_raw_data.py``'s
-        ``run_validation()`` logic.
-
         Returns DataFrame with columns matching the API's expected
         canonical keys: ``date``, ``site``, ``anchor_date``, ``actual_da``,
         ``predicted_da``, ``actual_category``, ``predicted_category``.
@@ -914,10 +911,7 @@ class RawForecastEngine:
         skip_rf: bool = False,
     ) -> Optional[dict]:
         """
-        Core single-point validation logic.
-
-        Faithful port of ``run_single_raw_validation()`` from the source
-        pipeline (validate_on_raw_data.py lines 251-433).
+        Core single-point validation logic for a single anchor/measurement.
         """
         test_date = raw_measurement["date"]
         site = raw_measurement["site"]

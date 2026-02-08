@@ -224,11 +224,12 @@ USE_PER_SITE_MODELS = True          # Per-site XGB/RF hyperparams and ensemble w
 | Safeguard | Implementation |
 |-----------|----------------|
 | Chronological split | Training ≤ anchor_date |
-| Temporal buffer | 1-day minimum between train/test |
+| Forecast horizon gap | 7-day buffer between anchor and forecast date |
 | Satellite delay | 7-day processing buffer |
 | Climate delay | 2-month reporting buffer |
-| Lag feature cutoffs | No future data in lags |
+| Observation-order lags | Past-only shifts on raw measurements |
 | Per-forecast categories | Categories from training only |
+| Per-prediction leakage check | `verify_no_data_leakage()` on every prediction |
 | Cross-site consistency | Same rules for all 10 sites |
 
 ## API Endpoints

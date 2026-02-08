@@ -179,10 +179,10 @@ SATELLITE_DATA = {
 # Forecast Configuration
 
 # Operation mode: "retrospective" (historical validation) or "realtime" (dashboard)
-FORECAST_MODE = "realtime"
+FORECAST_MODE = "retrospective"
 
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
-FORECAST_TASK = "regression"
+FORECAST_TASK = "classification"
 
 # ML algorithm: "ensemble", "naive", or "linear"
 FORECAST_MODEL = "ensemble"
@@ -314,8 +314,6 @@ RF_REGRESSION_PARAMS = {
 }
 
 # Target and model toggles
-USE_LOG_TARGET = False           # Log transform hurts spike detection
-USE_TWO_STAGE_MODEL = False      # DISABLED — single-stage outperforms
 USE_PER_SITE_MODELS = True       # Enable per-site XGB/RF params, features, ensemble weights
 USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
 

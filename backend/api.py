@@ -71,10 +71,6 @@ def clean_for_json(obj):
     return obj
 
 
-# Backwards compatibility alias
-def clean_float_for_json(value):
-    """Deprecated: Use clean_for_json instead."""
-    return clean_for_json(value)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not os.path.isabs(config.FINAL_OUTPUT_PATH):
@@ -463,10 +459,10 @@ async def get_all_sites_historical(
             rec = {
                 'date': row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else None,
                 'site': row['site'],
-                'actual_da': clean_float_for_json(da_val),
+                'actual_da': clean_for_json(da_val),
             }
             if da_category is not None:
-                rec['actual_category'] = clean_float_for_json(da_category)
+                rec['actual_category'] = clean_for_json(da_category)
             result.append(rec)
         
         return JSONResponse(content={
@@ -860,13 +856,13 @@ async def generate_enhanced_forecast(request: ForecastRequest):
         if regression_result:
             ensemble_data = {}
             if 'naive_prediction' in regression_result:
-                ensemble_data['naive_prediction'] = clean_float_for_json(regression_result['naive_prediction'])
+                ensemble_data['naive_prediction'] = clean_for_json(regression_result['naive_prediction'])
             if 'xgb_prediction' in regression_result:
-                ensemble_data['xgb_prediction'] = clean_float_for_json(regression_result['xgb_prediction'])
+                ensemble_data['xgb_prediction'] = clean_for_json(regression_result['xgb_prediction'])
             if 'rf_prediction' in regression_result:
-                ensemble_data['rf_prediction'] = clean_float_for_json(regression_result['rf_prediction'])
+                ensemble_data['rf_prediction'] = clean_for_json(regression_result['rf_prediction'])
             if 'ensemble_prediction' in regression_result:
-                ensemble_data['ensemble_prediction'] = clean_float_for_json(regression_result['ensemble_prediction'])
+                ensemble_data['ensemble_prediction'] = clean_for_json(regression_result['ensemble_prediction'])
             if 'ensemble_weights' in regression_result:
                 ensemble_data['ensemble_weights'] = regression_result['ensemble_weights']
             if ensemble_data:
@@ -919,10 +915,10 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
                 record = {
                     "date": row['date'].strftime('%Y-%m-%d') if pd.notnull(row['date']) else None,
                     "site": row['site'],
-                    "actual_da": clean_float_for_json(row['actual_da']) if 'actual_da' in row and pd.notnull(row['actual_da']) else None,
-                    "predicted_da": clean_float_for_json(row['predicted_da']) if 'predicted_da' in row and pd.notnull(row['predicted_da']) else None,
-                    "actual_category": clean_float_for_json(row['actual_category']) if 'actual_category' in row and pd.notnull(row['actual_category']) else None,
-                    "predicted_category": clean_float_for_json(row['predicted_category']) if 'predicted_category' in row and pd.notnull(row['predicted_category']) else None
+                    "actual_da": clean_for_json(row['actual_da']) if 'actual_da' in row and pd.notnull(row['actual_da']) else None,
+                    "predicted_da": clean_for_json(row['predicted_da']) if 'predicted_da' in row and pd.notnull(row['predicted_da']) else None,
+                    "actual_category": clean_for_json(row['actual_category']) if 'actual_category' in row and pd.notnull(row['actual_category']) else None,
+                    "predicted_category": clean_for_json(row['predicted_category']) if 'predicted_category' in row and pd.notnull(row['predicted_category']) else None
                 }
                 if 'anchor_date' in results_df.columns and pd.notnull(row.get('anchor_date', None)):
                     record['anchor_date'] = row['anchor_date'].strftime('%Y-%m-%d')

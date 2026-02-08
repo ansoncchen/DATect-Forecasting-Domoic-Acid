@@ -100,7 +100,6 @@ class RawForecastEngine:
     def __init__(self, data_file=None, validate_on_init=True):
         logger.info("Initializing RawForecastEngine")
         self.data_file = data_file or config.FINAL_OUTPUT_PATH
-        self.data = None
         self.results_df = None
         self._data_cache: dict = {}
         self._feature_frame_cache: Optional[pd.DataFrame] = None
@@ -137,8 +136,6 @@ class RawForecastEngine:
         processed = pd.read_parquet(self.data_file)
         processed["date"] = pd.to_datetime(processed["date"])
         processed = processed.sort_values(["site", "date"]).reset_index(drop=True)
-        # Also expose processed data as self.data for backwards-compat
-        self.data = processed
 
         # Load raw DA measurements
         raw_df = load_raw_da_measurements()
@@ -240,7 +237,6 @@ class RawForecastEngine:
         test_row = add_temporal_features(test_row)
 
         # --- Feature preparation ---
-        use_log = getattr(config, "USE_LOG_TARGET", False)
         use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
         zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
 
@@ -253,8 +249,7 @@ class RawForecastEngine:
 
         try:
             transformer, X_train = create_transformer(train_data, drop_cols)
-            y_train_raw = train_data["da_raw"].astype(float)
-            y_train = np.log1p(y_train_raw) if use_log else y_train_raw.copy()
+            y_train = train_data["da_raw"].astype(float).copy()
 
             X_train_processed = transformer.fit_transform(X_train)
 
@@ -273,8 +268,6 @@ class RawForecastEngine:
         clip_q_global = getattr(config, "PREDICTION_CLIP_Q", 0.99)
 
         def _postprocess(value: float) -> float:
-            if use_log:
-                value = np.expm1(value)
             value = max(0.0, value)
             if use_per_site:
                 site_clip_q, site_clip_max = get_site_clip_params(site)
@@ -929,7 +922,6 @@ class RawForecastEngine:
 
         forecast_horizon = config.FORECAST_HORIZON_DAYS
         anchor_date = test_date - pd.Timedelta(days=forecast_horizon)
-        use_log = getattr(config, "USE_LOG_TARGET", False)
         use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
         zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
         clip_q = getattr(config, "PREDICTION_CLIP_Q", 0.99)
@@ -961,8 +953,7 @@ class RawForecastEngine:
 
         try:
             transformer, X_train = create_transformer(train_data, drop_cols)
-            y_train_raw = train_data["da_raw"].astype(float)
-            y_train = np.log1p(y_train_raw) if use_log else y_train_raw.copy()
+            y_train = train_data["da_raw"].astype(float).copy()
 
             X_train_processed = transformer.fit_transform(X_train)
 
@@ -976,8 +967,6 @@ class RawForecastEngine:
 
         # Post-processing
         def _postprocess(value: float) -> float:
-            if use_log:
-                value = np.expm1(value)
             value = max(0.0, value)
             if use_per_site:
                 sq, sm = get_site_clip_params(site)

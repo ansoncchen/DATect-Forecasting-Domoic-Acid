@@ -74,72 +74,42 @@ all_data['category'] = categorize(all_data['da'])  # Leakage!
 train_data['category'] = categorize_from_training_only(train_data['da'])
 ```
 
-## Temporal Integrity Test Suite
+## Per-Prediction Validation
 
-The system validates temporal integrity through checks built into the forecasting pipeline (`verify_no_data_leakage()` in `config.py` is called for every prediction):
+The system validates temporal integrity on **every single prediction** via `verify_no_data_leakage()` (defined in `config.py`), which raises an `AssertionError` if any temporal violation is detected:
 
-### Test 1: Chronological Split Validation
+```python
+def verify_no_data_leakage(train_data, test_date, anchor_date):
+    """Called for every prediction — raises on temporal leakage."""
+    # 1. Training data must not extend past anchor
+    assert train_data['date'].max() <= anchor_date
+    # 2. Test date must be after anchor
+    assert test_date > anchor_date
+```
 
-Ensures training data always precedes test data:
-- Zero tolerance for future data in training
-- Validates every retrospective forecast
+### Structural Safeguards (Enforced by Pipeline Design)
 
-### Test 2: Temporal Buffer Enforcement
+These safeguards are baked into the pipeline code, not checked after the fact:
 
-Validates minimum gap between train/test:
-- Default: 1-day buffer
-- Prevents same-day information leakage
+| Safeguard | Where Enforced |
+|-----------|---------------|
+| **Chronological split** — training ≤ anchor_date | `raw_forecast_engine.py` (train/test split) |
+| **Observation-order lags** — past-only shifts | `raw_data_processor.py` (lag feature construction) |
+| **Satellite delay** — 7-day buffer | `dataset-creation.py` (data ingestion) |
+| **Climate delay** — 2-month buffer | `dataset-creation.py` (data ingestion) |
+| **Per-forecast categories** — from training only | `classification_adapter.py` |
+| **Persistence features** — recomputed from training | `raw_data_forecaster.py` |
+| **Fresh model per test point** — no shared state | `raw_forecast_engine.py` (per-anchor loop) |
+| **Cross-site consistency** — same rules for all sites | `per_site_models.py` (only tunes hyperparams) |
 
-### Test 3: Future Information Quarantine
+### System Startup Validation
 
-Verifies no post-prediction data in features:
-- Checks all calculated features
-- Validates lag features respect cutoffs
-
-### Test 4: Per-Forecast Category Creation
-
-Confirms categories use training data only:
-- No global category boundaries
-- Independent categorization per forecast
-
-### Test 5: Satellite Delay Simulation
-
-Enforces realistic satellite data delays:
-- 7-day buffer for 8-day composites
-- Matches NASA/NOAA operational schedules
-
-### Test 6: Climate Data Lag Validation
-
-Ensures climate index delays:
-- 2-month reporting delay
-- Applies to PDO, ONI, BEUTI, and monthly anomalies
-
-### Test 7: Cross-Site Consistency
-
-Verifies uniform rules across all sites:
-- All 10 monitoring sites follow same constraints
-- No site-specific exceptions
-
-## Running Validation
+Basic configuration checks run at startup via `validation.py`:
 
 ```bash
-# Temporal validation runs automatically during:
+# Runs automatically when starting:
 python run_datect.py       # System startup
 python precompute_cache.py # Cache generation
-```
-
-**Expected output:**
-```
-Running Temporal Integrity Validation...
-Test 1: Chronological Split - PASSED
-Test 2: Temporal Buffer - PASSED
-Test 3: Future Info Quarantine - PASSED
-Test 4: Per-Forecast Categories - PASSED
-Test 5: Satellite Delays - PASSED
-Test 6: Climate Delays - PASSED
-Test 7: Cross-Site Consistency - PASSED
-
-All temporal integrity tests passed (7/7)
 ```
 
 ## Scientific Standards
@@ -194,34 +164,32 @@ RANDOM_SEED = 42
 
 ## Validation Failure Actions
 
-If any temporal test fails, the system refuses to start:
+If `verify_no_data_leakage()` detects a temporal violation, it raises an `AssertionError` that halts the prediction:
 
 ```python
-if temporal_validation_failed:
-    print("CRITICAL: Temporal integrity violation detected")
-    print("System is NOT scientifically valid")
-    sys.exit(1)  # Prevent startup
+# Example failure:
+# AssertionError: TEMPORAL LEAK: training data max date 2020-07-01 > anchor 2020-06-15
 ```
 
-This ensures invalid results cannot be generated.
+This ensures no invalid predictions can be generated — the system fails loudly rather than silently producing leaky results.
 
 ## Pre-Publication Checklist
 
 Before using results for publication:
 
-- [ ] All 7 temporal integrity tests pass
-- [ ] Retrospective evaluation completed
-- [ ] Performance metrics documented
+- [ ] `verify_no_data_leakage()` passes for all predictions (automatic)
+- [ ] Retrospective evaluation completed across all sites
+- [ ] Performance metrics documented (R², MAE, Spike F1)
 - [ ] Feature importance scientifically reasonable
 - [ ] Confidence intervals properly calibrated
-- [ ] Reproducibility verified (fixed seeds)
+- [ ] Reproducibility verified (fixed seeds, `RANDOM_SEED = 42`)
 
 ## Why Trust DATect Results
 
-1. **Mathematical impossibility of leakage**: Temporal constraints enforced in code
+1. **Mathematical impossibility of leakage**: `verify_no_data_leakage()` called for every prediction
 2. **Operational realism**: Data availability delays match real-world constraints
 3. **Conservative evaluation**: No optimistic metrics
-4. **Comprehensive validation**: 7 critical tests on every run
+4. **Structural enforcement**: Safeguards built into pipeline code, not just checked after
 5. **Transparent implementation**: All safeguards documented and auditable
 
 ## References

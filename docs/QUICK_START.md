@@ -6,7 +6,7 @@ This guide covers setting up DATect for local development and Google Cloud deplo
 
 | Software | Version | Installation |
 |----------|---------|--------------|
-| Python | 3.8+ | [python.org](https://www.python.org/downloads/) |
+| Python | 3.10+ | [python.org](https://www.python.org/downloads/) |
 | Node.js | 16+ (18+ recommended) | [nodejs.org](https://nodejs.org/) |
 | Git | Any | [git-scm.com](https://git-scm.com/) |
 
@@ -187,10 +187,10 @@ curl http://localhost:8000/health
 ### Python (auto-installed)
 
 - **Scientific**: pandas, numpy, scipy, scikit-learn, xgboost
-- **High-performance**: polars, duckdb, pyarrow
+- **High-performance**: polars, pyarrow
 - **Web**: fastapi, uvicorn, pydantic
 - **Data**: xarray, netcdf4, requests
-- **Visualization**: plotly, matplotlib
+- **Visualization**: plotly
 
 ### Node.js (auto-installed)
 

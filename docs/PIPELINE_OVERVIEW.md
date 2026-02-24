@@ -178,7 +178,7 @@ USE_PER_SITE_MODELS = True
 
 # Evaluation
 N_RANDOM_ANCHORS = 500
-N_BOOTSTRAP_ITERATIONS = 20
+N_BOOTSTRAP_ITERATIONS = 100
 
 # DA categories (μg/g)
 DA_CATEGORY_BINS = [-inf, 5, 20, 40, inf]  # Low, Moderate, High, Extreme

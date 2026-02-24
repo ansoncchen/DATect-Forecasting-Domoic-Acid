@@ -348,9 +348,11 @@ ZERO_IMPORTANCE_FEATURES = [
     'raw_obs_roll_mean_8',
     'sin_week_of_year',
     'cos_month',
-    'modis-k490',
     'cos_week_of_year',
     'da_raw_prev_obs_4_weeks_ago',
+    # NOTE: modis-k490 removed from this list — restored for non-linear (k490_squared)
+    # feature engineering in build_raw_feature_frame(). Sites that don't include
+    # 'modis-k490' or 'k490_squared' in their feature_subset will still not use it.
 ]
 
 # Minimum test date (early lower bound; per-site history fraction is the real filter)

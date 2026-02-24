@@ -118,6 +118,57 @@ def build_raw_feature_frame(
 
     merged = base.merge(raw_weekly, on=["site", "date"], how="left")
 
+    # --- Derived environmental features (no leakage: env columns only) ---
+    # All features here use only parquet env columns (not da_raw).
+    # They are computed on the site-sorted frame so that shift(1) correctly
+    # references the prior weekly row within each site group.
+    # Stored in every row of the feature frame so get_site_anchor_row()
+    # retrieves the precomputed value for the test row without any lookahead.
+    merged = merged.sort_values(["site", "date"]).reset_index(drop=True)
+
+    # Climate phase coherence: PDO and ONI same sign = amplified DA risk
+    # Captures El Niño / positive PDO co-occurrence ("Super Risk" scenario).
+    merged["pdo_oni_phase"] = (
+        np.sign(merged["pdo"]) == np.sign(merged["oni"])
+    ).astype(float)
+
+    # Marine Heatwave flag: SST anomaly > 1.5°C threshold
+    # sst-anom is monthly from parquet; binary indicator for extreme warming.
+    if "sst-anom" in merged.columns:
+        merged["mhw_flag"] = (merged["sst-anom"] > 1.5).astype(float)
+
+    # BEUTI non-linearity: quadratic term captures Goldilocks zone
+    # (moderate upwelling = peak DA, not peak upwelling intensity)
+    merged["beuti_squared"] = merged["beuti"] ** 2
+
+    # BEUTI relaxation: 1 when current BEUTI < prior week BEUTI (decreasing upwelling)
+    # Relaxation events after strong upwelling are associated with toxicity spikes.
+    # shift(1) within site groups is safe — prior row's BEUTI predates anchor_date.
+    _beuti_lag1 = merged.groupby("site")["beuti"].shift(1)
+    merged["beuti_relaxation"] = (merged["beuti"] < _beuti_lag1).astype(float)
+
+    # Fluorescence efficiency: modis-flr / modis-chla ratio
+    # Proxy for phytoplankton physiological stress — stronger DA predictor than
+    # either raw fluorescence or chlorophyll alone. ~41% missing; median-imputed.
+    if "modis-flr" in merged.columns and "modis-chla" in merged.columns:
+        merged["fluor_efficiency"] = merged["modis-flr"] / (merged["modis-chla"] + 1e-6)
+
+    # K490 non-linearity: quadratic term captures turbidity Goldilocks zone
+    # (intermediate turbidity = highest DA; both very clear and very turbid suppress it)
+    # ~43% missing, co-missing with modis-flr; handled by median imputation.
+    if "modis-k490" in merged.columns:
+        merged["k490_squared"] = merged["modis-k490"] ** 2
+
+    # Pseudo-nitzschia tipping point features
+    # pn values < 1 are biological decay artifacts (→ log1p maps them to ~0).
+    # pn_above_threshold: 1 when PN exceeds ~50,000 cells/L tipping point.
+    if "pn" in merged.columns:
+        merged["pn_log"] = np.log1p(merged["pn"])
+        merged["pn_above_threshold"] = (merged["pn"] > 50_000).astype(float)
+
+    # Note: 'discharge', 'oni', 'sst-anom', 'chla-anom' pass through directly
+    # from the parquet with no transformation needed.
+
     # Add persistence features from raw measurements (no interpolation)
     merged = merged.sort_values(["site", "date"])
     merged["last_observed_da_raw"] = merged.groupby("site")["da_raw"].ffill()

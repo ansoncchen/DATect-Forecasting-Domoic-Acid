@@ -19,7 +19,7 @@ from pathlib import Path
 warnings.filterwarnings('ignore')
 
 import config
-from backend.visualizations import generate_spectral_analysis
+from backend.visualizations import generate_spectral_analysis, generate_correlation_heatmap
 
 class DATectCacheGenerator:
     """Generates pre-computed cache for all expensive operations."""
@@ -36,17 +36,21 @@ class DATectCacheGenerator:
         print("Pre-computing retrospective forecasts...")
         
         combinations = [
-            ("regression", "xgboost"),
-            ("regression", "linear"),  
-            ("classification", "xgboost"),
-            ("classification", "logistic")
+            ("regression", "ensemble"),       # Primary ML ensemble (XGBoost + RF + Naive)
+            ("regression", "xgboost"),        # XGBoost only (for spectral analysis)
+            ("regression", "rf"),             # Random Forest only (for spectral analysis)
+            ("regression", "naive"),          # Naive persistence baseline
+            ("regression", "linear"),         # Linear regression baseline
+            ("classification", "ensemble"),   # Ensemble + threshold classification
+            ("classification", "naive"),      # Naive + threshold classification
+            ("classification", "logistic"),   # Logistic regression classifier
         ]
         
         for task, model_type in combinations:
             print(f"  {task} + {model_type}...")
             
             try:
-                from backend.api import get_forecast_engine, clean_float_for_json, _compute_summary
+                from backend.api import get_forecast_engine, clean_for_json, _compute_summary
                 
                 engine = get_forecast_engine()
                 n_anchors = getattr(config, 'N_RANDOM_ANCHORS', 500)
@@ -66,10 +70,10 @@ class DATectCacheGenerator:
                         record = {
                             "date": row['date'].strftime('%Y-%m-%d') if pd.notnull(row['date']) else None,
                             "site": row['site'],
-                            "actual_da": clean_float_for_json(row['actual_da']) if 'actual_da' in row and pd.notnull(row['actual_da']) else None,
-                            "predicted_da": clean_float_for_json(row['predicted_da']) if 'predicted_da' in row and pd.notnull(row['predicted_da']) else None,
-                            "actual_category": clean_float_for_json(row['actual_category']) if 'actual_category' in row and pd.notnull(row['actual_category']) else None,
-                            "predicted_category": clean_float_for_json(row['predicted_category']) if 'predicted_category' in row and pd.notnull(row['predicted_category']) else None
+                            "actual_da": clean_for_json(row['actual_da']) if 'actual_da' in row and pd.notnull(row['actual_da']) else None,
+                            "predicted_da": clean_for_json(row['predicted_da']) if 'predicted_da' in row and pd.notnull(row['predicted_da']) else None,
+                            "actual_category": clean_for_json(row['actual_category']) if 'actual_category' in row and pd.notnull(row['actual_category']) else None,
+                            "predicted_category": clean_for_json(row['predicted_category']) if 'predicted_category' in row and pd.notnull(row['predicted_category']) else None
                         }
                         if 'anchor_date' in results_df.columns and pd.notnull(row.get('anchor_date', None)):
                             record['anchor_date'] = row['anchor_date'].strftime('%Y-%m-%d')
@@ -154,22 +158,16 @@ class DATectCacheGenerator:
         data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
         
         for site in data['site'].unique():
-            site_data = data[data['site'] == site]
-            numeric_cols = site_data.select_dtypes(include=[np.number]).columns
-            numeric_cols = [col for col in numeric_cols if col not in ['date', 'lat', 'lon']]
-            
-            if len(numeric_cols) > 1:
-                corr_matrix = site_data[numeric_cols].corr()
+            print(f"  Generating correlation heatmap for {site}...")
+            try:
+                # Use generate_correlation_heatmap to get Plotly-ready format
+                plot_data = generate_correlation_heatmap(data, site=site)
                 cache_file = self.cache_dir / "visualizations" / f"{site}_correlation.json"
                 
-                corr_data = {
-                    'matrix': corr_matrix.to_dict(),
-                    'columns': corr_matrix.columns.tolist(),
-                    'site': site
-                }
-                
                 with open(cache_file, 'w') as f:
-                    json.dump(corr_data, f, default=str, indent=2)
+                    json.dump(plot_data, f, default=str, indent=2)
+            except Exception as e:
+                print(f"    Error generating heatmap for {site}: {e}")
         
         print("  Correlation matrices cached")
         

@@ -25,7 +25,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.3",
-    "vite": "^4.4.5",
+    "vite": "^5.0.0",
     "eslint": "^8.45.0",
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^4.6.0",
@@ -33,7 +33,11 @@
     "autoprefixer": "^10.4.14",
     "postcss": "^8.4.27"
   },
+  "trustedDependencies": [
+    "esbuild"
+  ],
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
   }
 }

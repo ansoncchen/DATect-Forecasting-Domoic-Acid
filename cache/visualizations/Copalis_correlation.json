@@ -1,215 +1,1987 @@
 {
-  "matrix": {
-    "oni": {
-      "oni": 1.0,
-      "pdo": 0.5294315852238152,
-      "discharge": -0.13863487773220756,
-      "da": 0.18746752881830314,
-      "pn": -0.002052631841850617,
-      "beuti": 0.014110711500292961,
-      "chla-anom": 0.07374073818772643,
-      "modis-chla": 0.013299976283540365,
-      "modis-flr": 0.07668400420546795,
-      "modis-k490": 0.08434694155843507,
-      "modis-par": 0.05220161706387855,
-      "modis-sst": 0.1484261125906385,
-      "sst-anom": 0.284600768902939
-    },
-    "pdo": {
-      "oni": 0.5294315852238152,
-      "pdo": 1.0,
-      "discharge": 0.027151333890868993,
-      "da": 0.2687907765111671,
-      "pn": 0.07408869950150171,
-      "beuti": 0.09757612105763219,
-      "chla-anom": 0.14666225368656455,
-      "modis-chla": 0.15008657592041488,
-      "modis-flr": -0.09381697784812186,
-      "modis-k490": 0.1377080418369333,
-      "modis-par": 0.21947488703937384,
-      "modis-sst": 0.21060436463703228,
-      "sst-anom": 0.39842048798645985
-    },
-    "discharge": {
-      "oni": -0.13863487773220756,
-      "pdo": 0.027151333890868993,
-      "discharge": 1.0,
-      "da": -0.043998873027747014,
-      "pn": -0.04926245967420816,
-      "beuti": -0.04091901957216706,
-      "chla-anom": -0.03215066747524815,
-      "modis-chla": -0.20501308385489656,
-      "modis-flr": -0.12425801254222497,
-      "modis-k490": -0.14784533763252294,
-      "modis-par": -0.05168648163277768,
-      "modis-sst": -0.29246237541222536,
-      "sst-anom": -0.032703085828132736
-    },
-    "da": {
-      "oni": 0.18746752881830314,
-      "pdo": 0.2687907765111671,
-      "discharge": -0.043998873027747014,
-      "da": 1.0,
-      "pn": 0.03915193242050243,
-      "beuti": 0.056999283154222355,
-      "chla-anom": 0.028279837278436207,
-      "modis-chla": -0.02637881094027927,
-      "modis-flr": 0.1338987522962805,
-      "modis-k490": 0.011202258677490615,
-      "modis-par": 0.09311400404888044,
-      "modis-sst": 0.012046051472489112,
-      "sst-anom": 0.173088113857312
-    },
-    "pn": {
-      "oni": -0.002052631841850617,
-      "pdo": 0.07408869950150171,
-      "discharge": -0.04926245967420816,
-      "da": 0.03915193242050243,
-      "pn": 1.0,
-      "beuti": 0.034962963517551154,
-      "chla-anom": 0.08926260510115219,
-      "modis-chla": 0.09302096431897547,
-      "modis-flr": -0.11237531255683705,
-      "modis-k490": 0.09940594234033683,
-      "modis-par": 0.15143531534177834,
-      "modis-sst": 0.07457913616469829,
-      "sst-anom": 0.03446793077668732
-    },
-    "beuti": {
-      "oni": 0.014110711500292961,
-      "pdo": 0.09757612105763219,
-      "discharge": -0.04091901957216706,
-      "da": 0.056999283154222355,
-      "pn": 0.034962963517551154,
-      "beuti": 1.0,
-      "chla-anom": -0.07484296725916832,
-      "modis-chla": 0.13379373541878162,
-      "modis-flr": 0.10660775774621677,
-      "modis-k490": 0.0967715399869475,
-      "modis-par": 0.23824845832288427,
-      "modis-sst": 0.2710592713472486,
-      "sst-anom": 0.015840705283684406
-    },
-    "chla-anom": {
-      "oni": 0.07374073818772643,
-      "pdo": 0.14666225368656455,
-      "discharge": -0.03215066747524815,
-      "da": 0.028279837278436207,
-      "pn": 0.08926260510115219,
-      "beuti": -0.07484296725916832,
-      "chla-anom": 1.0,
-      "modis-chla": 0.07052920378532662,
-      "modis-flr": -0.14172278585201173,
-      "modis-k490": 0.0015642611279788484,
-      "modis-par": 0.04061008489092545,
-      "modis-sst": -0.03239057003447577,
-      "sst-anom": -0.19668807393976623
-    },
-    "modis-chla": {
-      "oni": 0.013299976283540365,
-      "pdo": 0.15008657592041488,
-      "discharge": -0.20501308385489656,
-      "da": -0.02637881094027927,
-      "pn": 0.09302096431897547,
-      "beuti": 0.13379373541878162,
-      "chla-anom": 0.07052920378532662,
-      "modis-chla": 1.0,
-      "modis-flr": -0.01892581901659509,
-      "modis-k490": 0.5937633252634613,
-      "modis-par": 0.32357278385556243,
-      "modis-sst": 0.3551389827999926,
-      "sst-anom": 0.0035517187401858056
-    },
-    "modis-flr": {
-      "oni": 0.07668400420546795,
-      "pdo": -0.09381697784812186,
-      "discharge": -0.12425801254222497,
-      "da": 0.1338987522962805,
-      "pn": -0.11237531255683705,
-      "beuti": 0.10660775774621677,
-      "chla-anom": -0.14172278585201173,
-      "modis-chla": -0.01892581901659509,
-      "modis-flr": 1.0,
-      "modis-k490": 0.09808731005214243,
-      "modis-par": 0.08847090191078912,
-      "modis-sst": 0.09734596120943587,
-      "sst-anom": 0.15381602899425226
-    },
-    "modis-k490": {
-      "oni": 0.08434694155843507,
-      "pdo": 0.1377080418369333,
-      "discharge": -0.14784533763252294,
-      "da": 0.011202258677490615,
-      "pn": 0.09940594234033683,
-      "beuti": 0.0967715399869475,
-      "chla-anom": 0.0015642611279788484,
-      "modis-chla": 0.5937633252634613,
-      "modis-flr": 0.09808731005214243,
-      "modis-k490": 1.0,
-      "modis-par": 0.3941957507025653,
-      "modis-sst": 0.30404798518067677,
-      "sst-anom": 0.09487895860835992
-    },
-    "modis-par": {
-      "oni": 0.05220161706387855,
-      "pdo": 0.21947488703937384,
-      "discharge": -0.05168648163277768,
-      "da": 0.09311400404888044,
-      "pn": 0.15143531534177834,
-      "beuti": 0.23824845832288427,
-      "chla-anom": 0.04061008489092545,
-      "modis-chla": 0.32357278385556243,
-      "modis-flr": 0.08847090191078912,
-      "modis-k490": 0.3941957507025653,
-      "modis-par": 1.0,
-      "modis-sst": 0.6116896953049951,
-      "sst-anom": 0.03389914903398527
-    },
-    "modis-sst": {
-      "oni": 0.1484261125906385,
-      "pdo": 0.21060436463703228,
-      "discharge": -0.29246237541222536,
-      "da": 0.012046051472489112,
-      "pn": 0.07457913616469829,
-      "beuti": 0.2710592713472486,
-      "chla-anom": -0.03239057003447577,
-      "modis-chla": 0.3551389827999926,
-      "modis-flr": 0.09734596120943587,
-      "modis-k490": 0.30404798518067677,
-      "modis-par": 0.6116896953049951,
-      "modis-sst": 1.0,
-      "sst-anom": 0.016762513413146916
-    },
-    "sst-anom": {
-      "oni": 0.284600768902939,
-      "pdo": 0.39842048798645985,
-      "discharge": -0.032703085828132736,
-      "da": 0.173088113857312,
-      "pn": 0.03446793077668732,
-      "beuti": 0.015840705283684406,
-      "chla-anom": -0.19668807393976623,
-      "modis-chla": 0.0035517187401858056,
-      "modis-flr": 0.15381602899425226,
-      "modis-k490": 0.09487895860835992,
-      "modis-par": 0.03389914903398527,
-      "modis-sst": 0.016762513413146916,
-      "sst-anom": 1.0
+  "data": [
+    {
+      "type": "heatmap",
+      "z": [
+        [
+          1.0,
+          0.5264685890643486,
+          -0.1159442654696431,
+          0.18790391665549863,
+          -0.007512385777201467,
+          0.021281687512226283,
+          0.0738285655811022,
+          0.010523823697196066,
+          0.03182996613696943,
+          0.04684764642571542,
+          0.031446439188990566,
+          0.12309241296831588,
+          0.31408396851747017
+        ],
+        [
+          0.5264685890643486,
+          1.0,
+          0.02715133389086898,
+          0.2687907765111671,
+          0.07408869950150174,
+          0.09757612105763219,
+          0.14473695209351373,
+          0.15537185953777308,
+          -0.07490169029237828,
+          0.06000689558808802,
+          0.1100820874059341,
+          0.18337463769388343,
+          0.4250465956094054
+        ],
+        [
+          -0.1159442654696431,
+          0.02715133389086898,
+          1.0,
+          -0.04399887302774698,
+          -0.04926245967420817,
+          -0.040919019572167065,
+          -0.023645670418112677,
+          -0.20735766745637593,
+          -0.1656757019540878,
+          -0.1568280395961,
+          -0.02715566431231334,
+          -0.23420800039025885,
+          -0.06561068177736412
+        ],
+        [
+          0.18790391665549863,
+          0.2687907765111671,
+          -0.04399887302774698,
+          1.0,
+          0.039151932420502446,
+          0.05699928315422233,
+          0.012583935663061981,
+          -0.02322450274702854,
+          0.11518195751337544,
+          -0.005468344788283719,
+          0.022926547996896966,
+          -0.005052076410438648,
+          0.2013120528876068
+        ],
+        [
+          -0.007512385777201467,
+          0.07408869950150174,
+          -0.04926245967420817,
+          0.039151932420502446,
+          1.0,
+          0.034962963517551154,
+          0.08559749775124112,
+          0.09783900550994898,
+          -0.07484504106026338,
+          0.034266564677881264,
+          0.0732383388749273,
+          0.06840715477557294,
+          0.04119512724612253
+        ],
+        [
+          0.021281687512226283,
+          0.09757612105763219,
+          -0.040919019572167065,
+          0.05699928315422233,
+          0.034962963517551154,
+          1.0,
+          -0.08583757780744745,
+          0.12654568662531432,
+          0.03634803938804195,
+          0.09393863824434336,
+          0.15487062738521504,
+          0.24832880815323233,
+          0.03856170536066493
+        ],
+        [
+          0.0738285655811022,
+          0.14473695209351373,
+          -0.023645670418112677,
+          0.012583935663061981,
+          0.08559749775124112,
+          -0.08583757780744745,
+          1.0,
+          0.05647681050383704,
+          -0.09620417080623271,
+          -0.03742738021899298,
+          0.024185738176309857,
+          -0.07422771359189077,
+          -0.15543875222116585
+        ],
+        [
+          0.010523823697196066,
+          0.15537185953777308,
+          -0.20735766745637593,
+          -0.02322450274702854,
+          0.09783900550994898,
+          0.12654568662531432,
+          0.05647681050383704,
+          1.0,
+          0.007945006896736427,
+          0.605064617010009,
+          0.2699384753544826,
+          0.33199978201948427,
+          0.0175031145698081
+        ],
+        [
+          0.03182996613696943,
+          -0.07490169029237828,
+          -0.1656757019540878,
+          0.11518195751337544,
+          -0.07484504106026338,
+          0.03634803938804195,
+          -0.09620417080623271,
+          0.007945006896736427,
+          1.0,
+          0.03670890981183767,
+          -0.08268166932853742,
+          0.02757713812512088,
+          0.07686501213986466
+        ],
+        [
+          0.04684764642571542,
+          0.06000689558808802,
+          -0.1568280395961,
+          -0.005468344788283719,
+          0.034266564677881264,
+          0.09393863824434336,
+          -0.03742738021899298,
+          0.605064617010009,
+          0.03670890981183767,
+          1.0,
+          0.32279204650956195,
+          0.21811631852678875,
+          0.09202191944392223
+        ],
+        [
+          0.031446439188990566,
+          0.1100820874059341,
+          -0.02715566431231334,
+          0.022926547996896966,
+          0.0732383388749273,
+          0.15487062738521504,
+          0.024185738176309857,
+          0.2699384753544826,
+          -0.08268166932853742,
+          0.32279204650956195,
+          1.0,
+          0.46044014744385303,
+          -0.10039384754909372
+        ],
+        [
+          0.12309241296831588,
+          0.18337463769388343,
+          -0.23420800039025885,
+          -0.005052076410438648,
+          0.06840715477557294,
+          0.24832880815323233,
+          -0.07422771359189077,
+          0.33199978201948427,
+          0.02757713812512088,
+          0.21811631852678875,
+          0.46044014744385303,
+          1.0,
+          0.03666488671473132
+        ],
+        [
+          0.31408396851747017,
+          0.4250465956094054,
+          -0.06561068177736412,
+          0.2013120528876068,
+          0.04119512724612253,
+          0.03856170536066493,
+          -0.15543875222116585,
+          0.0175031145698081,
+          0.07686501213986466,
+          0.09202191944392223,
+          -0.10039384754909372,
+          0.03666488671473132,
+          1.0
+        ]
+      ],
+      "x": [
+        "oni",
+        "pdo",
+        "discharge",
+        "da",
+        "pn",
+        "beuti",
+        "chla-anom",
+        "modis-chla",
+        "modis-flr",
+        "modis-k490",
+        "modis-par",
+        "modis-sst",
+        "sst-anom"
+      ],
+      "y": [
+        "oni",
+        "pdo",
+        "discharge",
+        "da",
+        "pn",
+        "beuti",
+        "chla-anom",
+        "modis-chla",
+        "modis-flr",
+        "modis-k490",
+        "modis-par",
+        "modis-sst",
+        "sst-anom"
+      ],
+      "colorscale": [
+        [
+          0.0,
+          "rgb(178, 24, 43)"
+        ],
+        [
+          0.25,
+          "rgb(239, 138, 98)"
+        ],
+        [
+          0.5,
+          "rgb(255, 255, 255)"
+        ],
+        [
+          0.75,
+          "rgb(103, 169, 207)"
+        ],
+        [
+          1.0,
+          "rgb(33, 102, 172)"
+        ]
+      ],
+      "zmid": 0,
+      "zmin": -1,
+      "zmax": 1,
+      "colorbar": {
+        "title": "Correlation (r)",
+        "titleside": "right",
+        "tickmode": "linear",
+        "tick0": -1,
+        "dtick": 0.5
+      }
     }
-  },
-  "columns": [
-    "oni",
-    "pdo",
-    "discharge",
-    "da",
-    "pn",
-    "beuti",
-    "chla-anom",
-    "modis-chla",
-    "modis-flr",
-    "modis-k490",
-    "modis-par",
-    "modis-sst",
-    "sst-anom"
   ],
-  "site": "Copalis"
+  "layout": {
+    "title": {
+      "text": "Correlation Heatmap - Copalis",
+      "font": {
+        "size": 20
+      }
+    },
+    "height": 600,
+    "width": 800,
+    "xaxis": {
+      "side": "bottom",
+      "tickangle": -45,
+      "tickfont": {
+        "size": 12
+      }
+    },
+    "yaxis": {
+      "side": "left",
+      "tickfont": {
+        "size": 12
+      }
+    },
+    "annotations": [
+      {
+        "x": "oni",
+        "y": "oni",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "oni",
+        "text": "0.53",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "oni",
+        "text": "-0.12",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "oni",
+        "text": "0.19",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "oni",
+        "text": "-0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "oni",
+        "text": "0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "oni",
+        "text": "0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "oni",
+        "text": "0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "oni",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "oni",
+        "text": "0.05",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "oni",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "oni",
+        "text": "0.12",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "oni",
+        "text": "0.31",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "pdo",
+        "text": "0.53",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "pdo",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "pdo",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "pdo",
+        "text": "0.27",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "pdo",
+        "text": "0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "pdo",
+        "text": "0.10",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "pdo",
+        "text": "0.14",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "pdo",
+        "text": "0.16",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "pdo",
+        "text": "-0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "pdo",
+        "text": "0.06",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "pdo",
+        "text": "0.11",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "pdo",
+        "text": "0.18",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "pdo",
+        "text": "0.43",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "discharge",
+        "text": "-0.12",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "discharge",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "discharge",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "discharge",
+        "text": "-0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "discharge",
+        "text": "-0.05",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "discharge",
+        "text": "-0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "discharge",
+        "text": "-0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "discharge",
+        "text": "-0.21",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "discharge",
+        "text": "-0.17",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "discharge",
+        "text": "-0.16",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "discharge",
+        "text": "-0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "discharge",
+        "text": "-0.23",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "discharge",
+        "text": "-0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "da",
+        "text": "0.19",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "da",
+        "text": "0.27",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "da",
+        "text": "-0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "da",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "da",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "da",
+        "text": "0.06",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "da",
+        "text": "0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "da",
+        "text": "-0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "da",
+        "text": "0.12",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "da",
+        "text": "-0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "da",
+        "text": "0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "da",
+        "text": "-0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "da",
+        "text": "0.20",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "pn",
+        "text": "-0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "pn",
+        "text": "0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "pn",
+        "text": "-0.05",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "pn",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "pn",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "pn",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "pn",
+        "text": "0.09",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "pn",
+        "text": "0.10",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "pn",
+        "text": "-0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "pn",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "pn",
+        "text": "0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "pn",
+        "text": "0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "pn",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "beuti",
+        "text": "0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "beuti",
+        "text": "0.10",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "beuti",
+        "text": "-0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "beuti",
+        "text": "0.06",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "beuti",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "beuti",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "beuti",
+        "text": "-0.09",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "beuti",
+        "text": "0.13",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "beuti",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "beuti",
+        "text": "0.09",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "beuti",
+        "text": "0.15",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "beuti",
+        "text": "0.25",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "beuti",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "chla-anom",
+        "text": "0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "chla-anom",
+        "text": "0.14",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "chla-anom",
+        "text": "-0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "chla-anom",
+        "text": "0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "chla-anom",
+        "text": "0.09",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "chla-anom",
+        "text": "-0.09",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "chla-anom",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "chla-anom",
+        "text": "0.06",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "chla-anom",
+        "text": "-0.10",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "chla-anom",
+        "text": "-0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "chla-anom",
+        "text": "0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "chla-anom",
+        "text": "-0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "chla-anom",
+        "text": "-0.16",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "modis-chla",
+        "text": "0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "modis-chla",
+        "text": "0.16",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "modis-chla",
+        "text": "-0.21",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "modis-chla",
+        "text": "-0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "modis-chla",
+        "text": "0.10",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "modis-chla",
+        "text": "0.13",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "modis-chla",
+        "text": "0.06",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "modis-chla",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "modis-chla",
+        "text": "0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "modis-chla",
+        "text": "0.61",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "modis-chla",
+        "text": "0.27",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "modis-chla",
+        "text": "0.33",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "modis-chla",
+        "text": "0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "modis-flr",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "modis-flr",
+        "text": "-0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "modis-flr",
+        "text": "-0.17",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "modis-flr",
+        "text": "0.12",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "modis-flr",
+        "text": "-0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "modis-flr",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "modis-flr",
+        "text": "-0.10",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "modis-flr",
+        "text": "0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "modis-flr",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "modis-flr",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "modis-flr",
+        "text": "-0.08",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "modis-flr",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "modis-flr",
+        "text": "0.08",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "modis-k490",
+        "text": "0.05",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "modis-k490",
+        "text": "0.06",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "modis-k490",
+        "text": "-0.16",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "modis-k490",
+        "text": "-0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "modis-k490",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "modis-k490",
+        "text": "0.09",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "modis-k490",
+        "text": "-0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "modis-k490",
+        "text": "0.61",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "modis-k490",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "modis-k490",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "modis-k490",
+        "text": "0.32",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "modis-k490",
+        "text": "0.22",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "modis-k490",
+        "text": "0.09",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "modis-par",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "modis-par",
+        "text": "0.11",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "modis-par",
+        "text": "-0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "modis-par",
+        "text": "0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "modis-par",
+        "text": "0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "modis-par",
+        "text": "0.15",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "modis-par",
+        "text": "0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "modis-par",
+        "text": "0.27",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "modis-par",
+        "text": "-0.08",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "modis-par",
+        "text": "0.32",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "modis-par",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "modis-par",
+        "text": "0.46",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "modis-par",
+        "text": "-0.10",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "modis-sst",
+        "text": "0.12",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "modis-sst",
+        "text": "0.18",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "modis-sst",
+        "text": "-0.23",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "modis-sst",
+        "text": "-0.01",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "modis-sst",
+        "text": "0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "modis-sst",
+        "text": "0.25",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "modis-sst",
+        "text": "-0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "modis-sst",
+        "text": "0.33",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "modis-sst",
+        "text": "0.03",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "modis-sst",
+        "text": "0.22",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "modis-sst",
+        "text": "0.46",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "modis-sst",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "modis-sst",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "oni",
+        "y": "sst-anom",
+        "text": "0.31",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pdo",
+        "y": "sst-anom",
+        "text": "0.43",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "discharge",
+        "y": "sst-anom",
+        "text": "-0.07",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "da",
+        "y": "sst-anom",
+        "text": "0.20",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "pn",
+        "y": "sst-anom",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "beuti",
+        "y": "sst-anom",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "chla-anom",
+        "y": "sst-anom",
+        "text": "-0.16",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-chla",
+        "y": "sst-anom",
+        "text": "0.02",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-flr",
+        "y": "sst-anom",
+        "text": "0.08",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-k490",
+        "y": "sst-anom",
+        "text": "0.09",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-par",
+        "y": "sst-anom",
+        "text": "-0.10",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "modis-sst",
+        "y": "sst-anom",
+        "text": "0.04",
+        "font": {
+          "color": "black",
+          "size": 10
+        },
+        "showarrow": false
+      },
+      {
+        "x": "sst-anom",
+        "y": "sst-anom",
+        "text": "1.00",
+        "font": {
+          "color": "white",
+          "size": 10
+        },
+        "showarrow": false
+      }
+    ],
+    "margin": {
+      "l": 150,
+      "r": 150,
+      "t": 100,
+      "b": 150
+    }
+  }
 }

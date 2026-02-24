@@ -179,13 +179,13 @@ SATELLITE_DATA = {
 # Forecast Configuration
 
 # Operation mode: "retrospective" (historical validation) or "realtime" (dashboard)
-FORECAST_MODE = "realtime"
+FORECAST_MODE = "retrospective"
 
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
 FORECAST_TASK = "regression"
 
-# ML algorithm: "xgboost" (primary) or "linear" (interpretable)
-FORECAST_MODEL = "xgboost"
+# ML algorithm: "ensemble", "naive", or "linear"
+FORECAST_MODEL = "ensemble"
 
 # Forecast Horizon Configuration
 # How many weeks ahead to forecast from the data cutoff point
@@ -229,23 +229,23 @@ XGB_CLASSIFICATION_PARAMS = {
 # Temporal Validation - prevents data leakage (handled by forecast horizon)
 
 # Model Performance
-MIN_TRAINING_SAMPLES = 3
+MIN_TRAINING_SAMPLES = 10
 RANDOM_SEED = 42
 
 # Retrospective evaluation anchor points (higher = more thorough)
 N_RANDOM_ANCHORS = 500
 
 # Bootstrap confidence intervals
-N_BOOTSTRAP_ITERATIONS = 20  # Number of bootstrap iterations for confidence intervals
+ENABLE_BOOTSTRAP_INTERVALS = True  # Disable to skip bootstrap uncertainty
+N_BOOTSTRAP_ITERATIONS = 100  # Number of bootstrap iterations for confidence intervals
 
 # Lag Feature Configuration
 
 # Enable/disable lag features for time series modeling
-USE_LAG_FEATURES = False
+USE_LAG_FEATURES = True
 
-# Time series lags optimized via ACF/PACF analysis
-# Lag 1: immediate dependency (60% sites), Lag 3: cyclical pattern (70% sites)
-LAG_FEATURES = [1, 2, 3, 52] if USE_LAG_FEATURES else []
+# Time series lags for raw observation-order lag features
+LAG_FEATURES = [1, 2, 3, 4]
 
 # DA Category Configuration
 
@@ -258,13 +258,18 @@ SPIKE_THRESHOLD = 20.0  # DA > 20 μg/g considered a spike event
 SPIKE_FALSE_NEGATIVE_WEIGHT = 500.0  # Heavy penalty for missing actual spikes
 SPIKE_TRUE_NEGATIVE_WEIGHT = 0.1  # Very low weight for correct non-spike predictions
 
-# Bootstrap subsample fraction for speed optimization
-BOOTSTRAP_SUBSAMPLE_FRACTION = 0.75  # Use 75% of data for each bootstrap iteration
+# Bootstrap subsample fraction for uncertainty estimation
+BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
 
 # Scientific Methodology Configuration
 
-# Sample weighting strategy for regression models
-USE_REGRESSION_SAMPLE_WEIGHTS = True  # False = fair baseline comparison, True = handle imbalance
+# Ridge (linear competitor) regularization
+LINEAR_REGRESSION_ALPHA = 1.0
+
+# Linear/logistic models use the full feature set (no whitelist)
+
+# Persistence baseline configuration
+PERSISTENCE_MAX_DAYS = None  # Set to an int (e.g., 28) to cap lookback
 
 # Confidence interval percentiles for bootstrap predictions
 CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
@@ -272,8 +277,83 @@ CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 # Data Quality Configuration
 
 # Feature engineering toggles
-USE_ROLLING_FEATURES = False  # Enable/disable rolling statistics features
+USE_ROLLING_FEATURES = True  # Enable rolling statistics features for raw pipeline
 USE_ENHANCED_TEMPORAL_FEATURES = True  # Enable/disable sin/cos temporal encoding and derived features
 
-# Polynomial trend analysis minimum periods
-MIN_TREND_PERIODS = 2  # Minimum data points required for trend calculation
+# Biological Decay Interpolation Parameters
+# Used for filling gaps in DA/PN measurements with exponential decay
+
+# DA (Domoic Acid) parameters - conservative due to frequent zeros in data
+DA_MAX_GAP_WEEKS = 2  # Maximum gap to interpolate (larger gaps filled with 0)
+DA_DECAY_RATE = 0.2   # Per week decay rate (half-life ~3.5 weeks)
+
+# PN (Pseudo-nitzschia) parameters - more aggressive due to sparser data
+PN_MAX_GAP_WEEKS = 4  # Maximum gap to interpolate
+PN_DECAY_RATE = 0.3   # Per week decay rate (half-life ~2.3 weeks)
+
+
+# =============================================================================
+# RAW DATA PIPELINE CONFIGURATION
+# Parameters for the raw-data ensemble forecasting pipeline.
+# =============================================================================
+
+# Random Forest Regression parameters
+# RF uses the same feature pipeline as XGBoost. No per-anchor tuning (RF is robust to hyperparams).
+RF_REGRESSION_PARAMS = {
+    "n_estimators": 400,
+    "max_depth": 12,
+    "min_samples_split": 5,
+    "min_samples_leaf": 3,
+    "max_features": 0.85,
+}
+
+# Target and model toggles
+USE_PER_SITE_MODELS = True       # Enable per-site XGB/RF params, features, ensemble weights
+USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
+
+# Prediction clipping
+PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training targets
+
+# Parallelization
+ENABLE_PARALLEL = True
+N_JOBS = -1                      # Use all cores (-1)
+
+# Per-anchor tuning / calibration
+CALIBRATION_FRACTION = 0.3       # Fraction of pre-anchor history used for tuning
+MAX_CALIBRATION_ROWS = 20        # Hard cap on calibration rows per anchor
+MIN_TUNING_SAMPLES = 10          # Skip tuning if fewer calibration rows available
+
+# Default XGB search grid (used when site has no custom param_grid)
+PARAM_GRID = [
+    {"max_depth": 4, "n_estimators": 500, "learning_rate": 0.05, "min_child_weight": 5},
+    {"max_depth": 6, "n_estimators": 400, "learning_rate": 0.05, "min_child_weight": 3},
+]
+
+# Quantile prediction intervals
+ENABLE_QUANTILE_INTERVALS = True
+
+# History requirement: anchor must have >= this fraction of site's total history
+HISTORY_REQUIREMENT_FRACTION = 0.33
+
+# Zero/near-zero importance features to always drop.
+# Original Phase 4 drops + 8 features confirmed < 1% of max importance
+# in leak-free pipeline.
+ZERO_IMPORTANCE_FEATURES = [
+    # Phase 4 original drops
+    'lat', 'lon', 'weeks_since_last_raw',
+    'is_bloom_season', 'quarter',
+    # Leak-free feature importance < 1% of max (0.0037 threshold)
+    'raw_obs_roll_mean_12',
+    'modis-par',
+    'raw_obs_roll_mean_8',
+    'sin_week_of_year',
+    'cos_month',
+    'cos_week_of_year',
+    'da_raw_prev_obs_4_weeks_ago',
+    # NOTE: modis-k490 removed from this list — restored for non-linear (k490_squared)
+    # feature engineering in build_raw_feature_frame(). Sites that don't include
+    # 'modis-k490' or 'k490_squared' in their feature_subset will still not use it.
+]
+
+# Minimum test date (early lower bound; per-site history fraction is the real filter)
+MIN_TEST_DATE = "2003-01-01"

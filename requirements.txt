@@ -1,37 +1,50 @@
 # DATect: Domoic Acid Forecasting System Requirements
 # ====================================================
+# Install with: uv pip install -r requirements.txt (10x faster)
+# Or standard: pip install -r requirements.txt
 
 # Core Scientific Computing
-pandas>=1.3.0
-numpy>=1.21.0
-scikit-learn>=1.1.0
-joblib>=1.0.0         # Parallel processing for model training
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+joblib>=1.3.0         # Parallel processing for model training
+
+# High-Performance Data Processing
+polars>=0.20.0        # 2-50x faster than Pandas for large datasets
+pyarrow>=14.0.0       # Parquet file format with optimized I/O (pandas/xarray)
 
 # Machine Learning Models
-xgboost>=1.6.0
+xgboost>=2.0.0
 
 # Web API and Backend
-fastapi>=0.95.0
-uvicorn[standard]>=0.20.0
-pydantic>=2.0.0       # API data validation and models
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+granian>=1.0.0        # Rust-based ASGI server (20-40% faster than Uvicorn)
+pydantic>=2.5.0       # API data validation and models
+
+# Async HTTP Client (faster downloads with HTTP/2)
+httpx[http2]>=0.26.0  # Replaces requests for async/concurrent downloads
 
 # Data Visualization
-plotly>=5.12.0
-matplotlib>=3.5.0
+plotly>=5.18.0
 
 # Data Processing and I/O
-xarray>=0.20.0        # NetCDF satellite data processing
-pyarrow>=8.0.0        # Parquet file format
-requests>=2.27.0      # HTTP data downloads
-netcdf4>=1.5.8        # NetCDF data handling
+xarray>=2024.1.0      # NetCDF satellite data processing
+netcdf4>=1.6.0        # NetCDF data handling
+requests>=2.31.0      # Fallback HTTP client
 
 # Scientific Analysis
-scipy>=1.8.0          # Spectral analysis and statistics
-tqdm>=4.62.0          # Progress bars for data processing
-SALib>=1.4.0          # Sensitivity analysis (Sobol indices)
+scipy>=1.12.0         # Spectral analysis and statistics
+numba>=0.59.0         # JIT acceleration for numerical operations
+tqdm>=4.66.0          # Progress bars for data processing
+SALib>=1.4.7          # Sensitivity analysis (Sobol indices)
 
 # Temporal processing and date utilities
-python-dateutil>=2.8.0   # Date parsing and manipulation
+python-dateutil>=2.8.2   # Date parsing and manipulation
+
+# Optional: Redis caching for production (uncomment if needed)
+# redis>=5.0.0
+# hiredis>=2.3.0
 
 # Standard Library (included with Python)
 # json, os, tempfile, datetime, warnings, shutil, random, sys, asyncio, pickle

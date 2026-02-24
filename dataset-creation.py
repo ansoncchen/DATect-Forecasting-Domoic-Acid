@@ -24,6 +24,22 @@ from tqdm import tqdm
 import warnings
 import shutil
 import config
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# High-performance libraries
+try:
+    import polars as pl
+    POLARS_AVAILABLE = True
+except ImportError:
+    pl = None
+    POLARS_AVAILABLE = False
+
+try:
+    from numba import jit
+    NUMBA_AVAILABLE = True
+except ImportError:
+    jit = None
+    NUMBA_AVAILABLE = False
 
 from forecasting.logging_config import setup_logging, get_logger
 
@@ -44,6 +60,25 @@ downloaded_files = []
 generated_parquet_files = []
 temporary_nc_files_for_stitching = []
 
+def _idw_interpolate(lats, values, target_lat, power):
+    distances = np.abs(lats - target_lat)
+    weights = 1.0 / (distances ** power + 1e-9)
+    weighted_sum = 0.0
+    weight_total = 0.0
+    for idx in range(values.shape[0]):
+        if not np.isnan(weights[idx]) and not np.isnan(values[idx]):
+            weighted_sum += values[idx] * weights[idx]
+            weight_total += weights[idx]
+    return weighted_sum / weight_total if weight_total > 0 else np.nan
+
+if jit is not None:
+    _idw_interpolate = jit(nopython=True)(_idw_interpolate)
+
+
+def normalize_site_name(value: str) -> str:
+    """Normalize site name for consistent matching across data sources."""
+    return str(value).lower().replace('_', ' ').replace('-', ' ').strip()
+
 
 logger.info("Starting dataset creation pipeline")
 logger.info("Loading configuration from config.py")
@@ -58,7 +93,7 @@ streamflow_url = config.STREAMFLOW_URL
 start_date = pd.to_datetime(config.START_DATE)
 end_date = pd.to_datetime(config.END_DATE)
 final_output_path = config.FINAL_OUTPUT_PATH
-SATELLITE_OUTPUT_PARQUET = './data/intermediate/satellite_data_intermediate.parquet'
+SATELLITE_OUTPUT_PARQUET = config.SATELLITE_CACHE_PATH  # Use centralized config
 
 logger.info(f"Configuration loaded: {len(da_files)} DA files, {len(pn_files)} PN files, {len(sites)} sites")
 logger.info(f"Date range: {start_date.date()} to {end_date.date()}, Output: {final_output_path}")
@@ -102,6 +137,7 @@ def download_file(url, filename):
     downloaded_files.append(filename)
     return filename
 
+
 def local_filename(url, ext, temp_dir=None):
     """Generate sanitized filename from URL"""
     base = url.split('?')[0].split('/')[-1] or url.split('?')[0].split('/')[-2]
@@ -110,11 +146,19 @@ def local_filename(url, ext, temp_dir=None):
     base_name = root + (ext if not existing_ext or existing_ext == '.' else existing_ext)
     return os.path.join(temp_dir, base_name) if temp_dir else base_name
 
+
 def csv_to_parquet(csv_path):
-    """Convert CSV to Parquet for faster I/O"""
+    """Convert CSV to Parquet for faster I/O. Uses Polars if available."""
     parquet_path = csv_path[:-4] + '.parquet'
-    df = pd.read_csv(csv_path, low_memory=False)
-    df.to_parquet(parquet_path, index=False)
+    
+    if POLARS_AVAILABLE:
+        # Polars is 2-5x faster for CSV to Parquet conversion
+        df = pl.read_csv(csv_path)
+        df.write_parquet(parquet_path)
+    else:
+        df = pd.read_csv(csv_path, low_memory=False)
+        df.to_parquet(parquet_path, index=False)
+    
     generated_parquet_files.append(parquet_path)
     return parquet_path
 
@@ -130,7 +174,7 @@ def process_stitched_dataset(yearly_nc_files, data_type, site):
     logger.info(f"Processing stitched dataset for {data_type} at site {site}")
     logger.debug(f"Processing {len(yearly_nc_files)} yearly files: {yearly_nc_files[:3]}...")
     
-    ds = xr.open_mfdataset(yearly_nc_files, combine='nested', concat_dim='time', engine='netcdf4', decode_times=True, parallel=False)
+    ds = xr.open_mfdataset(yearly_nc_files, combine='nested', concat_dim='time', engine='netcdf4', decode_times=True, parallel=True)
     ds = ds.sortby('time')
     logger.debug(f"Dataset loaded: {ds.dims} dimensions, {len(ds.data_vars)} variables")
 
@@ -223,8 +267,8 @@ def generate_satellite_parquet(satellite_metadata_dict, main_sites_list, output_
         if data_type in ["satellite_end_date", "satellite_start_date", "satellite_anom_start_date"] or not isinstance(sat_sites_dict, dict):
             continue
         for site, url_template in sat_sites_dict.items():
-            normalized_site_name = site.lower().replace("_", " ").replace("-", " ")
-            relevant_main_site = next((s for s in main_sites_list if s.lower().replace("_", " ").replace("-", " ") == normalized_site_name), None)
+            normalized_site_name = normalize_site_name(site)
+            relevant_main_site = next((s for s in main_sites_list if normalize_site_name(s) == normalized_site_name), None)
             if relevant_main_site and isinstance(url_template, str) and url_template.strip():
                 if (relevant_main_site, data_type) not in processed_site_datatype_pairs:
                      tasks.append({
@@ -262,58 +306,70 @@ def generate_satellite_parquet(satellite_metadata_dict, main_sites_list, output_
 
             monthly_files_for_dataset = [] # Changed from yearly_files_for_dataset
 
-            # Inner progress bar: Use position=1, leave=False
-            for month_iterator_start_dt in tqdm(monthly_periods, desc=f"Download {site}-{data_type}", unit="month", position=1, leave=False):
+            def download_month_chunk(chunk_url, tmp_nc_path, year_month_str, site, data_type):
+                try:
+                    response = requests.get(chunk_url, timeout=5000, stream=True)
+                    response.raise_for_status()
+                    with open(tmp_nc_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+
+                    if os.path.getsize(tmp_nc_path) > 100:
+                        return tmp_nc_path
+
+                    print(f"\n          Warning: Downloaded file for month {year_month_str} ({site}-{data_type}) seems empty. Skipping.")
+                    if os.path.exists(tmp_nc_path):
+                        os.unlink(tmp_nc_path)
+                    return None
+                except requests.exceptions.RequestException as req_err:
+                    print(f"\n          ERROR downloading month {year_month_str} ({site}-{data_type}): {req_err}. Skipping month.")
+                    if os.path.exists(tmp_nc_path):
+                        os.unlink(tmp_nc_path)
+                    return None
+                except Exception as e:
+                    print(f"\n          ERROR processing download for month {year_month_str} ({site}-{data_type}): {e}. Skipping.")
+                    if os.path.exists(tmp_nc_path):
+                        os.unlink(tmp_nc_path)
+                    return None
+
+            download_jobs = []
+            for month_iterator_start_dt in monthly_periods:
                 # Define the start and end of the current month for iteration
                 current_month_loop_start_dt = month_iterator_start_dt
-                current_month_loop_end_dt = (month_iterator_start_dt + pd.offsets.MonthEnd(0)).replace(hour=23, minute=59, second=59, microsecond=999999) # End of the month
+                current_month_loop_end_dt = (month_iterator_start_dt + pd.offsets.MonthEnd(0)).replace(hour=23, minute=59, second=59, microsecond=999999)
 
                 # Clamp these loop dates with the actual overall start/end dates for the data request.
-                # This handles partial first and last months correctly.
                 effective_chunk_start_dt = max(current_overall_start_dt, current_month_loop_start_dt)
                 effective_chunk_end_dt = min(current_overall_end_dt, current_month_loop_end_dt)
 
                 if effective_chunk_start_dt > effective_chunk_end_dt:
-                    # This can happen if current_overall_start_dt is after current_month_loop_end_dt
-                    # or current_overall_end_dt is before current_month_loop_start_dt.
-                    # Essentially, the generated month is outside the effective range.
                     continue
 
                 month_start_str_url = effective_chunk_start_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
                 month_end_str_url = effective_chunk_end_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
                 # Replace placeholders in URL
-                # Using a more generic "chunk_url" as it's now monthly
                 chunk_url = url_template.replace("{start_date}", month_start_str_url)\
                                          .replace("{end_date}", month_end_str_url)
                 if "{anom_start_date}" in chunk_url:
-                    # Assuming anom_start_date in the template should also use the chunk's start date
                     chunk_url = chunk_url.replace("{anom_start_date}", month_start_str_url)
 
-                # Use year and month in the temporary file name for clarity
                 year_month_str = month_iterator_start_dt.strftime('%Y-%m')
                 fd, tmp_nc_path = tempfile.mkstemp(suffix=f'_{year_month_str}.nc', prefix=f"{site}_{data_type}_", dir=sat_temp_dir)
                 os.close(fd)
 
-                # Download Logic
-                try:
-                    response = requests.get(chunk_url, timeout = 5000, stream=True)
-                    response.raise_for_status()
-                    with open(tmp_nc_path, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            f.write(chunk)
+                download_jobs.append((chunk_url, tmp_nc_path, year_month_str))
 
-                    if os.path.getsize(tmp_nc_path) > 100: # Basic content check
-                        monthly_files_for_dataset.append(tmp_nc_path)
-                    else:
-                        print(f"\n          Warning: Downloaded file for month {year_month_str} ({site}-{data_type}) seems empty. Skipping.")
-                        if os.path.exists(tmp_nc_path): os.unlink(tmp_nc_path) # Ensure removal if empty
-                except requests.exceptions.RequestException as req_err:
-                    print(f"\n          ERROR downloading month {year_month_str} ({site}-{data_type}): {req_err}. Skipping month.")
-                    if os.path.exists(tmp_nc_path): os.unlink(tmp_nc_path)
-                except Exception as e:
-                    print(f"\n          ERROR processing download for month {year_month_str} ({site}-{data_type}): {e}. Skipping.")
-                    if os.path.exists(tmp_nc_path): os.unlink(tmp_nc_path)
+            max_workers = min(10, max(2, os.cpu_count() or 2))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(download_month_chunk, chunk_url, tmp_nc_path, year_month_str, site, data_type)
+                    for chunk_url, tmp_nc_path, year_month_str in download_jobs
+                ]
+                for future in tqdm(as_completed(futures), total=len(futures), desc=f"Download {site}-{data_type}", unit="month", position=1, leave=False):
+                    result_path = future.result()
+                    if result_path:
+                        monthly_files_for_dataset.append(result_path)
             # --- End of Monthly Download Loop (Inner progress bar finishes here) ---
 
             # Process the collected monthly files
@@ -404,12 +460,12 @@ def find_best_satellite_match(target_row, sat_pivot_indexed):
     if pd.isna(target_ts):
         return result_series
 
-    target_site_normalized = str(target_site).lower().replace('_', ' ').replace('-', ' ')
+    target_site_normalized = normalize_site_name(target_site)
 
     unique_original_index_sites = sat_pivot_indexed.index.get_level_values('site').unique()
     original_index_site = None
     for s_val in unique_original_index_sites:
-        if str(s_val).lower().replace('_', ' ').replace('-', ' ') == target_site_normalized:
+        if normalize_site_name(s_val) == target_site_normalized:
             original_index_site = s_val
             break
 
@@ -489,27 +545,82 @@ def add_satellite_data(target_df, satellite_parquet_path):
     target_df_proc['timestamp_dt'] = pd.to_datetime(target_df_proc['Date'])
     satellite_df['timestamp'] = pd.to_datetime(satellite_df['timestamp'])
 
+    target_df_proc['site_key'] = target_df_proc['Site'].apply(normalize_site_name)
+    satellite_df['site_key'] = satellite_df['site'].apply(normalize_site_name)
+
     # Drop rows with missing keys essential for matching
-    target_df_proc = target_df_proc.dropna(subset=['timestamp_dt', 'Site'])
-    satellite_df = satellite_df.dropna(subset=['timestamp', 'site'])
+    target_df_proc = target_df_proc.dropna(subset=['timestamp_dt', 'Site', 'site_key'])
+    satellite_df = satellite_df.dropna(subset=['timestamp', 'site_key'])
 
-    # Index satellite data for efficient lookup
-    satellite_pivot_indexed = satellite_df.set_index(['site', 'timestamp']).sort_index()
+    if satellite_df.empty:
+        return target_df_proc.drop(columns=['timestamp_dt', 'site_key'], errors='ignore')
 
-    # Apply matching function
-    print(f"Applying satellite matching function...")
-    tqdm.pandas(desc="Satellite Matching")
-    matched_data = target_df_proc.progress_apply(
-        find_best_satellite_match, axis=1, sat_pivot_indexed=satellite_pivot_indexed
-    )
+    data_cols = [c for c in satellite_df.columns if c not in ['site', 'timestamp', 'site_key']]
+    anomaly_cols = [c for c in data_cols if 'anom' in c.lower()]
+    regular_cols = [c for c in data_cols if c not in anomaly_cols]
+
+    matched_regular = pd.DataFrame(index=target_df_proc.index)
+    if regular_cols:
+        target_regular = target_df_proc[['timestamp_dt', 'site_key']].copy()
+        target_regular['row_id'] = target_df_proc.index
+        target_regular['cutoff_ts'] = target_regular['timestamp_dt'] - pd.Timedelta(days=7)
+        # Sort by site_key first, then cutoff_ts - required for merge_asof with 'by' parameter
+        target_regular = target_regular.sort_values(['site_key', 'cutoff_ts']).reset_index(drop=True)
+
+        satellite_regular = satellite_df[['timestamp', 'site_key'] + regular_cols].copy()
+        satellite_regular = satellite_regular.sort_values(['site_key', 'timestamp']).reset_index(drop=True)
+
+        regular_match = pd.merge_asof(
+            target_regular.sort_values('cutoff_ts'),  # Ensure globally sorted by merge key
+            satellite_regular.sort_values('timestamp'),  # Ensure globally sorted by merge key
+            left_on='cutoff_ts',
+            right_on='timestamp',
+            by='site_key',
+            direction='backward',
+            allow_exact_matches=True
+        )
+        matched_regular = (
+            regular_match.set_index('row_id')[regular_cols]
+            .reindex(target_df_proc.index)
+        )
+
+    matched_anomaly = pd.DataFrame(index=target_df_proc.index)
+    if anomaly_cols:
+        satellite_anom = satellite_df[['timestamp', 'site_key'] + anomaly_cols].copy()
+        satellite_anom['month'] = satellite_anom['timestamp'].dt.to_period('M')
+        satellite_anom = satellite_anom.dropna(subset=['month'])
+        satellite_monthly = (
+            satellite_anom.groupby(['site_key', 'month'], as_index=False)[anomaly_cols]
+            .last()
+        )
+
+        target_anom = target_df_proc[['site_key', 'timestamp_dt']].copy()
+        target_anom['row_id'] = target_df_proc.index
+        target_anom['safe_month'] = target_anom['timestamp_dt'].dt.to_period('M') - 2
+        target_anom['fallback_month'] = target_anom['timestamp_dt'].dt.to_period('M') - 1
+
+        safe_match = target_anom.merge(
+            satellite_monthly,
+            left_on=['site_key', 'safe_month'],
+            right_on=['site_key', 'month'],
+            how='left'
+        )
+        fallback_match = target_anom.merge(
+            satellite_monthly,
+            left_on=['site_key', 'fallback_month'],
+            right_on=['site_key', 'month'],
+            how='left'
+        )
+
+        matched_anomaly = safe_match.set_index('row_id')[anomaly_cols]
+        fallback_values = fallback_match.set_index('row_id')[anomaly_cols]
+        matched_anomaly = matched_anomaly.combine_first(fallback_values).reindex(target_df_proc.index)
 
     # Join results
-    target_df_proc.reset_index(drop=True, inplace=True)
-    matched_data.reset_index(drop=True, inplace=True)
-    result_df = target_df_proc.join(matched_data)
+    result_df = pd.concat([target_df_proc, matched_regular, matched_anomaly], axis=1)
 
-    # Clean up by dropping the temporary timestamp column
-    result_df = result_df.drop(columns=['timestamp_dt'], errors='ignore')
+    # Clean up by dropping the temporary columns
+    result_df = result_df.drop(columns=['timestamp_dt', 'site_key'], errors='ignore')
     return result_df
 
 # --- Environmental Data Processing ---
@@ -630,17 +741,8 @@ def fetch_beuti_data(url, sites_dict, temp_dir, power=2):
             if exact_match_indices.size > 0:
                 interpolated_beuti = np.mean(beuti_vals[exact_match_indices])
             else:
-                # Inverse distance weighting
-                distances = np.abs(lats - site_lat)
-                weights = 1.0 / (distances ** power + 1e-9)
-                
-                valid_indices = ~np.isnan(weights) & ~np.isnan(beuti_vals)
-                if np.any(valid_indices):
-                    valid_weights = weights[valid_indices]
-                    valid_beuti = beuti_vals[valid_indices]
-                    interpolated_beuti = np.sum(valid_beuti * valid_weights) / np.sum(valid_weights)
-                else:
-                    interpolated_beuti = np.nan
+                # Inverse distance weighting (Numba-accelerated if available)
+                interpolated_beuti = _idw_interpolate(lats, beuti_vals, site_lat, power)
                     
             if pd.notna(interpolated_beuti):
                 site_results.append({'Date': date, 'Site': site, 'beuti': interpolated_beuti})
@@ -884,12 +986,11 @@ def compile_da_pn(lt_df, da_df, pn_df):
     print("  Applying biological decay interpolation (prevents temporal leakage in retrospective tests)...")
     lt_df_merged = lt_df_merged.sort_values(by=['Site', 'Date'])
     
-    # Decay parameters based on raw data analysis and biological principles
-    da_max_gap_weeks = 2  # Conservative - DA data shows frequent zeros
-    da_decay_rate = 0.2   # Per week (half-life ~3.5 weeks)
-    
-    pn_max_gap_weeks = 4  # More aggressive - PN data is sparser 
-    pn_decay_rate = 0.3   # Per week (half-life ~2.3 weeks)
+    # Use decay parameters from config
+    da_max_gap_weeks = config.DA_MAX_GAP_WEEKS
+    da_decay_rate = config.DA_DECAY_RATE
+    pn_max_gap_weeks = config.PN_MAX_GAP_WEEKS
+    pn_decay_rate = config.PN_DECAY_RATE
     
     print(f"  DA parameters: max_gap={da_max_gap_weeks} weeks, decay_rate={da_decay_rate}/week")
     print(f"  PN parameters: max_gap={pn_max_gap_weeks} weeks, decay_rate={pn_decay_rate}/week")

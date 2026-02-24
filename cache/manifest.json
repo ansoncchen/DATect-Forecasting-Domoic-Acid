@@ -1,108 +1,126 @@
 {
-  "generated_at": "2025-09-06T06:08:24.186179",
+  "generated_at": "2026-02-08T03:54:09.733033",
   "cache_version": "2.0",
   "config": {
     "N_RANDOM_ANCHORS": 500,
     "RANDOM_SEED": 42,
     "FORECAST_HORIZON_DAYS": 7,
-    "MIN_TRAINING_SAMPLES": 3
+    "MIN_TRAINING_SAMPLES": 10
   },
   "files": {
     "manifest.json": {
-      "size_bytes": 2687
+      "size_bytes": 3189
     },
-    "retrospective/regression_linear.json": {
-      "size_bytes": 1074427
-    },
-    "retrospective/classification_logistic.json": {
-      "size_bytes": 1016840
+    "retrospective/classification_ensemble.json": {
+      "size_bytes": 246576
     },
     "retrospective/regression_xgboost.json": {
-      "size_bytes": 1095060
+      "size_bytes": 245989
     },
-    "retrospective/classification_xgboost.parquet": {
-      "size_bytes": 40767
+    "retrospective/classification_naive.json": {
+      "size_bytes": 229815
+    },
+    "retrospective/classification_ensemble.parquet": {
+      "size_bytes": 196516
+    },
+    "retrospective/regression_naive.parquet": {
+      "size_bytes": 187214
+    },
+    "retrospective/classification_logistic.json": {
+      "size_bytes": 245989
+    },
+    "retrospective/classification_naive.parquet": {
+      "size_bytes": 187214
+    },
+    "retrospective/regression_ensemble.json": {
+      "size_bytes": 246576
     },
     "retrospective/regression_xgboost.parquet": {
-      "size_bytes": 76219
+      "size_bytes": 194124
+    },
+    "retrospective/regression_ensemble.parquet": {
+      "size_bytes": 196516
+    },
+    "retrospective/regression_rf.json": {
+      "size_bytes": 246280
     },
     "retrospective/classification_logistic.parquet": {
-      "size_bytes": 41021
+      "size_bytes": 194351
+    },
+    "retrospective/regression_naive.json": {
+      "size_bytes": 229815
     },
     "retrospective/regression_linear.parquet": {
-      "size_bytes": 73101
+      "size_bytes": 206222
     },
-    "retrospective/classification_xgboost.json": {
-      "size_bytes": 1016493
+    "retrospective/regression_rf.parquet": {
+      "size_bytes": 196396
     },
-    "spectral/Long Beach.json": {
-      "size_bytes": 101387
-    },
-    "spectral/Coos Bay.json": {
-      "size_bytes": 100743
-    },
-    "spectral/Clatsop Beach.json": {
-      "size_bytes": 101018
-    },
-    "spectral/Cannon Beach.json": {
-      "size_bytes": 95972
-    },
-    "spectral/Quinault.json": {
-      "size_bytes": 101394
-    },
-    "spectral/Gold Beach.json": {
-      "size_bytes": 99872
-    },
-    "spectral/Twin Harbors.json": {
-      "size_bytes": 101325
-    },
-    "spectral/Newport.json": {
-      "size_bytes": 100178
-    },
-    "spectral/Copalis.json": {
-      "size_bytes": 101417
-    },
-    "spectral/Kalaloch.json": {
-      "size_bytes": 101403
+    "retrospective/regression_linear.json": {
+      "size_bytes": 244995
     },
     "spectral/all_sites.json": {
-      "size_bytes": 240149
+      "size_bytes": 176354
     },
-    "visualizations/Gold Beach_correlation.json": {
-      "size_bytes": 6768
+    "spectral/Quinault.json": {
+      "size_bytes": 89886
     },
-    "visualizations/Kalaloch_correlation.json": {
-      "size_bytes": 6748
+    "spectral/Newport.json": {
+      "size_bytes": 91071
     },
-    "visualizations/Cannon Beach_correlation.json": {
-      "size_bytes": 6754
+    "spectral/Copalis.json": {
+      "size_bytes": 94679
     },
-    "visualizations/Long Beach_correlation.json": {
-      "size_bytes": 6752
+    "spectral/Kalaloch.json": {
+      "size_bytes": 91762
     },
-    "visualizations/Quinault_correlation.json": {
-      "size_bytes": 6746
+    "spectral/Clatsop Beach.json": {
+      "size_bytes": 97825
     },
-    "visualizations/Coos Bay_correlation.json": {
-      "size_bytes": 6772
+    "spectral/Long Beach.json": {
+      "size_bytes": 91784
     },
-    "visualizations/Newport_correlation.json": {
-      "size_bytes": 6789
+    "spectral/Twin Harbors.json": {
+      "size_bytes": 91687
+    },
+    "spectral/Coos Bay.json": {
+      "size_bytes": 86183
+    },
+    "spectral/Gold Beach.json": {
+      "size_bytes": 91547
+    },
+    "spectral/Cannon Beach.json": {
+      "size_bytes": 81371
     },
     "visualizations/Copalis_correlation.json": {
-      "size_bytes": 6767
+      "size_bytes": 39767
     },
     "visualizations/Twin Harbors_correlation.json": {
-      "size_bytes": 6756
+      "size_bytes": 39760
+    },
+    "visualizations/Kalaloch_correlation.json": {
+      "size_bytes": 39766
+    },
+    "visualizations/Newport_correlation.json": {
+      "size_bytes": 39805
+    },
+    "visualizations/Coos Bay_correlation.json": {
+      "size_bytes": 39804
+    },
+    "visualizations/Cannon Beach_correlation.json": {
+      "size_bytes": 39758
     },
     "visualizations/Clatsop Beach_correlation.json": {
-      "size_bytes": 6767
+      "size_bytes": 39769
     },
-    "hyperparams/regression_xgboost_best.json": {
-      "size_bytes": 1464
+    "visualizations/Gold Beach_correlation.json": {
+      "size_bytes": 39786
     },
-    "hyperparams/classification_xgboost_best.json": {
-      "size_bytes": 445
+    "visualizations/Quinault_correlation.json": {
+      "size_bytes": 39790
+    },
+    "visualizations/Long Beach_correlation.json": {
+      "size_bytes": 39734
     }
   }
 }

@@ -17,6 +17,13 @@ outputs/logs/
 
 # Data files (keep structure but not data)
 data/raw/*/*.parquet
+data/intermediate/
+cache/retrospective/
+raw_validation_plots/
+
+# ML training artifacts
+catboost_info/
+*.nc
 
 # Node.js (frontend)
 node_modules/
@@ -54,6 +61,10 @@ tools/testing/results/
 analysis/*/outputs/
 claude.md
 .claude/
+
+# AI agent config files
+.ralph/
+.ralphrc
 
 # Temporary files
 *.tmp

@@ -7,8 +7,10 @@ import logging
 import math
 import os
 import re
+from pathlib import Path
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -19,8 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 
-from forecasting.forecast_engine import ForecastEngine
-from forecasting.model_factory import ModelFactory
+from forecasting import ForecastEngine, ModelFactory
 import config
 from backend.visualizations import (
     generate_correlation_heatmap,
@@ -35,13 +36,41 @@ from backend.cache_manager import cache_manager
 # Configure logging
 logger = logging.getLogger(__name__)
 
-def clean_float_for_json(value):
-    """Handle inf/nan values for JSON serialization"""
-    if value is None or (isinstance(value, float) and (math.isinf(value) or math.isnan(value))):
+def clean_for_json(obj):
+    """
+    Clean values for JSON serialization - handles inf/nan, numpy types, and nested structures.
+    
+    Args:
+        obj: Value to clean (can be dict, list, numpy array, scalar, etc.)
+    
+    Returns:
+        JSON-serializable value
+    """
+    if obj is None:
         return None
-    if isinstance(value, (np.floating, np.integer)):
-        return float(value) if isinstance(value, np.floating) else int(value)
-    return value
+    if isinstance(obj, dict):
+        return {k: clean_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [clean_for_json(item) for item in obj]
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, pd.DataFrame):
+        return obj.head(10).to_dict('records') if not obj.empty else []
+    if isinstance(obj, (np.floating, np.integer)):
+        return obj.item()
+    if isinstance(obj, float):
+        if math.isinf(obj) or math.isnan(obj):
+            return None
+        return obj
+    # Check for pandas NA values
+    try:
+        if pd.isna(obj):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return obj
+
+
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not os.path.isabs(config.FINAL_OUTPUT_PATH):
@@ -75,6 +104,15 @@ app.add_middleware(
 forecast_engine = None
 model_factory = None
 
+@lru_cache(maxsize=1)
+def load_data_cached() -> pd.DataFrame:
+    """Load final output data once per process for reuse."""
+    return pd.read_parquet(config.FINAL_OUTPUT_PATH)
+
+def get_data_copy() -> pd.DataFrame:
+    """Return a safe copy of cached data for mutation."""
+    return load_data_cached().copy()
+
 def get_forecast_engine() -> ForecastEngine:
     global forecast_engine
     if forecast_engine is None:
@@ -88,13 +126,16 @@ def get_model_factory() -> ModelFactory:
         model_factory = ModelFactory()
     return model_factory
 
-def get_site_mapping(data):
-    """Get site name mapping for flexible API access"""
+@lru_cache(maxsize=1)
+def get_site_mapping() -> dict:
+    """Get cached site name mapping for flexible API access"""
+    data = load_data_cached()
     return {s.lower().replace(' ', '-'): s for s in data['site'].unique()}
 
-def resolve_site_name(site: str, site_mapping: dict) -> str:
-    """Resolve site name from mapping or return original"""
-    return site_mapping.get(site.lower(), site)
+def resolve_site(site: str) -> str:
+    """Resolve site name to canonical form using cached mapping"""
+    mapping = get_site_mapping()
+    return mapping.get(site.lower(), site)
 
 
 # Pydantic models
@@ -102,12 +143,12 @@ class ForecastRequest(BaseModel):
     date: date
     site: str
     task: str = "regression"  # "regression" or "classification"
-    model: str = "xgboost"
+    model: str = "ensemble"
 
 class ConfigUpdateRequest(BaseModel):
-    forecast_mode: str = "realtime"  # "realtime" or "retrospective" 
+    forecast_mode: str = "realtime"  # "realtime" or "retrospective"
     forecast_task: str = "regression"  # "regression" or "classification"
-    forecast_model: str = "xgboost"  # "xgboost" or "linear" (linear models)
+    forecast_model: str = "ensemble"  # "ensemble", "naive", or "linear"
     selected_sites: List[str] = []  # For retrospective site filtering
     forecast_horizon_weeks: int = 1  # Weeks ahead to forecast from data cutoff
 
@@ -121,6 +162,10 @@ class ForecastResponse(BaseModel):
     predicted_category: Optional[int] = None
     training_samples: Optional[int] = None
     feature_importance: Optional[List[Dict[str, Any]]] = None
+    naive_prediction: Optional[float] = None
+    xgb_prediction: Optional[float] = None
+    rf_prediction: Optional[float] = None
+    ensemble_weights: Optional[List[float]] = None
     error: Optional[str] = None
 
 class SiteInfo(BaseModel):
@@ -156,7 +201,7 @@ async def get_sites():
     """Get available sites and date range from the dataset."""
     try:
         # Load data to get site information
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         data['date'] = pd.to_datetime(data['date'])
         
         sites = sorted(data['site'].unique().tolist())
@@ -200,18 +245,21 @@ async def generate_forecast(request: ForecastRequest):
         if request.task not in ["regression", "classification"]:
             raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
         
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(request.site, site_mapping)
+        data = get_data_copy()
+        actual_site = resolve_site(request.site)
         
         forecast_date = pd.to_datetime(request.date)
         
+        model_type = request.model or config.FORECAST_MODEL or "ensemble"
+        if model_type == "linear" and request.task == "classification":
+            model_type = "logistic"
+
         result = get_forecast_engine().generate_single_forecast(
             config.FINAL_OUTPUT_PATH,
             forecast_date,
             actual_site,
             request.task,
-            "xgboost"
+            model_type
         )
         
         if result is None:
@@ -271,11 +319,9 @@ async def get_historical_data(
     """Get historical DA measurements for a site."""
     try:
         # Load data
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         data['date'] = pd.to_datetime(data['date'])
-        
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
+        actual_site = resolve_site(site)
         
         # Filter by site
         site_data = data[data['site'] == actual_site].copy()
@@ -314,9 +360,10 @@ async def get_config():
     return {
         "forecast_mode": getattr(config, 'FORECAST_MODE', 'realtime'),
         "forecast_task": getattr(config, 'FORECAST_TASK', 'regression'),
-        "forecast_model": getattr(config, 'FORECAST_MODEL', 'xgboost'),
+        "forecast_model": getattr(config, 'FORECAST_MODEL', 'ensemble'),
         "forecast_horizon_weeks": getattr(config, 'FORECAST_HORIZON_WEEKS', 1),
-        "forecast_horizon_days": getattr(config, 'FORECAST_HORIZON_DAYS', 7)
+        "forecast_horizon_days": getattr(config, 'FORECAST_HORIZON_DAYS', 7),
+        "spike_threshold": getattr(config, 'SPIKE_THRESHOLD', 20.0),
     }
 
 @app.post("/api/config")
@@ -388,7 +435,7 @@ async def get_all_sites_historical(
 ):
     """Get historical data for all sites."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         
         # Apply date filters
         if start_date:
@@ -412,10 +459,10 @@ async def get_all_sites_historical(
             rec = {
                 'date': row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else None,
                 'site': row['site'],
-                'actual_da': clean_float_for_json(da_val),
+                'actual_da': clean_for_json(da_val),
             }
             if da_category is not None:
-                rec['actual_category'] = clean_float_for_json(da_category)
+                rec['actual_category'] = clean_for_json(da_category)
             result.append(rec)
         
         return JSONResponse(content={
@@ -432,9 +479,9 @@ async def get_all_sites_historical(
 async def get_correlation_heatmap_all():
     """Generate correlation heatmap for all sites combined."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plot_data = generate_correlation_heatmap(data, site=None)
-        return {"success": True, "plot": plot_data}
+        return {"success": True, "plot": plot_data, "cached": False, "source": "computed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate correlation heatmap: {str(e)}")
 
@@ -442,13 +489,15 @@ async def get_correlation_heatmap_all():
 async def get_correlation_heatmap_single(site: str):
     """Generate correlation heatmap for a single site."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
-        
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
-        
+        data = get_data_copy()
+        actual_site = resolve_site(site)
+
+        cached_plot = cache_manager.get_correlation_heatmap(actual_site)
+        if cached_plot is not None:
+            return {"success": True, "plot": cached_plot, "cached": True, "source": "precomputed"}
+
         plot_data = generate_correlation_heatmap(data, actual_site)
-        return {"success": True, "plot": plot_data}
+        return {"success": True, "plot": plot_data, "cached": False, "source": "computed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate correlation heatmap: {str(e)}")
 
@@ -456,7 +505,7 @@ async def get_correlation_heatmap_single(site: str):
 async def get_sensitivity_analysis_all():
     """Generate sensitivity analysis plots for all sites combined."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plots = generate_sensitivity_analysis(data, site=None)
         return {"success": True, "plots": plots}
     except Exception as e:
@@ -466,10 +515,8 @@ async def get_sensitivity_analysis_all():
 async def get_sensitivity_analysis_single(site: str):
     """Generate sensitivity analysis plots for a single site."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
-        
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
+        data = get_data_copy()
+        actual_site = resolve_site(site)
         
         plots = generate_sensitivity_analysis(data, actual_site)
         return {"success": True, "plots": plots}
@@ -481,7 +528,7 @@ async def get_sensitivity_analysis_single(site: str):
 async def get_time_series_comparison_all():
     """Generate time series comparison for all sites."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plot_data = generate_time_series_comparison(data, site=None)
         return {"success": True, "plot": plot_data}
     except Exception as e:
@@ -491,10 +538,8 @@ async def get_time_series_comparison_all():
 async def get_time_series_comparison_single(site: str):
     """Generate time series comparison for a single site."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
-        
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
+        data = get_data_copy()
+        actual_site = resolve_site(site)
         
         plot_data = generate_time_series_comparison(data, actual_site)
         return {"success": True, "plot": plot_data}  # plot_data is already in correct format
@@ -505,7 +550,7 @@ async def get_time_series_comparison_single(site: str):
 async def get_waterfall_plot():
     """Generate waterfall plot for all sites."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plot_data = generate_waterfall_plot(data)
         return {"success": True, "plot": plot_data}
     except Exception as e:
@@ -523,7 +568,7 @@ async def get_spectral_analysis_all():
 
         # Compute on server (expensive - only for local development)
         logging.warning("Computing spectral analysis on server - this is very expensive!")
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
+        data = get_data_copy()
         plots = generate_spectral_analysis(data, site=None)
         return {"success": True, "plots": plots, "cached": False, "source": "computed"}
     except Exception as e:
@@ -533,9 +578,8 @@ async def get_spectral_analysis_all():
 async def get_spectral_analysis_single(site: str):
     """Generate spectral analysis for a single site (uses pre-computed cache)."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(site, site_mapping)
+        data = get_data_copy()
+        actual_site = resolve_site(site)
 
         # First try pre-computed cache
         plots = cache_manager.get_spectral_analysis(site=actual_site)
@@ -748,73 +792,58 @@ async def get_site_map():
 async def generate_enhanced_forecast(request: ForecastRequest):
     """Generate enhanced forecast with both regression and classification for frontend."""
     try:
-        data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
-        site_mapping = get_site_mapping(data)
-        actual_site = resolve_site_name(request.site, site_mapping)
+        data = get_data_copy()
+        actual_site = resolve_site(request.site)
         
         forecast_date = pd.to_datetime(request.date)
         
         # Generate regression and classification forecasts
+        model_type = getattr(request, 'model', None) or config.FORECAST_MODEL or "ensemble"
+        if model_type == "linear":
+            classification_model = "logistic"
+        else:
+            classification_model = model_type
+
         regression_result = get_forecast_engine().generate_single_forecast(
-            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "regression", "xgboost"
+            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "regression", model_type
         )
-        
         classification_result = get_forecast_engine().generate_single_forecast(
-            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "classification", "xgboost"
+            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "classification", classification_model
         )
-        
-        # Clean numpy values for JSON serialization
-        def clean_numpy_values(obj):
-            if isinstance(obj, dict):
-                return {k: clean_numpy_values(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [clean_numpy_values(item) for item in obj]
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            elif isinstance(obj, (np.integer, np.floating)):
-                return obj.item()
-            elif isinstance(obj, pd.DataFrame):
-                return obj.head(10).to_dict('records') if not obj.empty else []
-            elif obj is None:
-                return None
-            else:
-                try:
-                    if pd.isna(obj):
-                        return None
-                except (TypeError, ValueError):
-                    pass
-                return obj
         
         # Create response structure expected by frontend
         response_data = {
             "success": True,
             "forecast_date": forecast_date.strftime('%Y-%m-%d'),
             "site": actual_site,
-            "regression": clean_numpy_values(regression_result),
-            "classification": clean_numpy_values(classification_result),
+            "regression": clean_for_json(regression_result),
+            "classification": clean_for_json(classification_result),
             "graphs": {}
         }
         
-        # Add level_range graph for regression
+        # Add level_range graph for regression (only when quantiles available)
         if regression_result and 'predicted_da' in regression_result:
             predicted_da = float(regression_result['predicted_da'])
-            
-            # Use bootstrap confidence intervals if available, otherwise fall back to simple multipliers
-            bootstrap_quantiles = regression_result['bootstrap_quantiles']
-            quantiles = {
-                "q05": bootstrap_quantiles['q05'],
-                "q50": bootstrap_quantiles['q50'],
-                "q95": bootstrap_quantiles['q95'],
-            }
-            # Provide a robust gradient plot (handles degenerate quantile ranges)
-            gradient_plot_json = generate_gradient_uncertainty_plot(quantiles, predicted_da)
-
-            response_data["graphs"]["level_range"] = {
-                "gradient_quantiles": quantiles,
-                "xgboost_prediction": predicted_da,
-                "type": "gradient_uncertainty",
-                "gradient_plot": gradient_plot_json,
-            }
+            xgb_pred = regression_result.get('xgb_prediction')
+            rf_pred = regression_result.get('rf_prediction')
+            bootstrap_quantiles = regression_result.get('bootstrap_quantiles') or {}
+            if all(k in bootstrap_quantiles for k in ('q05', 'q50', 'q95')):
+                quantiles = {
+                    "q05": bootstrap_quantiles['q05'],
+                    "q50": bootstrap_quantiles['q50'],
+                    "q95": bootstrap_quantiles['q95'],
+                }
+                gradient_plot_json = generate_gradient_uncertainty_plot(
+                    quantiles, predicted_da,
+                    xgb_prediction=float(xgb_pred) if xgb_pred is not None else None,
+                    rf_prediction=float(rf_pred) if rf_pred is not None else None,
+                )
+                response_data["graphs"]["level_range"] = {
+                    "gradient_quantiles": quantiles,
+                    "xgboost_prediction": predicted_da,
+                    "type": "gradient_uncertainty",
+                    "gradient_plot": gradient_plot_json,
+                }
         
         # Add category_range graph for classification
         if classification_result and 'predicted_category' in classification_result:
@@ -828,8 +857,23 @@ async def generate_enhanced_forecast(request: ForecastRequest):
                 "category_labels": ['Low (≤5)', 'Moderate (5-20]', 'High (20-40]', 'Extreme (>40)'],
                 "type": "category_range"
             }
-        
-        
+
+        # Add ensemble breakdown if available
+        if regression_result:
+            ensemble_data = {}
+            if 'naive_prediction' in regression_result:
+                ensemble_data['naive_prediction'] = clean_for_json(regression_result['naive_prediction'])
+            if 'xgb_prediction' in regression_result:
+                ensemble_data['xgb_prediction'] = clean_for_json(regression_result['xgb_prediction'])
+            if 'rf_prediction' in regression_result:
+                ensemble_data['rf_prediction'] = clean_for_json(regression_result['rf_prediction'])
+            if 'ensemble_prediction' in regression_result:
+                ensemble_data['ensemble_prediction'] = clean_for_json(regression_result['ensemble_prediction'])
+            if 'ensemble_weights' in regression_result:
+                ensemble_data['ensemble_weights'] = regression_result['ensemble_weights']
+            if ensemble_data:
+                response_data['ensemble'] = ensemble_data
+
         return response_data
         
     except Exception as e:
@@ -850,9 +894,10 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
         if config.FORECAST_MODEL == "linear":
             actual_model = "linear" if config.FORECAST_TASK == "regression" else "logistic"
         else:
-            actual_model = config.FORECAST_MODEL
+            actual_model = config.FORECAST_MODEL  # "ensemble" or "naive" pass through
         
         # First try to get from pre-computed cache (for production)
+        cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{config.FORECAST_TASK}_{actual_model}.json"
         base_results = cache_manager.get_retrospective_forecast(config.FORECAST_TASK, actual_model)
         
         if base_results is None:
@@ -876,10 +921,10 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
                 record = {
                     "date": row['date'].strftime('%Y-%m-%d') if pd.notnull(row['date']) else None,
                     "site": row['site'],
-                    "actual_da": clean_float_for_json(row['actual_da']) if 'actual_da' in row and pd.notnull(row['actual_da']) else None,
-                    "predicted_da": clean_float_for_json(row['predicted_da']) if 'predicted_da' in row and pd.notnull(row['predicted_da']) else None,
-                    "actual_category": clean_float_for_json(row['actual_category']) if 'actual_category' in row and pd.notnull(row['actual_category']) else None,
-                    "predicted_category": clean_float_for_json(row['predicted_category']) if 'predicted_category' in row and pd.notnull(row['predicted_category']) else None
+                    "actual_da": clean_for_json(row['actual_da']) if 'actual_da' in row and pd.notnull(row['actual_da']) else None,
+                    "predicted_da": clean_for_json(row['predicted_da']) if 'predicted_da' in row and pd.notnull(row['predicted_da']) else None,
+                    "actual_category": clean_for_json(row['actual_category']) if 'actual_category' in row and pd.notnull(row['actual_category']) else None,
+                    "predicted_category": clean_for_json(row['predicted_category']) if 'predicted_category' in row and pd.notnull(row['predicted_category']) else None
                 }
                 if 'anchor_date' in results_df.columns and pd.notnull(row.get('anchor_date', None)):
                     record['anchor_date'] = row['anchor_date'].strftime('%Y-%m-%d')
@@ -894,13 +939,20 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
         # Filter by sites if specified
         filtered = [r for r in base_results if r['site'] in request.selected_sites] if request.selected_sites else base_results
         
-        summary = _compute_summary(filtered)
+        summary = _compute_summary(filtered, config.FORECAST_TASK)
         return {
             "success": True,
             "config": {
                 "forecast_mode": config.FORECAST_MODE,
                 "forecast_task": config.FORECAST_TASK,
                 "forecast_model": config.FORECAST_MODEL
+            },
+            "cache": {
+                "enabled": cache_manager.enabled,
+                "path": str(cache_manager.cache_dir),
+                "file": str(cache_file),
+                "file_exists": cache_file.exists(),
+                "hit": base_results is not None,
             },
             "summary": summary,
             "results": filtered
@@ -912,7 +964,7 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
             "error": str(e)
         }
 
-def _compute_summary(results_json: list) -> dict:
+def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
     """Compute summary metrics for retrospective results using canonical keys only."""
     summary = {"total_forecasts": len(results_json)}
 
@@ -934,7 +986,7 @@ def _compute_summary(results_json: list) -> dict:
     summary["classification_forecasts"] = len(valid_classification)
 
     # Regression metrics
-    if valid_regression:
+    if task != "classification" and valid_regression:
         from sklearn.metrics import r2_score, mean_absolute_error, f1_score
         actual_vals = [r[0] for r in valid_regression]
         pred_vals = [r[1] for r in valid_regression]
@@ -953,7 +1005,7 @@ def _compute_summary(results_json: list) -> dict:
             pass
 
     # Classification metrics
-    if valid_classification:
+    if task == "classification" and valid_classification:
         from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_recall_fscore_support
         actual_cats = [r[0] for r in valid_classification]
         pred_cats = [r[1] for r in valid_classification]
@@ -997,6 +1049,51 @@ except Exception as e:
     logging.error(f"Error setting up static files: {e}")
     pass
 
-if __name__ == "__main__":
+def run_server(host: str = "0.0.0.0", port: int = None, use_granian: bool = None):
+    """
+    Run the API server with the best available ASGI server.
+    
+    Priority: Granian (fastest) > Uvicorn (standard)
+    
+    Args:
+        host: Host to bind to
+        port: Port to bind to (default: PORT env var or 8000)
+        use_granian: Force Granian (True) or Uvicorn (False), auto-detect if None
+    """
+    if port is None:
+        port = int(os.getenv("PORT", "8000"))
+    
+    # Auto-detect best server
+    if use_granian is None:
+        use_granian = os.getenv("DATECT_USE_GRANIAN", "1").lower() in ("1", "true", "yes")
+    
+    if use_granian:
+        try:
+            from granian import Granian
+            from granian.constants import Interfaces
+            
+            logging.info(f"Starting Granian server (Rust-based, 20-40% faster) on {host}:{port}")
+            
+            granian = Granian(
+                "backend.api:app",
+                address=host,
+                port=port,
+                interface=Interfaces.ASGI,
+                workers=int(os.getenv("WORKERS", "1")),
+            )
+            granian.serve()
+            return
+            
+        except ImportError:
+            logging.warning("Granian not available, falling back to Uvicorn")
+        except Exception as e:
+            logging.warning(f"Granian failed to start: {e}, falling back to Uvicorn")
+    
+    # Fallback to Uvicorn
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    logging.info(f"Starting Uvicorn server on {host}:{port}")
+    uvicorn.run(app, host=host, port=port)
+
+
+if __name__ == "__main__":
+    run_server()

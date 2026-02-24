@@ -1,0 +1,97 @@
+[project]
+name = "datect"
+version = "1.0.0"
+description = "DATect: Domoic Acid Forecasting System for Pacific Coast HAB Monitoring"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "DATect Team"}
+]
+keywords = ["domoic-acid", "harmful-algal-blooms", "forecasting", "machine-learning", "oceanography"]
+
+dependencies = [
+    # Core Scientific Computing
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "joblib>=1.3.0",
+    
+    # High-Performance Data Processing (Polars for speed)
+    "polars>=0.20.0",
+    "pyarrow>=14.0.0",
+    
+    # Machine Learning Models
+    "xgboost>=2.0.0",
+    
+    # Web API and Backend
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "granian>=1.0.0",
+    "pydantic>=2.5.0",
+    
+    # Async HTTP Client (faster than requests)
+    "httpx[http2]>=0.26.0",
+    
+    # Data Visualization
+    "plotly>=5.18.0",
+    
+    # Data Processing and I/O
+    "xarray>=2024.1.0",
+    "netcdf4>=1.6.0",
+    "requests>=2.31.0",
+    
+    # Scientific Analysis
+    "scipy>=1.12.0",
+    "numba>=0.59.0",
+    "tqdm>=4.66.0",
+    "SALib>=1.4.7",
+    
+    # Temporal processing
+    "python-dateutil>=2.8.2",
+]
+
+[project.optional-dependencies]
+# Redis caching for production
+redis = [
+    "redis>=5.0.0",
+    "hiredis>=2.3.0",
+]
+
+# GPU acceleration (optional)
+gpu = [
+    "cupy>=13.0.0",
+]
+
+# Development tools
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.1.0",
+    "black>=24.0.0",
+]
+
+[project.scripts]
+datect = "run_datect:main"
+datect-cache = "precompute_cache:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+# UV-specific configuration for faster installs
+compile-bytecode = true
+link-mode = "copy"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]

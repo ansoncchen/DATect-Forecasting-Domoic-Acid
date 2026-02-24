@@ -1,0 +1,35 @@
+# Large directories that cause memory issues
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Node.js
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Data files (parquet, large CSVs)  
+*.parquet
+data/intermediate/
+data/raw/
+
+# Cache and build artifacts
+catboost_info/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Logs (can be large)
+*.log
+.ralph/logs/
+
+# Ralph Claude Code examples (not needed for this project)
+ralph-claude-code/
+
+# IDE and system
+.DS_Store
+*.swp
+*.swo

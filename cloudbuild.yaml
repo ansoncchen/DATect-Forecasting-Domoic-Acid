@@ -1,5 +1,6 @@
 # Google Cloud Build configuration for DATect deployment
 # Builds the container image with pre-computed cache
+# Cost-optimized: scales to zero when idle (~$0/month for low-traffic demos)
 
 steps:
   # Step 1: Build the production container image with pre-computed cache
@@ -21,7 +22,7 @@ steps:
       - 'push'
       - 'gcr.io/${PROJECT_ID}/datect:latest'
 
-  # Step 3: Deploy to Cloud Run
+  # Step 3: Deploy to Cloud Run (cost-optimized for demo/low-traffic)
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-cloud-run'
     args:
@@ -39,11 +40,12 @@ steps:
       - '1Gi'
       - '--cpu'
       - '1'
-      - '--cpu-boost'
-      - '--concurrency'
-      - '200'
+      - '--min-instances'
+      - '0'           # Scale to zero when idle — no charges when not in use
       - '--max-instances'
-      - '5'
+      - '3'           # Reduced from 5; plenty for demo traffic
+      - '--concurrency'
+      - '20'          # Reduced from 200; realistic for a demo app
       - '--timeout'
       - '300'
       - '--set-env-vars'

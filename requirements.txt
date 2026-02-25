@@ -42,9 +42,10 @@ SALib>=1.4.7          # Sensitivity analysis (Sobol indices)
 # Temporal processing and date utilities
 python-dateutil>=2.8.2   # Date parsing and manipulation
 
-# Optional: Redis caching for production (uncomment if needed)
-# redis>=5.0.0
-# hiredis>=2.3.0
+# Redis caching for production (100x faster cache reads vs file-based)
+# Requires REDIS_URL env var to activate — gracefully disabled if not set
+redis>=5.0.0
+hiredis>=2.3.0
 
 # Standard Library (included with Python)
 # json, os, tempfile, datetime, warnings, shutil, random, sys, asyncio, pickle

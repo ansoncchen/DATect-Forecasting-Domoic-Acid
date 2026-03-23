@@ -69,7 +69,7 @@ SITE_NEIGHBORS = {
 SPARSE_THRESHOLD = 80  # Strategy 7: naive-only below this
 INTERP_WEIGHT = 0.3  # Strategy 6: weight for interpolated rows
 MIN_TEST_DATE = "2008-01-01"
-MAX_TEST_PER_SITE = 15  # Cap test points per site for manageable runtime (None = no cap)
+MAX_TEST_PER_SITE = None  # No cap — use full 20% per site, matching production retrospective
 OUTPUT_FILE = "data_strategy_results.json"
 
 # ---------------------------------------------------------------------------

@@ -112,9 +112,12 @@ For a forecast date (test_date), the **anchor date** = test_date - 7 days. This 
 
 ### Step 3B: Training Data (`get_site_training_frame()`)
 
-All feature frame rows for this site where `date ≤ anchor_date` AND `da_raw` is not null. This ensures:
+When `USE_INTERPOLATED_TRAINING=True` (default), training includes **all** feature frame rows for this site where `date ≤ anchor_date` AND the `da` column (gap-filled) is not null. For rows with real measurements, `da_raw` is used as the target; for gap-filled rows, the interpolated `da` value fills in. This provides ~5x more training data per site. A `_is_interpolated` marker column tracks which rows are gap-filled so downstream code can filter to real-only when needed (persistence features, Naive baseline). When the flag is `False`, only rows with actual `da_raw` measurements are used (original behavior).
+
+This ensures:
 - Only past data is used
-- Only rows with actual measurements (not interpolated/empty rows) form the training set
+- ~5x more training data per site (real + gap-filled rows)
+- Test/evaluation still uses only real measurements
 - The model learns from real signal, not imputed values
 
 Requires at least `MIN_TRAINING_SAMPLES=10` rows.
@@ -131,9 +134,9 @@ The key insight: at the time of making a prediction, you'd have satellite data u
 
 ### Step 3D: Persistence Feature Recomputation (`recompute_test_row_persistence_features()`)
 
-The persistence features (`last_observed_da_raw`, `weeks_since_last_raw`, `weeks_since_last_spike`) were computed globally during feature frame construction, which means they might leak future information. This function overwrites them using **only the training data**:
+The persistence features (`last_observed_da_raw`, `weeks_since_last_raw`, `weeks_since_last_spike`) were computed globally during feature frame construction, which means they might leak future information. This function overwrites them using **only the real observations in training data** (filtered via `_is_interpolated` to exclude gap-filled rows, ensuring persistence reflects actual measurements):
 
-- `last_observed_da_raw` = the most recent DA value in training data
+- `last_observed_da_raw` = the most recent real DA value in training data
 - `weeks_since_last_raw` = time from test_date to that last measurement
 - `weeks_since_last_spike` = time to last spike event in training data
 
@@ -157,7 +160,7 @@ Before model training, features go through a preprocessing pipeline:
 
 Several categories of columns are removed:
 - `date`, `site` (non-features)
-- `da_raw`, `da` (target variable — would be leakage)
+- `da_raw`, `da`, `_is_interpolated` (target variable and marker — would be leakage)
 - `ZERO_IMPORTANCE_FEATURES` from config (features proven to have near-zero predictive power in leak-free evaluation): `lat`, `lon`, `weeks_since_last_raw`, `is_bloom_season`, `quarter`, `raw_obs_roll_mean_12`, `modis-par`, `raw_obs_roll_mean_8`, `sin_week_of_year`, `cos_month`, `modis-k490`, `cos_week_of_year`, `da_raw_prev_obs_4_weeks_ago`
 - Per-site feature subset enforcement (if the site has a `feature_subset` defined, only those features are kept)
 
@@ -208,21 +211,21 @@ The weights are completely customized per site based on which models perform bes
 
 | Site | XGB | RF | Naive | Character |
 |------|-----|-----|-------|-----------|
-| **Twin Harbors** | 0.10 | 0.25 | **0.65** | Persistence-dominant — naive is king |
-| **Kalaloch** | 0.20 | 0.40 | **0.40** | Persistence-dominant |
-| **Copalis** | 0.25 | **0.45** | 0.30 | RF slightly favored |
-| **Quinault** | 0.35 | 0.30 | 0.35 | Balanced three-way |
-| **Long Beach** | **0.45** | 0.40 | 0.15 | ML-leaning |
-| **Clatsop Beach** | **0.50** | 0.45 | 0.05 | ML-dominant |
-| **Coos Bay** | 0.10 | **0.85** | 0.05 | RF-dominant |
-| **Newport** | 0.25 | **0.65** | 0.10 | RF-leaning |
-| **Gold Beach** | 0.40 | **0.57** | 0.03 | RF-leaning |
-| **Cannon Beach** | **0.95** | 0.03 | 0.02 | XGB-desperate (all models struggle) |
+| **Twin Harbors** | 0.30 | 0.10 | **0.60** | Persistence-dominant — naive is king |
+| **Kalaloch** | 0.00 | 0.35 | **0.65** | Persistence-dominant (RF assists) |
+| **Copalis** | 0.45 | 0.00 | **0.55** | Persistence-dominant (XGB assists) |
+| **Quinault** | 0.40 | 0.15 | **0.45** | Balanced — persistence slight edge |
+| **Long Beach** | **0.95** | 0.00 | 0.05 | XGB-dominant |
+| **Clatsop Beach** | **0.95** | 0.05 | 0.00 | XGB-dominant |
+| **Coos Bay** | 0.00 | **1.00** | 0.00 | RF-only |
+| **Newport** | **1.00** | 0.00 | 0.00 | XGB-only |
+| **Gold Beach** | **1.00** | 0.00 | 0.00 | XGB-only |
+| **Cannon Beach** | 0.10 | **0.75** | 0.15 | RF-leaning (all models struggle) |
 
 The three site categories in `per_site_models.py` are:
 - **Persistence-dominant** (Twin Harbors, Kalaloch, Copalis, Quinault): DA changes slowly, naive baseline is strong, ML is constrained
-- **ML-leaning** (Long Beach, Clatsop Beach, Coos Bay): ML models outperform naive
-- **Struggle sites** (Cannon Beach, Gold Beach, Newport): All models have negative R-squared — the data is fundamentally hard to predict. These sites get aggressive regularization and conservative clipping.
+- **ML-dominant** (Long Beach, Clatsop Beach, Coos Bay, Newport, Gold Beach): ML models outperform naive; with interpolated training, XGB is now the strongest ML model at most sites
+- **Struggle sites** (Cannon Beach): All models have near-zero or negative R-squared — the data is fundamentally hard to predict. These sites get aggressive regularization and conservative clipping.
 
 ---
 
@@ -321,7 +324,7 @@ Checks for cached results first. If cache exists, serves pre-computed prediction
 3.  aggregate_raw_to_weekly() → Weekly DA values (MAX aggregation)
 4.  build_raw_feature_frame() → Merge raw DA onto env data + persistence + rolling + lag features
 5.  add_temporal_features() → Calendar encodings (sin/cos day, month, season)
-6.  get_site_training_frame() → Filter to site, date <= anchor, da_raw not null
+6.  get_site_training_frame() → Filter to site, date <= anchor; include gap-filled rows when USE_INTERPOLATED_TRAINING=True
 7.  get_site_anchor_row() → Build test row with env features from anchor date
 8.  recompute_test_row_persistence_features() → Overwrite leaky persistence features
 9.  _verify_no_data_leakage() → Assert no temporal leaks

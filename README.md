@@ -103,9 +103,9 @@ DATect-Forecasting-Domoic-Acid/
 
 | Metric | Value |
 |--------|-------|
-| Ensemble R² | ~0.49 |
-| Ensemble MAE | ~5.4 µg/g |
-| Spike F1 | ~0.68 |
+| Ensemble R² | ~0.46 |
+| Ensemble MAE | ~6.2 µg/g |
+| Spike F1 | ~0.63 |
 
 ## Data Sources
 

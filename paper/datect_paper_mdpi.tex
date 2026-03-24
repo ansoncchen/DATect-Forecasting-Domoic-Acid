@@ -418,6 +418,8 @@ Cannon Beach  & 0.95 & 0.03 & 0.02 & 0.95 & 80 & Low-skill \\
 
 \textbf{Persistence-dominant sites} (Twin Harbors, Kalaloch, Quinault) assign 35--65\% weight to the na\"ive baseline, reflecting strong autocorrelation in DA at these sites. These sites are located in areas with concentrated bloom dynamics and regular sampling, where the slow depuration of DA in razor clam tissue creates strong persistence. \textbf{ML-leaning sites} (Long Beach, Clatsop Beach, Coos Bay) weight ML models more heavily, as environmental features provide substantial predictive value beyond persistence. \textbf{Struggle sites} (Cannon Beach, Gold Beach) require heavy regularization and aggressive prediction clipping due to limited data or unusual dynamics.
 
+\textbf{Configuration selection procedure.} Per-site ensemble weights, feature subsets, and hyperparameter overrides were selected through an iterative manual process informed by both domain knowledge and preliminary evaluation results. For each site, the individual model components (XGBoost, Random Forest, and na\"ive persistence) were evaluated independently using the same leak-free retrospective protocol described in Section~\ref{sec:validation}. Ensemble weights were then set proportionally to each component's relative per-site performance---for example, sites where na\"ive persistence achieved $R^2$ comparable to the ML models received higher na\"ive weights, consistent with the biological expectation of strong DA autocorrelation at sites with concentrated bloom dynamics. Feature subsets were curated by removing feature groups that degraded site-specific performance, prioritizing parsimony at data-sparse sites to reduce overfitting. This process used the same test sample selection (seed = 42, 20\% sampling fraction) as the final reported evaluation, meaning that the per-site structural configurations were informed by the reported test set. We acknowledge that this introduces a degree of optimistic bias into the reported metrics, as the test data influenced the model design. However, we note three mitigating factors: (1) the per-anchor hyperparameter selection within each test point uses a separate calibration fraction (30\% of training data) that is independent of the test set; (2) the ablation study (Section~\ref{sec:results-ablation}) demonstrates that per-site customization provides only moderate improvement over a global model, bounding the potential bias; and (3) the core leak-free temporal protocol remains intact---the bias is in structural model selection, not in temporal data leakage. Future work could address this limitation through nested cross-validation or a held-out configuration-tuning split.
+
 \subsubsection{Competitor Models}
 
 Two additional models are included as competitors (not baselines):
@@ -521,11 +523,7 @@ Regression performance is assessed using the coefficient of determination ($R^2$
 \subsection{Web Application}
 \label{sec:webapp}
 
-DATect is deployed as a publicly accessible web dashboard to serve coastal managers and researchers. The architecture consists of a \textbf{React + Vite} frontend providing interactive dashboards, visualizations, and forecast controls, communicating with a \textbf{FastAPI} backend that exposes RESTful API endpoints with automatic OpenAPI documentation.
-
-The backend serves forecast requests, retrospective evaluation results, and visualization data (correlation heatmaps, sensitivity analyses, spectral analyses, feature importance rankings). A pre-computed cache system stores results from computationally intensive retrospective evaluations as JSON and Parquet files, with an optional Redis backend providing 100$\times$ faster cache reads for production deployments. The retrospective evaluation cache---encompassing all 1,177 validation points across 10 sites and 6 model configurations---was pre-computed on the University of Washington \textbf{Hyak} high-performance computing cluster (\textit{klone} partition, STF allocation). Because each test point requires training a fresh ensemble on its own chronological training subset, the per-anchor computation is embarrassingly parallel and well-suited to HPC execution; running the full retrospective evaluation sequentially on a laptop would require several days, whereas the Hyak cluster completes the computation in approximately 2--3 hours across parallel jobs.
-
-The system is containerized with Docker and deployed on \textbf{Google Cloud Run}, a serverless platform that scales to zero when idle (eliminating costs during inactive periods) and scales up to three concurrent instances under load. Cold start time is approximately 10--15 seconds. The deployment pipeline uses Google Cloud Build for continuous integration. The choice of a serverless architecture ensures that the system remains available to coastal managers at minimal cost, as the application is accessed intermittently rather than continuously.
+DATect is deployed as a publicly accessible web dashboard built with React + Vite (frontend) and FastAPI (backend), containerized with Docker and hosted on Google Cloud Run. The dashboard supports two operational modes: (1) \textbf{real-time forecasting}, where users select a target date and site to generate a fresh prediction with confidence intervals and risk classification, and (2) \textbf{retrospective analysis}, where pre-computed validation results across all 1,177 test points can be explored interactively. Seven visualization types---including correlation heatmaps, spectral analysis, feature importance waterfalls, and latitude-resolved DA time series---support exploratory analysis. The retrospective evaluation cache was pre-computed on the University of Washington Hyak high-performance computing cluster. Full architectural details, deployment configuration, and visualization descriptions are provided in Appendix~\ref{app:webapp}.
 
 \begin{figure}[H]
 \centering
@@ -535,34 +533,6 @@ System architecture diagram showing: (1) Data sources (MODIS, ERDDAP, USGS, stat
 \vspace{1cm}}}
 \caption{DATect system architecture. Data from satellite, climate, hydrological, and biological sources are processed into a unified dataset, fed to the three-model ensemble engine, and served through a FastAPI backend to a React dashboard. A pre-computed cache accelerates retrospective evaluations.}
 \label{fig:architecture}
-\end{figure}
-
-The dashboard supports two operational modes:
-
-\textbf{Real-time forecasting mode}: Users select a target date and monitoring site, and DATect trains a fresh model on all available data up to the anchor date (target $-$ 7 days), generating a point prediction, 90\% confidence interval, and risk category classification. An enhanced forecast endpoint simultaneously runs both regression and classification, returning individual ensemble component predictions (XGBoost, Random Forest, and na\"ive separately), a gradient uncertainty plot, and per-category probability distributions. This mode is designed for operational use by coastal managers who need a specific forecast for an upcoming sampling period.
-
-\textbf{Retrospective analysis mode}: Users select a model type (ensemble, XGBoost, Random Forest, na\"ive, or linear) and task (regression or classification), and the system retrieves pre-computed validation results across all 1,177 test points. Interactive Plotly charts display predicted-vs-actual scatter plots, per-site performance breakdowns, confusion matrices, residual distributions, and time series overlays. Users can filter by site, date range, and DA risk category.
-
-Seven interactive visualization types are available through the dashboard, accessible via both the main Dashboard and a dedicated Historical Analysis page:
-\begin{enumerate}[nosep]
-    \item \textbf{Correlation heatmaps}: Pearson correlation matrices for all environmental features versus DA at each site
-    \item \textbf{Sensitivity analysis}: Three-panel display including absolute Pearson correlations, Sobol first-order indices (when sufficient data are available), and permutation importance via scikit-learn's LinearRegression
-    \item \textbf{Time series comparison}: Overlaid DA and \textit{Pseudo-nitzschia} time series showing the temporal relationship between cell abundance and toxin concentration (falls back to MODIS chlorophyll when PN data are unavailable)
-    \item \textbf{Spectral analysis}: Power spectral density (Welch method) plots revealing dominant periodicities (annual, semi-annual, upwelling-driven) in DA time series, with model prediction PSDs overlaid when cached retrospective results are available
-    \item \textbf{Feature contribution waterfall}: SHAP-style breakdown of individual prediction drivers
-    \item \textbf{Latitude waterfall plot}: Multi-site DA time series stacked by latitude, with horizontal reference lines at 20, 50, and 100~\si{\microgrampeg}, enabling visual identification of along-coast DA propagation patterns
-    \item \textbf{Interactive map}: Geographic display of current forecast status across all 10 sites, with real-time DA readings from the most recent raw data files
-\end{enumerate}
-
-\begin{figure}[H]
-\centering
-\fbox{\parbox{0.75\textwidth}{\centering\vspace{5cm}
-\textbf{[PLACEHOLDER FIGURE]}\\[0.5em]
-Screenshot of the DATect web dashboard showing: (a) the configuration panel with site/model/date selectors, (b) a real-time forecast result with point prediction, confidence interval, and risk category, and (c) a retrospective scatter plot of predicted vs.\ actual DA values colored by site. \\[0.5em]
-\textit{Source: \texttt{http://localhost:3000} via \texttt{python3 run\_datect.py}}
-\vspace{1cm}}}
-\caption{DATect web dashboard interface. The dashboard provides both real-time forecasting (left panel) and retrospective analysis (right panel), with interactive Plotly charts that support filtering by site, model type, and date range.}
-\label{fig:dashboard}
 \end{figure}
 
 
@@ -832,7 +802,7 @@ The economic value of such forecasts has been estimated for the related PNW HAB 
 Several limitations should be acknowledged:
 
 \begin{enumerate}[nosep]
-    \item \textbf{Low-skill sites}: Two of 10 sites (Gold Beach, Cannon Beach) have negative $R^2$, and one site (Coos Bay) has extreme MAE (\SI{28.46}{\microgrampeg}). The model is not universally effective across all Pacific Coast locations.
+    \item \textbf{Low-skill sites}: Two of 10 sites (Gold Beach, Cannon Beach) have negative $R^2$, and one site (Coos Bay) has extreme MAE (\SI{27.19}{\microgrampeg}). The model is not universally effective across all Pacific Coast locations.
     \item \textbf{High-risk classification weakness}: The High and Extreme DA categories---the most critical for public safety---achieve F1 scores of only 0.47 and 0.56 respectively, limited by small sample sizes (85 and 60 samples).
     \item \textbf{Satellite data continuity}: MODIS-Aqua, the primary satellite data source, is approaching end of life. Transition to successor instruments (e.g., PACE) will require recalibration.
     \item \textbf{Forecast horizon}: The 7-day horizon, while aligned with the HAB Bulletin's operational cycle, may be insufficient for some management decisions that require longer lead times for harvest planning and public communication.
@@ -968,6 +938,46 @@ The following 12 features were removed from all models after being confirmed to 
 \small
 \texttt{lat}, \texttt{lon}, \texttt{weeks\_since\_last\_raw}, \texttt{is\_bloom\_season}, \texttt{quarter}, \texttt{raw\_obs\_roll\_mean\_12}, \texttt{modis-par}, \texttt{raw\_obs\_roll\_mean\_8}, \texttt{sin\_week\_of\_year}, \texttt{cos\_month}, \texttt{cos\_week\_of\_year}, \texttt{da\_raw\_prev\_obs\_4\_weeks\_ago}
 \end{center}
+
+
+\section{Web Application Details}
+\label{app:webapp}
+
+\subsection*{Architecture and Deployment}
+
+The DATect backend serves forecast requests, retrospective evaluation results, and visualization data (correlation heatmaps, sensitivity analyses, spectral analyses, feature importance rankings). A pre-computed cache system stores results from computationally intensive retrospective evaluations as JSON and Parquet files, with an optional Redis backend providing 100$\times$ faster cache reads for production deployments. The retrospective evaluation cache---encompassing all 1,177 validation points across 10 sites and 6 model configurations---was pre-computed on the University of Washington Hyak high-performance computing cluster (\textit{klone} partition, STF allocation). Because each test point requires training a fresh ensemble on its own chronological training subset, the per-anchor computation is embarrassingly parallel and well-suited to HPC execution; running the full retrospective evaluation sequentially on a laptop would require several days, whereas the Hyak cluster completes the computation in approximately 2--3 hours across parallel jobs.
+
+The system is containerized with Docker and deployed on Google Cloud Run, a serverless platform that scales to zero when idle and scales up to three concurrent instances under load. Cold start time is approximately 10--15 seconds. The deployment pipeline uses Google Cloud Build for continuous integration.
+
+\subsection*{Operational Modes}
+
+\textbf{Real-time forecasting mode}: Users select a target date and monitoring site, and DATect trains a fresh model on all available data up to the anchor date (target $-$ 7 days), generating a point prediction, 90\% confidence interval, and risk category classification. An enhanced forecast endpoint simultaneously runs both regression and classification, returning individual ensemble component predictions (XGBoost, Random Forest, and na\"ive separately), a gradient uncertainty plot, and per-category probability distributions.
+
+\textbf{Retrospective analysis mode}: Users select a model type (ensemble, XGBoost, Random Forest, na\"ive, or linear) and task (regression or classification), and the system retrieves pre-computed validation results across all 1,177 test points. Interactive Plotly charts display predicted-vs-actual scatter plots, per-site performance breakdowns, confusion matrices, residual distributions, and time series overlays. Users can filter by site, date range, and DA risk category.
+
+\subsection*{Visualization Types}
+
+Seven interactive visualization types are available through the dashboard:
+\begin{enumerate}[nosep]
+    \item \textbf{Correlation heatmaps}: Pearson correlation matrices for all environmental features versus DA at each site
+    \item \textbf{Sensitivity analysis}: Three-panel display including absolute Pearson correlations, Sobol first-order indices (when sufficient data are available), and permutation importance via scikit-learn's LinearRegression
+    \item \textbf{Time series comparison}: Overlaid DA and \textit{Pseudo-nitzschia} time series showing the temporal relationship between cell abundance and toxin concentration
+    \item \textbf{Spectral analysis}: Power spectral density (Welch method) plots revealing dominant periodicities in DA time series
+    \item \textbf{Feature contribution waterfall}: SHAP-style breakdown of individual prediction drivers
+    \item \textbf{Latitude waterfall plot}: Multi-site DA time series stacked by latitude, enabling visual identification of along-coast DA propagation patterns
+    \item \textbf{Interactive map}: Geographic display of current forecast status across all 10 sites
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.75\textwidth}{\centering\vspace{5cm}
+\textbf{[PLACEHOLDER FIGURE]}\\[0.5em]
+Screenshot of the DATect web dashboard showing: (a) the configuration panel with site/model/date selectors, (b) a real-time forecast result with point prediction, confidence interval, and risk category, and (c) a retrospective scatter plot of predicted vs.\ actual DA values colored by site. \\[0.5em]
+\textit{Source: \texttt{http://localhost:3000} via \texttt{python3 run\_datect.py}}
+\vspace{1cm}}}
+\caption{DATect web dashboard interface. The dashboard provides both real-time forecasting (left panel) and retrospective analysis (right panel), with interactive Plotly charts that support filtering by site, model type, and date range.}
+\label{fig:dashboard}
+\end{figure}
 
 
 % ══════════════════════════════════════════════════════════════════════════════

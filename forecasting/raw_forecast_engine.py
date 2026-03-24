@@ -687,7 +687,8 @@ class RawForecastEngine:
             site_df = site_df.sort_values("date")
             n_candidates = len(site_df)
             total_site = site_total_counts.get(site, n_candidates)
-            target = min(int(np.ceil(0.2 * total_site)), n_candidates)
+            test_frac = getattr(config, "TEST_SAMPLE_FRACTION", 0.20)
+            target = min(int(np.ceil(test_frac * total_site)), n_candidates)
             if target <= 0:
                 continue
             idx = rng.choice(n_candidates, size=target, replace=False)

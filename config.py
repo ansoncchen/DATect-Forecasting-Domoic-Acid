@@ -182,7 +182,7 @@ SATELLITE_DATA = {
 FORECAST_MODE = "retrospective"
 
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
-FORECAST_TASK = "regression"
+FORECAST_TASK = "classification"
 
 # ML algorithm: "ensemble", "naive", or "linear"
 FORECAST_MODEL = "ensemble"
@@ -332,6 +332,9 @@ PARAM_GRID = [
 
 # Quantile prediction intervals
 ENABLE_QUANTILE_INTERVALS = True
+
+# Fraction of per-site raw measurements sampled as test points for retrospective
+TEST_SAMPLE_FRACTION = 0.40
 
 # History requirement: anchor must have >= this fraction of site's total history
 HISTORY_REQUIREMENT_FRACTION = 0.33

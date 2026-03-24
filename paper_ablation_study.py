@@ -29,7 +29,7 @@ warnings.filterwarnings('ignore')
 def run_ablation(name, setup_fn, teardown_fn=None):
     """Run a single ablation experiment."""
     import config
-    from backend.api import get_forecast_engine
+    import backend.api as api_module
 
     print(f"\n{'='*60}")
     print(f"ABLATION: {name}")
@@ -38,13 +38,16 @@ def run_ablation(name, setup_fn, teardown_fn=None):
     # Apply config changes
     setup_fn(config)
 
-    # Force fresh engine (re-reads config)
-    # Clear any cached engine
-    import backend.api as api_module
-    if hasattr(api_module, '_forecast_engine'):
-        api_module._forecast_engine = None
+    # Force a completely fresh engine by clearing the module-level global
+    # (the variable is called 'forecast_engine', not '_forecast_engine')
+    api_module.forecast_engine = None
 
-    engine = get_forecast_engine()
+    # Create a fresh engine directly — this rebuilds the feature frame
+    # from scratch, which is critical for ablations that change features
+    # (e.g., USE_LAG_FEATURES, ZERO_IMPORTANCE_FEATURES)
+    from forecasting.raw_forecast_engine import RawForecastEngine
+    engine = RawForecastEngine(validate_on_init=False)
+
     n_anchors = getattr(config, 'N_RANDOM_ANCHORS', 500)
 
     results_df = engine.run_retrospective_evaluation(

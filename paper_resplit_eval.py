@@ -66,25 +66,32 @@ def bootstrap_metrics(y_true, y_pred, n_bootstrap=N_BOOTSTRAP, seed=BOOTSTRAP_SE
     }
 
 
+_resplit_engine = None
+
+def _get_resplit_engine():
+    """Get or create engine with seed=123 config. Reuses across model types."""
+    global _resplit_engine
+    if _resplit_engine is None:
+        import config
+        config.RANDOM_SEED = EVAL_SEED
+        config.TEST_SAMPLE_FRACTION = EVAL_FRACTION
+        from forecasting.raw_forecast_engine import RawForecastEngine
+        _resplit_engine = RawForecastEngine(validate_on_init=False)
+    return _resplit_engine
+
+
 def run_evaluation(task, model_type):
     """Run retrospective evaluation with seed=123, fraction=0.40."""
     import config
 
-    # Override seed and fraction
-    original_seed = config.RANDOM_SEED
-    original_fraction = config.TEST_SAMPLE_FRACTION
+    # Ensure config overrides are set (idempotent)
     config.RANDOM_SEED = EVAL_SEED
     config.TEST_SAMPLE_FRACTION = EVAL_FRACTION
 
     try:
-        from backend.api import get_forecast_engine, clean_for_json
+        from backend.api import clean_for_json
 
-        # Clear cached engine to pick up new config
-        import backend.api as api_module
-        if hasattr(api_module, '_forecast_engine'):
-            api_module._forecast_engine = None
-
-        engine = get_forecast_engine()
+        engine = _get_resplit_engine()
         n_anchors = getattr(config, 'N_RANDOM_ANCHORS', 500)
 
         print(f"  Running {task} + {model_type} (seed={EVAL_SEED}, fraction={EVAL_FRACTION})...")
@@ -126,10 +133,11 @@ def run_evaluation(task, model_type):
             print(f"    ERROR: No results")
             return None
 
-    finally:
-        # Restore original config
-        config.RANDOM_SEED = original_seed
-        config.TEST_SAMPLE_FRACTION = original_fraction
+    except Exception as e:
+        print(f"    ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def compute_classification_metrics(results_df):

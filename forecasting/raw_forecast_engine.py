@@ -225,9 +225,13 @@ class RawForecastEngine:
             )
             return None
 
-        # Recompute persistence features from training data only
+        # Recompute persistence features from real observations only
+        if "_is_interpolated" in train_data.columns:
+            real_train = train_data[~train_data["_is_interpolated"]]
+        else:
+            real_train = train_data
         test_row = recompute_test_row_persistence_features(
-            test_row, train_data, config.SPIKE_THRESHOLD
+            test_row, real_train, config.SPIKE_THRESHOLD
         )
 
         # Add temporal features
@@ -238,7 +242,7 @@ class RawForecastEngine:
         use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
         zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
 
-        drop_cols = ["date", "site", "da_raw", "da"] + list(zero_imp)
+        drop_cols = ["date", "site", "da_raw", "da", "_is_interpolated"] + list(zero_imp)
 
         if use_per_site:
             drop_cols = compute_site_drop_cols(
@@ -299,9 +303,9 @@ class RawForecastEngine:
         rf_raw = float(rf_model.predict(X_test_processed)[0])
         rf_prediction = _postprocess(rf_raw)
 
-        # --- Naive baseline ---
+        # --- Naive baseline (always use real observations only) ---
         naive_prediction = get_last_known_raw_da(
-            train_data,
+            real_train,
             anchor_date=anchor_date,
             max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
         )
@@ -947,14 +951,19 @@ class RawForecastEngine:
         if test_row is None:
             return None
 
+        # Recompute persistence features from real observations only
+        if "_is_interpolated" in train_data.columns:
+            real_train = train_data[~train_data["_is_interpolated"]]
+        else:
+            real_train = train_data
         test_row = recompute_test_row_persistence_features(
-            test_row, train_data, config.SPIKE_THRESHOLD
+            test_row, real_train, config.SPIKE_THRESHOLD
         )
 
         train_data = add_temporal_features(train_data)
         test_row = add_temporal_features(test_row)
 
-        drop_cols = ["date", "site", "da_raw", "da"] + list(zero_imp)
+        drop_cols = ["date", "site", "da_raw", "da", "_is_interpolated"] + list(zero_imp)
         if use_per_site:
             drop_cols = compute_site_drop_cols(
                 drop_cols, train_data.columns.tolist(), site
@@ -1010,9 +1019,9 @@ class RawForecastEngine:
             except Exception:
                 rf_prediction = prediction
 
-        # Naive
+        # Naive (always use real observations only)
         naive_prediction = get_last_known_raw_da(
-            train_data,
+            real_train,
             anchor_date=anchor_date,
             max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
         )

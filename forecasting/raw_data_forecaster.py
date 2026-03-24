@@ -2,8 +2,10 @@
 Raw Data Forecasting Utilities
 ==============================
 
-Builds training datasets that use ONLY real raw DA measurements (no interpolation)
-combined with environmental features from the processed dataset.
+Builds training datasets from environmental features and DA measurements.
+When ``USE_INTERPOLATED_TRAINING`` is True (default), training includes both
+real raw DA measurements and gap-filled (interpolated) values for ~5x more
+data.  Test/evaluation always uses real raw measurements only.
 """
 
 from __future__ import annotations
@@ -213,13 +215,30 @@ def get_site_training_frame(
     min_training_samples: int = 10,
 ) -> Optional[pd.DataFrame]:
     """
-    Select training rows for a site using only real raw measurements.
+    Select training rows for a site.
+
+    When USE_INTERPOLATED_TRAINING is True, includes all rows that have
+    either real or gap-filled DA values (~5x more training data).
+    Real measurements are always preferred; interpolated values fill gaps.
+    A ``_is_interpolated`` marker column is added so downstream code can
+    filter to real-only rows for persistence feature recomputation.
     """
     anchor_date = pd.Timestamp(anchor_date)
     site_data = feature_frame[feature_frame["site"] == site].copy()
     site_data = site_data.sort_values("date")
     train_data = site_data[site_data["date"] <= anchor_date].copy()
-    train_data = train_data.dropna(subset=["da_raw"])
+
+    if getattr(config, "USE_INTERPOLATED_TRAINING", False):
+        # Keep rows that have either real or interpolated DA
+        train_data = train_data.dropna(subset=["da"])
+        # Mark which rows are interpolated (before we fill da_raw)
+        train_data["_is_interpolated"] = train_data["da_raw"].isna()
+        # Training target: prefer real measurement, fall back to interpolated
+        train_data["da_raw"] = train_data["da_raw"].fillna(train_data["da"])
+    else:
+        train_data = train_data.dropna(subset=["da_raw"])
+        train_data["_is_interpolated"] = False
+
     if len(train_data) < min_training_samples:
         return None
     return train_data

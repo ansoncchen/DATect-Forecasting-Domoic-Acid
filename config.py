@@ -309,6 +309,7 @@ RF_REGRESSION_PARAMS = {
 
 # Target and model toggles
 USE_PER_SITE_MODELS = True       # Enable per-site XGB/RF params, features, ensemble weights
+USE_INTERPOLATED_TRAINING = True # Train on all rows (real + gap-filled DA); test still on raw only
 USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
 
 # Prediction clipping

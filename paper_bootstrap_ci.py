@@ -7,10 +7,12 @@ from the cached retrospective results. No model retraining needed.
 
 Usage (runs locally):
     python3 paper_bootstrap_ci.py
+    python3 paper_bootstrap_ci.py --cache cache_seed123/retrospective/regression_ensemble.parquet
 
 Output: paper_bootstrap_results.json (paste into LaTeX tables)
 """
 
+import sys
 import numpy as np
 import pandas as pd
 import json
@@ -19,6 +21,11 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 N_BOOTSTRAP = 2000
 SEED = 42
 CACHE_PATH = "cache/retrospective/regression_ensemble.parquet"
+
+# Allow override via --cache flag
+for i, arg in enumerate(sys.argv):
+    if arg == '--cache' and i + 1 < len(sys.argv):
+        CACHE_PATH = sys.argv[i + 1]
 
 
 def bootstrap_metrics(y_true, y_pred, n_bootstrap=N_BOOTSTRAP, seed=SEED):

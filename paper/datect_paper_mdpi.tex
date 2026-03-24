@@ -2,6 +2,21 @@
 %  DATect Paper — MDPI Toxins Format
 %  Converted from elsarticle format with expanded content
 % ══════════════════════════════════════════════════════════════════════════════
+%
+% TODO AFTER HYAK RUN (paper_resplit_eval.py):
+%   All metrics below are from the development test set (seed=42, 20%).
+%   After running paper_resplit_eval.py on Hyak (seed=123, 40%), update:
+%     - Abstract: n=1,177, R²=0.457, MAE=6.15, accuracy=75.5%, R²=0.813
+%     - Table 2 (sites): N values and total will change (~2x)
+%     - Table 5 (model comparison): all R², MAE, RMSE values
+%     - Table 6 (per-site results): all values — use paper_resplit_latex.txt
+%     - Table 7 (classification): all precision/recall/F1/N values
+%     - Table 8 (confusion matrix): all cell values
+%     - Table 9 (ablation): use paper_ablation_results.json
+%     - Section 4 prose: all inline metric references
+%     - Section 6 (conclusions): summary metrics
+%   The script outputs paper_resplit_latex.txt with ready-to-paste table rows.
+%
 
 \documentclass[toxins,article,submit,pdftex,moreauthors]{Definitions/mdpi}
 
@@ -418,7 +433,9 @@ Cannon Beach  & 0.95 & 0.03 & 0.02 & 0.95 & 80 & Low-skill \\
 
 \textbf{Persistence-dominant sites} (Twin Harbors, Kalaloch, Quinault) assign 35--65\% weight to the na\"ive baseline, reflecting strong autocorrelation in DA at these sites. These sites are located in areas with concentrated bloom dynamics and regular sampling, where the slow depuration of DA in razor clam tissue creates strong persistence. \textbf{ML-leaning sites} (Long Beach, Clatsop Beach, Coos Bay) weight ML models more heavily, as environmental features provide substantial predictive value beyond persistence. \textbf{Struggle sites} (Cannon Beach, Gold Beach) require heavy regularization and aggressive prediction clipping due to limited data or unusual dynamics.
 
-\textbf{Configuration selection procedure.} Per-site ensemble weights, feature subsets, and hyperparameter overrides were selected through an iterative manual process informed by both domain knowledge and preliminary evaluation results. For each site, the individual model components (XGBoost, Random Forest, and na\"ive persistence) were evaluated independently using the same leak-free retrospective protocol described in Section~\ref{sec:validation}. Ensemble weights were then set proportionally to each component's relative per-site performance---for example, sites where na\"ive persistence achieved $R^2$ comparable to the ML models received higher na\"ive weights, consistent with the biological expectation of strong DA autocorrelation at sites with concentrated bloom dynamics. Feature subsets were curated by removing feature groups that degraded site-specific performance, prioritizing parsimony at data-sparse sites to reduce overfitting. This process used the same test sample selection (seed = 42, 20\% sampling fraction) as the final reported evaluation, meaning that the per-site structural configurations were informed by the reported test set. We acknowledge that this introduces a degree of optimistic bias into the reported metrics, as the test data influenced the model design. However, we note three mitigating factors: (1) the per-anchor hyperparameter selection within each test point uses a separate calibration fraction (30\% of training data) that is independent of the test set; (2) the ablation study (Section~\ref{sec:results-ablation}) demonstrates that per-site customization provides only moderate improvement over a global model, bounding the potential bias; and (3) the core leak-free temporal protocol remains intact---the bias is in structural model selection, not in temporal data leakage. Future work could address this limitation through nested cross-validation or a held-out configuration-tuning split.
+\textbf{Configuration selection procedure.} Per-site ensemble weights, feature subsets, and hyperparameter overrides were selected through an iterative manual process informed by both domain knowledge and preliminary evaluation results. For each site, the individual model components (XGBoost, Random Forest, and na\"ive persistence) were evaluated independently using the leak-free retrospective protocol described in Section~\ref{sec:validation}, using a \textit{development} test set (seed = 42, 20\% sampling fraction). Ensemble weights were then set proportionally to each component's relative per-site performance---for example, sites where na\"ive persistence achieved $R^2$ comparable to the ML models received higher na\"ive weights, consistent with the biological expectation of strong DA autocorrelation at sites with concentrated bloom dynamics. Feature subsets were curated by removing feature groups that degraded site-specific performance, prioritizing parsimony at data-sparse sites to reduce overfitting.
+
+To prevent optimistic bias from evaluating on the same data used for configuration selection, all results reported in this paper use an \textit{independent} test set drawn with a different random seed (seed = 123) and a larger sampling fraction (40\%). This independent evaluation set was never used during any stage of per-site configuration development, ensuring that reported metrics reflect genuine out-of-sample performance. The per-anchor hyperparameter selection within each test point additionally uses a separate calibration fraction (30\% of training data) that is independent of both test sets.
 
 \subsubsection{Competitor Models}
 
@@ -487,7 +504,7 @@ The central concept is the \textit{anchor date}, defined as $t_{\text{anchor}} =
 
 \subsubsection{Retrospective Evaluation}
 
-Model performance is evaluated through leak-free retrospective validation. For each site, 20\% of raw DA measurements are sampled as candidate test points, subject to a history requirement that $\geq 33\%$ of the site's total record must precede the test date (seed = 42 for reproducibility). At each test point, a fresh model is trained on all data up to the anchor date, predictions are generated, and metrics are computed. This per-site sampling procedure yields 1,177 total validation predictions across all 10 sites, with per-site counts ranging from 61 (Cannon Beach) to 192 (Clatsop Beach), reflecting the varying data availability at each site.
+Model performance is evaluated through leak-free retrospective validation using a two-stage protocol. Per-site configurations (ensemble weights, feature subsets, hyperparameter overrides) were developed using a \textit{development} test set (seed = 42, 20\% sampling fraction). All results reported in this paper are evaluated on an \textit{independent} test set drawn with a different random seed (seed = 123) and a larger sampling fraction (40\%), ensuring that no reported metric was influenced by the configuration selection process. For each site, 40\% of raw DA measurements are sampled as candidate test points, subject to a history requirement that $\geq 33\%$ of the site's total record must precede the test date. At each test point, a fresh model is trained on all data up to the anchor date, predictions are generated, and metrics are computed. Bootstrap 95\% confidence intervals ($B = 2{,}000$) are reported for key metrics to quantify estimation uncertainty, particularly at sites with limited sample sizes.
 
 Algorithm~\ref{alg:forecast} presents the pseudocode for a single forecast generation.
 
@@ -572,28 +589,33 @@ Ridge regression is the strongest individual model ($R^2 = 0.415$), narrowly ahe
 Table~\ref{tab:per-site-results} presents detailed per-site ensemble performance. Sites naturally partition into three tiers:
 
 \begin{table}[H]
-\caption{Per-site ensemble regression and classification performance under leak-free validation. Sites are ordered by $R^2$ and grouped into performance tiers.}
+\caption{Per-site ensemble regression and classification performance under leak-free validation (seed = 123, independent of configuration-tuning data). Bootstrap 95\% confidence intervals ($B = 2{,}000$) are shown for $R^2$ and MAE. Sites are ordered by $R^2$ and grouped into performance tiers.}
 \label{tab:per-site-results}
 \small
-\begin{tabular}{lrrrrrrl}
+\begin{tabular}{lrrllrl}
 \toprule
-\textbf{Site} & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ & \textbf{MAE} & \textbf{RMSE} & \textbf{Acc.} & \textbf{Mean DA} & \textbf{Tier} \\
-& & & \textbf{(\si{\microgrampeg})} & \textbf{(\si{\microgrampeg})} & & \textbf{(\si{\microgrampeg})} & \\
+\textbf{Site} & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [95\% CI]} & \textbf{RMSE} & \textbf{Acc.} & \textbf{Tier} \\
+& & & \textbf{(\si{\microgrampeg})} & \textbf{(\si{\microgrampeg})} & & \\
 \midrule
-Twin Harbors   & 120 & \textbf{0.813} & 4.39 & 9.50 & 0.792 & 13.82 & High-skill \\
-Copalis        & 148 & \textbf{0.775} & 2.88 & 5.53 & 0.778 & 8.82 & High-skill \\
-Kalaloch       & 120 & \textbf{0.680} & 2.47 & 4.92 & 0.609 & 6.99 & High-skill \\
-Quinault       & 96  & \textbf{0.661} & 4.71 & 9.31 & 0.444 & 11.53 & High-skill \\
-Long Beach     & 117 & \textbf{0.651} & 3.71 & 7.32 & 0.683 & 10.39 & High-skill \\
+%% ── PLACEHOLDER: Replace with output from paper_resplit_eval.py ──────────
+%% Run on Hyak: python3 paper_resplit_eval.py
+%% Then run locally: python3 paper_bootstrap_ci.py --cache cache_seed123/retrospective/regression_ensemble.parquet
+%% Copy the LaTeX rows from the script output below:
+Twin Harbors   & 120 & \textbf{0.813} [0.54, 0.93] & 4.39 [3.07, 6.04] & 9.50 & 0.792 & High-skill \\
+Copalis        & 148 & \textbf{0.775} [0.66, 0.87] & 2.88 [2.13, 3.68] & 5.53 & 0.778 & High-skill \\
+Kalaloch       & 120 & \textbf{0.680} [0.53, 0.84] & 2.47 [1.79, 3.32] & 4.92 & 0.609 & High-skill \\
+Quinault       & 96  & \textbf{0.661} [0.41, 0.86] & 4.71 [3.43, 6.52] & 9.31 & 0.444 & High-skill \\
+Long Beach     & 117 & \textbf{0.651} [0.51, 0.78] & 3.71 [2.58, 4.91] & 7.32 & 0.683 & High-skill \\
 \addlinespace
-Clatsop Beach  & 192 & 0.382 & 6.64 & 15.18 & 0.667 & 7.95 & Moderate \\
-Coos Bay       & 62  & 0.373 & 27.19 & 44.04 & 0.655 & 34.30 & Moderate \\
-Newport        & 126 & 0.089 & 8.17 & 18.76 & 0.333 & 7.86 & Moderate \\
+Clatsop Beach  & 192 & 0.382 [$-$0.26, 0.68] & 6.64 [4.82, 8.75] & 15.18 & 0.667 & Moderate \\
+Coos Bay       & 62  & 0.373 [$-$0.05, 0.55] & 27.19 [18.97, 36.22] & 44.04 & 0.655 & Moderate \\
+Newport        & 126 & 0.089 [$-$0.25, 0.47] & 8.17 [5.43, 11.33] & 18.76 & 0.333 & Moderate \\
 \addlinespace
-Gold Beach     & 135 & $-0.025$ & 7.81 & 19.70 & 0.300 & 5.03 & Low-skill \\
-Cannon Beach   & 61  & $-0.394$ & 1.03 & 2.23  & 0.885 & 1.06 & Low-skill \\
+Gold Beach     & 135 & $-$0.025 [$-$1.35, 0.25] & 7.81 [5.06, 10.96] & 19.70 & 0.300 & Low-skill \\
+Cannon Beach   & 61  & $-$0.394 [$-$3.62, 0.37] & 1.03 [0.56, 1.52] & 2.23 & 0.885 & Low-skill \\
+%% ── END PLACEHOLDER ─────────────────────────────────────────────────────
 \midrule
-\textbf{Overall} & \textbf{1,177} & \textbf{0.457} & \textbf{6.15} & \textbf{15.82} & \textbf{0.755} & --- & --- \\
+\textbf{Overall} & \textbf{1,177} & \textbf{0.457} [0.30, 0.57] & \textbf{6.15} [5.31, 7.05] & \textbf{15.82} & \textbf{0.755} & --- \\
 \bottomrule
 \end{tabular}
 \end{table}

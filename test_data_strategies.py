@@ -24,6 +24,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from sklearn.metrics import r2_score, mean_absolute_error, f1_score
+from joblib import Parallel, delayed
 from tqdm import tqdm
 
 import config
@@ -70,6 +71,7 @@ SPARSE_THRESHOLD = 80  # Strategy 7: naive-only below this
 INTERP_WEIGHT = 0.3  # Strategy 6: weight for interpolated rows
 MIN_TEST_DATE = "2008-01-01"
 MAX_TEST_PER_SITE = None  # No cap — use full 20% per site, matching production retrospective
+N_JOBS = -1  # Parallel jobs: -1 = all cores, 1 = sequential
 OUTPUT_FILE = "data_strategy_results.json"
 
 # ---------------------------------------------------------------------------
@@ -548,6 +550,79 @@ STRATEGIES = {
 }
 
 
+def _run_single_test_point(tp, strategy_fn, feature_frame, raw_df):
+    """Run a single test point for a given strategy. Designed for joblib."""
+    site = tp["site"]
+    test_date = pd.Timestamp(tp["date"])
+    anchor_date = test_date - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
+
+    # Get training data from strategy
+    train_data, weights, extras = strategy_fn(
+        site, anchor_date, feature_frame, raw_df=raw_df
+    )
+
+    use_per_site = extras.get("use_per_site", True)
+    extra_test = extras.get("extra_test_features", None)
+    real_obs = extras.get("real_obs_train", None)
+    naive_only = extras.get("naive_only", False)
+
+    if naive_only:
+        naive_source = get_site_training_frame(
+            feature_frame, site, anchor_date,
+            getattr(config, "MIN_TRAINING_SAMPLES", 10)
+        )
+        if naive_source is None:
+            return None
+        naive_pred = get_last_known_raw_da(naive_source, anchor_date=anchor_date)
+        if naive_pred is None:
+            return None
+        return {
+            "site": site,
+            "date": str(test_date.date()),
+            "actual_da": float(tp["da_raw"]),
+            "predicted_da": naive_pred,
+            "xgb_pred": naive_pred,
+            "rf_pred": naive_pred,
+            "naive_pred": naive_pred,
+            "training_samples": len(naive_source),
+        }
+
+    if train_data is None:
+        return None
+
+    # Strategy 4 special handling: compute global_pred for test row
+    if "_global_model" in extras and extra_test and "global_pred" in extra_test:
+        global_xgb, global_transformer, global_cols = extras["_global_model"]
+        global_drop = extras["_global_drop"]
+        site_to_code = extras["_site_to_code"]
+
+        test_row_for_global = get_site_anchor_row(
+            feature_frame, site, test_date, anchor_date, max_date_diff_days=28
+        )
+        if test_row_for_global is not None:
+            test_row_for_global = add_temporal_features(test_row_for_global)
+            test_row_for_global["site_encoded"] = site_to_code.get(site, 0.0)
+            X_tg = test_row_for_global.drop(columns=global_drop, errors="ignore")
+            X_tg = X_tg.reindex(columns=global_cols, fill_value=0)
+            try:
+                global_pred_val = float(
+                    global_xgb.predict(global_transformer.transform(X_tg))[0]
+                )
+                extra_test["global_pred"] = max(0.0, global_pred_val)
+            except Exception:
+                extra_test["global_pred"] = 0.0
+        else:
+            extra_test["global_pred"] = 0.0
+
+    return predict_point(
+        tp, train_data, feature_frame,
+        use_per_site=use_per_site,
+        sample_weights=weights,
+        extra_test_features=extra_test,
+        real_obs_train=real_obs,
+    )
+
+
 def evaluate_strategy(
     name: str,
     strategy_fn,
@@ -555,84 +630,21 @@ def evaluate_strategy(
     feature_frame: pd.DataFrame,
     raw_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Evaluate a strategy across all test points."""
-    results = []
-
-    for tp in tqdm(test_points, desc=f"  {name}", unit="pt"):
-        site = tp["site"]
-        test_date = pd.Timestamp(tp["date"])
-        anchor_date = test_date - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
-
-        # Get training data from strategy
-        train_data, weights, extras = strategy_fn(
-            site, anchor_date, feature_frame, raw_df=raw_df
+    """Evaluate a strategy across all test points (parallelized)."""
+    if N_JOBS == 1:
+        # Sequential mode
+        results = [
+            _run_single_test_point(tp, strategy_fn, feature_frame, raw_df)
+            for tp in tqdm(test_points, desc=f"  {name}", unit="pt")
+        ]
+    else:
+        # Parallel mode
+        results = Parallel(n_jobs=N_JOBS)(
+            delayed(_run_single_test_point)(tp, strategy_fn, feature_frame, raw_df)
+            for tp in tqdm(test_points, desc=f"  {name}", unit="pt")
         )
 
-        use_per_site = extras.get("use_per_site", True)
-        extra_test = extras.get("extra_test_features", None)
-        real_obs = extras.get("real_obs_train", None)
-        naive_only = extras.get("naive_only", False)
-
-        if naive_only:
-            # Just use naive prediction
-            naive_source = get_site_training_frame(
-                feature_frame, site, anchor_date,
-                getattr(config, "MIN_TRAINING_SAMPLES", 10)
-            )
-            if naive_source is None:
-                continue
-            naive_pred = get_last_known_raw_da(naive_source, anchor_date=anchor_date)
-            if naive_pred is None:
-                continue
-            results.append({
-                "site": site,
-                "date": str(test_date.date()),
-                "actual_da": float(tp["da_raw"]),
-                "predicted_da": naive_pred,
-                "xgb_pred": naive_pred,
-                "rf_pred": naive_pred,
-                "naive_pred": naive_pred,
-                "training_samples": len(naive_source),
-            })
-            continue
-
-        if train_data is None:
-            continue
-
-        # Strategy 4 special handling: compute global_pred for test row
-        if "_global_model" in extras and extra_test and "global_pred" in extra_test:
-            global_xgb, global_transformer, global_cols = extras["_global_model"]
-            global_drop = extras["_global_drop"]
-            site_to_code = extras["_site_to_code"]
-
-            test_row_for_global = get_site_anchor_row(
-                feature_frame, site, test_date, anchor_date, max_date_diff_days=28
-            )
-            if test_row_for_global is not None:
-                test_row_for_global = add_temporal_features(test_row_for_global)
-                test_row_for_global["site_encoded"] = site_to_code.get(site, 0.0)
-                X_tg = test_row_for_global.drop(columns=global_drop, errors="ignore")
-                X_tg = X_tg.reindex(columns=global_cols, fill_value=0)
-                try:
-                    global_pred_val = float(
-                        global_xgb.predict(global_transformer.transform(X_tg))[0]
-                    )
-                    extra_test["global_pred"] = max(0.0, global_pred_val)
-                except Exception:
-                    extra_test["global_pred"] = 0.0
-            else:
-                extra_test["global_pred"] = 0.0
-
-        result = predict_point(
-            tp, train_data, feature_frame,
-            use_per_site=use_per_site,
-            sample_weights=weights,
-            extra_test_features=extra_test,
-            real_obs_train=real_obs,
-        )
-        if result is not None:
-            results.append(result)
-
+    results = [r for r in results if r is not None]
     return pd.DataFrame(results) if results else pd.DataFrame()
 
 

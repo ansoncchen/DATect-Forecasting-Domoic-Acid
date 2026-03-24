@@ -641,21 +641,12 @@ def evaluate_strategy(
 # ---------------------------------------------------------------------------
 
 
-def compute_metrics(results_df: pd.DataFrame) -> dict:
-    """Compute R², MAE, Spike F1 from results."""
-    if results_df.empty or len(results_df) < 2:
-        return {"r2": None, "mae": None, "spike_f1": None, "n": 0}
-
-    actual = results_df["actual_da"].values
-    predicted = results_df["predicted_da"].values
-
+def _safe_metrics(actual, predicted, spike_t):
+    """Compute R², MAE, Spike F1 for a pair of arrays."""
     valid = ~(np.isnan(actual) | np.isnan(predicted))
     if valid.sum() < 2:
-        return {"r2": None, "mae": None, "spike_f1": None, "n": 0}
-
+        return {"r2": None, "mae": None, "spike_f1": None}
     a, p = actual[valid], predicted[valid]
-    spike_t = config.SPIKE_THRESHOLD
-
     return {
         "r2": round(float(r2_score(a, p)), 4),
         "mae": round(float(mean_absolute_error(a, p)), 2),
@@ -664,7 +655,37 @@ def compute_metrics(results_df: pd.DataFrame) -> dict:
             (p > spike_t).astype(int),
             zero_division=0,
         )), 4),
-        "n": int(valid.sum()),
+    }
+
+
+def compute_metrics(results_df: pd.DataFrame) -> dict:
+    """Compute R², MAE, Spike F1 for ensemble + individual models."""
+    if results_df.empty or len(results_df) < 2:
+        return {
+            "r2": None, "mae": None, "spike_f1": None, "n": 0,
+            "xgb_r2": None, "rf_r2": None, "naive_r2": None,
+        }
+
+    actual = results_df["actual_da"].values
+    spike_t = config.SPIKE_THRESHOLD
+
+    # Ensemble metrics
+    ens = _safe_metrics(actual, results_df["predicted_da"].values, spike_t)
+
+    # Per-model R² (for comparing which model benefits most from each strategy)
+    xgb_m = _safe_metrics(actual, results_df["xgb_pred"].values, spike_t)
+    rf_m = _safe_metrics(actual, results_df["rf_pred"].values, spike_t)
+    naive_m = _safe_metrics(actual, results_df["naive_pred"].values, spike_t)
+
+    return {
+        **ens,
+        "n": len(results_df),
+        "xgb_r2": xgb_m["r2"],
+        "xgb_mae": xgb_m["mae"],
+        "rf_r2": rf_m["r2"],
+        "rf_mae": rf_m["mae"],
+        "naive_r2": naive_m["r2"],
+        "naive_mae": naive_m["mae"],
     }
 
 
@@ -690,8 +711,8 @@ def print_comparison_table(all_metrics: dict):
     print("STRATEGY COMPARISON RESULTS")
     print("=" * 100)
 
-    # Overall table
-    print("\n--- Overall Metrics ---")
+    # Overall table (ensemble)
+    print("\n--- Overall Metrics (Ensemble) ---")
     print(f"{'Strategy':<35} {'R²':>8} {'MAE':>8} {'F1':>8} {'N':>6}")
     print("-" * 70)
     for name, metrics in all_metrics.items():
@@ -700,6 +721,30 @@ def print_comparison_table(all_metrics: dict):
         mae = f"{m['mae']:.2f}" if m["mae"] is not None else "N/A"
         f1 = f"{m['spike_f1']:.4f}" if m["spike_f1"] is not None else "N/A"
         print(f"{name:<35} {r2:>8} {mae:>8} {f1:>8} {m['n']:>6}")
+
+    # Per-model R² breakdown
+    print(f"\n--- Per-Model R² (Overall) ---")
+    print(f"{'Strategy':<35} {'Ensemble':>10} {'XGB':>10} {'RF':>10} {'Naive':>10}")
+    print("-" * 80)
+    for name, metrics in all_metrics.items():
+        m = metrics["overall"]
+        ens = f"{m['r2']:.4f}" if m["r2"] is not None else "N/A"
+        xgb = f"{m.get('xgb_r2', None):.4f}" if m.get("xgb_r2") is not None else "N/A"
+        rf = f"{m.get('rf_r2', None):.4f}" if m.get("rf_r2") is not None else "N/A"
+        naive = f"{m.get('naive_r2', None):.4f}" if m.get("naive_r2") is not None else "N/A"
+        print(f"{name:<35} {ens:>10} {xgb:>10} {rf:>10} {naive:>10}")
+
+    # Per-model MAE breakdown
+    print(f"\n--- Per-Model MAE (Overall) ---")
+    print(f"{'Strategy':<35} {'Ensemble':>10} {'XGB':>10} {'RF':>10} {'Naive':>10}")
+    print("-" * 80)
+    for name, metrics in all_metrics.items():
+        m = metrics["overall"]
+        ens = f"{m['mae']:.2f}" if m["mae"] is not None else "N/A"
+        xgb = f"{m.get('xgb_mae', None):.2f}" if m.get("xgb_mae") is not None else "N/A"
+        rf = f"{m.get('rf_mae', None):.2f}" if m.get("rf_mae") is not None else "N/A"
+        naive = f"{m.get('naive_mae', None):.2f}" if m.get("naive_mae") is not None else "N/A"
+        print(f"{name:<35} {ens:>10} {xgb:>10} {rf:>10} {naive:>10}")
 
     # Per-site R² table
     all_sites = set()
@@ -824,7 +869,10 @@ def main():
         r2 = f"{m['r2']:.4f}" if m["r2"] is not None else "N/A"
         mae = f"{m['mae']:.2f}" if m["mae"] is not None else "N/A"
         f1 = f"{m['spike_f1']:.4f}" if m["spike_f1"] is not None else "N/A"
-        print(f"  Overall: R²={r2}, MAE={mae}, F1={f1}, N={m['n']}")
+        xr2 = f"{m.get('xgb_r2'):.4f}" if m.get("xgb_r2") is not None else "N/A"
+        rr2 = f"{m.get('rf_r2'):.4f}" if m.get("rf_r2") is not None else "N/A"
+        print(f"  Ensemble: R²={r2}, MAE={mae}, F1={f1}, N={m['n']}")
+        print(f"  Per-model R²: XGB={xr2}, RF={rr2}")
 
     print_comparison_table(all_metrics)
     save_results(all_metrics, all_results)

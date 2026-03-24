@@ -58,7 +58,7 @@ $^{2}$ \quad Applied Physics Laboratory, University of Washington, Seattle, WA 9
 % ══════════════════════════════════════════════════════════════════════════════
 \abstract{
 Domoic acid (DA), a potent neurotoxin produced by diatoms of the genus \textit{Pseudo-nitzschia}, poses recurring threats to public health, marine ecosystems, and shellfish-dependent economies along the U.S.\ Pacific Northwest (PNW) coast. Current monitoring programs are entirely reactive---shellfish samples are collected, analyzed for toxin concentrations, and harvest closures are issued only after contamination is already present. The only operational forecasting tool, the NOAA PNW Harmful Algal Bloom (HAB) Bulletin, provides qualitative risk assessments based on expert interpretation of oceanographic data, not quantitative toxin predictions. To date, no system has produced numerical DA concentration forecasts for this region.
-We present DATect, a machine learning system that generates one-week-ahead quantitative DA forecasts for 10 coastal monitoring sites spanning \SI{600}{\kilo\meter} of coastline (42\textdegree--48\textdegree\,N). DATect employs a three-model weighted ensemble---XGBoost, Random Forest, and a na\"ive persistence baseline---with per-site hyperparameter tuning, custom feature subsets, and adaptive ensemble weights. A key methodological innovation is observation-order lag features, which use the $N$th most recent actual measurement rather than fixed time-grid shifts, addressing the sparse and irregular nature of DA monitoring data. Scientific integrity is enforced through eight explicit data-leakage prevention mechanisms, including per-prediction temporal boundary verification.
+We present DATect, a machine learning system that generates one-week-ahead quantitative DA forecasts for 10 coastal monitoring sites spanning \SI{600}{\kilo\meter} of coastline (42\textdegree--48\textdegree\,N). DATect employs a three-model weighted ensemble---XGBoost, Random Forest, and a na\"ive persistence baseline---with per-site hyperparameter tuning, custom feature subsets, and adaptive ensemble weights. A key methodological innovation is observation-order lag features, which use the $N$th most recent actual measurement rather than fixed time-grid shifts, addressing the sparse and irregular nature of DA monitoring data. Scientific integrity is enforced through nine explicit data-leakage prevention mechanisms, including per-prediction temporal boundary verification.
 Trained on 21 years of data (2003--2023)---the longest temporal record and broadest geographic span of any published DA/\textit{Pseudo-nitzschia} machine learning study---DATect integrates MODIS-Aqua satellite observations, climate indices (PDO, ONI, BEUTI), Columbia River discharge, and \textit{Pseudo-nitzschia} cell counts. Under strict leak-free retrospective validation ($n = 1{,}177$), the ensemble achieves $R^2$ values up to 0.813 (Twin Harbors) with an overall $R^2 = 0.457$, MAE $= \SI{6.15}{\microgrampeg}$, and four-category classification accuracy of 75.5\%. DATect is deployed as a publicly accessible web dashboard, offering the first operational quantitative DA forecasting capability for the Pacific Northwest.
 }
 
@@ -123,7 +123,7 @@ This paper makes the following contributions:
     \item \textbf{First quantitative DA forecasting for the PNW}: DATect produces numerical concentration predictions and four-level risk classifications, filling a gap that has persisted throughout the entire history of DA monitoring in the region.
     \item \textbf{Per-site ensemble architecture}: A three-model ensemble (XGBoost + Random Forest + na\"ive persistence) with custom hyperparameters, feature subsets, ensemble weights, and prediction clipping for each of 10 coastal sites.
     \item \textbf{Observation-order lag features}: A novel feature engineering approach using the $N$th most recent actual measurement rather than fixed time-grid shifts, designed for sparse environmental time series.
-    \item \textbf{Rigorous leak-free validation}: Eight explicit data-leakage prevention mechanisms, including per-prediction temporal boundary assertions, addressing a pervasive problem in environmental machine learning \cite{Kapoor2023}.
+    \item \textbf{Rigorous leak-free validation}: Nine explicit data-leakage prevention mechanisms, including per-prediction temporal boundary assertions, addressing a pervasive problem in environmental machine learning \cite{Kapoor2023}.
     \item \textbf{Largest scope}: 21 years of data (2003--2023) across 10 sites spanning $\sim$\SI{600}{\kilo\meter}---the longest temporal record and broadest geographic span of any published quantitative DA machine learning study.
     \item \textbf{Publicly deployed web dashboard}: A React/FastAPI application deployed on Google Cloud Run, providing the first operational quantitative DA forecasting capability for the PNW.
 \end{enumerate}
@@ -160,7 +160,7 @@ Remote sensing approaches using satellite imagery have also been applied to HAB 
 
 A growing body of work has highlighted the pervasive problem of data leakage in machine learning applications to environmental science. Kapoor and Narayanan \cite{Kapoor2023} demonstrated that data leakage affects a substantial fraction of published ML-based science papers, leading to inflated performance claims and irreproducible results. In temporal prediction tasks such as HAB forecasting, common sources of leakage include random train-test splits that violate temporal ordering, use of features computed from future data, and shared preprocessing across train and test sets \cite{Kaufman2012, Roberts2017, Bergmeir2012}. Proper out-of-sample evaluation for temporal data requires rolling-origin or expanding-window approaches rather than random holdouts \cite{Tashman2000}, and spatial autocorrelation in environmental data further complicates validation design \cite{Valavi2019}.
 
-Many prior HAB forecasting studies employed random 80/20 train-test splits without temporal ordering \cite{Cruz2021, Shin2024}, which may have produced artificially inflated performance metrics. DATect addresses this explicitly through eight structural leakage-prevention mechanisms described in Section~\ref{sec:validation}.
+Many prior HAB forecasting studies employed random 80/20 train-test splits without temporal ordering \cite{Cruz2021, Shin2024}, which may have produced artificially inflated performance metrics. DATect addresses this explicitly through nine structural leakage-prevention mechanisms described in Section~\ref{sec:validation}.
 
 \subsection{Comparison of Existing Systems}
 \label{sec:rw-comparison}
@@ -300,7 +300,7 @@ where $y(t)$ is the last observed value, $\Delta t$ is the gap duration in weeks
 
 \textbf{Critical distinction: augmented training, raw-only evaluation.} Exponential decay interpolation serves two purposes: (1)~constructing the \textit{environmental feature grid}---the weekly time series from which satellite, climate, and \textit{Pseudo-nitzschia} features are drawn, and (2)~\textit{augmenting the training set} with gap-filled DA values. Training samples include both raw measurements and gap-filled DA values, providing approximately 5$\times$ more training data per site than raw-only training. Where a real measurement exists, it takes priority over the gap-filled value; gap-filled values are used only for weeks without a real sample. This augmentation is controlled by the \texttt{USE\_INTERPOLATED\_TRAINING} configuration flag.
 
-Critically, \textit{test} samples remain restricted to weeks with actual raw DA measurements, ensuring all evaluation metrics reflect predictions of real toxin concentrations. Persistence features (\texttt{last\_observed\_da\_raw}, \texttt{weeks\_since\_last\_spike}) and the na\"ive persistence baseline are computed exclusively from real observations, even when the training set includes gap-filled rows. A \texttt{\_is\_interpolated} marker column tracks which training rows use gap-filled targets, enabling this selective filtering. This design provides the statistical benefits of a larger training set while ensuring that all evaluation and persistence signals reflect actual field measurements.
+Critically, \textit{test} samples remain restricted to weeks with actual raw DA measurements, ensuring all evaluation metrics reflect predictions of real toxin concentrations. Because the gap-filled values use forward-only exponential decay, they do not introduce temporal leakage into the training set. However, persistence features (\texttt{last\_observed\_da\_raw}, \texttt{weeks\_since\_last\_spike}) and the na\"ive persistence baseline are computed exclusively from real observations as a matter of methodological purity: these features should reflect what a coastal manager would actually \textit{know} from field sampling, not synthetic model-generated estimates. A \texttt{\_is\_interpolated} marker column tracks which training rows use gap-filled targets, enabling this selective filtering. This design provides the statistical benefits of a larger training set while ensuring that persistence signals and evaluation metrics reflect actual field measurements.
 
 \subsubsection{Observation-Order Lag Features}
 \label{sec:obs-order-lags}
@@ -458,10 +458,10 @@ Prediction uncertainty is estimated through two complementary approaches. \textb
 
 \subsubsection{Leak-Free Validation Protocol}
 
-DATect enforces eight explicit data-leakage prevention mechanisms, summarized in Table~\ref{tab:leakage-safeguards}. These address the pervasive problem of temporal data leakage in environmental ML \cite{Kapoor2023, Roberts2017}. Unlike many published environmental ML studies that rely on random train-test splits, DATect enforces strict chronological ordering at every stage of the pipeline.
+DATect enforces nine explicit data-leakage prevention mechanisms, summarized in Table~\ref{tab:leakage-safeguards}. These address the pervasive problem of temporal data leakage in environmental ML \cite{Kapoor2023, Roberts2017}. Unlike many published environmental ML studies that rely on random train-test splits, DATect enforces strict chronological ordering at every stage of the pipeline.
 
 \begin{table}[H]
-\caption{Eight data-leakage prevention mechanisms enforced in DATect. Each safeguard is structural (enforced in code) rather than procedural.}
+\caption{Nine data-leakage prevention mechanisms enforced in DATect. Each safeguard is structural (enforced in code) rather than procedural.}
 \label{tab:leakage-safeguards}
 \small
 \begin{tabular}{clp{7cm}}
@@ -469,13 +469,14 @@ DATect enforces eight explicit data-leakage prevention mechanisms, summarized in
 \textbf{\#} & \textbf{Safeguard} & \textbf{Implementation} \\
 \midrule
 1 & Chronological split & Training data restricted to date $\leq$ anchor date \\
-2 & Observation-order lags & Past-only shifts on raw DA measurements \\
-3 & Satellite processing delay & 7-day buffer enforced at data ingestion \\
-4 & Climate reporting delay & 2-month buffer for PDO, ONI, monthly anomalies \\
-5 & Fixed category thresholds & DA risk bins (5, 20, 40 \si{\microgrampeg}) are regulatory constants, not derived from training data \\
-6 & Persistence recomputation & Persistence features recomputed per test point using only training data \\
-7 & Fresh model per test point & New model trained for each prediction; no shared state \\
-8 & Runtime assertion & \texttt{verify\_no\_data\_leakage()} called on every prediction \\
+2 & Forward-only gap-filling & Exponential decay propagates only from past observations; unlike linear interpolation, gap-filled values never depend on future measurements \\
+3 & Observation-order lags & Past-only shifts on raw DA measurements \\
+4 & Satellite processing delay & 7-day buffer enforced at data ingestion \\
+5 & Climate reporting delay & 2-month buffer for PDO, ONI, monthly anomalies \\
+6 & Fixed category thresholds & DA risk bins (5, 20, 40 \si{\microgrampeg}) are regulatory constants, not derived from training data \\
+7 & Persistence recomputation & Persistence features recomputed per test point using only training data \\
+8 & Fresh model per test point & New model trained for each prediction; no shared state \\
+9 & Runtime assertion & \texttt{verify\_no\_data\_leakage()} called on every prediction \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -814,7 +815,7 @@ DATect represents several firsts in DA forecasting:
 
 \textbf{Observation-order lag features.} The technique of using the $N$th most recent actual observation (rather than fixed time-grid shifts) is a general-purpose innovation for sparse environmental time series. Any monitoring program with irregular sampling---which describes the majority of environmental monitoring worldwide---could benefit from this approach.
 
-\textbf{Leak-free validation as standard.} The eight explicit data-leakage prevention mechanisms, particularly the per-prediction assertion check, establish a rigorous standard for temporal ML validation that addresses the concerns raised by Kapoor and Narayanan \cite{Kapoor2023}. We encourage future HAB forecasting studies to adopt similar structural safeguards rather than relying on procedural assurances of temporal integrity.
+\textbf{Leak-free validation as standard.} The nine explicit data-leakage prevention mechanisms, particularly the per-prediction assertion check, establish a rigorous standard for temporal ML validation that addresses the concerns raised by Kapoor and Narayanan \cite{Kapoor2023}. We encourage future HAB forecasting studies to adopt similar structural safeguards rather than relying on procedural assurances of temporal integrity.
 
 \subsection{Implications for Coastal Management}
 \label{sec:discussion-management}
@@ -868,7 +869,7 @@ Several directions could extend DATect's capabilities:
 \section{Conclusions}
 \label{sec:conclusions}
 
-This paper presented DATect, the first quantitative domoic acid concentration forecasting system for the U.S.\ Pacific Northwest coast. Using a three-model ensemble (XGBoost, Random Forest, and na\"ive persistence) with per-site hyperparameter tuning, interpolated-training data augmentation, observation-order lag features for sparse data, and eight explicit data-leakage prevention mechanisms, DATect achieves $R^2$ values up to 0.813 at the best-performing sites and an overall $R^2$ of 0.457 under strict leak-free validation across 1,177 test predictions.
+This paper presented DATect, the first quantitative domoic acid concentration forecasting system for the U.S.\ Pacific Northwest coast. Using a three-model ensemble (XGBoost, Random Forest, and na\"ive persistence) with per-site hyperparameter tuning, interpolated-training data augmentation, observation-order lag features for sparse data, and nine explicit data-leakage prevention mechanisms, DATect achieves $R^2$ values up to 0.813 at the best-performing sites and an overall $R^2$ of 0.457 under strict leak-free validation across 1,177 test predictions.
 
 Five of 10 sites achieve high skill ($R^2 > 0.6$), three show moderate skill ($0 < R^2 < 0.6$), and two exhibit low skill ($R^2 < 0$), revealing a geographic performance gradient that reflects differences in oceanographic regimes, sampling density, and DA dynamics between Washington and Oregon coastlines. The system's four-category risk classification achieves 75.5\% overall accuracy, with particularly strong performance on the Low-risk category (F1 $= 0.87$, precision $= 0.90$), providing a reliable safety margin for harvest decisions.
 

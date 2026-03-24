@@ -133,13 +133,14 @@ DATect-Forecasting-Domoic-Acid/
 The system enforces strict temporal integrity to prevent data leakage:
 
 1. **Chronological splits** — training only uses `date <= anchor_date`
-2. **Satellite buffer** — 7-day processing delay
-3. **Climate buffer** — 2-month reporting delay
-4. **Observation-order lags** — past-only shifts on raw measurements
-5. **Per-forecast categories** — DA risk levels computed from training data only
-6. **Persistence features recomputed** — from training data only, not global forward-fill
-7. **Fresh model per test point** — no lookahead via shared state
-8. **`verify_no_data_leakage()`** — called for every prediction, raises `AssertionError` on violation
+2. **Forward-only gap-filling** — exponential decay from past observations only (no future data in gap-filled targets)
+3. **Satellite buffer** — 7-day processing delay
+4. **Climate buffer** — 2-month reporting delay
+5. **Observation-order lags** — past-only shifts on raw measurements
+6. **Per-forecast categories** — DA risk levels computed from training data only
+7. **Persistence features recomputed** — from real observations only, not gap-filled values
+8. **Fresh model per test point** — no lookahead via shared state
+9. **`verify_no_data_leakage()`** — called for every prediction, raises `AssertionError` on violation
 
 ## Hyak Workflow
 

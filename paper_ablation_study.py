@@ -5,9 +5,14 @@ DATect Ablation Study for Paper
 Runs 5 ablation experiments, each disabling one key component:
   1. No interpolated training (USE_INTERPOLATED_TRAINING=False)
   2. No per-site customization (USE_PER_SITE_MODELS=False)
-  3. No observation-order lags (USE_LAG_FEATURES=False)
+  3. No observation-order lags (LAG_FEATURES=[])
   4. No derived features (MHW, BEUTI², PDO-ONI phase, PN tipping, fluor, K490²)
   5. No naive in ensemble (naive weight → 0, renormalize XGB+RF)
+
+FIX: Uses threading backend instead of loky (multiprocessing) so config
+mutations are visible to parallel workers. Threads share process memory;
+XGBoost/sklearn release the GIL during C-level computation, so threading
+is both correct AND fast.
 
 Usage (run on Hyak):
     python3 paper_ablation_study.py
@@ -35,16 +40,24 @@ def run_ablation(name, setup_fn, teardown_fn=None):
     print(f"ABLATION: {name}")
     print(f"{'='*60}")
 
+    # ── Use threading so config mutations are visible to workers ──
+    # loky (default) spawns independent processes that import config fresh.
+    # Threading shares the same process memory → mutations propagate.
+    config.PARALLEL_BACKEND = "threading"
+
     # Apply config changes
     setup_fn(config)
 
-    # Force a completely fresh engine by clearing the module-level global
-    # (the variable is called 'forecast_engine', not '_forecast_engine')
+    # Verify config state
+    print(f"  Config: USE_INTERPOLATED_TRAINING={config.USE_INTERPOLATED_TRAINING}")
+    print(f"  Config: USE_PER_SITE_MODELS={config.USE_PER_SITE_MODELS}")
+    print(f"  Config: LAG_FEATURES={config.LAG_FEATURES}")
+    print(f"  Config: ZERO_IMPORTANCE len={len(config.ZERO_IMPORTANCE_FEATURES)}")
+    print(f"  Config: PARALLEL_BACKEND={config.PARALLEL_BACKEND}")
+
+    # Force a completely fresh engine
     api_module.forecast_engine = None
 
-    # Create a fresh engine directly — this rebuilds the feature frame
-    # from scratch, which is critical for ablations that change features
-    # (e.g., USE_LAG_FEATURES, ZERO_IMPORTANCE_FEATURES)
     from forecasting.raw_forecast_engine import RawForecastEngine
     engine = RawForecastEngine(validate_on_init=False)
 
@@ -58,6 +71,7 @@ def run_ablation(name, setup_fn, teardown_fn=None):
     )
 
     # Restore config
+    config.PARALLEL_BACKEND = "loky"
     if teardown_fn:
         teardown_fn(config)
 
@@ -107,7 +121,7 @@ def main():
     # Save originals for restoration
     orig_interpolated = config.USE_INTERPOLATED_TRAINING
     orig_per_site = config.USE_PER_SITE_MODELS
-    orig_lag = config.USE_LAG_FEATURES
+    orig_lag_features = list(config.LAG_FEATURES)
     orig_zero_imp = list(config.ZERO_IMPORTANCE_FEATURES)
 
     # ── Baseline (full DATect, for comparison) ────────────────────────────────
@@ -141,10 +155,18 @@ def main():
     )
 
     # ── Ablation 3: No observation-order lags ─────────────────────────────────
+    # FIX: USE_LAG_FEATURES (boolean) is never read by the engine.
+    # Must clear config.LAG_FEATURES (the int list) AND patch the
+    # RawForecastConfig dataclass default (frozen at import time).
     def setup_no_lags(c):
-        c.USE_LAG_FEATURES = False
+        c.LAG_FEATURES = []
+        from forecasting.raw_data_forecaster import RawForecastConfig
+        RawForecastConfig.__dataclass_fields__['lags'].default = ()
+
     def teardown_no_lags(c):
-        c.USE_LAG_FEATURES = orig_lag
+        c.LAG_FEATURES = list(orig_lag_features)
+        from forecasting.raw_data_forecaster import RawForecastConfig
+        RawForecastConfig.__dataclass_fields__['lags'].default = tuple(orig_lag_features)
 
     abl_no_lags = run_ablation(
         "No observation-order lags",
@@ -165,12 +187,9 @@ def main():
     )
 
     # ── Ablation 5: No naive in ensemble ──────────────────────────────────────
-    # This one requires patching per_site_models at runtime
     def setup_no_naive(c):
         from forecasting import per_site_models as psm
-        # Save originals
         c._orig_site_configs = deepcopy(psm.SITE_SPECIFIC_CONFIGS)
-        # Zero out naive weight, renormalize XGB+RF
         for site_name, site_cfg in psm.SITE_SPECIFIC_CONFIGS.items():
             w_xgb, w_rf, w_naive = site_cfg.get('ensemble_weights', (0.40, 0.40, 0.20))
             total = w_xgb + w_rf
@@ -178,10 +197,8 @@ def main():
                 site_cfg['ensemble_weights'] = (w_xgb / total, w_rf / total, 0.0)
             else:
                 site_cfg['ensemble_weights'] = (0.5, 0.5, 0.0)
-        # Also patch default (default is None → get_site_ensemble_weights returns (0.45, 0.35, 0.20))
         c._orig_default_weights = psm.DEFAULT_SITE_CONFIG.get('ensemble_weights')
-        # Set explicit no-naive default
-        psm.DEFAULT_SITE_CONFIG['ensemble_weights'] = (0.5625, 0.4375, 0.0)  # 0.45/(0.45+0.35), 0.35/(0.45+0.35)
+        psm.DEFAULT_SITE_CONFIG['ensemble_weights'] = (0.5625, 0.4375, 0.0)
 
     def teardown_no_naive(c):
         from forecasting import per_site_models as psm

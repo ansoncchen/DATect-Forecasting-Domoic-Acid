@@ -715,8 +715,9 @@ class RawForecastEngine:
         enable_parallel = getattr(config, "ENABLE_PARALLEL", True)
         n_jobs = getattr(config, "N_JOBS", -1)
 
+        parallel_backend = getattr(config, "PARALLEL_BACKEND", "loky")
         if enable_parallel:
-            results = Parallel(n_jobs=n_jobs)(
+            results = Parallel(n_jobs=n_jobs, backend=parallel_backend)(
                 delayed(self._run_single_retrospective)(
                     row, feature_frame, base_params
                 )

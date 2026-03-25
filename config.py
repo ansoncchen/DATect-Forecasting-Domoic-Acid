@@ -1,5 +1,6 @@
 # DATect Forecasting Configuration
 # Settings for data processing, modeling, and web interface
+import os
 
 # Data Sources and Paths
 
@@ -244,8 +245,9 @@ N_BOOTSTRAP_ITERATIONS = 100  # Number of bootstrap iterations for confidence in
 # Enable/disable lag features for time series modeling
 USE_LAG_FEATURES = True
 
-# Time series lags for raw observation-order lag features
-LAG_FEATURES = [1, 2, 3, 4]
+# Time series lags for raw observation-order lag features (env override: comma-separated or "none")
+_lag_env = os.environ.get("DATECT_LAG_FEATURES", "")
+LAG_FEATURES = [] if _lag_env.lower() == "none" else [int(x) for x in _lag_env.split(",") if x.strip()] if _lag_env else [1, 2, 3, 4]
 
 # DA Category Configuration
 
@@ -307,9 +309,9 @@ RF_REGRESSION_PARAMS = {
     "max_features": 0.85,
 }
 
-# Target and model toggles
-USE_PER_SITE_MODELS = True       # Enable per-site XGB/RF params, features, ensemble weights
-USE_INTERPOLATED_TRAINING = True # Train on all rows (real + gap-filled DA); test still on raw only
+# Target and model toggles (overridable via env vars for ablation studies)
+USE_PER_SITE_MODELS = os.environ.get("DATECT_USE_PER_SITE_MODELS", "true").lower() == "true"
+USE_INTERPOLATED_TRAINING = os.environ.get("DATECT_USE_INTERPOLATED_TRAINING", "true").lower() == "true"
 USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
 
 # Prediction clipping
@@ -358,6 +360,10 @@ ZERO_IMPORTANCE_FEATURES = [
     # feature engineering in build_raw_feature_frame(). Sites that don't include
     # 'modis-k490' or 'k490_squared' in their feature_subset will still not use it.
 ]
+# Env override: append extra features to drop (comma-separated)
+_extra_drop = os.environ.get("DATECT_EXTRA_DROP_FEATURES", "")
+if _extra_drop:
+    ZERO_IMPORTANCE_FEATURES += [f.strip() for f in _extra_drop.split(",") if f.strip()]
 
 # Minimum test date (early lower bound; per-site history fraction is the real filter)
 MIN_TEST_DATE = "2003-01-01"

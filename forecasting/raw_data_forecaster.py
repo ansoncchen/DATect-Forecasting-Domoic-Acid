@@ -26,8 +26,12 @@ logger = get_logger(__name__)
 
 @dataclass
 class RawForecastConfig:
-    lags: Iterable[int] = tuple(config.LAG_FEATURES)
+    lags: Iterable[int] = None  # Read from config at runtime, not import time
     max_date_diff_days: int = 14
+
+    def __post_init__(self):
+        if self.lags is None:
+            self.lags = tuple(config.LAG_FEATURES)
 
 
 def _normalize_site_name(site_key: str) -> str:

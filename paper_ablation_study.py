@@ -70,13 +70,14 @@ def _run_subprocess_ablation(name, env_overrides):
     result = subprocess.run(
         [sys.executable, "-c", SUBPROCESS_SCRIPT],
         env=env,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=None,  # Show progress bars live
         text=True,
         timeout=7200,  # 2 hour timeout per experiment
     )
 
     if result.returncode != 0:
-        print(f"  FAILED: {result.stderr[-500:]}")
+        print(f"  FAILED (exit code {result.returncode})")
         return None
 
     # Parse JSON output from subprocess
@@ -180,13 +181,15 @@ def _run_naive_ablation():
 
     # Zero out naive weights, renormalize XGB+RF
     for site_name, site_cfg in psm.SITE_SPECIFIC_CONFIGS.items():
-        w_xgb, w_rf, w_naive = site_cfg.get('ensemble_weights', (0.40, 0.40, 0.20))
+        weights = site_cfg.get('ensemble_weights')
+        w_xgb, w_rf, w_naive = weights if weights is not None else (0.40, 0.40, 0.20)
         total = w_xgb + w_rf
         if total > 0:
             site_cfg['ensemble_weights'] = (w_xgb / total, w_rf / total, 0.0)
         else:
             site_cfg['ensemble_weights'] = (0.5, 0.5, 0.0)
-    w_xgb, w_rf, w_naive = psm.DEFAULT_SITE_CONFIG.get('ensemble_weights', (0.45, 0.35, 0.20))
+    default_weights = psm.DEFAULT_SITE_CONFIG.get('ensemble_weights')
+    w_xgb, w_rf, w_naive = default_weights if default_weights is not None else (0.45, 0.35, 0.20)
     total = w_xgb + w_rf
     psm.DEFAULT_SITE_CONFIG['ensemble_weights'] = (w_xgb / total, w_rf / total, 0.0)
 

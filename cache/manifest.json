@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-23T21:08:06.368658",
+  "generated_at": "2026-03-25T02:40:40.754402",
   "cache_version": "2.0",
   "config": {
     "N_RANDOM_ANCHORS": 500,
@@ -12,85 +12,85 @@
       "size_bytes": 3189
     },
     "retrospective/classification_ensemble.json": {
-      "size_bytes": 246272
+      "size_bytes": 452539
     },
     "retrospective/regression_xgboost.json": {
-      "size_bytes": 245655
+      "size_bytes": 451556
     },
     "retrospective/classification_naive.json": {
-      "size_bytes": 229815
+      "size_bytes": 422159
     },
     "retrospective/classification_ensemble.parquet": {
-      "size_bytes": 232117
+      "size_bytes": 392761
     },
     "retrospective/regression_naive.parquet": {
-      "size_bytes": 223115
+      "size_bytes": 376564
     },
     "retrospective/classification_logistic.json": {
-      "size_bytes": 245655
+      "size_bytes": 451556
     },
     "retrospective/classification_naive.parquet": {
-      "size_bytes": 223115
+      "size_bytes": 376564
     },
     "retrospective/regression_ensemble.json": {
-      "size_bytes": 246272
+      "size_bytes": 452539
     },
     "retrospective/regression_xgboost.parquet": {
-      "size_bytes": 229803
+      "size_bytes": 389111
     },
     "retrospective/regression_ensemble.parquet": {
-      "size_bytes": 232117
+      "size_bytes": 392761
     },
     "retrospective/regression_rf.json": {
-      "size_bytes": 246721
+      "size_bytes": 453313
     },
     "retrospective/classification_logistic.parquet": {
-      "size_bytes": 230134
+      "size_bytes": 389561
     },
     "retrospective/regression_naive.json": {
-      "size_bytes": 229815
+      "size_bytes": 422159
     },
     "retrospective/regression_linear.parquet": {
-      "size_bytes": 242511
+      "size_bytes": 412417
     },
     "retrospective/regression_rf.parquet": {
-      "size_bytes": 232372
+      "size_bytes": 394103
     },
     "retrospective/regression_linear.json": {
-      "size_bytes": 245488
+      "size_bytes": 451007
     },
     "spectral/all_sites.json": {
-      "size_bytes": 128280
+      "size_bytes": 157092
     },
     "spectral/Quinault.json": {
-      "size_bytes": 85002
+      "size_bytes": 88506
     },
     "spectral/Newport.json": {
-      "size_bytes": 84986
+      "size_bytes": 89476
     },
     "spectral/Copalis.json": {
-      "size_bytes": 87394
+      "size_bytes": 92802
     },
     "spectral/Kalaloch.json": {
-      "size_bytes": 85939
+      "size_bytes": 90652
     },
     "spectral/Clatsop Beach.json": {
-      "size_bytes": 88810
+      "size_bytes": 95146
     },
     "spectral/Long Beach.json": {
-      "size_bytes": 85954
+      "size_bytes": 90244
     },
     "spectral/Twin Harbors.json": {
-      "size_bytes": 85882
+      "size_bytes": 90181
     },
     "spectral/Coos Bay.json": {
-      "size_bytes": 82819
+      "size_bytes": 85295
     },
     "spectral/Gold Beach.json": {
-      "size_bytes": 85075
+      "size_bytes": 90713
     },
     "spectral/Cannon Beach.json": {
-      "size_bytes": 78045
+      "size_bytes": 80565
     },
     "visualizations/Copalis_correlation.json": {
       "size_bytes": 39767

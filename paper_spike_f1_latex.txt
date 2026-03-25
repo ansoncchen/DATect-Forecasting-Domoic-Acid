@@ -1,5 +1,5 @@
 % Spike detection metrics (DA > 20 µg/g)
-% Generated from cache/retrospective
+% Generated from cache_seed123/retrospective
 
 \begin{table}[H]
 \caption{Spike detection performance (DA $> \SI{20}{\microgrampeg}$, the FDA regulatory action level) per site. Precision, recall, and F1 evaluate binary classification of spike events. Bootstrap 95\% confidence intervals ($B = 2{,}000$) are shown for F1.}
@@ -9,20 +9,20 @@
 \toprule
 \textbf{Site} & $\boldsymbol{N}$ & \textbf{Spikes} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{F1 [95\% CI]} \\
 \midrule
-Copalis            & 148 & 17 & 0.71 & 0.71 & 0.71 & [0.50, 0.86] \\
-Twin Harbors       & 120 & 23 & 0.78 & 0.78 & 0.78 & [0.63, 0.90] \\
-Quinault           & 96 & 11 & 0.38 & 0.55 & 0.44 & [0.18, 0.67] \\
-Long Beach         & 117 & 17 & 0.59 & 0.76 & 0.67 & [0.47, 0.82] \\
-Kalaloch           & 120 & 10 & 0.50 & 0.50 & 0.50 & [0.18, 0.74] \\
+Copalis            & 277 & 30 & 0.71 & 0.67 & 0.69 & [0.54, 0.81] \\
+Twin Harbors       & 225 & 37 & 0.73 & 0.86 & 0.79 & [0.68, 0.88] \\
+Quinault           & 181 & 25 & 0.67 & 0.80 & 0.73 & [0.58, 0.85] \\
+Long Beach         & 209 & 36 & 0.65 & 0.67 & 0.66 & [0.52, 0.77] \\
+Kalaloch           & 235 & 16 & 0.58 & 0.69 & 0.63 & [0.40, 0.80] \\
 \addlinespace
-Clatsop Beach      & 192 & 19 & 0.64 & 0.74 & 0.68 & [0.50, 0.83] \\
-Cannon Beach & 61 & 0 & --- & --- & --- & --- \\
-Gold Beach         & 135 & 7 & 0.23 & 0.43 & 0.30 & [0.00, 0.56] \\
+Clatsop Beach      & 354 & 37 & 0.50 & 0.46 & 0.48 & [0.32, 0.61] \\
+Cannon Beach       & 116 & 5 & 0.00 & 0.00 & 0.00 & [0.00, 0.00] \\
+Gold Beach         & 257 & 19 & 0.32 & 0.37 & 0.34 & [0.15, 0.52] \\
 \addlinespace
-Coos Bay           & 62 & 25 & 0.62 & 0.72 & 0.67 & [0.50, 0.79] \\
-Newport            & 126 & 16 & 0.50 & 0.25 & 0.33 & [0.08, 0.56] \\
+Coos Bay           & 109 & 36 & 0.53 & 0.58 & 0.55 & [0.41, 0.68] \\
+Newport            & 218 & 19 & 0.14 & 0.16 & 0.15 & [0.00, 0.30] \\
 \midrule
-\textbf{Overall} & \textbf{1,177} & \textbf{145} & \textbf{0.58} & \textbf{0.64} & \textbf{0.61} & [0.54, 0.67] \\
+\textbf{Overall} & \textbf{2,181} & \textbf{260} & \textbf{0.56} & \textbf{0.60} & \textbf{0.58} & [0.53, 0.63] \\
 \bottomrule
 \end{tabular}
 \end{table}

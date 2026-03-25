@@ -22,7 +22,7 @@ from pathlib import Path
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 
 # ── Configuration ────────────────────────────────────────────────────────────
-CACHE_DIR = Path("./cache/retrospective")  # Switch to cache_seed123/retrospective/ when available
+CACHE_DIR = Path("./cache_seed123/retrospective")
 SPIKE_THRESHOLD = 20.0  # FDA regulatory limit (µg/g)
 OUTPUT_JSON = "paper_spike_f1_results.json"
 OUTPUT_LATEX = "paper_spike_f1_latex.txt"

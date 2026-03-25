@@ -22,7 +22,7 @@ from pathlib import Path
 from sklearn.metrics import r2_score, mean_absolute_error
 
 # ── Configuration ────────────────────────────────────────────────────────────
-CACHE_DIR = Path("./cache/retrospective")  # Switch to cache_seed123/retrospective/ when available
+CACHE_DIR = Path("./cache_seed123/retrospective")
 OUTPUT_JSON = "paper_model_comparison_results.json"
 OUTPUT_LATEX = "paper_model_comparison_latex.txt"
 

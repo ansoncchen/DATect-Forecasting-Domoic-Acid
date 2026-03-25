@@ -1,0 +1,50 @@
+{
+  "n_bootstrap": 10000,
+  "seed": 42,
+  "comparisons": {
+    "xgboost": {
+      "display_name": "XGBoost",
+      "r2_a": 0.24652493072050996,
+      "r2_b": 0.20356575681206324,
+      "delta_r2": 0.042959173908446724,
+      "delta_r2_ci_lo": 0.012895075112672953,
+      "delta_r2_ci_hi": 0.0803849287036848,
+      "p_value": 0.0014,
+      "n_boot": 10000,
+      "n_samples": 2181
+    },
+    "rf": {
+      "display_name": "Random Forest",
+      "r2_a": 0.24652493072050996,
+      "r2_b": 0.19386005592227828,
+      "delta_r2": 0.052664874798231676,
+      "delta_r2_ci_lo": 0.0205163969192217,
+      "delta_r2_ci_hi": 0.09523855938213706,
+      "p_value": 0.0,
+      "n_boot": 10000,
+      "n_samples": 2181
+    },
+    "linear": {
+      "display_name": "Ridge Regression",
+      "r2_a": 0.24652493072050996,
+      "r2_b": 0.2032665073372748,
+      "delta_r2": 0.043258423383235156,
+      "delta_r2_ci_lo": 0.0008927281322007267,
+      "delta_r2_ci_hi": 0.09290277232140567,
+      "p_value": 0.0221,
+      "n_boot": 10000,
+      "n_samples": 2181
+    },
+    "naive": {
+      "display_name": "Na\u00efve Persistence",
+      "r2_a": 0.24652493072050996,
+      "r2_b": -0.42636330583970716,
+      "delta_r2": 0.6728882365602171,
+      "delta_r2_ci_lo": 0.34396326505679514,
+      "delta_r2_ci_hi": 1.1543005195566303,
+      "p_value": 0.0,
+      "n_boot": 10000,
+      "n_samples": 2181
+    }
+  }
+}

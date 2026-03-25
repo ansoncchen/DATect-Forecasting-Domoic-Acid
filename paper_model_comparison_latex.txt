@@ -1,5 +1,5 @@
 % Per-site model comparison table
-% Generated from cache/retrospective
+% Generated from cache_seed123/retrospective
 
 \begin{table}[H]
 \caption{Per-site $R^2$ for each model variant. Bold values indicate the best-performing model at each site. No single model dominates across all sites, justifying the per-site weighted ensemble approach.}
@@ -9,20 +9,20 @@
 \toprule
 \textbf{Site} & \textbf{Ensemble} & \textbf{XGBoost} & \textbf{RF} & \textbf{Na\"ive} & \textbf{Ridge} \\
 \midrule
-Copalis & \textbf{0.775} & 0.742 & 0.756 & 0.730 & 0.707 \\
-Twin Harbors & \textbf{0.813} & 0.509 & 0.515 & 0.791 & 0.510 \\
-Quinault & \textbf{0.661} & 0.506 & 0.490 & 0.614 & 0.487 \\
-Long Beach & \textbf{0.651} & 0.633 & 0.618 & 0.502 & 0.575 \\
-Kalaloch & 0.680 & 0.586 & 0.618 & \textbf{0.689} & 0.660 \\
+Copalis & \textbf{0.820} & 0.782 & 0.791 & 0.786 & 0.771 \\
+Twin Harbors & \textbf{0.816} & 0.586 & 0.593 & 0.784 & 0.584 \\
+Quinault & \textbf{0.719} & 0.588 & 0.582 & 0.702 & 0.578 \\
+Long Beach & \textbf{0.645} & 0.633 & 0.624 & 0.607 & 0.603 \\
+Kalaloch & \textbf{0.607} & 0.469 & 0.481 & 0.493 & 0.493 \\
 \addlinespace
-Clatsop Beach & 0.382 & \textbf{0.383} & 0.338 & $-$0.016 & 0.318 \\
-Cannon Beach & $-$0.394 & \textbf{0.021} & 0.019 & $-$10.663 & 0.006 \\
-Gold Beach & \textbf{$-$0.025} & $-$0.025 & $-$0.057 & $-$1.600 & $-$0.060 \\
+Clatsop Beach & 0.296 & \textbf{0.298} & 0.232 & $-$0.085 & 0.230 \\
+Cannon Beach & 0.148 & $-$0.045 & $-$0.044 & \textbf{0.401} & $-$0.043 \\
+Gold Beach & 0.037 & 0.037 & 0.057 & $-$1.554 & \textbf{0.066} \\
 \addlinespace
-Coos Bay & 0.373 & 0.326 & 0.373 & $-$0.339 & \textbf{0.393} \\
-Newport & 0.089 & 0.089 & 0.169 & $-$0.044 & \textbf{0.181} \\
+Coos Bay & $-$0.042 & \textbf{$-$0.037} & $-$0.042 & $-$1.129 & $-$0.038 \\
+Newport & $-$0.296 & $-$0.296 & $-$0.332 & $-$1.226 & \textbf{$-$0.272} \\
 \midrule
-\textbf{Overall} & 0.457 & 0.398 & 0.413 & $-$0.022 & 0.415 \\
+\textbf{Overall} & 0.247 & 0.204 & 0.194 & $-$0.426 & 0.203 \\
 \bottomrule
 \end{tabular}
 \end{table}

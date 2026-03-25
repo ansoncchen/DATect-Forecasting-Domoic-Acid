@@ -1,0 +1,28 @@
+% Spike detection metrics (DA > 20 µg/g)
+% Generated from cache/retrospective
+
+\begin{table}[H]
+\caption{Spike detection performance (DA $> \SI{20}{\microgrampeg}$, the FDA regulatory action level) per site. Precision, recall, and F1 evaluate binary classification of spike events. Bootstrap 95\% confidence intervals ($B = 2{,}000$) are shown for F1.}
+\label{tab:spike-f1}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+\textbf{Site} & $\boldsymbol{N}$ & \textbf{Spikes} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{F1 [95\% CI]} \\
+\midrule
+Copalis            & 148 & 17 & 0.71 & 0.71 & 0.71 & [0.50, 0.86] \\
+Twin Harbors       & 120 & 23 & 0.78 & 0.78 & 0.78 & [0.63, 0.90] \\
+Quinault           & 96 & 11 & 0.38 & 0.55 & 0.44 & [0.18, 0.67] \\
+Long Beach         & 117 & 17 & 0.59 & 0.76 & 0.67 & [0.47, 0.82] \\
+Kalaloch           & 120 & 10 & 0.50 & 0.50 & 0.50 & [0.18, 0.74] \\
+\addlinespace
+Clatsop Beach      & 192 & 19 & 0.64 & 0.74 & 0.68 & [0.50, 0.83] \\
+Cannon Beach & 61 & 0 & --- & --- & --- & --- \\
+Gold Beach         & 135 & 7 & 0.23 & 0.43 & 0.30 & [0.00, 0.56] \\
+\addlinespace
+Coos Bay           & 62 & 25 & 0.62 & 0.72 & 0.67 & [0.50, 0.79] \\
+Newport            & 126 & 16 & 0.50 & 0.25 & 0.33 & [0.08, 0.56] \\
+\midrule
+\textbf{Overall} & \textbf{1,177} & \textbf{145} & \textbf{0.58} & \textbf{0.64} & \textbf{0.61} & [0.54, 0.67] \\
+\bottomrule
+\end{tabular}
+\end{table}

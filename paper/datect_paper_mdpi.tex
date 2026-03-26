@@ -313,7 +313,7 @@ Rather than conventional fixed time-grid shifts (which produce null values for s
 
 \subsubsection{Derived Environmental Features}
 
-In addition to raw satellite and climate data, DATect includes six derived features motivated by domain knowledge: a marine heatwave flag (SST anomaly $> \SI{1.5}{\degreeCelsius}$) \cite{Bond2015}, BEUTI quadratic and relaxation terms capturing the upwelling ``Goldilocks zone'' \cite{Trainer2020}, a PDO--ONI phase coherence indicator, $\log(1 + \text{PN})$ and a \textit{Pseudo-nitzschia} threshold indicator ($> 50{,}000$ cells\,L$^{-1}$), fluorescence efficiency ($\text{FLH} / (\text{Chl-}a + 10^{-6})$), and a K490 quadratic term. All derived features are computed exclusively from environmental columns---never from the DA target---ensuring no target leakage. However, component ablation (Section~\ref{sec:results-ablation}) shows these features collectively produce negligible impact on ensemble skill ($\Delta R^2 = -0.002$), consistent with tree-based models capturing these nonlinearities implicitly through sequential splits on the raw inputs.
+Six derived features encoding domain knowledge---including a marine heatwave flag, BEUTI nonlinear terms, PDO--ONI phase coherence, \textit{Pseudo-nitzschia} transforms, fluorescence efficiency, and a K490 quadratic term---are computed exclusively from environmental columns (never from the DA target), ensuring no target leakage. Full descriptions and ecological motivations are provided in Appendix~\ref{app:derived-features}. However, component ablation (Section~\ref{sec:results-ablation}) and individual feature ablation (Table~\ref{tab:feature-ablation}) confirm that these features collectively ($\Delta R^2 = -0.002$) and individually ($|\Delta R^2| \leq 0.005$) produce negligible impact on ensemble skill, consistent with tree-based models capturing these nonlinearities implicitly through sequential splits on the raw inputs.
 
 \subsubsection{Persistence Features and Rolling Statistics}
 
@@ -324,7 +324,7 @@ Three persistence features are computed from raw DA observations:
     \item \texttt{weeks\_since\_last\_spike}: Time since last DA $> \SI{20}{\microgrampeg}$ event
 \end{itemize}
 
-Rolling statistics (mean, standard deviation, maximum) are computed over windows of 4, 8, and 12 weeks for each site. To prevent the current week's DA from leaking into its own features, rolling statistics are computed on a \texttt{shift(1)} version of the persistence series---that is, the rolling window begins from the \textit{prior} week's forward-filled DA value, not the current week's. This one-row offset ensures that a test point's rolling features reflect only DA history available \textit{before} the prediction date, even if the test point itself corresponds to a raw measurement week.
+Rolling statistics (mean, maximum, and standard deviation) are computed over windows of 4, 8, and 12 weeks for each site, though ablation confirms that rolling standard deviation features have negligible impact ($\Delta R^2 = -0.001$; Table~\ref{tab:feature-ablation})---only rolling mean and maximum carry meaningful signal. To prevent the current week's DA from leaking into its own features, rolling statistics are computed on a \texttt{shift(1)} version of the persistence series---that is, the rolling window begins from the \textit{prior} week's forward-filled DA value, not the current week's. This one-row offset ensures that a test point's rolling features reflect only DA history available \textit{before} the prediction date, even if the test point itself corresponds to a raw measurement week.
 
 \subsubsection{Temporal Features and Preprocessing}
 
@@ -649,6 +649,47 @@ Interpolated training ($\Delta R^2 = -0.043$) and the na\"ive persistence compon
 
 The difference between development set $R^2$ (0.457) and independent test set $R^2$ (0.247) quantifies the effect of per-site configuration tuning on the development data. The no-per-site-customization ablation achieves $R^2 = 0.270$ on the development set---close to the independent test set's 0.247---indicating that the 0.21 gap between the tuned development baseline (0.457) and independent test performance (0.247) is largely attributable to per-site configurations overfitting to the development set's specific test points. This underscores the importance of the two-stage evaluation design: per-site customization provides genuine improvement at individual sites (Table~\ref{tab:per-site-results}), but its aggregate benefit is substantially reduced on fully independent data, consistent with the manual nature of the tuning process disclosed in Section~\ref{sec:model-selection}.
 
+To further investigate whether individual environmental features contribute meaningful predictive skill, Table~\ref{tab:feature-ablation} presents a fine-grained feature ablation in which each row removes one feature or feature group from the full system.
+
+\begin{table}[H]
+\caption{Individual feature ablation. Each row removes one feature or feature group from the full system. All changes fall within sampling variability ($|\Delta R^2| \leq 0.005$), confirming negligible marginal contributions. Evaluated on development set (seed = 42, $n = 1{,}177$).}
+\label{tab:feature-ablation}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Feature(s) removed} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} & $\boldsymbol{\Delta}$\textbf{MAE} \\
+\midrule
+Full DATect (baseline) & 0.457 & --- & 6.15 & --- \\
+\addlinespace
+\multicolumn{5}{l}{\textit{Satellite features}} \\
+\quad K490 + K490$^2$ & 0.458 & $+0.001$ & 6.16 & $+0.01$ \\
+\quad Fluorescence efficiency & 0.456 & $-0.001$ & 6.18 & $+0.02$ \\
+\quad Chl-$a$ & 0.453 & $-0.004$ & 6.21 & $+0.05$ \\
+\quad Chl-$a$ anomaly & 0.456 & $-0.001$ & 6.19 & $+0.04$ \\
+\quad FLH & 0.456 & $-0.002$ & 6.19 & $+0.04$ \\
+\quad SST anomaly & 0.455 & $-0.002$ & 6.21 & $+0.05$ \\
+\quad All satellite-derived (6 features) & 0.454 & $-0.003$ & 6.19 & $+0.03$ \\
+\addlinespace
+\multicolumn{5}{l}{\textit{Derived features}} \\
+\quad MHW flag & 0.453 & $-0.004$ & 6.21 & $+0.06$ \\
+\quad BEUTI$^2$ & 0.456 & $-0.001$ & 6.17 & $+0.02$ \\
+\quad BEUTI relaxation & 0.456 & $-0.002$ & 6.18 & $+0.03$ \\
+\quad PDO--ONI phase & 0.456 & $-0.002$ & 6.18 & $+0.02$ \\
+\addlinespace
+\multicolumn{5}{l}{\textit{Other features}} \\
+\quad PN features (2) & 0.452 & $-0.005$ & 6.22 & $+0.06$ \\
+\quad Rolling std (3) & 0.457 & $-0.001$ & 6.16 & $+0.00$ \\
+\quad \texttt{days\_since\_start} & 0.456 & $-0.001$ & 6.16 & $+0.00$ \\
+\addlinespace
+\quad All low-importance (8 features)$^\dagger$ & 0.453 & $-0.004$ & 6.19 & $+0.04$ \\
+\bottomrule
+\end{tabular}
+\vspace{0.3em}\\
+\footnotesize{$^\dagger$K490 + K490$^2$, fluorescence efficiency, Chl-$a$ anomaly, PDO--ONI phase, BEUTI relaxation, PN threshold, Chl-$a$. See Appendix~\ref{app:dropped-features}.}
+\end{table}
+
+No individual environmental feature exceeds noise-level impact: removing K490 features actually \textit{improves} $R^2$ by 0.001, while removing all eight lowest-importance features simultaneously costs only $\Delta R^2 = -0.004$---an order of magnitude smaller than the contribution of per-site customization ($-0.187$), interpolated training ($-0.043$), or the na\"ive ensemble component ($-0.042$). This confirms that DATect's predictive skill derives primarily from DA persistence history and architectural design choices rather than from environmental feature engineering. The environmental features that do contribute meaningfully---SST, BEUTI, PDO, ONI, and Columbia River discharge---operate through the raw input variables (Table~\ref{tab:ablation}), not through derived transformations (Appendix~\ref{app:derived-features}).
+
 \subsection{Feature Importance Analysis}
 \label{sec:results-features}
 
@@ -656,7 +697,7 @@ The difference between development set $R^2$ (0.457) and independent test set $R
 \centering
 \fbox{\parbox{0.75\textwidth}{\centering\vspace{5cm}
 \textbf{[PLACEHOLDER FIGURE]}\\[0.5em]
-Bar chart showing top 15 features by XGBoost gain importance, averaged across all 10 sites. Expected top features include: \texttt{last\_observed\_da\_raw}, \texttt{da\_raw\_prev\_obs\_1}, \texttt{da\_raw\_prev\_obs\_2}, \texttt{beuti}, \texttt{modis-sst}, \texttt{pdo}, \texttt{oni}, \texttt{discharge}, \texttt{pn\_above\_threshold}.\\[0.5em]
+Bar chart showing top 15 features by XGBoost gain importance, averaged across all 10 sites. Expected top features include: \texttt{last\_observed\_da\_raw}, \texttt{weeks\_since\_last\_spike}, \texttt{da\_raw\_prev\_obs\_1}, \texttt{raw\_obs\_roll\_max\_4}, \texttt{da\_raw\_prev\_obs\_2}, \texttt{oni}, \texttt{pdo}, \texttt{modis-sst}.\\[0.5em]
 Color-code bars by feature category: orange = persistence/lag, blue = satellite, green = climate, purple = derived.
 \vspace{1cm}}}
 \caption{Top 15 features by XGBoost gain importance, averaged across all 10 sites. Persistence and observation-order lag features dominate, followed by climate indices and satellite observations.}
@@ -701,9 +742,9 @@ Key scientific insights from feature importance:
 \begin{itemize}[nosep]
     \item \textbf{Persistence dominance}: \texttt{last\_observed\_da\_raw} and \texttt{da\_raw\_prev\_obs\_1} are the top features at most sites, reflecting the slow depuration of DA in razor clam tissue.
     \item \textbf{Upwelling signal}: BEUTI ranks highly at coastal upwelling sites, consistent with the known upwelling--DA relationship \cite{Trainer2020, McKibben2017}.
-    \item \textbf{Climate forcing}: PDO and ONI importance confirms the role of large-scale climate modes in modulating DA risk, consistent with findings by McKibben et al.\ \cite{McKibben2017} that DA events are correlated with specific PDO/ONI phase combinations.
+    \item \textbf{Climate forcing}: PDO and ONI rank in the top 15 features, consistent with the known role of large-scale climate modes in modulating DA risk \cite{McKibben2017}. However, the derived PDO--ONI phase coherence feature contributes negligibly beyond the raw indices ($\Delta R^2 = -0.002$; Table~\ref{tab:feature-ablation}).
     \item \textbf{Columbia River effect}: \texttt{discharge} ranks highly at northern Washington sites ($> 46.5$\textdegree\,N), consistent with the freshwater plume's influence on coastal nutrient dynamics and stratification.
-    \item \textbf{\textit{Pseudo-nitzschia} signal}: \texttt{pn\_above\_threshold} provides predictive value where cell count data are available, supporting the biological expectation that high cell abundance is a necessary (though not sufficient) precursor to DA.
+    \item \textbf{\textit{Pseudo-nitzschia} signal}: PN-derived features (\texttt{pn\_log}, \texttt{pn\_above\_threshold}) show borderline contribution ($\Delta R^2 = -0.005$ when removed; Table~\ref{tab:feature-ablation}), consistent with the biological expectation that cell abundance is a necessary but not sufficient precursor to DA \cite{Bates2018, Trainer2012}.
 \end{itemize}
 
 
@@ -762,7 +803,7 @@ These results support three conclusions: (1)~the reported metrics are not inflat
 
 \subsubsection{Derived Features and Implicit Nonlinearity}
 
-The six derived environmental features---BEUTI quadratic/relaxation terms, marine heatwave flag, PDO--ONI phase coherence, \textit{Pseudo-nitzschia} transforms, fluorescence efficiency, and K490 quadratic---encode well-documented ecological relationships \cite{Trainer2020, McKibben2017, Bond2015, McCabe2016}. However, ablation shows that removing all derived features produces negligible change in ensemble skill ($\Delta R^2 = -0.002$; Table~\ref{tab:ablation}). This indicates that XGBoost and Random Forest learn these nonlinear relationships implicitly through sequential splits on the raw features (BEUTI, SST anomaly, PDO, ONI), making explicit encoding redundant. The underlying ecological relationships remain well-supported; it is their \textit{explicit feature engineering} that is unnecessary given tree-based model architectures. The raw climate indices remain important predictors as climate change increases the frequency of marine heatwave events \cite{Wells2015}.
+The six derived environmental features (Appendix~\ref{app:derived-features}) encode well-documented ecological relationships \cite{Trainer2020, McKibben2017, Bond2015, McCabe2016}. However, component ablation shows that removing all derived features produces negligible change in ensemble skill ($\Delta R^2 = -0.002$; Table~\ref{tab:ablation}). Individual feature ablation (Table~\ref{tab:feature-ablation}) confirms this finding extends beyond derived features to the satellite observations themselves: removing chlorophyll-$a$, FLH, SST anomaly, chlorophyll anomaly, or K490 individually produces changes within sampling variability ($|\Delta R^2| \leq 0.004$). Removing all six satellite-derived features simultaneously costs only $\Delta R^2 = -0.003$. Notably, removing K490 features \textit{improves} $R^2$ by 0.001, suggesting they introduce noise rather than signal. This indicates that XGBoost and Random Forest learn these nonlinear relationships implicitly through sequential splits on the raw features, making explicit encoding redundant. The environmental features that do contribute meaningfully to the ensemble---SST, BEUTI, PDO, ONI, and Columbia River discharge---operate through the raw input variables, not through derived transformations. The underlying ecological relationships remain well-supported; it is their \textit{explicit feature engineering} that is unnecessary given tree-based model architectures.
 
 \subsubsection{The Coos Bay Anomaly}
 
@@ -836,7 +877,7 @@ This paper presented DATect, the first quantitative domoic acid concentration fo
 
 Five Washington coast sites achieve high skill ($R^2 > 0.6$), demonstrating that one-week-ahead quantitative DA forecasting is feasible in the PNW when site-specific model configurations account for local oceanographic dynamics. Three Oregon sites show moderate skill ($0 < R^2 < 0.6$) and two exhibit low skill ($R^2 < 0$), revealing a geographic performance gradient that reflects differences in oceanographic regimes, sampling density, and DA dynamics. The overall ensemble $R^2 = 0.247$ [95\% CI: 0.12, 0.39] reflects the challenge of forecasting across such diverse sites, but the strong per-site performance at Washington locations---where the majority of recreational razor clam harvest occurs---provides direct operational value. The system's four-category risk classification achieves 74.6\% overall accuracy, with particularly strong performance on the Low-risk category (F1 $= 0.86$, precision $= 0.90$), providing a reliable safety margin for harvest decisions.
 
-DATect addresses a long-standing gap in PNW DA management by providing quantitative, site-specific, one-week-ahead forecasts backed by the largest temporal and geographic scope of any published DA machine learning study. Component ablation analysis reveals that per-site customization is the most impactful design choice ($\Delta R^2 = -0.187$), followed by interpolated training ($\Delta R^2 = -0.043$) and the na\"ive persistence component ($\Delta R^2 = -0.042$). The system's interpolated-training strategy, per-site ensemble architecture, and leak-free validation protocol are methodological contributions applicable beyond DA forecasting to any environmental prediction task involving sparse, irregular monitoring data. Deployed as a publicly accessible web dashboard, DATect offers coastal managers an automated, data-driven complement to the qualitative expert assessments provided by the PNW HAB Bulletin. Future work will focus on deep learning architectures, PACE satellite integration, extended forecast horizons, and transfer learning across sites to improve performance at currently low-skill locations.
+DATect addresses a long-standing gap in PNW DA management by providing quantitative, site-specific, one-week-ahead forecasts backed by the largest temporal and geographic scope of any published DA machine learning study. Component ablation analysis reveals that per-site customization is the most impactful design choice ($\Delta R^2 = -0.187$), followed by interpolated training ($\Delta R^2 = -0.043$) and the na\"ive persistence component ($\Delta R^2 = -0.042$). Individual feature ablation further reveals that no single environmental feature---including satellite chlorophyll, fluorescence, SST anomaly, and all derived features---contributes more than $|\Delta R^2| = 0.005$ individually, confirming that the system's skill derives primarily from DA persistence history and architectural design choices rather than from environmental feature engineering. The system's interpolated-training strategy, per-site ensemble architecture, and leak-free validation protocol are methodological contributions applicable beyond DA forecasting to any environmental prediction task involving sparse, irregular monitoring data. Deployed as a publicly accessible web dashboard, DATect offers coastal managers an automated, data-driven complement to the qualitative expert assessments provided by the PNW HAB Bulletin. Future work will focus on deep learning architectures, PACE satellite integration, extended forecast horizons, and transfer learning across sites to improve performance at currently low-skill locations.
 
 
 % ══════════════════════════════════════════════════════════════════════════════
@@ -932,6 +973,8 @@ The following 12 features were removed from all models after being confirmed to 
 \texttt{lat}, \texttt{lon}, \texttt{weeks\_since\_last\_raw}, \texttt{is\_bloom\_season}, \texttt{quarter}, \texttt{raw\_obs\_roll\_mean\_12}, \texttt{modis-par}, \texttt{raw\_obs\_roll\_mean\_8}, \texttt{sin\_week\_of\_year}, \texttt{cos\_month}, \texttt{cos\_week\_of\_year}, \texttt{da\_raw\_prev\_obs\_4\_weeks\_ago}
 \end{center}
 
+An additional eight features were confirmed to have negligible individual impact via targeted ablation (Table~\ref{tab:feature-ablation}): \texttt{modis-k490}, \texttt{k490\_squared}, \texttt{fluor\_efficiency}, \texttt{chla-anom}, \texttt{pdo\_oni\_phase}, \texttt{beuti\_relaxation}, \texttt{pn\_above\_threshold}, and \texttt{modis-chla}. These features are retained in the codebase for completeness and to support per-site feature subset configurations, but removing all eight simultaneously costs only $\Delta R^2 = -0.004$ (Table~\ref{tab:feature-ablation}).
+
 
 \section{Web Application Details}
 \label{app:webapp}
@@ -981,6 +1024,21 @@ Screenshot of the DATect web dashboard showing: (a) the configuration panel with
 \caption{DATect web dashboard interface. The dashboard provides both real-time forecasting (left panel) and retrospective analysis (right panel), with interactive Plotly charts that support filtering by site, model type, and date range.}
 \label{fig:dashboard}
 \end{figure}
+
+
+\section{Derived Feature Descriptions}
+\label{app:derived-features}
+
+The six derived environmental features included in DATect are described below. As shown by individual feature ablation (Table~\ref{tab:feature-ablation}), none of these features produces a statistically meaningful impact on ensemble skill ($|\Delta R^2| \leq 0.005$), indicating that the tree-based models capture the underlying nonlinearities implicitly. These features are retained in the codebase but should not be considered key contributors to system performance.
+
+\begin{enumerate}[nosep]
+    \item \textbf{Marine heatwave flag} (\texttt{mhw\_flag}): Binary indicator for SST anomaly $> \SI{1.5}{\degreeCelsius}$, motivated by the 2015 ``Blob'' event that fueled the largest recorded West Coast DA outbreak \cite{Bond2015, McCabe2016}. Individual ablation: $\Delta R^2 = -0.004$.
+    \item \textbf{BEUTI nonlinear terms}: $\text{BEUTI}^2$ (\texttt{beuti\_squared}) captures the nonlinear relationship between upwelling intensity and DA risk---the ``Goldilocks zone'' where moderate upwelling followed by relaxation produces the highest DA risk \cite{Trainer2020}; $\max(0, -\text{BEUTI})$ (\texttt{beuti\_relaxation}) isolates downwelling/relaxation events that transport toxic cells onshore \cite{Trainer2002}. Individual ablation: $\Delta R^2 = -0.001$ and $-0.002$, respectively.
+    \item \textbf{PDO--ONI phase coherence} (\texttt{pdo\_oni\_phase}): Categorical indicator encoding four climate phase combinations (warm PDO + El Ni\~no, cool PDO + La Ni\~na, etc.), motivated by the documented influence of climate mode interactions on DA risk \cite{McKibben2017}. Individual ablation: $\Delta R^2 = -0.002$.
+    \item \textbf{\textit{Pseudo-nitzschia} transforms}: $\log(1 + \text{PN})$ (\texttt{pn\_log}) compresses the heavy-tailed cell count distribution, and a binary threshold indicator (\texttt{pn\_above\_threshold}) flags counts exceeding 50,000~cells\,L$^{-1}$, a proposed tipping point for DA production. Combined ablation: $\Delta R^2 = -0.005$.
+    \item \textbf{Fluorescence efficiency} (\texttt{fluor\_efficiency}): $\text{FLH} / (\text{Chl-}a + 10^{-6})$, a proxy for phytoplankton physiological stress that may indicate nutrient limitation conditions favorable for DA production. Individual ablation: $\Delta R^2 = -0.001$.
+    \item \textbf{K490 quadratic term} (\texttt{k490\_squared}): $\text{K490}^2$, intended to capture a nonlinear ``turbidity Goldilocks zone'' where intermediate light attenuation favors \textit{Pseudo-nitzschia}. Individual ablation: $\Delta R^2 = +0.001$ (removing this feature \textit{improves} performance).
+\end{enumerate}
 
 
 % ══════════════════════════════════════════════════════════════════════════════

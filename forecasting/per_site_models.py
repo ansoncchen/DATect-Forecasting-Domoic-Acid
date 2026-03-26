@@ -49,10 +49,8 @@ ROLLING_FEATURES_FULL = [
     'raw_obs_roll_mean_4',
     'raw_obs_roll_std_4',
     'raw_obs_roll_max_4',
-    'raw_obs_roll_mean_8',
     'raw_obs_roll_std_8',
     'raw_obs_roll_max_8',
-    'raw_obs_roll_mean_12',
     'raw_obs_roll_std_12',
     'raw_obs_roll_max_12',
 ]
@@ -60,7 +58,6 @@ ROLLING_FEATURES_FULL = [
 ENV_FEATURES_CORE = [
     'modis-sst',
     'pdo',
-    # modis-chla dropped: individual ablation ΔR² = -0.004 (negligible)
     'beuti',
 ]
 
@@ -68,17 +65,6 @@ TEMPORAL_FEATURES_CORE = [
     'sin_day_of_year',
     'cos_day_of_year',
     'month',
-]
-
-TEMPORAL_FEATURES_FULL = [
-    'sin_day_of_year',
-    'cos_day_of_year',
-    'month',
-    'sin_month',
-    'cos_month',
-    'sin_week_of_year',
-    'cos_week_of_year',
-    'days_since_start',
 ]
 
 # Conservative RF params for sites where RF R2 < 0.1
@@ -91,17 +77,9 @@ RF_CONSERVATIVE = {
 }
 
 # --------------------------------------------------------------------------
-# AutoDiscovery-validated feature groups (new signals from 150 experiments)
-# All columns are confirmed present in data/processed/final_output.parquet.
-# Derived features (mhw_flag, beuti_squared, etc.) are computed in
-# build_raw_feature_frame() before the feature frame is cached.
+# Climate & anomaly feature groups
 # --------------------------------------------------------------------------
 
-# Climate & anomaly features — all confirmed in parquet, previously unused
-# oni: Oceanic Niño Index (El Niño amplifies DA)
-# sst-anom: SST anomaly (dominant driver in autumn/winter)
-# mhw_flag: Marine Heatwave binary flag (sst-anom > 1.5°C)
-# mhw_flag dropped (ablation ΔR² = -0.004)
 CLIMATE_FEATURES_CORE = [
     'oni',
     'sst-anom',
@@ -113,9 +91,7 @@ DISCHARGE_FEATURES = [
     'discharge',
 ]
 
-# Pseudo-nitzschia tipping-point features
-# pn_above_threshold dropped (ablation ΔR² = -0.005 combined)
-# pn_log retained: log1p transform compresses heavy-tailed distribution
+# Pseudo-nitzschia log transform (compresses heavy-tailed distribution)
 PN_FEATURES = [
     'pn_log',
 ]

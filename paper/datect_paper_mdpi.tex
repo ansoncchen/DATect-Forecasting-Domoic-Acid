@@ -317,10 +317,9 @@ Six derived features encoding domain knowledge---including a marine heatwave fla
 
 \subsubsection{Persistence Features and Rolling Statistics}
 
-Three persistence features are computed from raw DA observations:
+Two persistence features are computed from raw DA observations:
 \begin{itemize}[nosep]
     \item \texttt{last\_observed\_da\_raw}: Forward-fill of the most recent DA measurement
-    \item \texttt{weeks\_since\_last\_raw}: Time since last measurement (in weeks). \textit{Note}: This feature is recomputed per test point for leakage safety but was subsequently confirmed to have $< 1\%$ importance and is dropped before modeling (Appendix~\ref{app:dropped-features}).
     \item \texttt{weeks\_since\_last\_spike}: Time since last DA $> \SI{20}{\microgrampeg}$ event
 \end{itemize}
 
@@ -328,7 +327,7 @@ Rolling statistics (mean, maximum, and standard deviation) are computed over win
 
 \subsubsection{Temporal Features and Preprocessing}
 
-Cyclical temporal features (sine/cosine encodings of day-of-year, month, and week-of-year) capture seasonal bloom patterns without year-boundary discontinuities (Appendix~\ref{app:feature-engineering}). All numeric features undergo median imputation for missing values followed by min-max scaling to $[0, 1]$ using scikit-learn \cite{Pedregosa2011}. Twenty-two features confirmed to have negligible importance are removed prior to modeling (Appendix~\ref{app:dropped-features}).
+Cyclical temporal features (sine/cosine encodings of day-of-year and month) capture seasonal bloom patterns without year-boundary discontinuities. Additional temporal encodings (week-of-year, bloom season flag, linear trend) were explored but confirmed negligible and removed (Appendix~\ref{app:feature-engineering}). All numeric features undergo median imputation for missing values followed by min-max scaling to $[0, 1]$ using scikit-learn \cite{Pedregosa2011}.
 
 \subsection{Model Architecture}
 \label{sec:model-selection}
@@ -934,7 +933,7 @@ Sites with low historical skill (Cannon Beach, Coos Bay, Gold Beach, Newport) us
 Table~\ref{tab:app-features} summarizes the feature categories included at each site. A checkmark indicates the category is included in that site's curated feature subset.
 
 \begin{table}[H]
-\caption{Feature category inclusion by site after ablation-driven simplification. Sites with ``All'' use the full feature set without subsetting. ``partial'' indicates a subset of the group (e.g., only \texttt{modis-sst} and \texttt{pdo} from Env.\ Core). Columns for BEUTI nonlinear, fluorescence efficiency, and K490 nonlinear features are omitted---all were removed from the pipeline after individual ablation confirmed negligible impact (Appendix~\ref{app:feature-engineering}).}
+\caption{Feature category inclusion by site. Sites with ``All'' use the full feature set without subsetting. ``partial'' indicates a subset of the group (e.g., only \texttt{modis-sst} and \texttt{pdo} from Env.\ Core). Features explored but removed from the pipeline are listed in Appendix~\ref{app:feature-engineering}.}
 \label{tab:app-features}
 \footnotesize
 \begin{tabular}{l|ccccccccc}
@@ -955,51 +954,37 @@ Gold Beach    & $\checkmark$ & & $\checkmark$ & & $\checkmark$ & partial & $\che
 \end{tabular}
 \end{table}
 
-\section{Feature Engineering Details}
+\section{Features Explored but Removed}
 \label{app:dropped-features}
 \label{app:derived-features}
 \label{app:feature-engineering}
 
-This appendix provides full details on feature engineering components that were explored during DATect development. Individual feature ablation (Table~\ref{tab:feature-ablation}) confirmed that none of these components contributes more than $|\Delta R^2| = 0.005$ to ensemble performance; all have been removed from the final model pipeline.
-
-\subsection*{Observation-Order Lag Features}
-
-Rather than conventional fixed time-grid shifts (which produce null values for sparse, irregular DA data), DATect originally used \textit{observation-order lag features}: the $N$th most recent actual observation strictly before the test date. These included the four most recent DA measurements (\texttt{da\_raw\_prev\_obs\_1} through \texttt{\_4}), a trend term ($\text{obs}_1 - \text{obs}_2$), and temporal recency companions recording weeks elapsed since each past observation. This guaranteed non-null features regardless of measurement frequency. However, ablation analysis showed these features are largely redundant with the forward-filled persistence feature (\texttt{last\_observed\_da\_raw}) at the one-week forecast horizon ($\Delta R^2 = -0.004$; Table~\ref{tab:ablation}), confirming that the most recent observation carries the dominant signal.
+During development, we explored a number of additional features motivated by domain knowledge of harmful algal bloom dynamics. Individual feature ablation (Table~\ref{tab:feature-ablation}) confirmed that none contributed more than $|\Delta R^2| = 0.005$ to ensemble performance, and all have been removed from the final pipeline. We document them here for the benefit of future researchers.
 
 \subsection*{Derived Environmental Features}
 
-Six derived features encoding domain knowledge were computed from environmental columns (never from the DA target). Individual feature ablation confirmed all are negligible ($|\Delta R^2| \leq 0.005$):
+\begin{itemize}[nosep]
+    \item \textbf{Marine heatwave flag}: Binary indicator for SST anomaly $> \SI{1.5}{\degreeCelsius}$, motivated by the 2015 ``Blob'' event \cite{Bond2015, McCabe2016}. $\Delta R^2 = -0.004$.
+    \item \textbf{BEUTI nonlinear terms}: $\text{BEUTI}^2$ for the upwelling ``Goldilocks zone'' \cite{Trainer2020} and a relaxation indicator for onshore transport \cite{Trainer2002}. $\Delta R^2 = -0.001$ and $-0.002$.
+    \item \textbf{PDO--ONI phase coherence}: Binary flag for co-occurrence of positive PDO and El Ni\~no \cite{McKibben2017}. $\Delta R^2 = -0.002$.
+    \item \textbf{\textit{Pseudo-nitzschia} threshold}: Binary indicator for cell counts $> 50{,}000$~cells\,L$^{-1}$. $\Delta R^2 = -0.005$.
+    \item \textbf{Fluorescence efficiency}: FLH\,/\,Chl-$a$ ratio as a physiological stress proxy. $\Delta R^2 = -0.001$.
+    \item \textbf{K490 quadratic}: $\text{K490}^2$ for turbidity nonlinearity. $\Delta R^2 = +0.001$ (removing \textit{improves} performance).
+\end{itemize}
 
-\begin{enumerate}[nosep]
-    \item \textbf{Marine heatwave flag} (\texttt{mhw\_flag}): Binary indicator for SST anomaly $> \SI{1.5}{\degreeCelsius}$, motivated by the 2015 ``Blob'' event \cite{Bond2015, McCabe2016}. Ablation: $\Delta R^2 = -0.004$.
-    \item \textbf{BEUTI nonlinear terms}: $\text{BEUTI}^2$ (\texttt{beuti\_squared}) for the upwelling ``Goldilocks zone'' \cite{Trainer2020}; $\max(0, -\text{BEUTI})$ (\texttt{beuti\_relaxation}) for onshore transport during relaxation \cite{Trainer2002}. Ablation: $-0.001$ and $-0.002$.
-    \item \textbf{PDO--ONI phase coherence} (\texttt{pdo\_oni\_phase}): Four climate phase combinations \cite{McKibben2017}. Ablation: $\Delta R^2 = -0.002$.
-    \item \textbf{\textit{Pseudo-nitzschia} transforms}: $\log(1 + \text{PN})$ (\texttt{pn\_log}) and threshold indicator $> 50{,}000$~cells\,L$^{-1}$ (\texttt{pn\_above\_threshold}). Ablation: $\Delta R^2 = -0.005$ combined.
-    \item \textbf{Fluorescence efficiency} (\texttt{fluor\_efficiency}): $\text{FLH} / (\text{Chl-}a + 10^{-6})$, a physiological stress proxy. Ablation: $\Delta R^2 = -0.001$.
-    \item \textbf{K490 quadratic} (\texttt{k490\_squared}): $\text{K490}^2$ for turbidity nonlinearity. Ablation: $\Delta R^2 = +0.001$ (removing \textit{improves} performance).
-\end{enumerate}
+\subsection*{Satellite Observations}
 
-\subsection*{Temporal Features}
+Several satellite products were downloaded and tested but contributed negligibly:
+\begin{itemize}[nosep]
+    \item \textbf{MODIS chlorophyll-$a$} and \textbf{chlorophyll-$a$ anomaly}: $\Delta R^2 = -0.004$ and $-0.001$, respectively.
+    \item \textbf{MODIS K490} (diffuse attenuation coefficient): $\Delta R^2 = +0.001$ (removing improves performance).
+    \item \textbf{MODIS PAR} (photosynthetically active radiation): $< 1\%$ feature importance.
+\end{itemize}
+Removing all six satellite-derived features simultaneously costs only $\Delta R^2 = -0.003$.
 
-Cyclical temporal features are encoded using sine and cosine transformations to preserve periodicity:
-$\sin_{\text{doy}} = \sin(2\pi d / 365)$, $\cos_{\text{doy}} = \cos(2\pi d / 365)$,
-where $d$ is the day of year, with analogous encodings for month and week of year. A linear trend feature (\texttt{days\_since\_start}) was also included. Several temporal features were confirmed to have $< 1\%$ importance (\texttt{sin\_week\_of\_year}, \texttt{cos\_month}, \texttt{cos\_week\_of\_year}, \texttt{days\_since\_start}) and are dropped from the final pipeline.
+\subsection*{Temporal and Other Features}
 
-\subsection*{Dropped Features}
-
-A total of 22 features are removed from all models before training. Twelve were identified during initial development (importance $< 1\%$ of maximum across all sites):
-
-\begin{center}
-\small
-\texttt{lat}, \texttt{lon}, \texttt{weeks\_since\_last\_raw}, \texttt{is\_bloom\_season}, \texttt{quarter}, \texttt{raw\_obs\_roll\_mean\_12}, \texttt{modis-par}, \texttt{raw\_obs\_roll\_mean\_8}, \texttt{sin\_week\_of\_year}, \texttt{cos\_month}, \texttt{cos\_week\_of\_year}, \texttt{da\_raw\_prev\_obs\_4\_weeks\_ago}
-\end{center}
-
-Ten additional features were confirmed negligible via individual ablation (Table~\ref{tab:feature-ablation}) and subsequently removed:
-
-\begin{center}
-\small
-\texttt{modis-k490}, \texttt{k490\_squared}, \texttt{fluor\_efficiency}, \texttt{beuti\_squared}, \texttt{chla-anom}, \texttt{pdo\_oni\_phase}, \texttt{beuti\_relaxation}, \texttt{mhw\_flag}, \texttt{pn\_above\_threshold}, \texttt{modis-chla}
-\end{center}
+Additional temporal encodings (\texttt{quarter}, \texttt{is\_bloom\_season}, sine/cosine of week-of-year, \texttt{days\_since\_start}), a recency feature (\texttt{weeks\_since\_last\_raw}), site coordinates (\texttt{lat}, \texttt{lon}), and rolling-mean features for 8- and 12-week windows all had $< 1\%$ feature importance and were removed.
 
 
 \section{Web Application Details}

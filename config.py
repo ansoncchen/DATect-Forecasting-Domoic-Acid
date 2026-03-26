@@ -280,7 +280,6 @@ CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 
 # Feature engineering toggles
 USE_ROLLING_FEATURES = True  # Enable rolling statistics features for raw pipeline
-USE_ENHANCED_TEMPORAL_FEATURES = True  # Enable/disable sin/cos temporal encoding and derived features
 
 # Biological Decay Interpolation Parameters
 # Used for filling gaps in DA/PN measurements with exponential decay
@@ -341,33 +340,23 @@ TEST_SAMPLE_FRACTION = 0.20
 # History requirement: anchor must have >= this fraction of site's total history
 HISTORY_REQUIREMENT_FRACTION = 0.33
 
-# Zero/near-zero importance features to always drop.
-# Phase 4 drops + leak-free importance < 1% + individual ablation confirmed negligible.
-# All 22 features below have |ΔR²| ≤ 0.005 when removed (see paper_feature_ablation.py).
+# Features to drop before model training.
+# Includes columns from the parquet that have negligible importance,
+# plus rolling-mean variants that are computed but not useful.
+# Many previously-listed derived features (mhw_flag, beuti_squared, etc.)
+# are no longer computed at all — see paper_feature_ablation_results.json.
 ZERO_IMPORTANCE_FEATURES = [
-    # Phase 4 original drops
-    'lat', 'lon', 'weeks_since_last_raw',
-    'is_bloom_season', 'quarter',
-    # Leak-free feature importance < 1% of max (0.0037 threshold)
-    'raw_obs_roll_mean_12',
+    # Parquet columns with negligible importance
+    'lat', 'lon',
     'modis-par',
-    'raw_obs_roll_mean_8',
-    'sin_week_of_year',
-    'cos_month',
-    'cos_week_of_year',
-    'da_raw_prev_obs_4_weeks_ago',
-    # Individual ablation confirmed negligible (|ΔR²| ≤ 0.005 each)
-    # See paper_feature_ablation_results.json for full results.
-    'modis-k490',       # ΔR² = +0.001 (removing IMPROVES performance)
-    'k490_squared',     # ΔR² = +0.001 (same — K490 adds noise)
-    'fluor_efficiency',  # ΔR² = -0.001
-    'beuti_squared',    # ΔR² = -0.001
+    'modis-k490',       # ΔR² = +0.001 (removing improves performance)
     'chla-anom',        # ΔR² = -0.001
-    'pdo_oni_phase',    # ΔR² = -0.002
-    'beuti_relaxation', # ΔR² = -0.002
-    'mhw_flag',         # ΔR² = -0.004
-    'pn_above_threshold',  # ΔR² = -0.005 (combined with pn_log)
     'modis-chla',       # ΔR² = -0.004
+    # Rolling mean for windows 8/12 (std and max variants are still used)
+    'raw_obs_roll_mean_8',
+    'raw_obs_roll_mean_12',
+    # Lag feature with negligible importance
+    'da_raw_prev_obs_4_weeks_ago',
 ]
 # Env override: append extra features to drop (comma-separated)
 _extra_drop = os.environ.get("DATECT_EXTRA_DROP_FEATURES", "")

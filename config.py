@@ -342,8 +342,8 @@ TEST_SAMPLE_FRACTION = 0.20
 HISTORY_REQUIREMENT_FRACTION = 0.33
 
 # Zero/near-zero importance features to always drop.
-# Original Phase 4 drops + 8 features confirmed < 1% of max importance
-# in leak-free pipeline.
+# Phase 4 drops + leak-free importance < 1% + individual ablation confirmed negligible.
+# All 22 features below have |ΔR²| ≤ 0.005 when removed (see paper_feature_ablation.py).
 ZERO_IMPORTANCE_FEATURES = [
     # Phase 4 original drops
     'lat', 'lon', 'weeks_since_last_raw',
@@ -356,9 +356,18 @@ ZERO_IMPORTANCE_FEATURES = [
     'cos_month',
     'cos_week_of_year',
     'da_raw_prev_obs_4_weeks_ago',
-    # NOTE: modis-k490 removed from this list — restored for non-linear (k490_squared)
-    # feature engineering in build_raw_feature_frame(). Sites that don't include
-    # 'modis-k490' or 'k490_squared' in their feature_subset will still not use it.
+    # Individual ablation confirmed negligible (|ΔR²| ≤ 0.005 each)
+    # See paper_feature_ablation_results.json for full results.
+    'modis-k490',       # ΔR² = +0.001 (removing IMPROVES performance)
+    'k490_squared',     # ΔR² = +0.001 (same — K490 adds noise)
+    'fluor_efficiency',  # ΔR² = -0.001
+    'beuti_squared',    # ΔR² = -0.001
+    'chla-anom',        # ΔR² = -0.001
+    'pdo_oni_phase',    # ΔR² = -0.002
+    'beuti_relaxation', # ΔR² = -0.002
+    'mhw_flag',         # ΔR² = -0.004
+    'pn_above_threshold',  # ΔR² = -0.005 (combined with pn_log)
+    'modis-chla',       # ΔR² = -0.004
 ]
 # Env override: append extra features to drop (comma-separated)
 _extra_drop = os.environ.get("DATECT_EXTRA_DROP_FEATURES", "")

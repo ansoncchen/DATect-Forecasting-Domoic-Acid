@@ -60,7 +60,7 @@ ROLLING_FEATURES_FULL = [
 ENV_FEATURES_CORE = [
     'modis-sst',
     'pdo',
-    'modis-chla',
+    # modis-chla dropped: individual ablation ΔR² = -0.004 (negligible)
     'beuti',
 ]
 
@@ -101,20 +101,10 @@ RF_CONSERVATIVE = {
 # oni: Oceanic Niño Index (El Niño amplifies DA)
 # sst-anom: SST anomaly (dominant driver in autumn/winter)
 # mhw_flag: Marine Heatwave binary flag (sst-anom > 1.5°C)
+# mhw_flag dropped (ablation ΔR² = -0.004)
 CLIMATE_FEATURES_CORE = [
     'oni',
     'sst-anom',
-    'mhw_flag',
-]
-
-# Extended climate features — includes phase coherence and chla anomaly
-# Use for sites with enough data (N > 100) to absorb extra features
-CLIMATE_FEATURES_FULL = [
-    'oni',
-    'sst-anom',
-    'mhw_flag',
-    'pdo_oni_phase',
-    'chla-anom',
 ]
 
 # Columbia River discharge (global gauge, negative proxy for DA flushing)
@@ -123,34 +113,11 @@ DISCHARGE_FEATURES = [
     'discharge',
 ]
 
-# BEUTI non-linearity — captures Goldilocks zone and relaxation events
-# beuti_squared: parabolic term (moderate upwelling = peak DA)
-# beuti_relaxation: 1 when upwelling is decreasing (relaxation spike trigger)
-BEUTI_NONLINEAR_FEATURES = [
-    'beuti_squared',
-    'beuti_relaxation',
-]
-
-# Fluorescence efficiency — phytoplankton physiological stress proxy
-# fluor_efficiency = modis-flr / (modis-chla + 1e-6), ~41% missing
-FLUOR_FEATURES = [
-    'fluor_efficiency',
-]
-
-# K490 turbidity non-linearity (restored from ZERO_IMPORTANCE_FEATURES)
-# modis-k490: raw attenuation coefficient, ~43% missing
-# k490_squared: captures non-linear suppression at extremes
-K490_NONLINEAR_FEATURES = [
-    'modis-k490',
-    'k490_squared',
-]
-
 # Pseudo-nitzschia tipping-point features
-# pn_log: log1p transform (handles decay artifacts < 1 → ~0)
-# pn_above_threshold: binary flag for PN > 50,000 cells/L tipping point
+# pn_above_threshold dropped (ablation ΔR² = -0.005 combined)
+# pn_log retained: log1p transform compresses heavy-tailed distribution
 PN_FEATURES = [
     'pn_log',
-    'pn_above_threshold',
 ]
 
 
@@ -180,7 +147,6 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT
             + ROLLING_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
-            + BEUTI_NONLINEAR_FEATURES
         ),
         'ensemble_weights': (0.45, 0.00, 0.55),
         'prediction_clip_q': 0.97,
@@ -252,7 +218,6 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + ROLLING_FEATURES_SHORT + ENV_FEATURES_CORE
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
-            + BEUTI_NONLINEAR_FEATURES
         ),
         'ensemble_weights': (0.40, 0.15, 0.45),
         'prediction_clip_q': 0.98,
@@ -281,7 +246,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_FULL
             + ROLLING_FEATURES_FULL + ENV_FEATURES_CORE
             + TEMPORAL_FEATURES_CORE
-            + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES + FLUOR_FEATURES
+            + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
         'ensemble_weights': (0.95, 0.00, 0.05),
         'prediction_clip_q': 0.98,
@@ -343,7 +308,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'feature_subset': (
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT
             + TEMPORAL_FEATURES_CORE + ['modis-sst', 'pdo']
-            + ['oni', 'mhw_flag'] + K490_NONLINEAR_FEATURES
+            + CLIMATE_FEATURES_CORE
         ),
         'ensemble_weights': (0.10, 0.75, 0.15),
         'prediction_clip_q': 0.95,
@@ -366,7 +331,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT
             + ROLLING_FEATURES_SHORT + ['modis-sst', 'pdo']
             + TEMPORAL_FEATURES_CORE
-            + ['oni', 'mhw_flag'] + PN_FEATURES
+            + CLIMATE_FEATURES_CORE + PN_FEATURES
         ),
         'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.95,

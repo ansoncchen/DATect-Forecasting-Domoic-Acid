@@ -963,8 +963,26 @@ Gold Beach    & $\checkmark$ & & $\checkmark$ & & $\checkmark$ & partial & parti
 \end{tabular}
 \end{table}
 
-\section{Dropped Features}
+\section{Feature Engineering Details}
 \label{app:dropped-features}
+\label{app:derived-features}
+
+This appendix consolidates all feature engineering details: derived feature descriptions with ecological motivations, and features confirmed to have negligible or zero impact.
+
+\subsection*{Derived Environmental Features}
+
+Six derived features encoding domain knowledge are computed from environmental columns (never from the DA target). As shown by individual feature ablation (Table~\ref{tab:feature-ablation}), none produces a statistically meaningful impact on ensemble skill ($|\Delta R^2| \leq 0.005$), indicating that the tree-based models capture the underlying nonlinearities implicitly.
+
+\begin{enumerate}[nosep]
+    \item \textbf{Marine heatwave flag} (\texttt{mhw\_flag}): Binary indicator for SST anomaly $> \SI{1.5}{\degreeCelsius}$, motivated by the 2015 ``Blob'' event that fueled the largest recorded West Coast DA outbreak \cite{Bond2015, McCabe2016}. Individual ablation: $\Delta R^2 = -0.004$.
+    \item \textbf{BEUTI nonlinear terms}: $\text{BEUTI}^2$ (\texttt{beuti\_squared}) captures the nonlinear relationship between upwelling intensity and DA risk---the ``Goldilocks zone'' where moderate upwelling followed by relaxation produces the highest DA risk \cite{Trainer2020}; $\max(0, -\text{BEUTI})$ (\texttt{beuti\_relaxation}) isolates downwelling/relaxation events that transport toxic cells onshore \cite{Trainer2002}. Individual ablation: $\Delta R^2 = -0.001$ and $-0.002$, respectively.
+    \item \textbf{PDO--ONI phase coherence} (\texttt{pdo\_oni\_phase}): Categorical indicator encoding four climate phase combinations (warm PDO + El Ni\~no, cool PDO + La Ni\~na, etc.), motivated by the documented influence of climate mode interactions on DA risk \cite{McKibben2017}. Individual ablation: $\Delta R^2 = -0.002$.
+    \item \textbf{\textit{Pseudo-nitzschia} transforms}: $\log(1 + \text{PN})$ (\texttt{pn\_log}) compresses the heavy-tailed cell count distribution, and a binary threshold indicator (\texttt{pn\_above\_threshold}) flags counts exceeding 50,000~cells\,L$^{-1}$, a proposed tipping point for DA production. Combined ablation: $\Delta R^2 = -0.005$.
+    \item \textbf{Fluorescence efficiency} (\texttt{fluor\_efficiency}): $\text{FLH} / (\text{Chl-}a + 10^{-6})$, a proxy for phytoplankton physiological stress that may indicate nutrient limitation conditions favorable for DA production. Individual ablation: $\Delta R^2 = -0.001$.
+    \item \textbf{K490 quadratic term} (\texttt{k490\_squared}): $\text{K490}^2$, intended to capture a nonlinear ``turbidity Goldilocks zone'' where intermediate light attenuation favors \textit{Pseudo-nitzschia}. Individual ablation: $\Delta R^2 = +0.001$ (removing this feature \textit{improves} performance).
+\end{enumerate}
+
+\subsection*{Dropped Features}
 
 The following 12 features were removed from all models after being confirmed to have $< 1\%$ maximum importance across all sites in the leak-free pipeline:
 
@@ -972,6 +990,8 @@ The following 12 features were removed from all models after being confirmed to 
 \small
 \texttt{lat}, \texttt{lon}, \texttt{weeks\_since\_last\_raw}, \texttt{is\_bloom\_season}, \texttt{quarter}, \texttt{raw\_obs\_roll\_mean\_12}, \texttt{modis-par}, \texttt{raw\_obs\_roll\_mean\_8}, \texttt{sin\_week\_of\_year}, \texttt{cos\_month}, \texttt{cos\_week\_of\_year}, \texttt{da\_raw\_prev\_obs\_4\_weeks\_ago}
 \end{center}
+
+\subsection*{Confirmed-Negligible Features}
 
 An additional eight features were confirmed to have negligible individual impact via targeted ablation (Table~\ref{tab:feature-ablation}): \texttt{modis-k490}, \texttt{k490\_squared}, \texttt{fluor\_efficiency}, \texttt{chla-anom}, \texttt{pdo\_oni\_phase}, \texttt{beuti\_relaxation}, \texttt{pn\_above\_threshold}, and \texttt{modis-chla}. These features are retained in the codebase for completeness and to support per-site feature subset configurations, but removing all eight simultaneously costs only $\Delta R^2 = -0.004$ (Table~\ref{tab:feature-ablation}).
 
@@ -1024,21 +1044,6 @@ Screenshot of the DATect web dashboard showing: (a) the configuration panel with
 \caption{DATect web dashboard interface. The dashboard provides both real-time forecasting (left panel) and retrospective analysis (right panel), with interactive Plotly charts that support filtering by site, model type, and date range.}
 \label{fig:dashboard}
 \end{figure}
-
-
-\section{Derived Feature Descriptions}
-\label{app:derived-features}
-
-The six derived environmental features included in DATect are described below. As shown by individual feature ablation (Table~\ref{tab:feature-ablation}), none of these features produces a statistically meaningful impact on ensemble skill ($|\Delta R^2| \leq 0.005$), indicating that the tree-based models capture the underlying nonlinearities implicitly. These features are retained in the codebase but should not be considered key contributors to system performance.
-
-\begin{enumerate}[nosep]
-    \item \textbf{Marine heatwave flag} (\texttt{mhw\_flag}): Binary indicator for SST anomaly $> \SI{1.5}{\degreeCelsius}$, motivated by the 2015 ``Blob'' event that fueled the largest recorded West Coast DA outbreak \cite{Bond2015, McCabe2016}. Individual ablation: $\Delta R^2 = -0.004$.
-    \item \textbf{BEUTI nonlinear terms}: $\text{BEUTI}^2$ (\texttt{beuti\_squared}) captures the nonlinear relationship between upwelling intensity and DA risk---the ``Goldilocks zone'' where moderate upwelling followed by relaxation produces the highest DA risk \cite{Trainer2020}; $\max(0, -\text{BEUTI})$ (\texttt{beuti\_relaxation}) isolates downwelling/relaxation events that transport toxic cells onshore \cite{Trainer2002}. Individual ablation: $\Delta R^2 = -0.001$ and $-0.002$, respectively.
-    \item \textbf{PDO--ONI phase coherence} (\texttt{pdo\_oni\_phase}): Categorical indicator encoding four climate phase combinations (warm PDO + El Ni\~no, cool PDO + La Ni\~na, etc.), motivated by the documented influence of climate mode interactions on DA risk \cite{McKibben2017}. Individual ablation: $\Delta R^2 = -0.002$.
-    \item \textbf{\textit{Pseudo-nitzschia} transforms}: $\log(1 + \text{PN})$ (\texttt{pn\_log}) compresses the heavy-tailed cell count distribution, and a binary threshold indicator (\texttt{pn\_above\_threshold}) flags counts exceeding 50,000~cells\,L$^{-1}$, a proposed tipping point for DA production. Combined ablation: $\Delta R^2 = -0.005$.
-    \item \textbf{Fluorescence efficiency} (\texttt{fluor\_efficiency}): $\text{FLH} / (\text{Chl-}a + 10^{-6})$, a proxy for phytoplankton physiological stress that may indicate nutrient limitation conditions favorable for DA production. Individual ablation: $\Delta R^2 = -0.001$.
-    \item \textbf{K490 quadratic term} (\texttt{k490\_squared}): $\text{K490}^2$, intended to capture a nonlinear ``turbidity Goldilocks zone'' where intermediate light attenuation favors \textit{Pseudo-nitzschia}. Individual ablation: $\Delta R^2 = +0.001$ (removing this feature \textit{improves} performance).
-\end{enumerate}
 
 
 % ══════════════════════════════════════════════════════════════════════════════

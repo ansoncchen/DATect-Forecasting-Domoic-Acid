@@ -152,9 +152,11 @@ def build_raw_feature_frame(
         shifted = merged.groupby("site")["last_observed_da_raw"].shift(1)
         for window in rolling_windows:
             rolling_group = shifted.groupby(merged["site"]).rolling(window, min_periods=1)
-            merged[f"raw_obs_roll_mean_{window}"] = (
-                rolling_group.mean().reset_index(level=0, drop=True)
-            )
+            # Rolling mean only needed for window=4 (8/12 are negligible)
+            if window == 4:
+                merged[f"raw_obs_roll_mean_{window}"] = (
+                    rolling_group.mean().reset_index(level=0, drop=True)
+                )
             merged[f"raw_obs_roll_std_{window}"] = (
                 rolling_group.std().reset_index(level=0, drop=True)
             )

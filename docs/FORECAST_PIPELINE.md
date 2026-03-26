@@ -19,15 +19,15 @@ Raw Data Sources → Data Ingestion → Feature Engineering → Ensemble Trainin
 
 ### Satellite Data (MODIS-Aqua)
 
-| Variable | Description | Temporal Resolution |
-|----------|-------------|---------------------|
-| Chlorophyll-a | Phytoplankton biomass | 8-day composite |
-| SST | Sea surface temperature | 8-day composite |
-| PAR | Photosynthetically available radiation | 8-day composite |
-| Fluorescence | Phytoplankton stress indicator | 8-day composite |
-| K490 | Diffuse attenuation coefficient | 8-day composite |
-| CHLA anomaly | Chlorophyll deviation from climatology | Monthly |
-| SST anomaly | Temperature deviation from climatology | Monthly |
+| Variable | Description | Temporal Resolution | Status |
+|----------|-------------|---------------------|--------|
+| SST | Sea surface temperature | 8-day composite | **Active** |
+| Fluorescence (FLH) | Phytoplankton stress indicator | 8-day composite | **Active** |
+| SST anomaly | Temperature deviation from climatology | Monthly | **Active** |
+| Chlorophyll-a | Phytoplankton biomass | 8-day composite | Dropped (ΔR²=-0.004) |
+| PAR | Photosynthetically available radiation | 8-day composite | Dropped (<1% importance) |
+| K490 | Diffuse attenuation coefficient | 8-day composite | Dropped (ΔR²=+0.001) |
+| CHLA anomaly | Chlorophyll deviation from climatology | Monthly | Dropped (ΔR²=-0.001) |
 
 **Temporal Buffer**: 7-day processing delay enforced to match operational constraints.
 
@@ -79,19 +79,32 @@ Longer gaps are filled with zeros (assumes non-detection).
 # Cyclical encoding for seasonality
 sin_day_of_year = sin(2π × day_of_year / 365)
 cos_day_of_year = cos(2π × day_of_year / 365)
+month = date.month  # integer 1-12
 ```
+
+### Persistence Features
+
+- `last_observed_da_raw`: Forward-fill of most recent DA measurement per site
+- `weeks_since_last_spike`: Time since last DA > 20 µg/g event
 
 ### Observation-Order Lag Features
 
 Uses the Nth most recent actual observation (not grid-shift lags), which is critical for sparse/irregular measurement data:
-- **Lag 1-4**: Previous 1st through 4th most recent DA observations
+- **Value lags**: `da_raw_prev_obs_1` through `_4` (4 most recent DA observations)
+- **Recency lags**: `da_raw_prev_obs_2_weeks_ago`, `_3_weeks_ago` (time since 2nd/3rd observation)
+- **Trend**: `da_raw_prev_obs_diff_1_2` (difference between two most recent)
 - All lag features use only past data (observation-order, not time-shift)
+
+### Biological Features
+
+- `pn_log`: log(1 + PN cell count) — compresses heavy-tailed distribution
 
 ### Rolling Statistics
 
 When enabled (`USE_ROLLING_FEATURES = True`):
-- Rolling mean/std over 2/4/8/12-week windows
-- Captures bloom trends and volatility
+- 4-week window: mean, std, max
+- 8- and 12-week windows: std and max only (means dropped as negligible)
+- Computed on shift(1) of persistence series to prevent lookahead
 
 ## Stage 4: Temporal Validation (`forecasting/validation.py`)
 

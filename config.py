@@ -352,11 +352,6 @@ ZERO_IMPORTANCE_FEATURES = [
     'modis-k490',       # ΔR² = +0.001 (removing improves performance)
     'chla-anom',        # ΔR² = -0.001
     'modis-chla',       # ΔR² = -0.004
-    # Rolling mean for windows 8/12 (std and max variants are still used)
-    'raw_obs_roll_mean_8',
-    'raw_obs_roll_mean_12',
-    # Lag feature with negligible importance
-    'da_raw_prev_obs_4_weeks_ago',
 ]
 # Env override: append extra features to drop (comma-separated)
 _extra_drop = os.environ.get("DATECT_EXTRA_DROP_FEATURES", "")

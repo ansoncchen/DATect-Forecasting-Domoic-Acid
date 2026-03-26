@@ -108,11 +108,13 @@ Downloads and processes environmental data:
 
 | Data Source | Variables | Temporal Buffer |
 |-------------|-----------|-----------------|
-| MODIS Satellite | CHL, SST, PAR, FLH, K490 | 7 days |
-| Monthly Anomalies | CHLA-anom, SST-anom | 2 months |
+| MODIS Satellite | SST, FLH | 7 days |
+| Monthly Anomalies | SST-anom | 2 months |
 | Climate Indices | PDO, ONI, BEUTI | 2 months |
 | Streamflow | Columbia River discharge | None (as-of merge) |
 | Biological | DA, Pseudo-nitzschia | Decay interpolation |
+
+> **Note**: Additional satellite products (CHL, PAR, K490, CHLA-anom) are downloaded by `dataset-creation.py` but dropped before model training after ablation confirmed negligible importance (|ΔR²| ≤ 0.004).
 
 **Output**: `data/processed/final_output.parquet` (weekly time series, 2003-2023)
 
@@ -140,9 +142,11 @@ Custom tuning for each of the 10 monitoring sites:
 
 Handles feature engineering for raw measurements:
 
-- Observation-order lag features (not grid-shift)
-- Temporal encoding (sin/cos day-of-year)
-- Rolling statistics (mean/std over multiple windows)
+- Observation-order lag features (not grid-shift): 4 value lags + 2 recency lags + 1 trend
+- Persistence features: last observed DA, weeks since last spike
+- Temporal encoding: sin/cos day-of-year, month
+- Rolling statistics: mean/max (4-week), std/max (4/8/12-week)
+- Biological: pn_log (log-transformed Pseudo-nitzschia counts)
 - Leak-free test row construction
 
 ### Web API (`backend/api.py`)
@@ -173,7 +177,6 @@ FORECAST_TASK = "regression"
 # Features
 USE_LAG_FEATURES = True
 USE_ROLLING_FEATURES = True
-USE_ENHANCED_TEMPORAL_FEATURES = True
 USE_PER_SITE_MODELS = True
 
 # Evaluation

@@ -55,21 +55,20 @@ The weekly raw DA values are LEFT-joined onto the processed environmental data b
 
 ### Step 2C: Persistence Features
 
-Three features are computed using forward-fill within each site:
+Two features are computed using forward-fill within each site:
 
 1. **`last_observed_da_raw`**: The most recent actual DA measurement (forward-filled). This is the strongest single feature — DA values tend to persist.
 
-2. **`weeks_since_last_raw`**: How many weeks since the last real measurement. When this is large, the persistence information is stale and less reliable.
+2. **`weeks_since_last_spike`**: Weeks since DA was last above 20 µg/g. Captures recency of dangerous events.
 
-3. **`weeks_since_last_spike`**: Weeks since DA was last above 20 µg/g. Captures recency of dangerous events.
+> `weeks_since_last_raw` was previously computed but confirmed negligible (<1% importance) and removed.
 
 ### Step 2D: Rolling Statistics
 
 When `USE_ROLLING_FEATURES=True`, computes rolling statistics over `shift(1)` of `last_observed_da_raw` (the shift prevents leakage — it uses T-1 and earlier, never the current row):
 
-- **Windows**: 4, 8, 12 weeks
-- **Statistics**: mean, std, max
-- Creates features like `raw_obs_roll_mean_4`, `raw_obs_roll_std_8`, `raw_obs_roll_max_12`
+- **Window 4**: mean, std, max (e.g., `raw_obs_roll_mean_4`, `raw_obs_roll_std_4`, `raw_obs_roll_max_4`)
+- **Windows 8, 12**: std and max only (rolling means for 8/12 were confirmed negligible and removed)
 
 ### Step 2E: Observation-Order Lag Features (`raw_data_processor.py`)
 
@@ -94,11 +93,9 @@ The algorithm iterates through each site, finds all non-NaN `da_raw` observation
 Deterministic calendar features that are safe to compute for any date (no data leakage risk):
 
 - `sin_day_of_year`, `cos_day_of_year`: Cyclic encoding of season (captures that day 365 is near day 1)
-- `month`, `sin_month`, `cos_month`: Month encoding
-- `quarter`: Season quarter
-- `sin_week_of_year`, `cos_week_of_year`: Fine-grained seasonal cycle
-- `is_bloom_season`: Binary flag for March–October (when *Pseudo-nitzschia* blooms are most likely)
-- `days_since_start`: Linear trend (captures long-term changes like warming ocean)
+- `month`: Integer month (1-12)
+
+> Several additional temporal features were explored but removed after ablation confirmed <1% importance: `sin_month`, `cos_month`, `quarter`, `sin_week_of_year`, `cos_week_of_year`, `is_bloom_season`, `days_since_start`.
 
 ---
 
@@ -134,10 +131,9 @@ The key insight: at the time of making a prediction, you'd have satellite data u
 
 ### Step 3D: Persistence Feature Recomputation (`recompute_test_row_persistence_features()`)
 
-The persistence features (`last_observed_da_raw`, `weeks_since_last_raw`, `weeks_since_last_spike`) were computed globally during feature frame construction, which means they might leak future information. This function overwrites them using **only the real observations in training data** (filtered via `_is_interpolated` to exclude gap-filled rows, ensuring persistence reflects actual measurements):
+The persistence features (`last_observed_da_raw`, `weeks_since_last_spike`) were computed globally during feature frame construction, which means they might leak future information. This function overwrites them using **only the real observations in training data** (filtered via `_is_interpolated` to exclude gap-filled rows, ensuring persistence reflects actual measurements):
 
 - `last_observed_da_raw` = the most recent real DA value in training data
-- `weeks_since_last_raw` = time from test_date to that last measurement
 - `weeks_since_last_spike` = time to last spike event in training data
 
 Rolling features (raw_obs_roll_*) are NOT recomputed because they already use `shift(1)` and don't leak.
@@ -161,7 +157,7 @@ Before model training, features go through a preprocessing pipeline:
 Several categories of columns are removed:
 - `date`, `site` (non-features)
 - `da_raw`, `da`, `_is_interpolated` (target variable and marker — would be leakage)
-- `ZERO_IMPORTANCE_FEATURES` from config (features proven to have near-zero predictive power in leak-free evaluation): `lat`, `lon`, `weeks_since_last_raw`, `is_bloom_season`, `quarter`, `raw_obs_roll_mean_12`, `modis-par`, `raw_obs_roll_mean_8`, `sin_week_of_year`, `cos_month`, `modis-k490`, `cos_week_of_year`, `da_raw_prev_obs_4_weeks_ago`
+- `ZERO_IMPORTANCE_FEATURES` from config (parquet columns with negligible predictive power): `lat`, `lon`, `modis-par`, `modis-k490`, `chla-anom`, `modis-chla`. Many additional negligible features (derived features, extra temporal encodings, rolling means) were removed from computation entirely rather than computed-then-dropped.
 - Per-site feature subset enforcement (if the site has a `feature_subset` defined, only those features are kept)
 
 ### Step 4B: Imputation + Scaling

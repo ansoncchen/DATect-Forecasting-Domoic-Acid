@@ -30,11 +30,7 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     observed data that could leak future information.
 
     Features added:
-      sin_day_of_year, cos_day_of_year, month, sin_month
-
-    Previously also computed quarter, sin_week_of_year, cos_week_of_year,
-    cos_month, is_bloom_season, and days_since_start, but ablation confirmed
-    all have < 1% importance and they have been removed.
+      sin_day_of_year, cos_day_of_year, month
     """
     df = df.copy()
 
@@ -42,7 +38,6 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     df["sin_day_of_year"] = np.sin(2 * np.pi * day_of_year / 365)
     df["cos_day_of_year"] = np.cos(2 * np.pi * day_of_year / 365)
     df["month"] = df["date"].dt.month
-    df["sin_month"] = np.sin(2 * np.pi * df["month"] / 12)
 
     return df
 

@@ -353,12 +353,62 @@ def train_spike_classifier(
     feat_imp = dict(zip(feature_cols, clf.feature_importances_))
     top_features = sorted(feat_imp.items(), key=lambda x: x[1], reverse=True)[:15]
 
+    # --- Transition-focused classifier ---
+    # Train only on rows where last_observed_da_raw < threshold (currently safe).
+    # This forces the model to use environmental features — persistence can't dominate
+    # because all training rows start from a safe DA baseline.
+    safe_train = train_ff[train_ff["last_observed_da_raw"] < SPIKE_THRESHOLD].copy()
+    safe_test = test_ff[test_ff["last_observed_da_raw"] < SPIKE_THRESHOLD].copy()
+
+    proba_trans = np.full(len(test_ff), np.nan)
+    top_features_trans = []
+
+    if len(safe_train) > 50 and safe_train["spike_target"].sum() >= 5:
+        X_train_safe = safe_train[feature_cols].fillna(0)
+        y_train_safe = safe_train["spike_target"].values
+        X_test_safe = safe_test[feature_cols].fillna(0)
+
+        w_safe = compute_class_weight("balanced", classes=np.unique(y_train_safe), y=y_train_safe)
+        sw_safe = np.array([dict(zip(np.unique(y_train_safe), w_safe))[y] for y in y_train_safe])
+
+        clf_trans = XGBClassifier(
+            n_estimators=300,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.85,
+            colsample_bytree=0.85,
+            reg_alpha=0.5,
+            reg_lambda=1.0,
+            random_state=config.RANDOM_SEED,
+            eval_metric="logloss",
+            use_label_encoder=False,
+        )
+        clf_trans.fit(X_train_safe, y_train_safe, sample_weight=sw_safe, verbose=False)
+
+        if len(X_test_safe) > 0:
+            proba_safe = clf_trans.predict_proba(X_test_safe)[:, 1]
+            # Map back to full test_ff index positions
+            safe_idx = np.where(test_ff["last_observed_da_raw"].values < SPIKE_THRESHOLD)[0]
+            for i, idx in enumerate(safe_idx):
+                proba_trans[idx] = proba_safe[i]
+
+        feat_imp_trans = dict(zip(feature_cols, clf_trans.feature_importances_))
+        top_features_trans = sorted(feat_imp_trans.items(), key=lambda x: x[1], reverse=True)[:15]
+        n_safe_pos = int(safe_train["spike_target"].sum())
+        print(f"  Safe-baseline classifier: {len(safe_train)} train ({n_safe_pos} positive), "
+              f"{len(safe_test)} test rows where DA was safe before")
+    else:
+        print(f"  Safe-baseline classifier: insufficient safe-baseline training data "
+              f"({len(safe_train)} rows, {safe_train['spike_target'].sum()} positive)")
+
     return {
         "test_df": test_ff,
         "proba": proba,
+        "proba_trans": proba_trans,
         "y_test": y_test,
         "clf": clf,
         "top_features": top_features,
+        "top_features_trans": top_features_trans,
         "feature_cols": feature_cols,
     }
 
@@ -602,21 +652,14 @@ def main():
         proba = clf_results["proba"]
         y_test = clf_results["y_test"]
 
-        # Match transition flags
         test_df["date"] = pd.to_datetime(test_df["date"])
-        # Re-identify transitions in classifier test set
-        is_transition = test_df["spike_target"].values.copy()
-        # Actually need to check prev_da for transitions
-        trans_flags = []
-        for _, row in test_df.iterrows():
-            site = row["site"]
-            test_date = pd.Timestamp(row["date"])
-            site_raw = raw_da[(raw_da["site"] == site) & (raw_da["date"] < test_date)]
-            if len(site_raw) > 0 and site_raw.iloc[-1]["da_raw"] < SPIKE_THRESHOLD and row["da_raw"] >= SPIKE_THRESHOLD:
-                trans_flags.append(True)
-            else:
-                trans_flags.append(False)
-        is_transition = np.array(trans_flags)
+        # Transition = spike AND last_observed_da_raw (leak-free) was < threshold.
+        # da_raw is NaN in test_df (we masked it), but spike_target and
+        # last_observed_da_raw are correctly set.
+        is_transition = (
+            (test_df["spike_target"].values == 1)
+            & (test_df["last_observed_da_raw"].fillna(SPIKE_THRESHOLD + 1).values < SPIKE_THRESHOLD)
+        )
 
         # Evaluate at different probability thresholds
         clf_sweep = evaluate_classifier_at_thresholds(proba, y_test, is_transition)
@@ -638,13 +681,48 @@ def main():
             )
 
         best_clf = clf_sweep.loc[clf_sweep["f2"].idxmax()]
-        print(f"\nBest classifier F2: {best_clf['f2']:.3f} at prob threshold {best_clf['prob_threshold']:.2f}")
+        print(f"\nBest full classifier F2: {best_clf['f2']:.3f} at prob threshold {best_clf['prob_threshold']:.2f}")
         print(f"  Transition recall: {best_clf['transition_recall']:.3f}")
 
-        # Top features
-        print("\nTop 15 features for spike classifier:")
+        # Top features (full classifier)
+        print("\nTop 15 features for full spike classifier:")
         for feat, imp in clf_results["top_features"]:
             print(f"  {feat:<35} {imp:.4f}")
+
+        # --- Transition-focused classifier (safe-baseline only) ---
+        proba_trans = clf_results["proba_trans"]
+        valid_trans = ~np.isnan(proba_trans)
+        if valid_trans.sum() > 0:
+            trans_sweep = evaluate_classifier_at_thresholds(
+                proba_trans[valid_trans],
+                y_test[valid_trans],
+                is_transition[valid_trans],
+            )
+            trans_sweep.to_csv(os.path.join(OUTPUT_DIR, "transition_classifier_prob_sweep.csv"), index=False)
+
+            print("\nTransition-focused classifier (trained only on safe-baseline rows):")
+            print(f"{'Prob Thresh':<12} {'Recall':<8} {'Precision':<10} {'F2':<8} {'Trans Recall':<13} {'Trans Caught'}")
+            print("-" * 65)
+            for _, row in trans_sweep.iterrows():
+                tr = row["transition_recall"]
+                tr_str = f"{tr:.3f}" if pd.notna(tr) else "N/A"
+                print(
+                    f"{row['prob_threshold']:<12.2f} "
+                    f"{row['recall']:<8.3f} "
+                    f"{row['precision']:<10.3f} "
+                    f"{row['f2']:<8.3f} "
+                    f"{tr_str:<13} "
+                    f"{int(row['transitions_caught'])}/{int(row['n_transitions'])}"
+                )
+
+            best_trans_clf = trans_sweep.loc[trans_sweep["f2"].idxmax()]
+            print(f"\nBest transition-focused F2: {best_trans_clf['f2']:.3f} "
+                  f"at prob {best_trans_clf['prob_threshold']:.2f}")
+            print(f"  Transition recall: {best_trans_clf['transition_recall']:.3f}")
+
+            print("\nTop 15 features for transition-focused classifier:")
+            for feat, imp in clf_results["top_features_trans"]:
+                print(f"  {feat:<35} {imp:.4f}")
 
         # Comparison plot
         if "ensemble_prediction" in retro.columns:
@@ -666,7 +744,14 @@ def main():
 
     if clf_results:
         best_c = clf_sweep.loc[clf_sweep["f2"].idxmax()]
-        print(f"Classifier at prob {best_c['prob_threshold']:.2f}: transition recall = {best_c['transition_recall']:.3f}")
+        print(f"Full classifier at prob {best_c['prob_threshold']:.2f}: transition recall = {best_c['transition_recall']:.3f}")
+        proba_trans = clf_results["proba_trans"]
+        valid_trans = ~np.isnan(proba_trans)
+        if valid_trans.sum() > 0 and "trans_sweep" in dir():
+            best_tc = trans_sweep.loc[trans_sweep["transition_recall"].idxmax()]
+            print(f"Transition-focused classifier at prob {best_tc['prob_threshold']:.2f}: "
+                  f"transition recall = {best_tc['transition_recall']:.3f} "
+                  f"(only evaluated on safe-baseline test rows)")
 
     print("\n" + "=" * 80)
 

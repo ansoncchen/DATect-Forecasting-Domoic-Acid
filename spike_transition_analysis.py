@@ -343,7 +343,7 @@ def evaluate_classifier_at_thresholds(
     beta = 2.0
     for thresh in thresholds:
         pred = (proba >= thresh).astype(int)
-        tp = int((y_test == 1) & (pred == 1)).sum() if len(y_test) > 0 else 0
+        tp = int(((y_test == 1) & (pred == 1)).sum()) if len(y_test) > 0 else 0
         fn = int(((y_test == 1) & (pred == 0)).sum())
         fp = int(((y_test == 0) & (pred == 1)).sum())
         tn = int(((y_test == 0) & (pred == 0)).sum())

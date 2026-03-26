@@ -402,25 +402,25 @@ Table~\ref{tab:ensemble-config} summarizes the per-site ensemble configuration. 
 \toprule
 \textbf{Site} & $\boldsymbol{w_{\text{XGB}}}$ & $\boldsymbol{w_{\text{RF}}}$ & $\boldsymbol{w_{\text{Naive}}}$ & \textbf{Clip $q$} & \textbf{Clip max} & \textbf{Tier} \\
 \midrule
-Copalis       & 0.25 & 0.45 & 0.30 & 0.97 & --- & High-skill \\
-Twin Harbors  & 0.10 & 0.25 & 0.65 & 0.98 & --- & High-skill \\
-Quinault      & 0.35 & 0.30 & 0.35 & 0.98 & --- & High-skill \\
-Long Beach    & 0.45 & 0.40 & 0.15 & 0.98 & --- & High-skill \\
-Kalaloch      & 0.20 & 0.40 & 0.40 & 0.95 & 80 & High-skill \\
+Copalis       & 0.45 & 0.00 & 0.55 & 0.97 & --- & High-skill \\
+Twin Harbors  & 0.30 & 0.10 & 0.60 & 0.98 & --- & High-skill \\
+Quinault      & 0.40 & 0.15 & 0.45 & 0.98 & --- & High-skill \\
+Long Beach    & 0.95 & 0.00 & 0.05 & 0.98 & --- & High-skill \\
+Kalaloch      & 0.00 & 0.35 & 0.65 & 0.95 & 80 & High-skill \\
 \addlinespace
-Clatsop Beach & 0.50 & 0.45 & 0.05 & --- & --- & Moderate \\
-Cannon Beach  & 0.95 & 0.03 & 0.02 & 0.95 & 80 & Moderate \\
-Gold Beach    & 0.40 & 0.57 & 0.03 & 0.95 & --- & Moderate \\
+Clatsop Beach & 0.95 & 0.05 & 0.00 & --- & --- & Moderate \\
+Cannon Beach  & 0.10 & 0.75 & 0.15 & 0.95 & 80 & Moderate \\
+Gold Beach    & 1.00 & 0.00 & 0.00 & 0.95 & --- & Moderate \\
 \addlinespace
-Coos Bay      & 0.10 & 0.85 & 0.05 & 0.97 & --- & Low-skill \\
-Newport       & 0.25 & 0.65 & 0.10 & 0.98 & --- & Low-skill \\
+Coos Bay      & 0.00 & 1.00 & 0.00 & 0.97 & --- & Low-skill \\
+Newport       & 1.00 & 0.00 & 0.00 & 0.98 & --- & Low-skill \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}\\
 \footnotesize{Clip~$q$: predictions clipped to this quantile of training targets. ``---'' = global default ($q = 0.99$) or no hard ceiling. Clip max in \si{\microgrampeg}.}
 \end{table}
 
-\textbf{Persistence-dominant sites} (Twin Harbors, Kalaloch, Quinault) assign 30--65\% weight to the na\"ive baseline, reflecting strong autocorrelation in DA at these sites. These sites are located in areas with concentrated bloom dynamics and regular sampling, where the slow depuration of DA in razor clam tissue creates strong persistence. \textbf{ML-leaning sites} (Long Beach, Clatsop Beach, Copalis) weight ML models more heavily, as environmental features provide substantial predictive value beyond persistence. \textbf{Low-skill sites} (Coos Bay, Newport, Gold Beach, Cannon Beach) require heavy regularization and aggressive prediction clipping due to limited data or unusual dynamics.
+\textbf{Persistence-dominant sites} (Copalis, Twin Harbors, Quinault, Kalaloch) assign 45--65\% weight to the na\"ive baseline, reflecting strong autocorrelation in DA at these sites due to slow shellfish depuration and concentrated bloom dynamics. Kalaloch relies entirely on RF and na\"ive persistence ($w_{\text{XGB}} = 0$), while Copalis bypasses RF entirely ($w_{\text{RF}} = 0$). \textbf{ML-dominant sites} (Long Beach, Clatsop Beach) assign $\geq$95\% to XGBoost, indicating that environmental features provide substantial predictive value beyond persistence. \textbf{Single-model sites} (Gold Beach, Newport, Coos Bay) converged to a single model during tuning: Gold Beach and Newport use XGBoost exclusively ($w_{\text{XGB}} = 1.0$), while Coos Bay uses RF exclusively ($w_{\text{RF}} = 1.0$). Cannon Beach relies predominantly on RF (75\%) with modest contributions from na\"ive persistence and XGBoost. All low-skill and moderate sites require heavy regularization and aggressive prediction clipping due to limited data or unusual dynamics.
 
 \textbf{Configuration selection procedure.} Per-site ensemble weights, feature subsets, and hyperparameter overrides were selected through an iterative manual process informed by both domain knowledge and preliminary evaluation results. For each site, the individual model components (XGBoost, Random Forest, and na\"ive persistence) were evaluated independently using the leak-free retrospective protocol described in Section~\ref{sec:validation}, using a \textit{development} test set (seed = 42, 20\% sampling fraction). Ensemble weights were then set proportionally to each component's relative per-site performance---for example, sites where na\"ive persistence achieved $R^2$ comparable to the ML models received higher na\"ive weights, consistent with the biological expectation of strong DA autocorrelation at sites with concentrated bloom dynamics. Feature subsets were curated by removing feature groups that degraded site-specific performance, prioritizing parsimony at data-sparse sites to reduce overfitting.
 

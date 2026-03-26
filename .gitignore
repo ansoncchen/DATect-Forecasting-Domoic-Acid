@@ -65,6 +65,10 @@ claude.md
 .ralph/
 .ralphrc
 
+# Pre-computed caches (generated on Hyak, too large for git)
+cache/
+cache_seed123/
+
 # Temporary files
 *.tmp
 *.temp

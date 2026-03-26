@@ -259,13 +259,47 @@ def train_spike_classifier(
         matched = ff[ff["_is_test"]].shape[0]
         print(f"  After snapping: matched {matched}/{len(test_points)}")
 
-    # Split
-    train_ff = ff[~ff["_is_test"] & ff["da_raw"].notna()].copy()
-    test_ff = ff[ff["_is_test"] & ff["da_raw"].notna()].copy()
+    # Fix data leakage: for test rows, persistence features were computed using
+    # the current row's da_raw (e.g. last_observed_da_raw = the spike value itself).
+    # In the real engine, test row persistence features are recomputed using only
+    # training data (dates <= anchor_date). Simulate this by rebuilding persistence
+    # features on a version of da_raw where test-row values are masked out.
+    ff_leak_free = ff.copy()
+    ff_leak_free.loc[ff_leak_free["_is_test"], "da_raw"] = np.nan
 
-    # Drop non-feature columns
+    # Recompute persistence features without test-row DA values
+    ff_leak_free = ff_leak_free.sort_values(["site", "date"])
+    ff_leak_free["last_observed_da_raw"] = ff_leak_free.groupby("site")["da_raw"].ffill()
+    ff_leak_free["distance_to_threshold"] = SPIKE_THRESHOLD - ff_leak_free["last_observed_da_raw"]
+
+    last_spike_date = ff_leak_free["date"].where(ff_leak_free["da_raw"] > SPIKE_THRESHOLD)
+    last_spike_date = last_spike_date.groupby(ff_leak_free["site"]).ffill()
+    ff_leak_free["weeks_since_last_spike"] = (
+        (ff_leak_free["date"] - last_spike_date).dt.days / 7.0
+    ).fillna(999.0)
+
+    # Also recompute env_risk_composite with new discharge_z (unchanged but re-apply)
+    if "env_risk_composite" in ff_leak_free.columns:
+        risk_cols = []
+        if "modis-sst_z" in ff_leak_free.columns:
+            risk_cols.append("modis-sst_z")
+        if "pdo_z" in ff_leak_free.columns:
+            risk_cols.append("pdo_z")
+        if risk_cols:
+            ff_leak_free["env_risk_composite"] = ff_leak_free[risk_cols].sum(axis=1)
+            if "discharge_z" in ff_leak_free.columns:
+                ff_leak_free["env_risk_composite"] -= ff_leak_free["discharge_z"]
+
+    # Restore spike_target (it uses original da_raw, which is correct)
+    ff_leak_free["spike_target"] = ff["spike_target"]
+    ff_leak_free["_is_test"] = ff["_is_test"]
+
+    # Split
+    train_ff = ff_leak_free[~ff_leak_free["_is_test"] & ff["da_raw"].notna()].copy()
+    test_ff = ff_leak_free[ff_leak_free["_is_test"] & ff["da_raw"].notna()].copy()
+
+    # Drop non-feature columns (including da_raw itself — it's the target, not a feature)
     drop = DROP_COLS | ZERO_IMPORTANCE | {"spike_target", "_is_test"}
-    # Also drop z-score intermediates
     drop |= {"modis-sst_z", "pdo_z", "discharge_z"}
     feature_cols = [c for c in train_ff.columns if c not in drop and not c.startswith("_")]
     feature_cols = [c for c in feature_cols if train_ff[c].dtype in ("float64", "float32", "int64", "int32")]

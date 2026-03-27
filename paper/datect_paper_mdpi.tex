@@ -727,7 +727,7 @@ In practical terms, the 66\% false alarm rate corresponds to approximately three
 \subsubsection{Ensemble Weight Robustness}
 \label{sec:weight-robustness}
 
-Since all sites now use single-model configurations (XGBoost-only or RF-only), weight selection reduces to a binary model-selection decision per site. Table~\ref{tab:weight-robustness} (Appendix~\ref{app:weight-robustness}) compares three deterministic strategies on the independent test set: XGBoost at all sites, Random Forest at all sites, and the per-site dev-set selection used in this paper. The per-site strategy ($R^2 = 0.204$) falls between RF-everywhere ($R^2 = 0.194$) and XGB-everywhere ($R^2 = 0.207$), with differences well within bootstrap confidence intervals (all $\Delta R^2 < 0.013$). The oracle upper bound---selecting the better model per site based on test-set performance itself---is shown for reference. These results confirm that the per-site model selection is competitive with global single-model strategies and that the choice of XGBoost vs.\ Random Forest per site has modest aggregate impact, consistent with the near-identical dev-set performance at the sites where selection was ambiguous.
+Since all sites now use single-model configurations (XGBoost-only or RF-only), weight selection reduces to a binary model-selection decision per site. Table~\ref{tab:weight-robustness} (Appendix~\ref{app:weight-robustness}) compares three deterministic strategies on the independent test set: XGBoost at all sites, Random Forest at all sites, and the per-site dev-set selection used in this paper. The per-site strategy ($R^2 = 0.204$) falls between RF-everywhere ($R^2 = 0.194$) and XGB-everywhere ($R^2 = 0.207$), with differences well within bootstrap confidence intervals (all $\Delta R^2 < 0.013$). The oracle upper bound---selecting the better model per site using test-set $R^2$ directly---achieves $R^2 = 0.210$ ($\Delta R^2 = {+}0.006$ over the per-site dev-set selection), confirming that the dev-set model selection loses only negligible performance relative to perfect hindsight. These results confirm that the per-site model selection is competitive with global single-model strategies and that the choice of XGBoost vs.\ Random Forest per site has modest aggregate impact, consistent with the near-identical dev-set performance at the sites where selection was ambiguous.
 
 \subsubsection{Derived Features and Implicit Nonlinearity}
 
@@ -1089,11 +1089,10 @@ Since DATect assigns each site a single model (XGBoost or Random Forest) based o
 XGBoost at all sites                    & 0.207 & 6.39 & 17.88 \\
 RF at all sites                         & 0.194 & 6.48 & 18.03 \\
 Per-site dev-set selection (this paper) & 0.204 & 6.42 & 17.92 \\
-Oracle (test-set optimal per site)      & 0.210 & 6.41 & 17.85 \\
 \bottomrule
 \end{tabular}
+{\footnotesize The oracle upper bound---selecting the better model per site using test-set $R^2$ directly---achieves $R^2 = 0.210$, MAE $= 6.41$~\si{\microgrampeg} ($\Delta R^2 = {+}0.006$ over the per-site dev-set selection), confirming the development-set model selection is robust.}
 \end{table}
-% NOTE: oracle R² requires python3 -c "..." computation from retro_regression_xgb.parquet
 
 
 % ══════════════════════════════════════════════════════════════════════════════

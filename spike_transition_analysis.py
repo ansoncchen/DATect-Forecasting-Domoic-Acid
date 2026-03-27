@@ -366,13 +366,17 @@ def train_spike_classifier(
     if prev_col not in train_ff.columns:
         prev_col = next((c for c in train_ff.columns if "prev_obs_1" in c), None)
 
+    # Compute safe-baseline mask once; reuse for both filtering and index mapping
     if prev_col:
-        safe_train = train_ff[train_ff[prev_col].fillna(0) < SPIKE_THRESHOLD].copy()
-        safe_test = test_ff[test_ff[prev_col].fillna(0) < SPIKE_THRESHOLD].copy()
+        train_safe_mask = train_ff[prev_col].fillna(0) < SPIKE_THRESHOLD
+        test_safe_mask = test_ff[prev_col].fillna(0) < SPIKE_THRESHOLD
     else:
-        # Fallback: use leak-free last_observed_da_raw for test (correct for test rows)
-        safe_train = train_ff[train_ff["last_observed_da_raw"].fillna(0) < SPIKE_THRESHOLD].copy()
-        safe_test = test_ff[test_ff["last_observed_da_raw"].fillna(SPIKE_THRESHOLD + 1) < SPIKE_THRESHOLD].copy()
+        train_safe_mask = train_ff["last_observed_da_raw"].fillna(0) < SPIKE_THRESHOLD
+        test_safe_mask = test_ff["last_observed_da_raw"].fillna(SPIKE_THRESHOLD + 1) < SPIKE_THRESHOLD
+
+    safe_train = train_ff[train_safe_mask].copy()
+    safe_test = test_ff[test_safe_mask].copy()
+    safe_test_idx = np.where(test_safe_mask.values)[0]  # positions in test_ff
 
     proba_trans = np.full(len(test_ff), np.nan)
     top_features_trans = []
@@ -401,9 +405,8 @@ def train_spike_classifier(
 
         if len(X_test_safe) > 0:
             proba_safe = clf_trans.predict_proba(X_test_safe)[:, 1]
-            # Map back to full test_ff index positions
-            safe_idx = np.where(test_ff["last_observed_da_raw"].values < SPIKE_THRESHOLD)[0]
-            for i, idx in enumerate(safe_idx):
+            # Map back to full test_ff index positions using the same mask
+            for i, idx in enumerate(safe_test_idx):
                 proba_trans[idx] = proba_safe[i]
 
         feat_imp_trans = dict(zip(feature_cols, clf_trans.feature_importances_))

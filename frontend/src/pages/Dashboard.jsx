@@ -708,7 +708,7 @@ const Dashboard = () => {
                     onChange={(e) => setConfig({...config, forecast_model: e.target.value})}
                     className="w-full p-3 border border-gray-300 rounded-md text-lg"
                   >
-                    <option value="ensemble">Ensemble - XGBoost + RF + Naive combined (Recommended)</option>
+                    <option value="ensemble">Ensemble - XGBoost + RF (Recommended)</option>
                     <option value="naive">Naive Baseline - Most recent DA before anchor date</option>
                     <option value="linear">Ridge / Logistic - Interpretable linear models</option>
                   </select>
@@ -953,8 +953,8 @@ const Dashboard = () => {
           {/* Ensemble Breakdown */}
           {forecast.ensemble && (
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-medium text-purple-800 mb-4">🔬 Ensemble Model Breakdown</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <h3 className="text-lg font-medium text-purple-800 mb-4">Ensemble Model Breakdown</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-purple-50 p-4 rounded-lg text-center">
                   <p className="text-sm text-gray-600 mb-1">XGBoost</p>
                   <p className="text-xl font-bold text-purple-700">
@@ -977,17 +977,6 @@ const Dashboard = () => {
                     </p>
                   )}
                 </div>
-                <div className="bg-purple-50 p-4 rounded-lg text-center">
-                  <p className="text-sm text-gray-600 mb-1">Naive Baseline</p>
-                  <p className="text-xl font-bold text-purple-700">
-                    {forecast.ensemble.naive_prediction?.toFixed(2)} μg/g
-                  </p>
-                  {forecast.ensemble.ensemble_weights && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      weight: {(forecast.ensemble.ensemble_weights[2] * 100).toFixed(0)}%
-                    </p>
-                  )}
-                </div>
               </div>
               {forecast.ensemble.ensemble_prediction != null && (
                 <div className="mt-4 bg-purple-100 p-3 rounded-lg text-center">
@@ -995,6 +984,17 @@ const Dashboard = () => {
                   <p className="text-2xl font-bold text-purple-800">
                     {forecast.ensemble.ensemble_prediction?.toFixed(3)} μg/g
                   </p>
+                </div>
+              )}
+              {forecast.ensemble.naive_prediction != null && (
+                <div className="mt-4 border-t border-gray-200 pt-4">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Baseline Comparison</p>
+                  <div className="bg-gray-50 p-3 rounded-lg text-center">
+                    <p className="text-sm text-gray-600 mb-1">Naive Persistence</p>
+                    <p className="text-lg font-semibold text-gray-700">
+                      {forecast.ensemble.naive_prediction?.toFixed(2)} μg/g
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

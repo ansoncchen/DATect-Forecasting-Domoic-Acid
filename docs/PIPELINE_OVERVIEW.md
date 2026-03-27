@@ -70,8 +70,8 @@ The DATect forecasting system processes environmental data to predict domoic aci
         │  Ensemble Training & Prediction          │
         │  (forecasting/raw_forecast_engine.py)   │
         │  • Train/test split at anchor date      │
-        │  • Per-site XGB + RF + Naive ensemble   │
-        │  • Weighted blending via per_site_models │
+        │  • Per-site XGB + RF two-model ML ensemble │
+        │  • Weighted blending via per_site_models   │
         │  • Generate prediction                  │
         │  • Quantile/bootstrap intervals         │
         └─────────────────────────────────────────┘
@@ -120,13 +120,13 @@ Downloads and processes environmental data:
 
 ### Forecasting Engine (`forecasting/raw_forecast_engine.py`)
 
-Generates predictions with the 3-model ensemble:
+Generates predictions with the two-model ML ensemble:
 
 1. **Anchor Date Calculation**: `forecast_date - FORECAST_HORIZON_DAYS`
 2. **Observation-Order Lag Features**: Past-only shifts on raw DA measurements
 3. **Train/Test Split**: Chronological (training ≤ anchor_date)
 4. **DA Category Creation**: Per-forecast from training data only
-5. **Ensemble Training**: XGBoost + Random Forest + Naive with per-site weights
+5. **Ensemble Training**: XGBoost + Random Forest with per-site weights (naïve persistence computed separately as a standalone baseline)
 6. **Prediction**: With configurable confidence intervals
 
 ### Per-Site Configuration (`forecasting/per_site_models.py`)
@@ -269,7 +269,7 @@ DATect-Forecasting-Domoic-Acid/
 ├── config.py                     # Configuration
 ├── precompute_cache.py           # Cache generation with validation
 ├── forecasting/
-│   ├── raw_forecast_engine.py    # Ensemble pipeline (XGB + RF + Naive)
+│   ├── raw_forecast_engine.py    # Ensemble pipeline (XGB + RF two-model ML blend)
 │   ├── raw_data_forecaster.py    # Raw DA loading, feature frame building
 │   ├── raw_data_processor.py     # Observation-order lag features
 │   ├── per_site_models.py        # Per-site hyperparams and ensemble weights

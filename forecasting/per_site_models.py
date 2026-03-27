@@ -125,7 +125,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + ROLLING_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (1.00, 0.00, 0.00),
+        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.763
         'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
     },
@@ -171,7 +171,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.75, 0.25, 0.00),
+        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.614 > XGB=+0.601
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
@@ -196,7 +196,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.73, 0.27, 0.00),
+        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.764
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },

@@ -197,29 +197,31 @@ Every ML prediction goes through:
 
 ## Phase 6: Ensemble Blending
 
-The three predictions are combined using **per-site weighted averaging**:
+The two ML predictions are combined using **per-site weighted averaging**:
 
 ```
-ensemble_prediction = w_xgb * xgb_pred + w_rf * rf_pred + w_naive * naive_pred
+ensemble_prediction = w_xgb * xgb_pred + w_rf * rf_pred
 ```
+
+(w_naive = 0.0 for all sites; naïve persistence is an external baseline)
 
 The weights are completely customized per site based on which models perform best there:
 
-| Site | XGB | RF | Naive | Character |
-|------|-----|-----|-------|-----------|
-| **Twin Harbors** | 0.30 | 0.10 | **0.60** | Persistence-dominant — naive is king |
-| **Kalaloch** | 0.00 | 0.35 | **0.65** | Persistence-dominant (RF assists) |
-| **Copalis** | 0.45 | 0.00 | **0.55** | Persistence-dominant (XGB assists) |
-| **Quinault** | 0.40 | 0.15 | **0.45** | Balanced — persistence slight edge |
-| **Long Beach** | **0.95** | 0.00 | 0.05 | XGB-dominant |
-| **Clatsop Beach** | **0.95** | 0.05 | 0.00 | XGB-dominant |
-| **Coos Bay** | 0.00 | **1.00** | 0.00 | RF-only |
-| **Newport** | **1.00** | 0.00 | 0.00 | XGB-only |
-| **Gold Beach** | **1.00** | 0.00 | 0.00 | XGB-only |
-| **Cannon Beach** | 0.10 | **0.75** | 0.15 | RF-leaning (all models struggle) |
+| Site | XGB | RF | Character |
+|------|-----|-----|-----------|
+| **Twin Harbors** | 0.30 | 0.10 | XGB + RF blend (naïve persistence evaluated separately) |
+| **Kalaloch** | 0.00 | 0.35 | RF-only ML blend (naïve persistence evaluated separately) |
+| **Copalis** | 0.45 | 0.00 | XGB-only ML blend (naïve persistence evaluated separately) |
+| **Quinault** | 0.40 | 0.15 | XGB + RF blend |
+| **Long Beach** | **0.95** | 0.00 | XGB-dominant |
+| **Clatsop Beach** | **0.95** | 0.05 | XGB-dominant |
+| **Coos Bay** | 0.00 | **1.00** | RF-only |
+| **Newport** | **1.00** | 0.00 | XGB-only |
+| **Gold Beach** | **1.00** | 0.00 | XGB-only |
+| **Cannon Beach** | 0.10 | **0.75** | RF-leaning (all models struggle) |
 
-The three site categories in `per_site_models.py` are:
-- **Persistence-dominant** (Twin Harbors, Kalaloch, Copalis, Quinault): DA changes slowly, naive baseline is strong, ML is constrained
+The site categories in `per_site_models.py` are:
+- **Persistence-dominant** (Twin Harbors, Kalaloch, Copalis, Quinault): DA changes slowly; the external naïve baseline is strong at these sites, and ML weights are conservative
 - **ML-dominant** (Long Beach, Clatsop Beach, Coos Bay, Newport, Gold Beach): ML models outperform naive; with interpolated training, XGB is now the strongest ML model at most sites
 - **Struggle sites** (Cannon Beach): All models have near-zero or negative R-squared — the data is fundamentally hard to predict. These sites get aggressive regularization and conservative clipping.
 
@@ -328,10 +330,10 @@ Checks for cached results first. If cache exists, serves pre-computed prediction
 11. Per-anchor XGB tuning (if retrospective) → Find best hyperparams
 12. Train XGBoost, Random Forest, get Naive → Three predictions
 13. _postprocess() → Floor at 0, clip to quantile, apply hard ceiling
-14. Weighted ensemble blend → w_xgb * XGB + w_rf * RF + w_naive * Naive
+14. Weighted ensemble blend → w_xgb * XGB + w_rf * RF
 15. threshold_classify() → Map to risk category
 16. Quantile regression or bootstrap → Confidence intervals
 17. Return result dict to API
 ```
 
-Every single prediction (steps 6-17) is independent — a fresh model trained from scratch with zero knowledge of the future. This is by far the most computationally expensive aspect: 500 test points x 10 sites x 3 models x per-anchor tuning = tens of thousands of model trainings per full retrospective run.
+Every single prediction (steps 6-17) is independent — a fresh model trained from scratch with zero knowledge of the future. This is by far the most computationally expensive aspect: 500 test points x 10 sites x 2 ML models x per-anchor tuning = tens of thousands of model trainings per full retrospective run.

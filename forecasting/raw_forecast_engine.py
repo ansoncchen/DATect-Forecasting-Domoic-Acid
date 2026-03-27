@@ -3,7 +3,7 @@ Raw-Data Forecast Engine
 ========================
 
 Drop-in replacement for the original ``ForecastEngine`` that uses the
-raw-data ensemble pipeline (XGBoost + Random Forest + Naive baseline)
+raw-data ensemble pipeline (XGBoost + Random Forest two-model ML ensemble, with naïve persistence as an external standalone baseline)
 with per-site hyperparameter tuning, observation-order lag features,
 leak-free anchor-date environmental features, and quantile prediction
 intervals.

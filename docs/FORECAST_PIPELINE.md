@@ -11,7 +11,7 @@ Raw Data Sources → Data Ingestion → Feature Engineering → Ensemble Trainin
        ↓                 ↓                 ↓                    ↓                ↓
    MODIS Satellite   dataset-creation.py  raw_data_processor.py  raw_forecast_engine.py  Results
    Climate Indices        ↓                    ↓                       ↓
-   Streamflow      final_output.parquet  Observation-order lags  XGBoost + RF + Naive
+   Streamflow      final_output.parquet  Observation-order lags  XGBoost + RF blend (two-model ML ensemble)
    DA Measurements
 ```
 
@@ -124,9 +124,9 @@ training_data = data[data['date'] <= anchor_date]
 
 ## Stage 5: Model Training (`forecasting/raw_forecast_engine.py`, `forecasting/per_site_models.py`)
 
-### 3-Model Ensemble (Primary)
+### Two-Model ML Ensemble (Primary)
 
-The ensemble blends XGBoost, Random Forest, and a Naive baseline with per-site weights configured in `per_site_models.py`.
+The ensemble blends XGBoost and Random Forest with per-site weights configured in `per_site_models.py`. Naïve persistence is computed separately as an external standalone baseline for comparison.
 
 **XGBoost** (per-site hyperparameters):
 ```python

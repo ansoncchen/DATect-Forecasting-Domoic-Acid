@@ -12,7 +12,7 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 **Key features:**
 - 10 monitoring sites from Oregon to Washington
 - 21 years of integrated data (2003–2023)
-- 3-model ensemble (XGBoost + Random Forest + Naive) with per-site hyperparameter tuning
+- Two-model ML ensemble (XGBoost + Random Forest) with per-site hyperparameter tuning
 - Observation-order lag features for sparse/irregular measurement data
 - No-data-leakage guarantees — `verify_no_data_leakage()` called on every prediction
 - Quantile regression + bootstrap confidence intervals

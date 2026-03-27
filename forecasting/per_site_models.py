@@ -7,6 +7,7 @@ Each site can override:
   - param_grid: Custom PARAM_GRID for per-anchor XGB tuning (replaces global grid)
   - feature_subset: Explicit list of features to keep (None = use all default features)
   - ensemble_weights: (xgb_weight, rf_weight, naive_weight) tuple (None = use global)
+    naive_weight is always 0.0; naive persistence is reported as an external baseline only
   - prediction_clip_q: Custom quantile for prediction clipping (None = use global)
   - prediction_clip_max: Hard ceiling on predictions in ug/g (None = no hard ceiling)
 """
@@ -124,7 +125,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + ROLLING_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.45, 0.00, 0.55),
+        'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
     },
@@ -145,7 +146,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES + PN_FEATURES
         ),
-        'ensemble_weights': (0.00, 0.35, 0.65),
+        'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.95,
         'prediction_clip_max': 80.0,
     },
@@ -170,7 +171,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.30, 0.10, 0.60),
+        'ensemble_weights': (0.75, 0.25, 0.00),
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
@@ -195,7 +196,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.40, 0.15, 0.45),
+        'ensemble_weights': (0.73, 0.27, 0.00),
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
@@ -224,7 +225,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.95, 0.00, 0.05),
+        'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
@@ -235,7 +236,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'rf_params': None,
         'param_grid': None,
         'feature_subset': None,
-        'ensemble_weights': (0.95, 0.05, 0.00),
+        'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': None,
         'prediction_clip_max': None,
     },
@@ -286,7 +287,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE + ['modis-sst', 'pdo']
             + CLIMATE_FEATURES_CORE
         ),
-        'ensemble_weights': (0.10, 0.75, 0.15),
+        'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.95,
         'prediction_clip_max': 80.0,
     },
@@ -393,14 +394,13 @@ def get_site_param_grid(site: str) -> Optional[List[dict]]:
 def get_site_ensemble_weights(site: str) -> Tuple[float, float, float]:
     """Return (xgb_weight, rf_weight, naive_weight) for this site.
 
-    Default: (0.45, 0.35, 0.20).  With interpolated training, XGB is
-    globally the strongest ML model; Naive remains critical at
-    persistence-dominated sites.
+    Default: (0.56, 0.44, 0.00).  naive_weight is always 0.0; naive
+    persistence is evaluated as an external standalone baseline only.
     """
     weights = get_site_config(site)['ensemble_weights']
     if weights is not None:
         return weights
-    return (0.45, 0.35, 0.20)
+    return (0.56, 0.44, 0.00)
 
 
 def get_site_clip_params(site: str) -> Tuple[Optional[float], Optional[float]]:

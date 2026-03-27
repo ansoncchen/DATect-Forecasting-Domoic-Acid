@@ -262,6 +262,21 @@ SPIKE_TRUE_NEGATIVE_WEIGHT = 0.1  # Very low weight for correct non-spike predic
 SPIKE_ALERT_PROB_THRESHOLD = 0.10  # Probability threshold for spike alert (optimized for transition recall)
 SPIKE_CLASSIFIER_ENABLED = True    # Toggle spike binary classifier on/off
 
+# Spike binary classifier hyperparameters (tuned for per-test-point training
+# with small safe-baseline datasets — shallower/simpler than 4-category classifier)
+SPIKE_CLASSIFIER_PARAMS = {
+    "n_estimators": 300,
+    "max_depth": 4,
+    "learning_rate": 0.05,
+    "subsample": 0.85,
+    "colsample_bytree": 0.85,
+    "reg_alpha": 0.5,
+    "reg_lambda": 1.0,
+    "gamma": 0.1,
+    "min_child_weight": 3,
+    "eval_metric": "logloss",
+}
+
 # Bootstrap subsample fraction for uncertainty estimation
 BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
 

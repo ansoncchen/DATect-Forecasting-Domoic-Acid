@@ -169,7 +169,8 @@ class ClassificationAdapter:
         y_spike = (y_da_raw >= spike_threshold).astype(int)
 
         # Identify which columns to drop (leaky persistence features)
-        leaky_cols = {"last_observed_da_raw", "weeks_since_last_spike"}
+        # distance_to_threshold = SPIKE_THRESHOLD - last_observed_da_raw, also leaky
+        leaky_cols = {"last_observed_da_raw", "weeks_since_last_spike", "distance_to_threshold"}
         prev_obs_col = "da_raw_prev_obs_1"
 
         # Safe-baseline: keep only rows where previous obs < threshold
@@ -189,7 +190,7 @@ class ClassificationAdapter:
 
         # Need at least 2 classes and minimum samples
         if len(y_safe) < 10 or y_safe.nunique() < 2:
-            logger.warning(
+            logger.debug(
                 "Spike classifier: insufficient safe-baseline data for %s "
                 "(n=%d, classes=%d)",
                 site or "unknown",
@@ -204,7 +205,16 @@ class ClassificationAdapter:
         class_weight_dict = dict(zip(classes, class_weights))
         sample_weights = np.array([class_weight_dict[y] for y in y_safe])
 
-        model = build_xgb_classifier()
+        # Use spike-specific params (shallower trees, tuned for small
+        # safe-baseline datasets in per-test-point training)
+        from xgboost import XGBClassifier
+        spike_params = getattr(config, "SPIKE_CLASSIFIER_PARAMS", {})
+        model = XGBClassifier(
+            **spike_params,
+            random_state=config.RANDOM_SEED,
+            verbosity=0,
+            use_label_encoder=False,
+        )
         try:
             model.fit(X_safe, y_safe, sample_weight=sample_weights)
         except Exception as exc:

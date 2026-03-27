@@ -21,7 +21,8 @@ DA Risk Categories:
 
 from __future__ import annotations
 
-from typing import Optional
+from dataclasses import dataclass
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -137,6 +138,100 @@ class ClassificationAdapter:
             return None
 
         return model, cat_mapping, reverse_mapping
+
+    # ------------------------------------------------------------------
+    # 3. Binary spike classifier (transition-focused)
+    # ------------------------------------------------------------------
+
+    def train_spike_binary_classifier(
+        self,
+        X_train: pd.DataFrame,
+        y_da_raw: pd.Series,
+        spike_threshold: float = 20.0,
+        site: Optional[str] = None,
+    ) -> Optional[dict]:
+        """
+        Train a binary XGBoost classifier for spike detection.
+
+        Uses a **safe-baseline** approach: trains only on rows where the
+        previous observation (``da_raw_prev_obs_1``) was below
+        *spike_threshold*.  This forces the model to learn from
+        environmental and rolling features rather than persistence.
+
+        Leaky features (``last_observed_da_raw``, ``weeks_since_last_spike``)
+        are dropped before fitting so the classifier cannot cheat.
+
+        Returns
+        -------
+        dict with keys ``model``, ``columns`` (features used), or None.
+        """
+        # Binary target from raw DA values
+        y_spike = (y_da_raw >= spike_threshold).astype(int)
+
+        # Identify which columns to drop (leaky persistence features)
+        leaky_cols = {"last_observed_da_raw", "weeks_since_last_spike"}
+        prev_obs_col = "da_raw_prev_obs_1"
+
+        # Safe-baseline: keep only rows where previous obs < threshold
+        if prev_obs_col in X_train.columns:
+            safe_mask = X_train[prev_obs_col].fillna(0) < spike_threshold
+        else:
+            # If prev_obs_col was already dropped, fall back to full training set
+            safe_mask = pd.Series(True, index=X_train.index)
+
+        X_safe = X_train.loc[safe_mask].copy()
+        y_safe = y_spike.loc[safe_mask].copy()
+
+        # Drop leaky columns from features
+        cols_to_drop = [c for c in leaky_cols if c in X_safe.columns]
+        if cols_to_drop:
+            X_safe = X_safe.drop(columns=cols_to_drop)
+
+        # Need at least 2 classes and minimum samples
+        if len(y_safe) < 10 or y_safe.nunique() < 2:
+            logger.warning(
+                "Spike classifier: insufficient safe-baseline data for %s "
+                "(n=%d, classes=%d)",
+                site or "unknown",
+                len(y_safe),
+                y_safe.nunique(),
+            )
+            return None
+
+        # Balanced class weighting
+        classes = np.unique(y_safe)
+        class_weights = compute_class_weight("balanced", classes=classes, y=y_safe)
+        class_weight_dict = dict(zip(classes, class_weights))
+        sample_weights = np.array([class_weight_dict[y] for y in y_safe])
+
+        model = build_xgb_classifier()
+        try:
+            model.fit(X_safe, y_safe, sample_weight=sample_weights)
+        except Exception as exc:
+            logger.warning("Spike binary classifier training failed: %s", exc)
+            return None
+
+        return {"model": model, "columns": list(X_safe.columns)}
+
+    def predict_spike_probability(
+        self,
+        spike_result: dict,
+        X_test: pd.DataFrame,
+    ) -> float:
+        """
+        Predict spike probability for a test row using the trained spike
+        classifier.  Aligns test columns to match training columns.
+
+        Returns probability of class 1 (spike).
+        """
+        model = spike_result["model"]
+        train_cols = spike_result["columns"]
+        X_aligned = X_test.reindex(columns=train_cols, fill_value=0)
+        proba = model.predict_proba(X_aligned)
+        # Class 1 = spike; handle case where model only saw one class
+        if proba.shape[1] == 1:
+            return 0.0
+        return float(proba[0, 1])
 
     def predict_with_probabilities(
         self,

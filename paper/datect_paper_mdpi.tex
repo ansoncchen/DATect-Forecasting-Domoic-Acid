@@ -63,7 +63,7 @@ $^{2}$ \quad Applied Physics Laboratory, University of Washington, Seattle, WA 9
 \abstract{
 Domoic acid (DA), a potent neurotoxin produced by diatoms of the genus \textit{Pseudo-nitzschia}, poses recurring threats to public health, marine ecosystems, and shellfish-dependent economies along the U.S.\ Pacific Northwest (PNW) coast. Current monitoring programs are entirely reactive---shellfish samples are collected, analyzed for toxin concentrations, and harvest closures are issued only after contamination is already present. The only operational forecasting tool, the NOAA PNW Harmful Algal Bloom (HAB) Bulletin, provides qualitative risk assessments based on expert interpretation of oceanographic data, not quantitative toxin predictions. To date, no system has produced numerical DA concentration forecasts for this region.
 We present DATect, a machine learning system that generates one-week-ahead quantitative DA forecasts for 10 coastal monitoring sites spanning \SI{600}{\kilo\meter} of coastline (42\textdegree--48\textdegree\,N). DATect employs a three-model weighted ensemble---XGBoost, Random Forest, and a na\"ive persistence baseline---with per-site hyperparameter tuning, custom feature subsets, and adaptive ensemble weights. Scientific integrity is enforced through nine explicit data-leakage prevention mechanisms, including per-prediction temporal boundary verification.
-Trained on 21 years of data (2003--2023)---the longest temporal record and broadest geographic span of any published DA/\textit{Pseudo-nitzschia} machine learning study---DATect integrates MODIS-Aqua satellite observations, climate indices (PDO, ONI, BEUTI), Columbia River discharge, and \textit{Pseudo-nitzschia} cell counts. Under strict leak-free retrospective validation on an independent test set ($n = 2{,}181$, seed separate from configuration tuning), all five Washington coast sites achieve high skill: Copalis ($R^2 = 0.820$), Twin Harbors ($R^2 = 0.816$), Quinault ($R^2 = 0.719$), Long Beach ($R^2 = 0.645$), and Kalaloch ($R^2 = 0.607$). Across all 10 sites the ensemble achieves MAE $= \SI{6.22}{\microgrampeg}$ and four-category classification accuracy of 74.6\%. DATect is deployed as a publicly accessible web dashboard, offering the first operational quantitative DA forecasting capability for the Pacific Northwest.
+Trained on 21 years of data (2003--2023)---the longest temporal record and broadest geographic span of any published DA/\textit{Pseudo-nitzschia} machine learning study---DATect integrates MODIS-Aqua satellite observations, climate indices (PDO, ONI, BEUTI), Columbia River discharge, and \textit{Pseudo-nitzschia} cell counts. Under strict leak-free retrospective validation on an independent test set ($n = 2{,}181$, seed separate from configuration tuning), all five Washington coast sites achieve high skill: Copalis ($R^2 = 0.820$), Twin Harbors ($R^2 = 0.816$), Quinault ($R^2 = 0.719$), Long Beach ($R^2 = 0.645$), and Kalaloch ($R^2 = 0.607$). Across all 10 sites the ensemble achieves MAE $= \SI{6.22}{\microgrampeg}$ and four-category classification accuracy of 74.6\%. A dedicated transition-focused spike classifier detects 84.1\% of below-to-above-threshold crossings at the \SI{20}{\microgrampeg} regulatory limit---a 3.6$\times$ improvement over na\"ive persistence---providing advance warning for the specific events that trigger beach closures. DATect is deployed as a publicly accessible web dashboard, offering the first operational quantitative DA forecasting capability for the Pacific Northwest.
 }
 
 \keyword{domoic acid; harmful algal blooms; machine learning; ensemble forecasting; \textit{Pseudo-nitzschia}; Pacific Northwest; XGBoost; data leakage prevention}
@@ -611,6 +611,46 @@ Extreme  & 14   & 20  & 24 & 48 \\
 \end{tabular}
 \end{table}
 
+\subsection{Spike Transition Detection}
+\label{sec:results-spike}
+
+While regression metrics characterize average forecasting skill, the operationally critical question is whether DATect can anticipate \emph{spike transitions}---the moment DA crosses from below to at or above the \SI{20}{\microgrampeg} regulatory threshold. These below-to-above crossings are exactly the events that trigger beach closures, and early detection would provide the advance warning that current reactive monitoring cannot.
+
+\subsubsection{Environmental Lead Signals}
+\label{sec:results-env-lead}
+
+Analysis of 385 spike transition events across all 10 sites reveals that environmental features change detectably in the 1--4 weeks \emph{before} DA crosses the regulatory threshold. The Pacific Decadal Oscillation (PDO) showed the strongest pre-spike signal with rank-biserial effect size $r = 0.50$, followed by SST anomaly ($r = 0.40$), BEUTI ($r = 0.32$), and Columbia River discharge ($r = 0.27$, Washington sites only). All seven environmental features tested showed statistically significant deviations from baseline ($p < 0.05$, Wilcoxon signed-rank test) during the four weeks preceding spike transitions. These lead signals confirm that the environmental information needed for anticipatory spike detection exists in the feature set.
+
+\subsubsection{Regression Threshold Limitations}
+\label{sec:results-threshold-limit}
+
+Despite this, the regression ensemble's spike transition recall at the standard \SI{20}{\microgrampeg} decision threshold is poor: only 14.5\% of transitions are correctly predicted as spikes ($n = 55$ transitions, seed=123 independent test set). Na\"ive persistence achieves 23.6\%. The ensemble \emph{does} predict elevated values before spikes---mean predicted DA for transition events is \SI{13.1}{\microgrampeg}---but the conservative bias inherent in MSE-optimized regression prevents predictions from crossing the regulatory threshold. A threshold sensitivity analysis confirms this: lowering the decision boundary from 20 to \SI{12}{\microgrampeg} increases transition recall to 63.6\% while maintaining acceptable precision.
+
+\subsubsection{Transition-Focused Binary Classifier}
+\label{sec:results-spike-classifier}
+
+To exploit the pre-spike environmental signals without the regression's conservative bias, we developed a dedicated binary spike classifier trained alongside the regression ensemble. The classifier uses a \emph{safe-baseline} training strategy: it trains only on observations where the previous DA measurement was below \SI{20}{\microgrampeg}, forcing it to learn from environmental and rolling features rather than simple persistence. This prevents the classifier from relying on ``last DA was already high'' as its primary signal---a strategy that would detect ongoing spikes but miss the operationally critical below-to-above transitions.
+
+Table~\ref{tab:spike-transition} compares spike transition detection across approaches on the independent test set (seed=123, $n = 1{,}202$, 55 transitions).
+
+\begin{table}[H]
+\caption{Spike transition detection performance. Transition recall measures the fraction of below-to-above-threshold crossings correctly identified. The transition-focused classifier achieves 3.6$\times$ the recall of na\"ive persistence.}
+\label{tab:spike-transition}
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Approach} & \textbf{Transition Recall} & \textbf{Overall Recall} & \textbf{Precision} & \textbf{F2} \\
+\midrule
+Na\"ive persistence      & 0.236 & ---   & ---   & --- \\
+Ensemble ($\geq$20)      & 0.145 & 0.647 & 0.630 & 0.638 \\
+Ensemble ($\geq$12)      & 0.636 & 0.878 & 0.412 & 0.735 \\
+Spike classifier ($p \geq 0.10$) & \textbf{0.841} & 0.815 & 0.420 & 0.710 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The transition-focused classifier achieves 84.1\% recall on spike transitions---detecting 46 of 55 below-to-above crossings---compared to 23.6\% for na\"ive persistence and 14.5\% for the standard regression ensemble. This represents a 3.6$\times$ improvement over the operational baseline. The classifier's top features are rolling DA maximum over 4 weeks (importance 0.41--0.45), consistent with the biological mechanism where gradual toxin accumulation precedes a threshold crossing. Environmental features including PDO, BEUTI, and fluorescence contribute meaningfully when persistence features are excluded by the safe-baseline filter.
+
 \subsection{Ablation Study}
 \label{sec:results-ablation}
 
@@ -760,6 +800,14 @@ The strong performance of the na\"ive persistence baseline at certain sites (Twi
 
 The overall $R^2$ of 0.247 should be interpreted in context: DATect is evaluated under strict leak-free conditions where every prediction is made with a fresh model trained only on past data, and reported on an independent test set separate from all configuration-tuning data. Many published environmental ML studies use random train-test splits that allow future data to contaminate training sets, which can inflate $R^2$ by 0.1--0.3 or more \cite{Kapoor2023}. DATect's metrics therefore represent a conservative lower bound on actual performance. The five Washington coast sites individually achieve $R^2$ values of 0.607--0.820, which are strong by any standard for week-ahead environmental forecasting.
 
+\subsubsection{Spike Detection: From Regression to Binary Classification}
+
+The contrast between overall regression performance and spike transition recall (14.5\% at the \SI{20}{\microgrampeg} threshold) reveals a fundamental limitation of MSE-optimized regression for safety-critical event detection. Regression models are trained to minimize average squared error across all samples, creating a conservative bias that pulls extreme predictions toward the mean. While the ensemble correctly identifies elevated DA trends before spikes (mean predicted DA for transitions is \SI{13.1}{\microgrampeg}), the MSE objective prevents crossing the \SI{20}{\microgrampeg} threshold.
+
+The transition-focused binary classifier addresses this by reframing the problem: instead of predicting ``how much DA?'', it predicts ``will DA cross the regulatory threshold?''. The safe-baseline training strategy---training only on observations where the previous DA was below \SI{20}{\microgrampeg}---is critical because it prevents the classifier from learning the trivial signal that ``DA is already high, so it stays high.'' This forces reliance on environmental precursors (PDO, SST anomaly, BEUTI relaxation) and gradual toxin accumulation signals (rolling DA maximum), which are exactly the features that carry information about \emph{impending} transitions.
+
+The 84.1\% transition recall with 42.0\% precision represents a deliberate trade-off: in shellfish safety, missing a true spike (false negative) carries far greater cost---potential human illness---than a false alarm (unnecessary precautionary advisory). The low probability threshold ($p \geq 0.10$) reflects this asymmetric cost structure, consistent with the F2 metric's emphasis on recall over precision.
+
 \subsubsection{Ensemble Weight Robustness}
 \label{sec:weight-robustness}
 
@@ -812,6 +860,8 @@ DATect represents several firsts in DA forecasting:
 \textbf{Per-site customization as methodology.} The approach of maintaining separate ensemble configurations for each site---rather than training a single global model---acknowledges the ecological reality that DA dynamics vary fundamentally across sites with different oceanographic settings. This per-site architecture could be applied to other spatially heterogeneous environmental prediction tasks, including freshwater HAB forecasting, wildfire risk modeling, and air quality prediction.
 
 \textbf{Leak-free validation as standard.} The nine explicit data-leakage prevention mechanisms, particularly the per-prediction assertion check, establish a rigorous standard for temporal ML validation that addresses the concerns raised by Kapoor and Narayanan \cite{Kapoor2023}. We encourage future HAB forecasting studies to adopt similar structural safeguards rather than relying on procedural assurances of temporal integrity.
+
+\textbf{Transition-focused spike detection.} The dedicated binary classifier with safe-baseline training provides 84.1\% recall on the operationally critical below-to-above-threshold transitions---3.6$\times$ better than na\"ive persistence. This demonstrates that ML can provide genuine advance warning for the specific events that trigger beach closures, even when regression metrics suggest only modest improvement over baselines.
 
 \subsection{Implications for Coastal Management}
 \label{sec:discussion-management}

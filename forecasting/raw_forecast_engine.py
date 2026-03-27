@@ -447,6 +447,30 @@ class RawForecastEngine:
                 self.classification_adapter.threshold_classify(primary_prediction)
             )
 
+        # --- Spike binary classifier ---
+        if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
+            try:
+                spike_result = (
+                    self.classification_adapter.train_spike_binary_classifier(
+                        X_train_processed,
+                        y_train,
+                        spike_threshold=config.SPIKE_THRESHOLD,
+                        site=site,
+                    )
+                )
+                if spike_result is not None:
+                    spike_prob = (
+                        self.classification_adapter.predict_spike_probability(
+                            spike_result, X_test_processed,
+                        )
+                    )
+                    result["spike_probability"] = spike_prob
+                    result["spike_alert"] = spike_prob >= getattr(
+                        config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
+                    )
+            except Exception as exc:
+                logger.debug("Spike classifier failed: %s", exc)
+
         return result
 
     # ------------------------------------------------------------------
@@ -1089,6 +1113,31 @@ class RawForecastEngine:
             except Exception:
                 pass
 
+        # Spike binary classifier
+        spike_prob = None
+        spike_alert = None
+        if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
+            try:
+                spike_result = (
+                    self.classification_adapter.train_spike_binary_classifier(
+                        X_train_processed,
+                        y_train,
+                        spike_threshold=config.SPIKE_THRESHOLD,
+                        site=site,
+                    )
+                )
+                if spike_result is not None:
+                    spike_prob = (
+                        self.classification_adapter.predict_spike_probability(
+                            spike_result, X_test_processed,
+                        )
+                    )
+                    spike_alert = spike_prob >= getattr(
+                        config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
+                    )
+            except Exception as exc:
+                logger.debug("Spike classifier failed in validation: %s", exc)
+
         result = {
             "test_date": test_date,
             "anchor_date": anchor_date,
@@ -1106,6 +1155,8 @@ class RawForecastEngine:
                 abs((test_row["date"].iloc[0] - test_date).days)
             ),
             "feature_importance": feature_importance,
+            "spike_probability": spike_prob,
+            "spike_alert": spike_alert,
         }
 
         return {**result, **quantile_predictions}

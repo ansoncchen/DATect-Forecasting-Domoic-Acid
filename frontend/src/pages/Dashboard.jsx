@@ -875,7 +875,7 @@ const Dashboard = () => {
         <div className="space-y-6">
           {/* Summary */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {forecast.regression && (
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h3 className="text-lg font-medium text-blue-800 mb-2">
@@ -900,6 +900,20 @@ const Dashboard = () => {
                   </div>
                   <p className="text-sm text-gray-600 mt-2">
                     Training samples: {forecast.classification.training_samples}
+                  </p>
+                </div>
+              )}
+
+              {forecast.regression?.spike_probability != null && (
+                <div className={`p-4 rounded-lg ${forecast.regression.spike_alert ? 'bg-red-50 border-2 border-red-300' : 'bg-emerald-50'}`}>
+                  <h3 className={`text-lg font-medium mb-2 ${forecast.regression.spike_alert ? 'text-red-800' : 'text-emerald-800'}`}>
+                    {forecast.regression.spike_alert ? '⚠️ Spike Alert' : '✅ No Spike Alert'}
+                  </h3>
+                  <div className={`text-2xl font-bold ${forecast.regression.spike_alert ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {(forecast.regression.spike_probability * 100).toFixed(1)}% spike probability
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Alert threshold: &gt;10% probability of DA &ge; 20 &mu;g/g
                   </p>
                 </div>
               )}

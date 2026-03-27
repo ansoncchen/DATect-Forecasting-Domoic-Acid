@@ -166,6 +166,8 @@ class ForecastResponse(BaseModel):
     xgb_prediction: Optional[float] = None
     rf_prediction: Optional[float] = None
     ensemble_weights: Optional[List[float]] = None
+    spike_probability: Optional[float] = None
+    spike_alert: Optional[bool] = None
     error: Optional[str] = None
 
 class SiteInfo(BaseModel):
@@ -291,7 +293,12 @@ async def generate_forecast(request: ForecastRequest):
             importance_df = result['feature_importance']
             if hasattr(importance_df, 'to_dict'):
                 response_data["feature_importance"] = importance_df.head(10).to_dict('records')
-        
+
+        # Spike classifier fields
+        if result.get('spike_probability') is not None:
+            response_data["spike_probability"] = result['spike_probability']
+            response_data["spike_alert"] = result.get('spike_alert', False)
+
         return ForecastResponse(**response_data)
         
     except Exception as e:

@@ -17,6 +17,7 @@ Usage
     python3 eval_model_variants.py [--seed 123] [--sample-fraction 0.40]
                                    [--sites all|WA|site_name]
                                    [--output-dir eval_results/model_variants]
+                                   [--workers N]
 
 Stacking OOF protocol (leak-free)
 ----------------------------------
@@ -38,6 +39,7 @@ import sys
 import time
 import warnings
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -407,6 +409,40 @@ def _evaluate_single_point(
 
 
 # ===========================================================================
+# Module-level worker for multiprocessing (must not be nested)
+# ===========================================================================
+
+def _evaluate_anchor(args_tuple: tuple) -> Optional[dict]:
+    """
+    Worker function for ProcessPoolExecutor.  Receives everything it needs in a
+    single tuple so it can be pickled cleanly by multiprocessing.
+
+    args_tuple layout:
+        (anchor_idx, raw_measurement, feature_frame_slice, base_seed, use_per_site)
+
+    anchor_idx        – int; used to derive a deterministic per-anchor seed
+    raw_measurement   – dict with keys 'date', 'site', 'da_raw'
+    feature_frame_slice – DataFrame containing only the rows needed for this
+                          anchor (site rows up to test_date + a small buffer);
+                          keeps inter-process memory footprint small
+    base_seed         – int; global seed from CLI
+    use_per_site      – bool; mirrors the top-level config flag
+    """
+    anchor_idx, raw_measurement, feature_frame_slice, base_seed, use_per_site = args_tuple
+
+    # Deterministic per-anchor seed for reproducibility
+    rng = np.random.default_rng(base_seed + anchor_idx)
+    anchor_seed = int(rng.integers(0, 2**31 - 1))
+
+    return _evaluate_single_point(
+        raw_measurement,
+        feature_frame_slice,
+        anchor_seed,
+        use_per_site,
+    )
+
+
+# ===========================================================================
 # Metric computation helpers
 # ===========================================================================
 
@@ -550,9 +586,12 @@ def run_evaluation(
     seed: int = 42,
     sites_arg: str = "all",
     output_dir: str = "eval_results/model_variants",
+    n_workers: Optional[int] = None,
 ) -> None:
     """Run the full evaluation and write outputs."""
     os.makedirs(output_dir, exist_ok=True)
+
+    max_workers = n_workers if n_workers is not None else min(os.cpu_count() or 4, 8)
 
     print(f"\n{'='*70}")
     print("DATect Model Variant Comparison")
@@ -560,6 +599,7 @@ def run_evaluation(
     print(f"  Fraction  : {sample_fraction:.0%} of eligible test points per site")
     print(f"  Seed      : {seed}")
     print(f"  Sites     : {sites_arg}")
+    print(f"  Workers   : {max_workers}")
     print(f"  Output dir: {output_dir}")
     print(f"{'='*70}\n")
 
@@ -616,14 +656,57 @@ def run_evaluation(
         for _, row in test_samples.iterrows()
     ]
 
-    # --- Run evaluations ---
-    all_results = []
+    # --- Build per-anchor args (pre-slice feature_frame to reduce IPC payload) ---
     use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
 
-    for row in tqdm(sample_rows, desc="Evaluating", unit="point"):
-        result = _evaluate_single_point(row, feature_frame, seed, use_per_site)
-        if result is not None:
-            all_results.append(result)
+    anchor_args_list: List[tuple] = []
+    for anchor_idx, raw_meas in enumerate(sample_rows):
+        site = raw_meas["site"]
+        test_date = pd.Timestamp(raw_meas["date"])
+        # Include a small buffer (28 days) past test_date so anchor-row lookup works
+        slice_end = test_date + pd.Timedelta(days=28)
+        ff_slice = feature_frame[
+            (feature_frame["site"] == site) & (feature_frame["date"] <= slice_end)
+        ].copy()
+        anchor_args_list.append((anchor_idx, raw_meas, ff_slice, seed, use_per_site))
+
+    # --- Run evaluations (parallel with ProcessPoolExecutor, sequential fallback) ---
+    all_results: List[dict] = []
+
+    try:
+        futures = {}
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            for args in anchor_args_list:
+                future = executor.submit(_evaluate_anchor, args)
+                futures[future] = args[0]  # anchor_idx as key
+
+            with tqdm(total=len(futures), desc="Evaluating", unit="point") as pbar:
+                for future in as_completed(futures):
+                    try:
+                        result = future.result()
+                    except Exception as exc:
+                        warnings.warn(
+                            f"Anchor {futures[future]} raised an exception: {exc}",
+                            RuntimeWarning,
+                            stacklevel=2,
+                        )
+                        result = None
+                    if result is not None:
+                        all_results.append(result)
+                    pbar.update(1)
+
+    except Exception as parallel_exc:
+        warnings.warn(
+            f"ProcessPoolExecutor failed ({parallel_exc}); "
+            "falling back to sequential evaluation.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        all_results = []
+        for args in tqdm(anchor_args_list, desc="Evaluating (sequential)", unit="point"):
+            result = _evaluate_anchor(args)
+            if result is not None:
+                all_results.append(result)
 
     if not all_results:
         print("ERROR: No predictions were produced. Check data and configuration.")
@@ -858,6 +941,15 @@ def _parse_args() -> argparse.Namespace:
         default="eval_results/model_variants",
         help="Directory for output files (CSV and JSON).",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "Number of parallel worker processes for the anchor evaluation loop. "
+            "Defaults to min(cpu_count, 8). Set to 1 to force sequential execution."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -868,4 +960,5 @@ if __name__ == "__main__":
         seed=args.seed,
         sites_arg=args.sites,
         output_dir=args.output_dir,
+        n_workers=args.workers,
     )

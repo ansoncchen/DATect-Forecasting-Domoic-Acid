@@ -426,12 +426,19 @@ def main():
     parser = argparse.ArgumentParser(description="Phase 2: Spike Detection Evaluation")
     parser.add_argument("--force-rerun", action="store_true", help="Force re-run of retrospective evaluation")
     parser.add_argument("--seed", type=int, default=None, help="Override random seed (e.g., 123 for independent test set)")
+    parser.add_argument("--sample-fraction", type=float, default=None,
+                        help="Override config.TEST_SAMPLE_FRACTION (e.g. 0.40 for 40%% independent test set)")
     args = parser.parse_args()
 
     # Override seed before any engine initialization
     if args.seed is not None:
         config.RANDOM_SEED = args.seed
         print(f"Using seed={args.seed} (independent test set)")
+
+    if args.sample_fraction is not None:
+        config.TEST_SAMPLE_FRACTION = args.sample_fraction
+        print(f"Using sample_fraction={args.sample_fraction} (overrides config default of {config.TEST_SAMPLE_FRACTION})")
+    print(f"Test sample fraction: {config.TEST_SAMPLE_FRACTION}")
 
     seed_suffix = f"_seed{config.RANDOM_SEED}" if config.RANDOM_SEED != 42 else ""
 

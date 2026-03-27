@@ -120,10 +120,10 @@ def bootstrap_delta_r2(
 #       'linear' requires a separate run with model_type='linear'.
 
 MODEL_RUN_MAP = {
-    "ensemble": {"run_key": "xgboost", "pred_col": "ensemble_prediction"},
-    "xgboost":  {"run_key": "xgboost", "pred_col": "predicted_da"},
-    "rf":       {"run_key": "xgboost", "pred_col": "predicted_da_rf"},
-    "naive":    {"run_key": "xgboost", "pred_col": "naive_prediction"},
+    "ensemble": {"run_key": "xgb", "pred_col": "ensemble_prediction"},
+    "xgboost":  {"run_key": "xgb", "pred_col": "predicted_da"},
+    "rf":       {"run_key": "xgb", "pred_col": "predicted_da_rf"},
+    "naive":    {"run_key": "xgb", "pred_col": "naive_prediction"},
     "linear":   {"run_key": "linear",  "pred_col": "predicted_da"},
 }
 
@@ -598,7 +598,7 @@ def main():
     for fname in sorted(os.listdir("eval_results")) if os.path.isdir("eval_results") else []:
         if fname.startswith("retro") and fname != f"retro{seed_suffix}":
             alt_dir = os.path.join("eval_results", fname)
-            alt_path = os.path.join(alt_dir, "retro_regression_xgboost.parquet")
+            alt_path = os.path.join(alt_dir, "retro_regression_xgb.parquet")
             if os.path.exists(alt_path):
                 alt_candidates.append((fname, alt_path))
 

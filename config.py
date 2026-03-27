@@ -180,7 +180,7 @@ SATELLITE_DATA = {
 # Forecast Configuration
 
 # Operation mode: "retrospective" (historical validation) or "realtime" (dashboard)
-FORECAST_MODE = "retrospective"
+FORECAST_MODE = "realtime"
 
 # Task type: "regression" (continuous DA levels) or "classification" (risk categories)
 FORECAST_TASK = "regression"

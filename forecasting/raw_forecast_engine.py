@@ -155,6 +155,48 @@ class RawForecastEngine:
         return feature_frame
 
     # ------------------------------------------------------------------
+    # Pooled cross-site training data for spike classifier
+    # ------------------------------------------------------------------
+
+    def _build_pooled_spike_data(
+        self,
+        feature_frame: pd.DataFrame,
+        anchor_date: pd.Timestamp,
+    ) -> tuple[Optional[pd.DataFrame], Optional[pd.Series]]:
+        """Build pooled ALL-SITE training data for the spike binary classifier.
+
+        Uses data from every site up to *anchor_date* (temporal integrity),
+        keeping only rows with real ``da_raw`` measurements.  No per-site
+        feature selection is applied — the spike classifier gets a uniform
+        feature set across all sites.
+
+        Returns (X_pooled, y_da_raw) or (None, None) if insufficient data.
+        """
+        anchor_date = pd.Timestamp(anchor_date)
+        all_train = feature_frame[feature_frame["date"] <= anchor_date].copy()
+
+        # Only real measurements — can't define "spike" from interpolated DA
+        all_train = all_train[all_train["da_raw"].notna()].copy()
+        if len(all_train) < 30:
+            return None, None
+
+        all_train = add_temporal_features(all_train)
+
+        y_raw = all_train["da_raw"].astype(float).copy()
+
+        # Standard drops: meta cols + zero-importance features
+        # NO per-site drops — spike classifier uses uniform features
+        zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
+        drop_cols = [
+            "date", "site", "da_raw", "da", "_is_interpolated",
+        ] + list(zero_imp)
+
+        transformer, X_pooled = create_transformer(all_train, drop_cols)
+        X_pooled = transformer.fit_transform(X_pooled)
+
+        return X_pooled, y_raw
+
+    # ------------------------------------------------------------------
     # Single forecast (realtime)
     # ------------------------------------------------------------------
 
@@ -447,27 +489,31 @@ class RawForecastEngine:
                 self.classification_adapter.threshold_classify(primary_prediction)
             )
 
-        # --- Spike binary classifier ---
+        # --- Spike binary classifier (pooled cross-site training) ---
         if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
             try:
-                spike_result = (
-                    self.classification_adapter.train_spike_binary_classifier(
-                        X_train_processed,
-                        y_train,
-                        spike_threshold=config.SPIKE_THRESHOLD,
-                        site=site,
-                    )
+                X_pooled, y_pooled = self._build_pooled_spike_data(
+                    feature_frame, anchor_date,
                 )
-                if spike_result is not None:
-                    spike_prob = (
-                        self.classification_adapter.predict_spike_probability(
-                            spike_result, X_test_processed,
+                if X_pooled is not None:
+                    spike_result = (
+                        self.classification_adapter.train_spike_binary_classifier(
+                            X_pooled,
+                            y_pooled,
+                            spike_threshold=config.SPIKE_THRESHOLD,
+                            site=site,
                         )
                     )
-                    result["spike_probability"] = spike_prob
-                    result["spike_alert"] = spike_prob >= getattr(
-                        config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
-                    )
+                    if spike_result is not None:
+                        spike_prob = (
+                            self.classification_adapter.predict_spike_probability(
+                                spike_result, X_test_processed,
+                            )
+                        )
+                        result["spike_probability"] = spike_prob
+                        result["spike_alert"] = spike_prob >= getattr(
+                            config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
+                        )
             except Exception as exc:
                 logger.debug("Spike classifier failed: %s", exc)
 
@@ -1113,28 +1159,32 @@ class RawForecastEngine:
             except Exception:
                 pass
 
-        # Spike binary classifier
+        # Spike binary classifier (pooled cross-site training)
         spike_prob = None
         spike_alert = None
         if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
             try:
-                spike_result = (
-                    self.classification_adapter.train_spike_binary_classifier(
-                        X_train_processed,
-                        y_train,
-                        spike_threshold=config.SPIKE_THRESHOLD,
-                        site=site,
-                    )
+                X_pooled, y_pooled = self._build_pooled_spike_data(
+                    feature_frame, anchor_date,
                 )
-                if spike_result is not None:
-                    spike_prob = (
-                        self.classification_adapter.predict_spike_probability(
-                            spike_result, X_test_processed,
+                if X_pooled is not None:
+                    spike_result = (
+                        self.classification_adapter.train_spike_binary_classifier(
+                            X_pooled,
+                            y_pooled,
+                            spike_threshold=config.SPIKE_THRESHOLD,
+                            site=site,
                         )
                     )
-                    spike_alert = spike_prob >= getattr(
-                        config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
-                    )
+                    if spike_result is not None:
+                        spike_prob = (
+                            self.classification_adapter.predict_spike_probability(
+                                spike_result, X_test_processed,
+                            )
+                        )
+                        spike_alert = spike_prob >= getattr(
+                            config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
+                        )
             except Exception as exc:
                 logger.debug("Spike classifier failed in validation: %s", exc)
 

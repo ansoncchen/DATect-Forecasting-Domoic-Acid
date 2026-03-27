@@ -1296,15 +1296,15 @@ const Dashboard = () => {
               const alertCount = withAlerts.filter(d => d.spike_alert === true).length
               const truePositives = withAlerts.filter(d => d.spike_alert === true && d.actual_da >= 20).length
               const actualSpikes = withAlerts.filter(d => d.actual_da >= 20).length
-              const transitionRecall = actualSpikes > 0 ? (truePositives / actualSpikes * 100).toFixed(0) : 'N/A'
+              const recall = actualSpikes > 0 ? (truePositives / actualSpikes * 100) : null
               return (
                 <div className={`p-4 rounded-lg text-center ${alertCount > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
                   <div className={`text-2xl font-bold ${alertCount > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                    {alertCount} / {withAlerts.length}
+                    {recall != null ? `${recall.toFixed(0)}%` : 'N/A'}
                   </div>
-                  <div className="text-sm text-gray-600">Spike Alerts</div>
+                  <div className="text-sm text-gray-600">Spike Recall</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {transitionRecall !== 'N/A' ? `${transitionRecall}% recall on actual spikes` : 'No actual spikes in range'}
+                    {truePositives} of {actualSpikes} spikes caught · {alertCount} alerts raised
                   </div>
                 </div>
               )

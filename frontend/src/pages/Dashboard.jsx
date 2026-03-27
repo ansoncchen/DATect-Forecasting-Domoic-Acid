@@ -419,6 +419,35 @@ const Dashboard = () => {
           line: { color: predictedColor, width: 2, dash: 'dash' },
           marker: { size: 4, symbol: 'square' }
         })
+
+        // Spike alert markers (where classifier flagged spike risk)
+        const spikeAlerts = siteData.filter(d => d.spike_alert === true)
+        if (spikeAlerts.length > 0) {
+          traces.push({
+            x: spikeAlerts.map(d => d.date),
+            y: spikeAlerts.map(d => d.predicted_da),
+            mode: 'markers',
+            name: `${site} - Spike Alert`,
+            marker: {
+              size: 12,
+              symbol: 'triangle-up',
+              color: 'rgba(220, 38, 38, 0.8)',
+              line: { color: 'darkred', width: 1 }
+            },
+            text: spikeAlerts.map(d => `Spike prob: ${(d.spike_probability * 100).toFixed(1)}%`),
+            hovertemplate: '%{text}<br>Predicted: %{y:.1f} μg/g<br>Date: %{x}<extra></extra>'
+          })
+        }
+      })
+
+      // Regulatory threshold line at DA = 20
+      traces.push({
+        x: [results[0]?.date, results[results.length - 1]?.date],
+        y: [20, 20],
+        mode: 'lines',
+        name: 'Regulatory Threshold (20 μg/g)',
+        line: { color: 'rgba(220, 38, 38, 0.4)', width: 2, dash: 'dot' },
+        hoverinfo: 'skip'
       })
 
       return {
@@ -1236,7 +1265,7 @@ const Dashboard = () => {
         {/* Summary statistics */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h3 className="text-lg font-semibold mb-4">Performance Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg text-center">
               <div className="text-2xl font-bold text-blue-600">{filteredResults?.summary?.total_forecasts || 0}</div>
               <div className="text-sm text-gray-600">Total Forecasts</div>
@@ -1260,6 +1289,26 @@ const Dashboard = () => {
                 <div className="text-xs text-gray-500 mt-1">Spike Detection (&gt;20 μg/g)</div>
               </div>
             )}
+            {config.forecast_task === 'regression' && (() => {
+              const results = filteredResults?.results || []
+              const withAlerts = results.filter(d => d.spike_alert !== undefined && d.spike_alert !== null)
+              if (withAlerts.length === 0) return null
+              const alertCount = withAlerts.filter(d => d.spike_alert === true).length
+              const truePositives = withAlerts.filter(d => d.spike_alert === true && d.actual_da >= 20).length
+              const actualSpikes = withAlerts.filter(d => d.actual_da >= 20).length
+              const transitionRecall = actualSpikes > 0 ? (truePositives / actualSpikes * 100).toFixed(0) : 'N/A'
+              return (
+                <div className={`p-4 rounded-lg text-center ${alertCount > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                  <div className={`text-2xl font-bold ${alertCount > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {alertCount} / {withAlerts.length}
+                  </div>
+                  <div className="text-sm text-gray-600">Spike Alerts</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {transitionRecall !== 'N/A' ? `${transitionRecall}% recall on actual spikes` : 'No actual spikes in range'}
+                  </div>
+                </div>
+              )
+            })()}
             {config.forecast_task === 'classification' && filteredResults?.summary?.accuracy !== undefined && (
               <>
                 <div className="bg-purple-50 p-4 rounded-lg text-center">

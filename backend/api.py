@@ -935,6 +935,9 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
                 }
                 if 'anchor_date' in results_df.columns and pd.notnull(row.get('anchor_date', None)):
                     record['anchor_date'] = row['anchor_date'].strftime('%Y-%m-%d')
+                if 'spike_probability' in results_df.columns and pd.notnull(row.get('spike_probability', None)):
+                    record['spike_probability'] = clean_for_json(row['spike_probability'])
+                    record['spike_alert'] = bool(row.get('spike_alert', False))
                 base_results.append(record)
 
             # Results computed on-demand for local development

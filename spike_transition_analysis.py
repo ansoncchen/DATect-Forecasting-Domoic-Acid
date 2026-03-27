@@ -587,6 +587,22 @@ def plot_comparison(
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Spike Transition Analysis")
+    parser.add_argument("--seed", type=int, default=None, help="Override random seed (e.g., 123 for independent test set)")
+    args = parser.parse_args()
+
+    # Override seed before anything runs
+    if args.seed is not None:
+        config.RANDOM_SEED = args.seed
+        print(f"Using seed={args.seed} (independent test set)")
+
+    seed_suffix = f"_seed{config.RANDOM_SEED}" if config.RANDOM_SEED != 42 else ""
+
+    global OUTPUT_DIR, RETRO_CACHE
+    OUTPUT_DIR = os.path.join("eval_results", f"spike_transition{seed_suffix}")
+    RETRO_CACHE = os.path.join("eval_results", f"retro{seed_suffix}", "retro_regression_xgb.parquet")
+
     warnings.filterwarnings("ignore", category=RuntimeWarning)
     warnings.filterwarnings("ignore", category=FutureWarning)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -599,7 +615,8 @@ def main():
     # Load cached retrospective results
     print(f"Loading cached results from {RETRO_CACHE}...")
     if not os.path.exists(RETRO_CACHE):
-        print(f"ERROR: {RETRO_CACHE} not found. Run spike_detection_eval.py on Hyak first.")
+        print(f"ERROR: {RETRO_CACHE} not found.")
+        print(f"Run: python3 spike_detection_eval.py --seed {config.RANDOM_SEED}")
         sys.exit(1)
 
     retro = pd.read_parquet(RETRO_CACHE)

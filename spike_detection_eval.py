@@ -369,7 +369,20 @@ def print_summary(all_metrics: pd.DataFrame, per_site_metrics: pd.DataFrame):
 def main():
     parser = argparse.ArgumentParser(description="Phase 2: Spike Detection Evaluation")
     parser.add_argument("--force-rerun", action="store_true", help="Force re-run of retrospective evaluation")
+    parser.add_argument("--seed", type=int, default=None, help="Override random seed (e.g., 123 for independent test set)")
     args = parser.parse_args()
+
+    # Override seed before any engine initialization
+    if args.seed is not None:
+        config.RANDOM_SEED = args.seed
+        print(f"Using seed={args.seed} (independent test set)")
+
+    seed_suffix = f"_seed{config.RANDOM_SEED}" if config.RANDOM_SEED != 42 else ""
+
+    # Use seed-specific output and cache directories
+    global OUTPUT_DIR, RETRO_CACHE_DIR
+    OUTPUT_DIR = os.path.join("eval_results", f"spike_metrics{seed_suffix}")
+    RETRO_CACHE_DIR = os.path.join("eval_results", f"retro{seed_suffix}")
 
     warnings.filterwarnings("ignore", category=RuntimeWarning)
     os.makedirs(OUTPUT_DIR, exist_ok=True)

@@ -32,9 +32,16 @@ happen entirely within the pre-anchor window — no future data is ever touched.
 
 from __future__ import annotations
 
+import os
+# Must be set before any library imports to prevent fork+OpenMP deadlock
+# in ProcessPoolExecutor workers on Linux (XGBoost/sklearn OpenMP thread pools)
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+
 import argparse
 import json
-import os
 import sys
 import time
 import warnings
@@ -186,6 +193,7 @@ def _predict_xgb_standard(
     base["n_jobs"] = 1
     base["random_state"] = seed
     params = apply_site_xgb_params(base, site)
+    params.setdefault("nthread", 1)
     model = build_xgb_regressor(params)
     model.fit(X_train, y_train)
     return float(model.predict(X_test)[0])
@@ -255,6 +263,7 @@ def _predict_stacking(
     xgb_base_params["n_jobs"] = 1
     xgb_base_params["random_state"] = seed
     xgb_base_params = apply_site_xgb_params(xgb_base_params, site)
+    xgb_base_params.setdefault("nthread", 1)
 
     rf_base_params = dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
     rf_base_params = apply_site_rf_params(rf_base_params, site)
@@ -428,6 +437,11 @@ def _evaluate_anchor(args_tuple: tuple) -> Optional[dict]:
     base_seed         – int; global seed from CLI
     use_per_site      – bool; mirrors the top-level config flag
     """
+    # Ensure single-threaded models inside worker to prevent oversubscription
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+
     anchor_idx, raw_measurement, feature_frame_slice, base_seed, use_per_site = args_tuple
 
     # Deterministic per-anchor seed for reproducibility
@@ -674,8 +688,10 @@ def run_evaluation(
     all_results: List[dict] = []
 
     try:
+        import multiprocessing
+        mp_context = multiprocessing.get_context("spawn")
         futures = {}
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_context) as executor:
             for args in anchor_args_list:
                 future = executor.submit(_evaluate_anchor, args)
                 futures[future] = args[0]  # anchor_idx as key

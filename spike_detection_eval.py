@@ -456,10 +456,12 @@ def main():
     raw_da["date"] = pd.to_datetime(raw_da["date"])
 
     # Run/load retrospective evaluations
-    # Run 1: model_type="xgb" keeps predicted_da as XGB, gives RF/naive/ensemble too
+    # Run 1: model_type="xgb" saves four columns: XGB, RF, naive, and ensemble.
+    #         naive_prediction is computed as a standalone external baseline (w_naive=0.0
+    #         everywhere, so it does NOT contribute to ensemble_prediction).
     # Run 2: model_type="linear" gives linear predictions
     print("\nLoading retrospective results...")
-    print("  Run 1: XGB (includes RF, naive, ensemble)...")
+    print("  Run 1: XGB run (saves XGB, RF, naive, and ensemble columns; naive is external baseline, not blended)...")
     xgb_results = load_or_run_retrospective("xgb", force_rerun=args.force_rerun)
     print("  Run 2: Linear...")
     linear_results = load_or_run_retrospective("linear", force_rerun=args.force_rerun)

@@ -55,6 +55,7 @@ Thumbs.db
 .env.test.local
 .env.production.local
 .venv
+.eval_results
 
 # Testing results
 tools/testing/results/

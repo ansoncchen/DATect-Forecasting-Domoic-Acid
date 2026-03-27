@@ -301,6 +301,11 @@ def train_spike_classifier(
     # Drop non-feature columns (including da_raw itself — it's the target, not a feature)
     drop = DROP_COLS | ZERO_IMPORTANCE | {"spike_target", "_is_test"}
     drop |= {"modis-sst_z", "pdo_z", "discharge_z"}
+    # Drop persistence features derived from the CURRENT row's da_raw:
+    # last_observed_da_raw = ffill(da_raw), so for training rows it equals da_raw.
+    # weeks_since_last_spike and distance_to_threshold depend on it directly.
+    # da_raw_prev_obs_1 correctly represents the previous observation and is kept.
+    drop |= {"last_observed_da_raw", "weeks_since_last_spike", "distance_to_threshold"}
     feature_cols = [c for c in train_ff.columns if c not in drop and not c.startswith("_")]
     feature_cols = [c for c in feature_cols if train_ff[c].dtype in ("float64", "float32", "int64", "int32")]
 
@@ -354,11 +359,20 @@ def train_spike_classifier(
     top_features = sorted(feat_imp.items(), key=lambda x: x[1], reverse=True)[:15]
 
     # --- Transition-focused classifier ---
-    # Train only on rows where last_observed_da_raw < threshold (currently safe).
-    # This forces the model to use environmental features — persistence can't dominate
-    # because all training rows start from a safe DA baseline.
-    safe_train = train_ff[train_ff["last_observed_da_raw"] < SPIKE_THRESHOLD].copy()
-    safe_test = test_ff[test_ff["last_observed_da_raw"] < SPIKE_THRESHOLD].copy()
+    # Train only on rows where the PREVIOUS observation was below threshold.
+    # Use da_raw_prev_obs_1 (not last_observed_da_raw which equals da_raw for
+    # training rows). This correctly includes transition rows (prev < 20, current >= 20).
+    prev_col = "da_raw_prev_obs_1"
+    if prev_col not in train_ff.columns:
+        prev_col = next((c for c in train_ff.columns if "prev_obs_1" in c), None)
+
+    if prev_col:
+        safe_train = train_ff[train_ff[prev_col].fillna(0) < SPIKE_THRESHOLD].copy()
+        safe_test = test_ff[test_ff[prev_col].fillna(0) < SPIKE_THRESHOLD].copy()
+    else:
+        # Fallback: use leak-free last_observed_da_raw for test (correct for test rows)
+        safe_train = train_ff[train_ff["last_observed_da_raw"].fillna(0) < SPIKE_THRESHOLD].copy()
+        safe_test = test_ff[test_ff["last_observed_da_raw"].fillna(SPIKE_THRESHOLD + 1) < SPIKE_THRESHOLD].copy()
 
     proba_trans = np.full(len(test_ff), np.nan)
     top_features_trans = []
@@ -653,12 +667,12 @@ def main():
         y_test = clf_results["y_test"]
 
         test_df["date"] = pd.to_datetime(test_df["date"])
-        # Transition = spike AND last_observed_da_raw (leak-free) was < threshold.
-        # da_raw is NaN in test_df (we masked it), but spike_target and
-        # last_observed_da_raw are correctly set.
+        # Transition = spike AND previous observation was below threshold.
+        # Use da_raw_prev_obs_1 (the previous observation lag, always leak-free).
+        prev_feat = "da_raw_prev_obs_1" if "da_raw_prev_obs_1" in test_df.columns else "last_observed_da_raw"
         is_transition = (
             (test_df["spike_target"].values == 1)
-            & (test_df["last_observed_da_raw"].fillna(SPIKE_THRESHOLD + 1).values < SPIKE_THRESHOLD)
+            & (test_df[prev_feat].fillna(SPIKE_THRESHOLD + 1).values < SPIKE_THRESHOLD)
         )
 
         # Evaluate at different probability thresholds

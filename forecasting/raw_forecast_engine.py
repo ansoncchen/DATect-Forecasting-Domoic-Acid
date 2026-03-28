@@ -514,6 +514,30 @@ class RawForecastEngine:
                         result["spike_alert"] = spike_prob >= getattr(
                             config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
                         )
+                        # --- Spike-aware hybrid boost (realtime) ---
+                        if (
+                            getattr(config, "SPIKE_BOOST_ENABLED", False)
+                            and spike_prob >= getattr(
+                                config, "SPIKE_BOOST_PROB_THRESHOLD", 0.15
+                            )
+                            and result["predicted_da"] >= getattr(
+                                config, "SPIKE_BOOST_RAW_FLOOR", 5.0
+                            )
+                        ):
+                            boost_target = getattr(
+                                config, "SPIKE_BOOST_TARGET", 22.0
+                            )
+                            blend_w = getattr(
+                                config, "SPIKE_BOOST_BLEND_WEIGHT", 0.6
+                            )
+                            effective_w = blend_w * min(spike_prob / 0.5, 1.0)
+                            result["predicted_da_pre_boost"] = result[
+                                "predicted_da"
+                            ]
+                            result["predicted_da"] = (
+                                (1 - effective_w) * result["predicted_da"]
+                                + effective_w * boost_target
+                            )
             except Exception as exc:
                 logger.debug("Spike classifier failed: %s", exc)
 
@@ -1188,6 +1212,26 @@ class RawForecastEngine:
             except Exception as exc:
                 logger.debug("Spike classifier failed in validation: %s", exc)
 
+        # --- Spike-aware hybrid boost (retrospective) ---
+        prediction_pre_boost = prediction
+        rf_prediction_pre_boost = rf_prediction
+        if (
+            getattr(config, "SPIKE_BOOST_ENABLED", False)
+            and spike_prob is not None
+            and spike_prob >= getattr(config, "SPIKE_BOOST_PROB_THRESHOLD", 0.15)
+        ):
+            boost_target = getattr(config, "SPIKE_BOOST_TARGET", 22.0)
+            blend_w = getattr(config, "SPIKE_BOOST_BLEND_WEIGHT", 0.6)
+            raw_floor = getattr(config, "SPIKE_BOOST_RAW_FLOOR", 5.0)
+            # Probability-modulated blend: full weight at spike_prob >= 0.5
+            effective_w = blend_w * min(spike_prob / 0.5, 1.0)
+            if prediction >= raw_floor:
+                prediction = (1 - effective_w) * prediction + effective_w * boost_target
+            if rf_prediction is not None and rf_prediction >= raw_floor:
+                rf_prediction = (
+                    (1 - effective_w) * rf_prediction + effective_w * boost_target
+                )
+
         result = {
             "test_date": test_date,
             "anchor_date": anchor_date,
@@ -1207,6 +1251,7 @@ class RawForecastEngine:
             "feature_importance": feature_importance,
             "spike_probability": spike_prob,
             "spike_alert": spike_alert,
+            "predicted_da_pre_boost": prediction_pre_boost,
         }
 
         return {**result, **quantile_predictions}

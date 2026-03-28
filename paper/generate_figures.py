@@ -15,6 +15,7 @@ Outputs to:
     paper/figures/fig1_study_area.png
     paper/figures/fig2_scatter_best_sites.png
     paper/figures/fig3_architecture.png
+    paper/figures/fig3b_ml_pipeline.png
     paper/figures/fig4_waterfall_timeseries.png
     paper/figures/fig5_feature_importance.png
     paper/figures/fig6_feature_heatmap.png
@@ -273,166 +274,236 @@ def generate_fig2_scatter():
 # ═════════════════════════════════════════════════════════════════════════════
 
 def generate_fig3_architecture():
-    """System architecture diagram showing data flow through DATect."""
-    fig, ax = plt.subplots(figsize=(8, 6.5))
-    ax.set_xlim(0, 10)
-    ax.set_ylim(-0.2, 8.2)
-    ax.axis('off')
+    """System architecture diagram showing data flow through DATect (Graphviz)."""
+    import graphviz
 
-    def draw_box(x, y, w, h, text, color, fontsize=7, bold=False):
-        box = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.1",
-                             facecolor=color, edgecolor='#555555', linewidth=0.8)
-        ax.add_patch(box)
-        weight = 'bold' if bold else 'normal'
-        ax.text(x + w/2, y + h/2, text, ha='center', va='center',
-                fontsize=fontsize, fontweight=weight, wrap=True)
+    dot = graphviz.Digraph('DATect', format='png')
+    dot.attr(rankdir='TB', dpi='300', bgcolor='white',
+             fontname='Helvetica', fontsize='10',
+             pad='0.4', nodesep='0.4', ranksep='0.45')
 
-    def draw_arrow(x1, y1, x2, y2, style='->', color='#555555', lw=1.2):
-        ax.annotate('', xy=(x2, y2), xytext=(x1, y1),
-                     arrowprops=dict(arrowstyle=style, color=color,
-                                     linewidth=lw, connectionstyle='arc3,rad=0'))
+    # Default node style
+    dot.attr('node', shape='box', style='filled,rounded',
+             fontname='Helvetica', fontsize='9', penwidth='1.0',
+             color='#666666', margin='0.15,0.1')
+    dot.attr('edge', color='#666666', arrowsize='0.7', penwidth='1.0')
 
-    def draw_label(x, y, text, fontsize=8, color='#2c3e50'):
-        ax.text(x, y, text, ha='center', fontsize=fontsize,
-                fontweight='bold', color=color)
+    # ── Colors ──
+    C_SRC  = '#d5e8d4'
+    C_PROC = '#dae8fc'
+    C_DATA = '#f0f0f0'
+    C_ML   = '#fff2cc'
+    C_SERVE = '#f8cecc'
 
-    # ── Layout constants ──
-    cx = 5.0  # canvas center
+    # ═══ Row 1: Data Sources (ordered left→right) ═══
+    with dot.subgraph() as s:
+        s.attr(rank='same')
+        s.node('modis', 'MODIS-Aqua Satellite\n(SST, Chl, FLH)', fillcolor=C_SRC)
+        s.node('erddap', 'NOAA ERDDAP\n(BEUTI, PDO, ONI)', fillcolor=C_SRC)
+        s.node('usgs', 'USGS NWIS\n(Columbia R. discharge)', fillcolor=C_SRC)
+        s.node('wdoh', 'WDOH / ODFW\n(DA conc., PN counts)', fillcolor=C_SRC)
+        # Invisible edges to enforce left-to-right ordering
+        s.edge('modis', 'erddap', style='invis')
+        s.edge('erddap', 'usgs', style='invis')
+        s.edge('usgs', 'wdoh', style='invis')
 
-    # ═══ Row 1: Data Sources ═══
-    y1, h1 = 6.8, 0.85
-    box_w1 = 1.9
-    gap1 = 0.2
-    total_w1 = 4 * box_w1 + 3 * gap1
-    x1_start = cx - total_w1 / 2
+    # ═══ Row 2: Data Pipeline ═══
+    dot.node('pipeline', 'Data Pipeline  (dataset-creation.py)\n'
+             'Feature engineering, gap-filling, lag computation',
+             fillcolor=C_PROC, fontsize='10')
 
-    sources = [
-        'MODIS-Aqua\nSatellite\n(SST, Chl, FLH)',
-        'NOAA ERDDAP\n(BEUTI, PDO,\nONI)',
-        'USGS NWIS\n(Columbia R.\ndischarge)',
-        'WDOH / ODFW\n(DA conc.,\nPN counts)',
-    ]
-    src_centers = []
-    for i, label in enumerate(sources):
-        x = x1_start + i * (box_w1 + gap1)
-        draw_box(x, y1, box_w1, h1, label, '#d5e8d4', fontsize=6.5)
-        src_centers.append(x + box_w1 / 2)
+    # ═══ Row 3: Data Artifacts (ordered left→right) ═══
+    with dot.subgraph() as s:
+        s.attr(rank='same')
+        s.node('parquet', 'Processed Dataset\n(final_output.parquet)',
+               fillcolor=C_DATA, style='filled,rounded,dashed')
+        s.node('rawda', 'Raw DA Measurements\n(CSV files)',
+               fillcolor=C_DATA, style='filled,rounded,dashed')
+        s.edge('parquet', 'rawda', style='invis')
 
-    draw_label(cx, y1 + h1 + 0.2, 'Data Sources', fontsize=9)
+    # ═══ Row 4: Forecasting Engine ═══
+    dot.node('engine',
+             'Forecasting Engine  (raw_forecast_engine.py)\n'
+             'Per-site XGBoost/RF ensemble  |  Leak-free validation  |  Spike classifier\n'
+             'Per-site config: hyperparameters, feature subsets, ensemble weights  (per_site_models.py)',
+             fillcolor=C_ML, fontsize='9', penwidth='1.5')
 
-    # ═══ Row 2: Data Pipeline (all sources feed in) ═══
-    y2, h2 = 5.4, 0.85
-    box_w2 = 5.5
-    l2_x = cx - box_w2 / 2
-    l2_cx = cx
+    # ═══ Row 5: Serving (ordered left→right) ═══
+    with dot.subgraph() as s:
+        s.attr(rank='same')
+        s.node('cache', 'Pre-computed Cache\n(+ optional Redis)', fillcolor=C_SERVE)
+        s.node('api', 'FastAPI Backend\n(api.py)', fillcolor=C_SERVE)
+        s.node('frontend', 'React Frontend\n(dashboard)', fillcolor=C_SERVE)
 
-    draw_box(l2_x, y2, box_w2, h2,
-             'Data Pipeline (dataset-creation.py)\nFeature engineering, gap-filling, lag computation',
-             '#dae8fc', fontsize=7)
+    # ── Edges ──
+    # Data sources → pipeline
+    dot.edge('modis', 'pipeline')
+    dot.edge('erddap', 'pipeline')
+    dot.edge('usgs', 'pipeline')
+    dot.edge('wdoh', 'pipeline')
 
-    # Arrows: all 4 data sources → pipeline
-    for scx in src_centers:
-        draw_arrow(scx, y1, l2_cx + (scx - l2_cx) * 0.4, y2 + h2)
+    # Pipeline → processed dataset
+    dot.edge('pipeline', 'parquet')
 
-    # ═══ Row 3: Processed Dataset output ═══
-    y3, h3 = 4.2, 0.65
-    box_w3 = 3.2
-    l3_x = cx - box_w3 / 2
-    l3_cx = cx
+    # WDOH/ODFW also provides raw DA directly (bypasses pipeline)
+    dot.edge('wdoh', 'rawda', style='dashed', color='#999999')
 
-    draw_box(l3_x, y3, box_w3, h3,
-             'Processed Dataset\n(final_output.parquet)',
-             '#e8e8e8', fontsize=7, bold=False)
+    # Data artifacts → engine
+    dot.edge('parquet', 'engine')
+    dot.edge('rawda', 'engine')
 
-    # Arrow: pipeline → parquet
-    draw_arrow(l2_cx, y2, l3_cx, y3 + h3)
+    # Engine → serving
+    dot.edge('engine', 'cache')
+    dot.edge('engine', 'api')
 
-    # ═══ Row 4: Forecasting Engine (center) + side inputs ═══
-    y4, h4 = 2.7, 0.95
+    # Cache → API → Frontend
+    dot.edge('cache', 'api')
+    dot.edge('api', 'frontend')
 
-    # Per-site config (left side input)
-    cfg_w = 2.2
-    cfg_x = 0.3
-    cfg_cx = cfg_x + cfg_w / 2
-    draw_box(cfg_x, y4 + 0.1, cfg_w, h4 - 0.2,
-             'Per-Site Config\n(per_site_models.py)\nHyperparams, features,\nensemble weights',
-             '#e1d5e7', fontsize=6)
+    outpath = os.path.join(OUTDIR, 'fig3_architecture')
+    dot.render(outpath, cleanup=True)
+    print(f"  Saved: {outpath}.png")
 
-    # Raw DA measurements (right side input)
-    raw_w = 2.0
-    raw_x = 10 - 0.3 - raw_w
-    raw_cx = raw_x + raw_w / 2
-    draw_box(raw_x, y4 + 0.1, raw_w, h4 - 0.2,
-             'Raw DA\nMeasurements\n(CSV files)',
-             '#d5e8d4', fontsize=6)
 
-    # Forecasting engine (center)
-    eng_w = 4.6
-    eng_x = cx - eng_w / 2
-    eng_cx = cx
-    draw_box(eng_x, y4, eng_w, h4,
-             'Forecasting Engine (raw_forecast_engine.py)\nPer-site XGBoost/RF  |  Leak-free validation\n|  Spike classifier',
-             '#fff2cc', fontsize=7, bold=True)
+# ═════════════════════════════════════════════════════════════════════════════
+#  FIGURE 3b: ML Pipeline Detail (inside the Forecasting Engine)
+# ═════════════════════════════════════════════════════════════════════════════
 
-    # Arrow: parquet → engine
-    draw_arrow(l3_cx, y3, eng_cx, y4 + h4)
+def generate_fig3b_ml_pipeline():
+    """Detailed ML pipeline diagram showing internals of the Forecasting Engine."""
+    import graphviz
 
-    # Arrow: per-site config → engine (horizontal)
-    draw_arrow(cfg_x + cfg_w, y4 + h4 / 2, eng_x, y4 + h4 / 2)
+    dot = graphviz.Digraph('MLPipeline', format='png')
+    dot.attr(rankdir='TB', dpi='300', bgcolor='white',
+             fontname='Helvetica', fontsize='10',
+             pad='0.4', nodesep='0.35', ranksep='0.4',
+             compound='true')
 
-    # Arrow: raw DA → engine (horizontal)
-    draw_arrow(raw_x, y4 + h4 / 2, eng_x + eng_w, y4 + h4 / 2)
+    dot.attr('node', shape='box', style='filled,rounded',
+             fontname='Helvetica', fontsize='9', penwidth='1.0',
+             color='#666666', margin='0.15,0.1')
+    dot.attr('edge', color='#666666', arrowsize='0.7', penwidth='1.0')
 
-    # Dashed arrow: WDOH/ODFW data source also feeds raw DA directly
-    # (raw DA CSVs are read by both pipeline and engine)
-    ax.annotate('', xy=(raw_cx, y4 + h4 - 0.2 + 0.1),
-                xytext=(src_centers[3], y1),
-                arrowprops=dict(arrowstyle='->', color='#999999',
-                                linewidth=0.9, linestyle='dashed',
-                                connectionstyle='arc3,rad=-0.15'))
+    # ── Colors ──
+    C_INPUT  = '#d5e8d4'   # green  — inputs
+    C_FEAT   = '#dae8fc'   # blue   — feature construction
+    C_MODEL  = '#fff2cc'   # yellow — model training/prediction
+    C_BLEND  = '#ffe0b2'   # orange — ensemble blending
+    C_CLASS  = '#e1d5e7'   # purple — classification
+    C_OUTPUT = '#f8cecc'   # pink   — outputs
+    C_DATA   = '#f0f0f0'   # gray   — data artifacts
 
-    # ═══ Row 5: Serving layer ═══
-    y5, h5 = 1.1, 0.75
+    # ═══ Row 1: Inputs to the engine ═══
+    with dot.subgraph() as s:
+        s.attr(rank='same')
+        s.node('parquet', 'Processed Dataset\n(environmental features,\ngap-filled DA)',
+               fillcolor=C_INPUT)
+        s.node('rawda', 'Raw DA Observations\n(real measurements only)',
+               fillcolor=C_INPUT)
+        s.node('siteconfig', 'Per-Site Config\n(hyperparams, feature subsets,\nensemble weights)',
+               fillcolor=C_INPUT)
+        s.edge('parquet', 'rawda', style='invis')
+        s.edge('rawda', 'siteconfig', style='invis')
 
-    # Cache (left)
-    cache_w = 2.5
-    cache_x = cx - cache_w - 0.6
-    cache_cx = cache_x + cache_w / 2
-    draw_box(cache_x, y5, cache_w, h5,
-             'Pre-computed Cache\n(+ optional Redis)',
-             '#e1d5e7', fontsize=7)
+    # ═══ Row 2: Expanding window + feature construction ═══
+    dot.node('window',
+             'Expanding Window Split\nTrain: all data ≤ anchor date  |  '
+             'Test: anchor date snapshot\n'
+             'Fresh model trained per forecast point',
+             fillcolor=C_FEAT, fontsize='9')
 
-    # Backend API (right)
-    api_w = 2.5
-    api_x = cx + 0.6
-    api_cx = api_x + api_w / 2
-    draw_box(api_x, y5, api_w, h5,
-             'FastAPI Backend\n(api.py)',
-             '#f8cecc', fontsize=7)
+    dot.node('features',
+             'Feature Construction\n'
+             'Observation-order lags (4 values + recency + trend)\n'
+             'Rolling stats (mean/max/std at 4/8/12-week)\n'
+             'Persistence (last DA, weeks since spike)\n'
+             'Environmental (SST, BEUTI, PDO, ONI, discharge, FLH)\n'
+             'Temporal (sin/cos day-of-year, month)',
+             fillcolor=C_FEAT, fontsize='8')
 
-    # Arrows: engine → cache, engine → API
-    draw_arrow(eng_cx - 0.8, y4, cache_cx, y5 + h5)
-    draw_arrow(eng_cx + 0.8, y4, api_cx, y5 + h5)
+    # ═══ Row 3: Parallel model training ═══
+    with dot.subgraph() as s:
+        s.attr(rank='same')
+        s.node('xgb', 'XGBoost Regressor\n(per-site hyperparams)',
+               fillcolor=C_MODEL)
+        s.node('rf', 'Random Forest Regressor\n(per-site hyperparams)',
+               fillcolor=C_MODEL)
+        s.node('naive', 'Naïve Persistence\n(last observed DA)',
+               fillcolor=C_DATA, style='filled,rounded,dashed')
+        s.edge('xgb', 'rf', style='invis')
+        s.edge('rf', 'naive', style='invis')
 
-    # Arrow: cache → API (horizontal)
-    draw_arrow(cache_x + cache_w, y5 + h5 / 2, api_x, y5 + h5 / 2)
+    # ═══ Row 4: Ensemble + classification (parallel) ═══
+    with dot.subgraph() as s:
+        s.attr(rank='same')
+        s.node('ensemble',
+               'Per-Site Weighted Ensemble\n'
+               'ŷ = w_xgb · XGB + w_rf · RF\n'
+               '(weights tuned per site on dev set)',
+               fillcolor=C_BLEND, fontsize='8')
+        s.node('classifier',
+               'Spike Classifier\n'
+               'Dedicated XGBoost classifier\n'
+               '4 DA risk categories',
+               fillcolor=C_CLASS, fontsize='8')
+        s.edge('ensemble', 'classifier', style='invis')
 
-    # ═══ Row 6: Frontend ═══
-    y6, h6 = 0.0, 0.7
-    fe_w = 2.5
-    fe_x = cx - fe_w / 2
-    fe_cx = cx
-    draw_box(fe_x, y6, fe_w, h6,
-             'React Frontend\n(dashboard)',
-             '#f8cecc', fontsize=7)
+    # ═══ Row 5: Post-processing ═══
+    dot.node('postproc',
+             'Post-processing\n'
+             'Prediction clipping (per-site quantile bounds)\n'
+             'Confidence intervals (quantile regression + bootstrap)\n'
+             'Threshold classification: Low / Moderate / High / Extreme',
+             fillcolor=C_BLEND, fontsize='8')
 
-    # Arrow: API → frontend
-    draw_arrow(api_cx, y5, fe_cx + 0.3, y6 + h6)
+    # ═══ Row 6: Outputs ═══
+    with dot.subgraph() as s:
+        s.attr(rank='same')
+        s.node('reg_out', 'Regression Output\nPredicted DA (µg/g)\n+ 90% confidence interval',
+               fillcolor=C_OUTPUT)
+        s.node('class_out', 'Classification Output\nDA risk category\n+ class probabilities',
+               fillcolor=C_OUTPUT)
+        s.node('spike_out', 'Spike Detection\nSpike probability\n+ alert flag',
+               fillcolor=C_OUTPUT)
+        s.edge('reg_out', 'class_out', style='invis')
+        s.edge('class_out', 'spike_out', style='invis')
 
-    outpath = os.path.join(OUTDIR, 'fig3_architecture.png')
-    fig.savefig(outpath)
-    plt.close(fig)
-    print(f"  Saved: {outpath}")
+    # ── Edges ──
+    # Inputs → window
+    dot.edge('parquet', 'window')
+    dot.edge('rawda', 'window')
+    dot.edge('siteconfig', 'window', style='dashed', color='#999999')
+
+    # Window → features
+    dot.edge('window', 'features')
+
+    # Features → parallel models
+    dot.edge('features', 'xgb')
+    dot.edge('features', 'rf')
+    dot.edge('features', 'naive')
+
+    # Models → ensemble
+    dot.edge('xgb', 'ensemble')
+    dot.edge('rf', 'ensemble')
+
+    # Features → classifier (trained on same data)
+    dot.edge('features', 'classifier')
+
+    # Naive → shown as external baseline (dashed to ensemble)
+    dot.edge('naive', 'ensemble', style='dashed', color='#999999')
+
+    # Ensemble + classifier → post-processing
+    dot.edge('ensemble', 'postproc')
+    dot.edge('classifier', 'postproc')
+
+    # Post-processing → outputs
+    dot.edge('postproc', 'reg_out')
+    dot.edge('postproc', 'class_out')
+    dot.edge('postproc', 'spike_out')
+
+    outpath = os.path.join(OUTDIR, 'fig3b_ml_pipeline')
+    dot.render(outpath, cleanup=True)
+    print(f"  Saved: {outpath}.png")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -764,7 +835,8 @@ def main():
     generators = [
         ("Figure 1: Study Area Map", generate_fig1_study_area),
         ("Figure 2: Scatter (Copalis, Long Beach)", generate_fig2_scatter),
-        ("Figure 3: System Architecture", generate_fig3_architecture),
+        ("Figure 3a: System Architecture", generate_fig3_architecture),
+        ("Figure 3b: ML Pipeline Detail", generate_fig3b_ml_pipeline),
         ("Figure 4: Waterfall Time Series", generate_fig4_waterfall),
         ("Figure 5: Feature Importance (Top 15)", generate_fig5_feature_importance),
         ("Figure 6: Feature Importance Heatmap", generate_fig6_feature_heatmap),

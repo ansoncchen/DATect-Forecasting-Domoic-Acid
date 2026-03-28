@@ -924,8 +924,15 @@ Additional temporal encodings (\texttt{quarter}, \texttt{is\_bloom\_season}, sin
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{figures/fig3_architecture.png}
-\caption{DATect system architecture. Data from satellite, climate, hydrological, and biological sources are processed into a unified dataset, fed to the two-model ML ensemble engine, and served through a FastAPI backend to a React dashboard. A pre-computed cache accelerates retrospective evaluations.}
+\caption{DATect system architecture. Data from satellite, climate, hydrological, and biological sources are processed into a unified dataset. Raw DA measurements are also read directly by the forecasting engine for leak-free persistence features. Results are served through a FastAPI backend to a React dashboard, with a pre-computed cache accelerating retrospective evaluations.}
 \label{fig:architecture}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/fig3b_ml_pipeline.png}
+\caption{DATect ML forecasting pipeline. For each forecast point, an expanding window splits data chronologically and trains fresh models. Features include observation-order lags, rolling statistics, persistence indicators, and environmental variables. XGBoost and Random Forest regressors are blended with per-site tuned weights; a separate spike classifier provides risk categorization. Post-processing applies prediction clipping, confidence intervals (quantile regression + bootstrap), and threshold-based DA risk classification.}
+\label{fig:ml-pipeline}
 \end{figure}
 
 The DATect backend serves forecast requests, retrospective evaluation results, and visualization data (correlation heatmaps, sensitivity analyses, spectral analyses, feature importance rankings). A pre-computed cache system stores results from computationally intensive retrospective evaluations as JSON and Parquet files, with an optional Redis backend providing 100$\times$ faster cache reads for production deployments. The retrospective evaluation cache---encompassing all 2,181 validation points across 10 sites and 6 model configurations---was pre-computed on the University of Washington Hyak high-performance computing cluster (\textit{klone} partition, STF allocation). Because each test point requires training a fresh ensemble on its own chronological training subset, the per-anchor computation is embarrassingly parallel and well-suited to HPC execution; running the full retrospective evaluation sequentially on a laptop would require several days, whereas the Hyak cluster completes the computation in approximately 2--3 hours across parallel jobs.

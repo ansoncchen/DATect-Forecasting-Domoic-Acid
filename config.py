@@ -337,7 +337,6 @@ PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training
 # Parallelization
 ENABLE_PARALLEL = True
 N_JOBS = -1                      # Use all cores (-1)
-PARALLEL_BACKEND = "threading"   # "threading" shares feature_frame in memory (faster than "loky" process spawning)
 
 # Per-anchor tuning / calibration
 CALIBRATION_FRACTION = 0.3       # Fraction of pre-anchor history used for tuning

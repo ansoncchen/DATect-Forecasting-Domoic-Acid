@@ -277,13 +277,6 @@ SPIKE_CLASSIFIER_PARAMS = {
     "eval_metric": "logloss",
 }
 
-# Spike-aware hybrid post-processing: use spike classifier probability
-# to boost regression predictions when a transition is likely.
-SPIKE_BOOST_ENABLED = True
-SPIKE_BOOST_PROB_THRESHOLD = 0.30   # Minimum spike_prob to trigger boost
-SPIKE_BOOST_RAW_FLOOR = 8.0        # Raw prediction must exceed this (µg/g) to be boosted
-SPIKE_BOOST_TARGET = 22.0           # Blend target when boost activates (µg/g)
-SPIKE_BOOST_BLEND_WEIGHT = 0.45    # Max blend weight toward target (modulated by prob)
 
 # Bootstrap subsample fraction for uncertainty estimation
 BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
@@ -339,7 +332,7 @@ USE_INTERPOLATED_TRAINING = os.environ.get("DATECT_USE_INTERPOLATED_TRAINING", "
 USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
 
 # Prediction clipping
-PREDICTION_CLIP_Q = 0.995        # Clip predictions to this quantile of training targets
+PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training targets
 
 # Parallelization
 ENABLE_PARALLEL = True

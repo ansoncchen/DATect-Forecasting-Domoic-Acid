@@ -514,28 +514,6 @@ class RawForecastEngine:
                         result["spike_alert"] = spike_prob >= getattr(
                             config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
                         )
-                        # --- Spike-aware override (realtime) ---
-                        # Hard spike override: when classifier is
-                        # confident, set floor at spike threshold.
-                        raw_floor = getattr(
-                            config, "SPIKE_BOOST_RAW_FLOOR", 5.0
-                        )
-                        spike_threshold = getattr(
-                            config, "SPIKE_THRESHOLD", 20.0
-                        )
-                        if (
-                            getattr(config, "SPIKE_BOOST_ENABLED", False)
-                            and spike_prob >= getattr(
-                                config, "SPIKE_BOOST_PROB_THRESHOLD", 0.15
-                            )
-                            and raw_floor
-                            <= result["predicted_da"]
-                            < spike_threshold
-                        ):
-                            result["predicted_da_pre_boost"] = result[
-                                "predicted_da"
-                            ]
-                            result["predicted_da"] = spike_threshold
             except Exception as exc:
                 logger.debug("Spike classifier failed: %s", exc)
 
@@ -1210,26 +1188,6 @@ class RawForecastEngine:
             except Exception as exc:
                 logger.debug("Spike classifier failed in validation: %s", exc)
 
-        # --- Spike-aware hybrid boost (retrospective) ---
-        prediction_pre_boost = prediction
-        rf_prediction_pre_boost = rf_prediction
-        if (
-            getattr(config, "SPIKE_BOOST_ENABLED", False)
-            and spike_prob is not None
-            and spike_prob >= getattr(config, "SPIKE_BOOST_PROB_THRESHOLD", 0.15)
-        ):
-            boost_target = getattr(config, "SPIKE_BOOST_TARGET", 22.0)
-            blend_w = getattr(config, "SPIKE_BOOST_BLEND_WEIGHT", 0.6)
-            raw_floor = getattr(config, "SPIKE_BOOST_RAW_FLOOR", 5.0)
-            # Hard spike override: when classifier is confident AND
-            # prediction is in the "near-miss" zone, set floor at threshold.
-            # Simpler than blending — directly ensures transition detection.
-            spike_threshold = getattr(config, "SPIKE_THRESHOLD", 20.0)
-            if raw_floor <= prediction < spike_threshold:
-                prediction = spike_threshold
-            if rf_prediction is not None and raw_floor <= rf_prediction < spike_threshold:
-                rf_prediction = spike_threshold
-
         result = {
             "test_date": test_date,
             "anchor_date": anchor_date,
@@ -1249,7 +1207,6 @@ class RawForecastEngine:
             "feature_importance": feature_importance,
             "spike_probability": spike_prob,
             "spike_alert": spike_alert,
-            "predicted_da_pre_boost": prediction_pre_boost,
         }
 
         return {**result, **quantile_predictions}

@@ -30,8 +30,8 @@
 \pubvolume{1}
 \issuenum{1}
 \articlenumber{0}
-\pubyear{2025}
-\copyrightyear{2025}
+\pubyear{2026}
+\copyrightyear{2026}
 \datereceived{ }
 \daterevised{ }
 \dateaccepted{ }
@@ -714,13 +714,15 @@ For spike detection (DA $\geq$ \SI{20}{\microgrampeg}), however, Ridge actually 
 
 This analysis underscores two key findings. First, the dominant contribution to forecast skill comes from \textit{per-site feature engineering and prediction postprocessing} rather than model type: both tree-based and linear models benefit equally from per-site feature selection and clipping. This is consistent with the component ablation (Table~\ref{tab:ablation}), where removing per-site customization costs $\Delta R^2 = -0.158$---by far the largest single factor. Second, the spike detection problem cannot be solved by any regression approach; the transition-focused binary classifier (Section~\ref{sec:results-spike}) provides the operationally critical advance warning that neither tree-based nor linear regression can deliver.
 
+This motivates DATect's \textit{dual-component architecture}: the regression ensemble and spike classifier serve complementary roles that cannot be collapsed into a single model. MSE-optimized regression with prediction clipping produces accurate magnitude estimates but inherently underestimates during rare extreme events due to mean regression toward the low-DA majority. Relaxing prediction clipping recovers spike sensitivity but degrades typical-case accuracy---an inherent tradeoff in skewed distributions where $>$85\% of observations fall below the regulatory threshold. The spike classifier sidesteps this tradeoff entirely by reframing the problem as binary classification with asymmetric cost weighting (500$\times$ false negative penalty), achieving 65.2\% transition recall compared to 23.6\% for na\"ive persistence and 12.4\% for regression thresholding---a 2.8$\times$ improvement. This dual-component design mirrors established practices in extreme weather forecasting, where deterministic models provide point estimates and probabilistic classifiers provide safety alerts \cite{Herman2018}.
+
 \subsubsection{Spike Detection: From Regression to Binary Classification}
 
 The contrast between overall regression performance and spike transition recall (12.4\% at the \SI{20}{\microgrampeg} threshold) reveals a fundamental limitation of MSE-optimized regression for safety-critical event detection. Regression models are trained to minimize average squared error across all samples, creating a conservative bias that pulls extreme predictions toward the mean. While the ensemble correctly identifies elevated DA trends before spikes (mean predicted DA for transitions is \SI{13.1}{\microgrampeg}), the MSE objective prevents crossing the \SI{20}{\microgrampeg} threshold.
 
 The transition-focused binary classifier addresses this by reframing the problem: instead of predicting ``how much DA?'', it predicts ``will DA cross the regulatory threshold?''. The safe-baseline training strategy---training only on observations where the previous DA was below \SI{20}{\microgrampeg}---is critical because it prevents the classifier from learning the trivial signal that ``DA is already high, so it stays high.'' This forces reliance on environmental precursors (PDO, SST anomaly, BEUTI relaxation) and gradual toxin accumulation signals (rolling DA maximum), which are exactly the features that carry information about \emph{impending} transitions.
 
-The 65.2\% transition recall with 33.9\% precision represents a deliberate trade-off: in shellfish safety, missing a true spike (false negative) carries far greater cost---potential human illness---than a false alarm (unnecessary precautionary advisory). The low probability threshold ($p \geq 0.10$) reflects this asymmetric cost structure, consistent with the F2 metric's emphasis on recall over precision.
+Beyond transitions, the classifier achieves 80.7\% overall spike recall (130/161 events with DA $\geq$ \SI{20}{\microgrampeg}) at a 24.4\% false positive rate---meaning roughly one in four non-spike weeks generates a precautionary alert. The 65.2\% transition recall with 33.9\% precision represents a deliberate trade-off: in shellfish safety, missing a true spike (false negative) carries far greater cost---potential human illness---than a false alarm (unnecessary precautionary advisory). The low probability threshold ($p \geq 0.10$) reflects this asymmetric cost structure, consistent with the F2 metric's emphasis on recall over precision.
 
 In practical terms, the 66\% false discovery rate corresponds to approximately five to six precautionary alerts per site per year over the independent test period (439 false positives across 10 sites, $\sim$8 years of test data). Since shellfish sampling already occurs on a weekly basis at these sites, a false alarm represents a recommendation to prioritize or expedite sampling---not an automatic harvest closure. This low operational cost of a false alarm, relative to the public health consequence of a missed DA spike, justifies the recall-optimized operating point. The classifier is designed as a decision-support tool that flags weeks warranting heightened attention, not as an autonomous trigger for management action.
 

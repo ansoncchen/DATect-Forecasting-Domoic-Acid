@@ -261,6 +261,7 @@ SPIKE_FALSE_NEGATIVE_WEIGHT = 500.0  # Heavy penalty for missing actual spikes
 SPIKE_TRUE_NEGATIVE_WEIGHT = 0.1  # Very low weight for correct non-spike predictions
 SPIKE_ALERT_PROB_THRESHOLD = 0.10  # Probability threshold for spike alert (optimized for transition recall)
 SPIKE_CLASSIFIER_ENABLED = True    # Toggle spike binary classifier on/off
+SPIKE_REGRESSION_ALERT_THRESHOLD = 12.0  # Fire spike_alert when ensemble prediction >= this (µg/g)
 
 # Spike binary classifier hyperparameters (tuned for per-test-point training
 # with small safe-baseline datasets — shallower/simpler than 4-category classifier)

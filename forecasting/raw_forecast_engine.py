@@ -511,11 +511,20 @@ class RawForecastEngine:
                             )
                         )
                         result["spike_probability"] = spike_prob
-                        result["spike_alert"] = spike_prob >= getattr(
+                        classifier_fires = spike_prob >= getattr(
                             config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
                         )
+                        regression_fires = primary_prediction >= getattr(
+                            config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0
+                        )
+                        result["spike_alert"] = classifier_fires or regression_fires
             except Exception as exc:
                 logger.debug("Spike classifier failed: %s", exc)
+
+        # Regression-only fallback when classifier is unavailable
+        if "spike_alert" not in result:
+            if primary_prediction >= getattr(config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0):
+                result["spike_alert"] = True
 
         return result
 
@@ -1182,11 +1191,26 @@ class RawForecastEngine:
                                 spike_result, X_test_processed,
                             )
                         )
-                        spike_alert = spike_prob >= getattr(
+                        classifier_fires = spike_prob >= getattr(
                             config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
                         )
+                        w_xgb, w_rf, _ = get_site_ensemble_weights(site)
+                        rf_val = rf_prediction if rf_prediction is not None else prediction
+                        ensemble_pred = w_xgb * prediction + w_rf * rf_val
+                        regression_fires = ensemble_pred >= getattr(
+                            config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0
+                        )
+                        spike_alert = classifier_fires or regression_fires
             except Exception as exc:
                 logger.debug("Spike classifier failed in validation: %s", exc)
+
+        # Regression-only fallback when classifier is unavailable
+        if spike_alert is None:
+            w_xgb, w_rf, _ = get_site_ensemble_weights(site)
+            rf_val = rf_prediction if rf_prediction is not None else prediction
+            ensemble_pred = w_xgb * prediction + w_rf * rf_val
+            if ensemble_pred >= getattr(config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0):
+                spike_alert = True
 
         result = {
             "test_date": test_date,

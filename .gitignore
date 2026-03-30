@@ -63,6 +63,7 @@ tools/testing/results/
 analysis/*/outputs/
 claude.md
 .claude/
+paper/figures/
 
 # AI agent config files
 .ralph/
@@ -82,3 +83,4 @@ eval_results/
 *.backup
 *\ 2.py
 *\ copy.py
+

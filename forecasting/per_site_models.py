@@ -10,6 +10,10 @@ Each site can override:
     naive_weight is always 0.0; naive persistence is reported as an external baseline only
   - prediction_clip_q: Custom quantile for prediction clipping (None = use global)
   - prediction_clip_max: Hard ceiling on predictions in ug/g (None = no hard ceiling)
+  - use_pooled_training: If True, train on pooled cross-site data instead of
+    site-only data. Helps data-starved sites borrow signal from data-rich ones.
+  - quantile_alpha: Float or None. If set, XGBoost uses reg:quantile objective
+    at this alpha (e.g. 0.7 = predict 70th percentile for spike-sensitive forecasting).
 """
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -264,6 +268,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
+        'use_pooled_training': True,  # N=67, R²=-0.039 — borrow from cross-site pool
     },
 
     # ==================================================================
@@ -290,6 +295,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.95,
         'prediction_clip_max': 80.0,
+        'use_pooled_training': True,  # N=61 — borrow from cross-site pool
     },
 
     'Gold Beach': {
@@ -313,6 +319,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.95,
         'prediction_clip_max': None,
+        'use_pooled_training': True,  # R²=0.041 — borrow from cross-site pool
     },
 
     'Newport': {
@@ -340,6 +347,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
+        'use_pooled_training': True,  # R²=-0.382 — borrow from cross-site pool
     },
 }
 
@@ -356,6 +364,8 @@ DEFAULT_SITE_CONFIG: Dict[str, Any] = {
     'ensemble_weights': None,
     'prediction_clip_q': None,
     'prediction_clip_max': None,
+    'use_pooled_training': False,
+    'quantile_alpha': None,
 }
 
 
@@ -407,6 +417,26 @@ def get_site_clip_params(site: str) -> Tuple[Optional[float], Optional[float]]:
     """Return (clip_quantile, clip_max) for prediction clipping."""
     cfg = get_site_config(site)
     return cfg['prediction_clip_q'], cfg['prediction_clip_max']
+
+
+def get_site_quantile_alpha(site: str) -> Optional[float]:
+    """Return quantile alpha for a site, or None for standard MSE.
+
+    Checks per-site config first, then falls back to global
+    ``config.QUANTILE_REGRESSION_ALPHA``.
+    """
+    import config as _cfg
+
+    cfg = get_site_config(site)
+    site_alpha = cfg.get('quantile_alpha')
+    if site_alpha is not None:
+        return site_alpha
+    return getattr(_cfg, 'QUANTILE_REGRESSION_ALPHA', None)
+
+
+def get_site_use_pooled_training(site: str) -> bool:
+    """Return whether this site should use cross-site pooled training data."""
+    return get_site_config(site).get('use_pooled_training', False)
 
 
 def compute_site_drop_cols(

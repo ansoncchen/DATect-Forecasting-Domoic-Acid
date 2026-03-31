@@ -31,11 +31,24 @@ def _resolve_xgb_device_params() -> dict:
 def build_xgb_regressor(param_overrides: Optional[dict] = None) -> XGBRegressor:
     """
     Build an XGBoost regressor with config defaults.
+
+    If ``quantile_alpha`` is present in *param_overrides*, the objective
+    is switched to ``reg:quantile`` for spike-sensitive forecasting.
     """
     base_params = dict(config.XGB_REGRESSION_PARAMS)
     params = {**base_params, **(param_overrides or {})}
     params.pop("tree_method", None)
     params.update(_resolve_xgb_device_params())
+
+    # Support quantile regression objective.
+    # XGBoost 2.x uses "reg:quantileerror"; older versions use "reg:quantile".
+    quantile_alpha = params.pop("quantile_alpha", None)
+    if quantile_alpha is not None:
+        import xgboost as xgb
+        major = int(xgb.__version__.split(".")[0])
+        params["objective"] = "reg:quantileerror" if major >= 2 else "reg:quantile"
+        params["quantile_alpha"] = quantile_alpha
+
     return XGBRegressor(**params, random_state=config.RANDOM_SEED, verbosity=0)
 
 

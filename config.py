@@ -335,6 +335,15 @@ USE_GPU = False                  # CPU inference (set True for CUDA-enabled syst
 # Prediction clipping
 PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training targets
 
+# Quantile regression: set to float (e.g., 0.7) for spike-sensitive forecasting.
+# None = standard MSE (reg:squarederror). Higher values bias predictions upward.
+# Tradeoff: better spike recall, worse MAE on low-DA observations.
+# Can be overridden per-site via per_site_models.py 'quantile_alpha' field.
+QUANTILE_REGRESSION_ALPHA = None
+
+# Cross-site pooled training: minimum total observations required across all sites
+POOLED_TRAINING_MIN_SAMPLES = 30
+
 # Parallelization
 ENABLE_PARALLEL = True
 N_JOBS = -1                      # Use all cores (-1)

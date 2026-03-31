@@ -32,7 +32,7 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(0, os.path.dirname(__file__))
 import config
-from forecasting.raw_data_forecaster import load_raw_da_measurements, RawDataForecaster
+from forecasting.raw_data_forecaster import load_raw_da_measurements
 
 SPIKE_THRESHOLD = config.SPIKE_THRESHOLD  # 20.0
 OUTPUT_DIR = os.path.join("eval_results", "rigor_verification")
@@ -73,7 +73,6 @@ def prepare_site_data(seed: int):
     raw_da = load_raw_da_measurements()
     raw_da["date"] = pd.to_datetime(raw_da["date"])
 
-    forecaster = RawDataForecaster()
     data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
     data["date"] = pd.to_datetime(data["date"])
 

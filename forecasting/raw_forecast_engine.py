@@ -1261,7 +1261,6 @@ class RawForecastEngine:
                 for q in (0.1, 0.5, 0.9):
                     q_params = {
                         **model_params,
-                        "objective": "reg:quantile",
                         "quantile_alpha": q,
                     }
                     q_model = build_xgb_regressor(q_params)

@@ -76,6 +76,10 @@ def prepare_site_data(seed: int):
     data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
     data["date"] = pd.to_datetime(data["date"])
 
+    # Script expects 'da_raw' but parquet only has 'da'; alias it
+    if "da_raw" not in data.columns and "da" in data.columns:
+        data["da_raw"] = data["da"]
+
     return raw_da, None, data
 
 

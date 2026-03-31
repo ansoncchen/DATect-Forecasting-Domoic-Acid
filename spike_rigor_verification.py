@@ -76,7 +76,7 @@ def prepare_site_data(seed: int):
     data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
     data["date"] = pd.to_datetime(data["date"])
 
-    return raw_da, forecaster, data
+    return raw_da, None, data
 
 
 def get_test_anchors(data: pd.DataFrame, site: str, seed: int, frac: float = 0.4):

@@ -80,6 +80,12 @@ def prepare_site_data(seed: int):
     if "da_raw" not in data.columns and "da" in data.columns:
         data["da_raw"] = data["da"]
 
+    # Coerce numeric columns (parquet may store as object dtype)
+    skip_cols = {"date", "site"}
+    for col in data.columns:
+        if col not in skip_cols:
+            data[col] = pd.to_numeric(data[col], errors="coerce")
+
     return raw_da, None, data
 
 

@@ -160,6 +160,9 @@ def train_spike_classifier_standalone(
         verbosity=0,
         use_label_encoder=False,
     )
+    # Coerce to numeric (parquet may load as object dtype)
+    X_safe = X_safe.apply(pd.to_numeric, errors="coerce")
+
     try:
         model.fit(X_safe, y_safe, sample_weight=sample_weights)
     except Exception:
@@ -173,6 +176,7 @@ def predict_spike_prob(spike_result: dict, X_test: pd.DataFrame) -> float:
     model = spike_result["model"]
     train_cols = spike_result["columns"]
     X_aligned = X_test.reindex(columns=train_cols, fill_value=0)
+    X_aligned = X_aligned.apply(pd.to_numeric, errors="coerce")
     proba = model.predict_proba(X_aligned)
     if proba.shape[1] == 1:
         return 0.0

@@ -12,7 +12,7 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 **Key features:**
 - 10 monitoring sites from Oregon to Washington
 - 21 years of integrated data (2003–2023)
-- 3-model ensemble (XGBoost + Random Forest + Naive) with per-site hyperparameter tuning
+- Two-model ML ensemble (XGBoost + Random Forest) with per-site hyperparameter tuning
 - Observation-order lag features for sparse/irregular measurement data
 - No-data-leakage guarantees — `verify_no_data_leakage()` called on every prediction
 - Quantile regression + bootstrap confidence intervals
@@ -103,9 +103,9 @@ DATect-Forecasting-Domoic-Acid/
 
 | Metric | Value |
 |--------|-------|
-| Ensemble R² | ~0.49 |
-| Ensemble MAE | ~5.4 µg/g |
-| Spike F1 | ~0.68 |
+| Ensemble R² | 0.204 (independent test) / 0.414 (dev) |
+| Ensemble MAE | 6.42 µg/g |
+| Spike recall | 0.558 ensemble / 0.815 classifier |
 
 ## Data Sources
 
@@ -133,13 +133,14 @@ DATect-Forecasting-Domoic-Acid/
 The system enforces strict temporal integrity to prevent data leakage:
 
 1. **Chronological splits** — training only uses `date <= anchor_date`
-2. **Satellite buffer** — 7-day processing delay
-3. **Climate buffer** — 2-month reporting delay
-4. **Observation-order lags** — past-only shifts on raw measurements
-5. **Per-forecast categories** — DA risk levels computed from training data only
-6. **Persistence features recomputed** — from training data only, not global forward-fill
-7. **Fresh model per test point** — no lookahead via shared state
-8. **`verify_no_data_leakage()`** — called for every prediction, raises `AssertionError` on violation
+2. **Forward-only gap-filling** — exponential decay from past observations only (no future data in gap-filled targets)
+3. **Satellite buffer** — 7-day processing delay
+4. **Climate buffer** — 2-month reporting delay
+5. **Observation-order lags** — past-only shifts on raw measurements
+6. **Per-forecast categories** — DA risk levels computed from training data only
+7. **Persistence features recomputed** — from real observations only, not gap-filled values
+8. **Fresh model per test point** — no lookahead via shared state
+9. **`verify_no_data_leakage()`** — called for every prediction, raises `AssertionError` on violation
 
 ## Hyak Workflow
 

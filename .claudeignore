@@ -11,13 +11,10 @@ frontend/node_modules/
 frontend/dist/
 
 # Data files (parquet, large CSVs)  
-*.parquet
 data/intermediate/
 data/raw/
 
 # Cache and build artifacts
-cache/retrospective/
-cache/spectral/
 catboost_info/
 .pytest_cache/
 *.egg-info/

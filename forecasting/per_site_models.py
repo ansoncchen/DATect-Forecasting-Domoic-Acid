@@ -7,6 +7,7 @@ Each site can override:
   - param_grid: Custom PARAM_GRID for per-anchor XGB tuning (replaces global grid)
   - feature_subset: Explicit list of features to keep (None = use all default features)
   - ensemble_weights: (xgb_weight, rf_weight, naive_weight) tuple (None = use global)
+    naive_weight is always 0.0; naive persistence is reported as an external baseline only
   - prediction_clip_q: Custom quantile for prediction clipping (None = use global)
   - prediction_clip_max: Hard ceiling on predictions in ug/g (None = no hard ceiling)
 """
@@ -49,10 +50,8 @@ ROLLING_FEATURES_FULL = [
     'raw_obs_roll_mean_4',
     'raw_obs_roll_std_4',
     'raw_obs_roll_max_4',
-    'raw_obs_roll_mean_8',
     'raw_obs_roll_std_8',
     'raw_obs_roll_max_8',
-    'raw_obs_roll_mean_12',
     'raw_obs_roll_std_12',
     'raw_obs_roll_max_12',
 ]
@@ -60,7 +59,6 @@ ROLLING_FEATURES_FULL = [
 ENV_FEATURES_CORE = [
     'modis-sst',
     'pdo',
-    'modis-chla',
     'beuti',
 ]
 
@@ -68,17 +66,6 @@ TEMPORAL_FEATURES_CORE = [
     'sin_day_of_year',
     'cos_day_of_year',
     'month',
-]
-
-TEMPORAL_FEATURES_FULL = [
-    'sin_day_of_year',
-    'cos_day_of_year',
-    'month',
-    'sin_month',
-    'cos_month',
-    'sin_week_of_year',
-    'cos_week_of_year',
-    'days_since_start',
 ]
 
 # Conservative RF params for sites where RF R2 < 0.1
@@ -91,30 +78,12 @@ RF_CONSERVATIVE = {
 }
 
 # --------------------------------------------------------------------------
-# AutoDiscovery-validated feature groups (new signals from 150 experiments)
-# All columns are confirmed present in data/processed/final_output.parquet.
-# Derived features (mhw_flag, beuti_squared, etc.) are computed in
-# build_raw_feature_frame() before the feature frame is cached.
+# Climate & anomaly feature groups
 # --------------------------------------------------------------------------
 
-# Climate & anomaly features — all confirmed in parquet, previously unused
-# oni: Oceanic Niño Index (El Niño amplifies DA)
-# sst-anom: SST anomaly (dominant driver in autumn/winter)
-# mhw_flag: Marine Heatwave binary flag (sst-anom > 1.5°C)
 CLIMATE_FEATURES_CORE = [
     'oni',
     'sst-anom',
-    'mhw_flag',
-]
-
-# Extended climate features — includes phase coherence and chla anomaly
-# Use for sites with enough data (N > 100) to absorb extra features
-CLIMATE_FEATURES_FULL = [
-    'oni',
-    'sst-anom',
-    'mhw_flag',
-    'pdo_oni_phase',
-    'chla-anom',
 ]
 
 # Columbia River discharge (global gauge, negative proxy for DA flushing)
@@ -123,34 +92,9 @@ DISCHARGE_FEATURES = [
     'discharge',
 ]
 
-# BEUTI non-linearity — captures Goldilocks zone and relaxation events
-# beuti_squared: parabolic term (moderate upwelling = peak DA)
-# beuti_relaxation: 1 when upwelling is decreasing (relaxation spike trigger)
-BEUTI_NONLINEAR_FEATURES = [
-    'beuti_squared',
-    'beuti_relaxation',
-]
-
-# Fluorescence efficiency — phytoplankton physiological stress proxy
-# fluor_efficiency = modis-flr / (modis-chla + 1e-6), ~41% missing
-FLUOR_FEATURES = [
-    'fluor_efficiency',
-]
-
-# K490 turbidity non-linearity (restored from ZERO_IMPORTANCE_FEATURES)
-# modis-k490: raw attenuation coefficient, ~43% missing
-# k490_squared: captures non-linear suppression at extremes
-K490_NONLINEAR_FEATURES = [
-    'modis-k490',
-    'k490_squared',
-]
-
-# Pseudo-nitzschia tipping-point features
-# pn_log: log1p transform (handles decay artifacts < 1 → ~0)
-# pn_above_threshold: binary flag for PN > 50,000 cells/L tipping point
+# Pseudo-nitzschia log transform (compresses heavy-tailed distribution)
 PN_FEATURES = [
     'pn_log',
-    'pn_above_threshold',
 ]
 
 
@@ -165,7 +109,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
     # ==================================================================
 
     'Copalis': {
-        # Leak-free: N=167, XGB=+0.748, RF=+0.765, Naive=+0.715, Ens=+0.761.
+        # Interp-trained: N=167, XGB=+0.763, RF=+0.771, Naive=+0.770, Ens=+0.802.
         'xgb_params': {
             'max_depth': 2, 'n_estimators': 100, 'learning_rate': 0.03,
             'min_child_weight': 10, 'reg_alpha': 1.0, 'reg_lambda': 5.0,
@@ -180,15 +124,14 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT
             + ROLLING_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
-            + BEUTI_NONLINEAR_FEATURES
         ),
-        'ensemble_weights': (0.25, 0.45, 0.30),
+        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.763
         'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
     },
 
     'Kalaloch': {
-        # Leak-free: N=131, XGB=+0.677, RF=+0.683, Naive=+0.669, Ens=+0.685.
+        # Interp-trained: N=131, XGB=+0.433, RF=+0.502, Naive=+0.631, Ens=+0.681.
         'xgb_params': {
             'max_depth': 2, 'n_estimators': 80, 'learning_rate': 0.02,
             'min_child_weight': 12, 'reg_alpha': 2.0, 'reg_lambda': 10.0,
@@ -203,13 +146,13 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES + PN_FEATURES
         ),
-        'ensemble_weights': (0.20, 0.40, 0.40),
+        'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.95,
         'prediction_clip_max': 80.0,
     },
 
     'Twin Harbors': {
-        # Leak-free: N=138, XGB=+0.582, RF=+0.589, Naive=+0.763, Ens=+0.781.
+        # Interp-trained: N=138, XGB=+0.601, RF=+0.614, Naive=+0.695, Ens=+0.776.
         'xgb_params': {
             'max_depth': 3, 'n_estimators': 150, 'learning_rate': 0.03,
             'min_child_weight': 8, 'reg_alpha': 0.5, 'reg_lambda': 3.0,
@@ -228,13 +171,13 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.10, 0.25, 0.65),
+        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.614 > XGB=+0.601
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
 
     'Quinault': {
-        # Leak-free: N=113, XGB=+0.604, RF=+0.584, Naive=+0.590, Ens=+0.653.
+        # Interp-trained: N=113, XGB=+0.764, RF=+0.771, Naive=+0.702, Ens=+0.854.
         'xgb_params': {
             'max_depth': 3, 'n_estimators': 200, 'learning_rate': 0.03,
             'min_child_weight': 7, 'reg_alpha': 0.3, 'reg_lambda': 2.0,
@@ -252,9 +195,8 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + ROLLING_FEATURES_SHORT + ENV_FEATURES_CORE
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
-            + BEUTI_NONLINEAR_FEATURES
         ),
-        'ensemble_weights': (0.35, 0.30, 0.35),
+        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.764
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
@@ -264,7 +206,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
     # ==================================================================
 
     'Long Beach': {
-        # Leak-free: N=140, XGB=+0.614, RF=+0.603, Naive=+0.470, Ens=+0.608.
+        # Interp-trained: N=140, XGB=+0.569, RF=+0.555, Naive=+0.482, Ens=+0.569.
         'xgb_params': {
             'max_depth': 3, 'n_estimators': 250, 'learning_rate': 0.03,
             'min_child_weight': 7, 'reg_alpha': 0.3, 'reg_lambda': 2.0,
@@ -281,26 +223,26 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_FULL
             + ROLLING_FEATURES_FULL + ENV_FEATURES_CORE
             + TEMPORAL_FEATURES_CORE
-            + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES + FLUOR_FEATURES
+            + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.45, 0.40, 0.15),
+        'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
 
     'Clatsop Beach': {
-        # Leak-free: N=218, XGB=+0.264, RF=+0.246, Naive=-0.015, Ens=+0.255.
+        # Interp-trained: N=218, XGB=+0.476, RF=+0.398, Naive=+0.007, Ens=+0.481.
         'xgb_params': None,
         'rf_params': None,
         'param_grid': None,
         'feature_subset': None,
-        'ensemble_weights': (0.50, 0.45, 0.05),
+        'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': None,
         'prediction_clip_max': None,
     },
 
     'Coos Bay': {
-        # Leak-free: N=67, XGB=-0.030, RF=+0.290, Naive=-0.570, Ens=+0.101.
+        # Interp-trained: N=67, XGB=+0.310, RF=+0.337, Naive=-0.286, Ens=+0.337.
         'xgb_params': {
             'max_depth': 3, 'n_estimators': 200, 'learning_rate': 0.03,
             'min_child_weight': 7, 'reg_alpha': 0.5, 'reg_lambda': 3.0,
@@ -319,7 +261,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.10, 0.85, 0.05),
+        'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
     },
@@ -329,7 +271,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
     # ==================================================================
 
     'Cannon Beach': {
-        # Leak-free: N=61, XGB=-0.471, RF=-0.521, Naive=-10.663, Ens=-0.527.
+        # Interp-trained: N=61, XGB=-0.006, RF=-0.006, Naive=-0.167, Ens=-0.001.
         'xgb_params': {
             'max_depth': 2, 'n_estimators': 100, 'learning_rate': 0.03,
             'min_child_weight': 10, 'reg_alpha': 1.0, 'reg_lambda': 5.0,
@@ -343,15 +285,15 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'feature_subset': (
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT
             + TEMPORAL_FEATURES_CORE + ['modis-sst', 'pdo']
-            + ['oni', 'mhw_flag'] + K490_NONLINEAR_FEATURES
+            + CLIMATE_FEATURES_CORE
         ),
-        'ensemble_weights': (0.95, 0.03, 0.02),
+        'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.95,
         'prediction_clip_max': 80.0,
     },
 
     'Gold Beach': {
-        # Leak-free: N=144, XGB=-0.136, RF=-0.100, Naive=-1.656, Ens=-0.129.
+        # Interp-trained: N=144, XGB=+0.156, RF=+0.140, Naive=-0.858, Ens=+0.156.
         'xgb_params': {
             'max_depth': 2, 'n_estimators': 150, 'learning_rate': 0.03,
             'min_child_weight': 10, 'reg_alpha': 1.0, 'reg_lambda': 5.0,
@@ -366,15 +308,15 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT
             + ROLLING_FEATURES_SHORT + ['modis-sst', 'pdo']
             + TEMPORAL_FEATURES_CORE
-            + ['oni', 'mhw_flag'] + PN_FEATURES
+            + CLIMATE_FEATURES_CORE + PN_FEATURES
         ),
-        'ensemble_weights': (0.40, 0.57, 0.03),
+        'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.95,
         'prediction_clip_max': None,
     },
 
     'Newport': {
-        # Leak-free: N=142, XGB=-0.051, RF=-0.011, Naive=-0.287, Ens=-0.038.
+        # Interp-trained: N=142, XGB=-0.409, RF=-0.550, Naive=-1.572, Ens=-0.382.
         'xgb_params': {
             'max_depth': 3, 'n_estimators': 250, 'learning_rate': 0.03,
             'min_child_weight': 7, 'reg_alpha': 0.5, 'reg_lambda': 3.0,
@@ -395,7 +337,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES + PN_FEATURES
         ),
-        'ensemble_weights': (0.25, 0.65, 0.10),
+        'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
@@ -452,13 +394,13 @@ def get_site_param_grid(site: str) -> Optional[List[dict]]:
 def get_site_ensemble_weights(site: str) -> Tuple[float, float, float]:
     """Return (xgb_weight, rf_weight, naive_weight) for this site.
 
-    Default: (0.30, 0.50, 0.20).  RF is globally the strongest model
-    in the leak-free pipeline.
+    Default: (0.56, 0.44, 0.00).  naive_weight is always 0.0; naive
+    persistence is evaluated as an external standalone baseline only.
     """
     weights = get_site_config(site)['ensemble_weights']
     if weights is not None:
         return weights
-    return (0.30, 0.50, 0.20)
+    return (0.56, 0.44, 0.00)
 
 
 def get_site_clip_params(site: str) -> Tuple[Optional[float], Optional[float]]:

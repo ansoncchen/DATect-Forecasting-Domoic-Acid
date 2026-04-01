@@ -36,7 +36,7 @@ export const getCategoryInfo = (category) => DA_CATEGORIES[category] || DA_CATEG
 
 // Model descriptions for UI display
 export const MODEL_DESCRIPTIONS = {
-  ensemble: 'Ensemble (XGBoost + RF + Naive)',
+  ensemble: 'Ensemble (XGBoost + RF)',
   naive: 'Naive Baseline (Last Known DA)',
   linear: 'Linear / Logistic Models',
   logistic: 'Logistic Regression'

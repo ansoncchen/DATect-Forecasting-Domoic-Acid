@@ -77,6 +77,9 @@ class DATectCacheGenerator:
                         }
                         if 'anchor_date' in results_df.columns and pd.notnull(row.get('anchor_date', None)):
                             record['anchor_date'] = row['anchor_date'].strftime('%Y-%m-%d')
+                        if 'spike_probability' in row and pd.notnull(row.get('spike_probability', None)):
+                            record['spike_probability'] = clean_for_json(row['spike_probability'])
+                            record['spike_alert'] = bool(row.get('spike_alert', False))
                         base_results.append(record)
                     
 
@@ -92,6 +95,9 @@ class DATectCacheGenerator:
                         }
                         if 'anchor_date' in result:
                             record['anchor_date'] = result['anchor_date']
+                        if 'spike_probability' in result:
+                            record['spike_probability'] = result['spike_probability']
+                            record['spike_alert'] = result.get('spike_alert', False)
                         results_json.append(record)
                         
                     cache_file = self.cache_dir / "retrospective" / f"{task}_{model_type}"

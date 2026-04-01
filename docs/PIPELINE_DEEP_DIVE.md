@@ -55,21 +55,20 @@ The weekly raw DA values are LEFT-joined onto the processed environmental data b
 
 ### Step 2C: Persistence Features
 
-Three features are computed using forward-fill within each site:
+Two features are computed using forward-fill within each site:
 
 1. **`last_observed_da_raw`**: The most recent actual DA measurement (forward-filled). This is the strongest single feature — DA values tend to persist.
 
-2. **`weeks_since_last_raw`**: How many weeks since the last real measurement. When this is large, the persistence information is stale and less reliable.
+2. **`weeks_since_last_spike`**: Weeks since DA was last above 20 µg/g. Captures recency of dangerous events.
 
-3. **`weeks_since_last_spike`**: Weeks since DA was last above 20 µg/g. Captures recency of dangerous events.
+> `weeks_since_last_raw` was previously computed but confirmed negligible (<1% importance) and removed.
 
 ### Step 2D: Rolling Statistics
 
 When `USE_ROLLING_FEATURES=True`, computes rolling statistics over `shift(1)` of `last_observed_da_raw` (the shift prevents leakage — it uses T-1 and earlier, never the current row):
 
-- **Windows**: 4, 8, 12 weeks
-- **Statistics**: mean, std, max
-- Creates features like `raw_obs_roll_mean_4`, `raw_obs_roll_std_8`, `raw_obs_roll_max_12`
+- **Window 4**: mean, std, max (e.g., `raw_obs_roll_mean_4`, `raw_obs_roll_std_4`, `raw_obs_roll_max_4`)
+- **Windows 8, 12**: std and max only (rolling means for 8/12 were confirmed negligible and removed)
 
 ### Step 2E: Observation-Order Lag Features (`raw_data_processor.py`)
 
@@ -94,11 +93,9 @@ The algorithm iterates through each site, finds all non-NaN `da_raw` observation
 Deterministic calendar features that are safe to compute for any date (no data leakage risk):
 
 - `sin_day_of_year`, `cos_day_of_year`: Cyclic encoding of season (captures that day 365 is near day 1)
-- `month`, `sin_month`, `cos_month`: Month encoding
-- `quarter`: Season quarter
-- `sin_week_of_year`, `cos_week_of_year`: Fine-grained seasonal cycle
-- `is_bloom_season`: Binary flag for March–October (when *Pseudo-nitzschia* blooms are most likely)
-- `days_since_start`: Linear trend (captures long-term changes like warming ocean)
+- `month`: Integer month (1-12)
+
+> Several additional temporal features were explored but removed after ablation confirmed <1% importance: `sin_month`, `cos_month`, `quarter`, `sin_week_of_year`, `cos_week_of_year`, `is_bloom_season`, `days_since_start`.
 
 ---
 
@@ -112,9 +109,12 @@ For a forecast date (test_date), the **anchor date** = test_date - 7 days. This 
 
 ### Step 3B: Training Data (`get_site_training_frame()`)
 
-All feature frame rows for this site where `date ≤ anchor_date` AND `da_raw` is not null. This ensures:
+When `USE_INTERPOLATED_TRAINING=True` (default), training includes **all** feature frame rows for this site where `date ≤ anchor_date` AND the `da` column (gap-filled) is not null. For rows with real measurements, `da_raw` is used as the target; for gap-filled rows, the interpolated `da` value fills in. This provides ~5x more training data per site. A `_is_interpolated` marker column tracks which rows are gap-filled so downstream code can filter to real-only when needed (persistence features, Naive baseline). When the flag is `False`, only rows with actual `da_raw` measurements are used (original behavior).
+
+This ensures:
 - Only past data is used
-- Only rows with actual measurements (not interpolated/empty rows) form the training set
+- ~5x more training data per site (real + gap-filled rows)
+- Test/evaluation still uses only real measurements
 - The model learns from real signal, not imputed values
 
 Requires at least `MIN_TRAINING_SAMPLES=10` rows.
@@ -131,10 +131,9 @@ The key insight: at the time of making a prediction, you'd have satellite data u
 
 ### Step 3D: Persistence Feature Recomputation (`recompute_test_row_persistence_features()`)
 
-The persistence features (`last_observed_da_raw`, `weeks_since_last_raw`, `weeks_since_last_spike`) were computed globally during feature frame construction, which means they might leak future information. This function overwrites them using **only the training data**:
+The persistence features (`last_observed_da_raw`, `weeks_since_last_spike`) were computed globally during feature frame construction, which means they might leak future information. This function overwrites them using **only the real observations in training data** (filtered via `_is_interpolated` to exclude gap-filled rows, ensuring persistence reflects actual measurements):
 
-- `last_observed_da_raw` = the most recent DA value in training data
-- `weeks_since_last_raw` = time from test_date to that last measurement
+- `last_observed_da_raw` = the most recent real DA value in training data
 - `weeks_since_last_spike` = time to last spike event in training data
 
 Rolling features (raw_obs_roll_*) are NOT recomputed because they already use `shift(1)` and don't leak.
@@ -157,8 +156,8 @@ Before model training, features go through a preprocessing pipeline:
 
 Several categories of columns are removed:
 - `date`, `site` (non-features)
-- `da_raw`, `da` (target variable — would be leakage)
-- `ZERO_IMPORTANCE_FEATURES` from config (features proven to have near-zero predictive power in leak-free evaluation): `lat`, `lon`, `weeks_since_last_raw`, `is_bloom_season`, `quarter`, `raw_obs_roll_mean_12`, `modis-par`, `raw_obs_roll_mean_8`, `sin_week_of_year`, `cos_month`, `modis-k490`, `cos_week_of_year`, `da_raw_prev_obs_4_weeks_ago`
+- `da_raw`, `da`, `_is_interpolated` (target variable and marker — would be leakage)
+- `ZERO_IMPORTANCE_FEATURES` from config (parquet columns with negligible predictive power): `lat`, `lon`, `modis-par`, `modis-k490`, `chla-anom`, `modis-chla`. Many additional negligible features (derived features, extra temporal encodings, rolling means) were removed from computation entirely rather than computed-then-dropped.
 - Per-site feature subset enforcement (if the site has a `feature_subset` defined, only those features are kept)
 
 ### Step 4B: Imputation + Scaling
@@ -198,31 +197,33 @@ Every ML prediction goes through:
 
 ## Phase 6: Ensemble Blending
 
-The three predictions are combined using **per-site weighted averaging**:
+The two ML predictions are combined using **per-site weighted averaging**:
 
 ```
-ensemble_prediction = w_xgb * xgb_pred + w_rf * rf_pred + w_naive * naive_pred
+ensemble_prediction = w_xgb * xgb_pred + w_rf * rf_pred
 ```
+
+(w_naive = 0.0 for all sites; naïve persistence is an external baseline)
 
 The weights are completely customized per site based on which models perform best there:
 
-| Site | XGB | RF | Naive | Character |
-|------|-----|-----|-------|-----------|
-| **Twin Harbors** | 0.10 | 0.25 | **0.65** | Persistence-dominant — naive is king |
-| **Kalaloch** | 0.20 | 0.40 | **0.40** | Persistence-dominant |
-| **Copalis** | 0.25 | **0.45** | 0.30 | RF slightly favored |
-| **Quinault** | 0.35 | 0.30 | 0.35 | Balanced three-way |
-| **Long Beach** | **0.45** | 0.40 | 0.15 | ML-leaning |
-| **Clatsop Beach** | **0.50** | 0.45 | 0.05 | ML-dominant |
-| **Coos Bay** | 0.10 | **0.85** | 0.05 | RF-dominant |
-| **Newport** | 0.25 | **0.65** | 0.10 | RF-leaning |
-| **Gold Beach** | 0.40 | **0.57** | 0.03 | RF-leaning |
-| **Cannon Beach** | **0.95** | 0.03 | 0.02 | XGB-desperate (all models struggle) |
+| Site | XGB | RF | Character |
+|------|-----|-----|-----------|
+| **Twin Harbors** | 0.30 | 0.10 | XGB + RF blend (naïve persistence evaluated separately) |
+| **Kalaloch** | 0.00 | 0.35 | RF-only ML blend (naïve persistence evaluated separately) |
+| **Copalis** | 0.45 | 0.00 | XGB-only ML blend (naïve persistence evaluated separately) |
+| **Quinault** | 0.40 | 0.15 | XGB + RF blend |
+| **Long Beach** | **0.95** | 0.00 | XGB-dominant |
+| **Clatsop Beach** | **0.95** | 0.05 | XGB-dominant |
+| **Coos Bay** | 0.00 | **1.00** | RF-only |
+| **Newport** | **1.00** | 0.00 | XGB-only |
+| **Gold Beach** | **1.00** | 0.00 | XGB-only |
+| **Cannon Beach** | 0.10 | **0.75** | RF-leaning (all models struggle) |
 
-The three site categories in `per_site_models.py` are:
-- **Persistence-dominant** (Twin Harbors, Kalaloch, Copalis, Quinault): DA changes slowly, naive baseline is strong, ML is constrained
-- **ML-leaning** (Long Beach, Clatsop Beach, Coos Bay): ML models outperform naive
-- **Struggle sites** (Cannon Beach, Gold Beach, Newport): All models have negative R-squared — the data is fundamentally hard to predict. These sites get aggressive regularization and conservative clipping.
+The site categories in `per_site_models.py` are:
+- **Persistence-dominant** (Twin Harbors, Kalaloch, Copalis, Quinault): DA changes slowly; the external naïve baseline is strong at these sites, and ML weights are conservative
+- **ML-dominant** (Long Beach, Clatsop Beach, Coos Bay, Newport, Gold Beach): ML models outperform naive; with interpolated training, XGB is now the strongest ML model at most sites
+- **Struggle sites** (Cannon Beach): All models have near-zero or negative R-squared — the data is fundamentally hard to predict. These sites get aggressive regularization and conservative clipping.
 
 ---
 
@@ -321,7 +322,7 @@ Checks for cached results first. If cache exists, serves pre-computed prediction
 3.  aggregate_raw_to_weekly() → Weekly DA values (MAX aggregation)
 4.  build_raw_feature_frame() → Merge raw DA onto env data + persistence + rolling + lag features
 5.  add_temporal_features() → Calendar encodings (sin/cos day, month, season)
-6.  get_site_training_frame() → Filter to site, date <= anchor, da_raw not null
+6.  get_site_training_frame() → Filter to site, date <= anchor; include gap-filled rows when USE_INTERPOLATED_TRAINING=True
 7.  get_site_anchor_row() → Build test row with env features from anchor date
 8.  recompute_test_row_persistence_features() → Overwrite leaky persistence features
 9.  _verify_no_data_leakage() → Assert no temporal leaks
@@ -329,10 +330,10 @@ Checks for cached results first. If cache exists, serves pre-computed prediction
 11. Per-anchor XGB tuning (if retrospective) → Find best hyperparams
 12. Train XGBoost, Random Forest, get Naive → Three predictions
 13. _postprocess() → Floor at 0, clip to quantile, apply hard ceiling
-14. Weighted ensemble blend → w_xgb * XGB + w_rf * RF + w_naive * Naive
+14. Weighted ensemble blend → w_xgb * XGB + w_rf * RF
 15. threshold_classify() → Map to risk category
 16. Quantile regression or bootstrap → Confidence intervals
 17. Return result dict to API
 ```
 
-Every single prediction (steps 6-17) is independent — a fresh model trained from scratch with zero knowledge of the future. This is by far the most computationally expensive aspect: 500 test points x 10 sites x 3 models x per-anchor tuning = tens of thousands of model trainings per full retrospective run.
+Every single prediction (steps 6-17) is independent — a fresh model trained from scratch with zero knowledge of the future. This is by far the most computationally expensive aspect: 500 test points x 10 sites x 2 ML models x per-anchor tuning = tens of thousands of model trainings per full retrospective run.

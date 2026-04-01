@@ -419,6 +419,35 @@ const Dashboard = () => {
           line: { color: predictedColor, width: 2, dash: 'dash' },
           marker: { size: 4, symbol: 'square' }
         })
+
+        // Spike alert markers (where classifier flagged spike risk)
+        const spikeAlerts = siteData.filter(d => d.spike_alert === true)
+        if (spikeAlerts.length > 0) {
+          traces.push({
+            x: spikeAlerts.map(d => d.date),
+            y: spikeAlerts.map(d => d.predicted_da),
+            mode: 'markers',
+            name: `${site} - Spike Alert`,
+            marker: {
+              size: 12,
+              symbol: 'triangle-up',
+              color: 'rgba(220, 38, 38, 0.8)',
+              line: { color: 'darkred', width: 1 }
+            },
+            text: spikeAlerts.map(d => `Spike prob: ${(d.spike_probability * 100).toFixed(1)}%`),
+            hovertemplate: '%{text}<br>Predicted: %{y:.1f} μg/g<br>Date: %{x}<extra></extra>'
+          })
+        }
+      })
+
+      // Regulatory threshold line at DA = 20
+      traces.push({
+        x: [results[0]?.date, results[results.length - 1]?.date],
+        y: [20, 20],
+        mode: 'lines',
+        name: 'Regulatory Threshold (20 μg/g)',
+        line: { color: 'rgba(220, 38, 38, 0.4)', width: 2, dash: 'dot' },
+        hoverinfo: 'skip'
       })
 
       return {
@@ -679,7 +708,7 @@ const Dashboard = () => {
                     onChange={(e) => setConfig({...config, forecast_model: e.target.value})}
                     className="w-full p-3 border border-gray-300 rounded-md text-lg"
                   >
-                    <option value="ensemble">Ensemble - XGBoost + RF + Naive combined (Recommended)</option>
+                    <option value="ensemble">Ensemble - XGBoost + RF (Recommended)</option>
                     <option value="naive">Naive Baseline - Most recent DA before anchor date</option>
                     <option value="linear">Ridge / Logistic - Interpretable linear models</option>
                   </select>
@@ -875,7 +904,7 @@ const Dashboard = () => {
         <div className="space-y-6">
           {/* Summary */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {forecast.regression && (
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h3 className="text-lg font-medium text-blue-800 mb-2">
@@ -904,14 +933,28 @@ const Dashboard = () => {
                 </div>
               )}
 
+              {forecast.regression?.spike_probability != null && (
+                <div className={`p-4 rounded-lg ${forecast.regression.spike_alert ? 'bg-red-50 border-2 border-red-300' : 'bg-emerald-50'}`}>
+                  <h3 className={`text-lg font-medium mb-2 ${forecast.regression.spike_alert ? 'text-red-800' : 'text-emerald-800'}`}>
+                    {forecast.regression.spike_alert ? '⚠️ Spike Alert' : '✅ No Spike Alert'}
+                  </h3>
+                  <div className={`text-2xl font-bold ${forecast.regression.spike_alert ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {(forecast.regression.spike_probability * 100).toFixed(1)}% spike probability
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Alert threshold: &gt;10% probability of DA &ge; 20 &mu;g/g
+                  </p>
+                </div>
+              )}
+
             </div>
           </div>
 
           {/* Ensemble Breakdown */}
           {forecast.ensemble && (
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-medium text-purple-800 mb-4">🔬 Ensemble Model Breakdown</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <h3 className="text-lg font-medium text-purple-800 mb-4">Ensemble Model Breakdown</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-purple-50 p-4 rounded-lg text-center">
                   <p className="text-sm text-gray-600 mb-1">XGBoost</p>
                   <p className="text-xl font-bold text-purple-700">
@@ -934,17 +977,6 @@ const Dashboard = () => {
                     </p>
                   )}
                 </div>
-                <div className="bg-purple-50 p-4 rounded-lg text-center">
-                  <p className="text-sm text-gray-600 mb-1">Naive Baseline</p>
-                  <p className="text-xl font-bold text-purple-700">
-                    {forecast.ensemble.naive_prediction?.toFixed(2)} μg/g
-                  </p>
-                  {forecast.ensemble.ensemble_weights && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      weight: {(forecast.ensemble.ensemble_weights[2] * 100).toFixed(0)}%
-                    </p>
-                  )}
-                </div>
               </div>
               {forecast.ensemble.ensemble_prediction != null && (
                 <div className="mt-4 bg-purple-100 p-3 rounded-lg text-center">
@@ -952,6 +984,17 @@ const Dashboard = () => {
                   <p className="text-2xl font-bold text-purple-800">
                     {forecast.ensemble.ensemble_prediction?.toFixed(3)} μg/g
                   </p>
+                </div>
+              )}
+              {forecast.ensemble.naive_prediction != null && (
+                <div className="mt-4 border-t border-gray-200 pt-4">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Baseline Comparison</p>
+                  <div className="bg-gray-50 p-3 rounded-lg text-center">
+                    <p className="text-sm text-gray-600 mb-1">Naive Persistence</p>
+                    <p className="text-lg font-semibold text-gray-700">
+                      {forecast.ensemble.naive_prediction?.toFixed(2)} μg/g
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -1222,7 +1265,7 @@ const Dashboard = () => {
         {/* Summary statistics */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h3 className="text-lg font-semibold mb-4">Performance Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg text-center">
               <div className="text-2xl font-bold text-blue-600">{filteredResults?.summary?.total_forecasts || 0}</div>
               <div className="text-sm text-gray-600">Total Forecasts</div>
@@ -1246,6 +1289,26 @@ const Dashboard = () => {
                 <div className="text-xs text-gray-500 mt-1">Spike Detection (&gt;20 μg/g)</div>
               </div>
             )}
+            {config.forecast_task === 'regression' && (() => {
+              const results = filteredResults?.results || []
+              const withAlerts = results.filter(d => d.spike_alert !== undefined && d.spike_alert !== null)
+              if (withAlerts.length === 0) return null
+              const alertCount = withAlerts.filter(d => d.spike_alert === true).length
+              const truePositives = withAlerts.filter(d => d.spike_alert === true && d.actual_da >= 20).length
+              const actualSpikes = withAlerts.filter(d => d.actual_da >= 20).length
+              const recall = actualSpikes > 0 ? (truePositives / actualSpikes * 100) : null
+              return (
+                <div className={`p-4 rounded-lg text-center ${alertCount > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                  <div className={`text-2xl font-bold ${alertCount > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {recall != null ? `${recall.toFixed(0)}%` : 'N/A'}
+                  </div>
+                  <div className="text-sm text-gray-600">Spike Recall</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {truePositives} of {actualSpikes} spikes caught · {alertCount} alerts raised
+                  </div>
+                </div>
+              )
+            })()}
             {config.forecast_task === 'classification' && filteredResults?.summary?.accuracy !== undefined && (
               <>
                 <div className="bg-purple-50 p-4 rounded-lg text-center">

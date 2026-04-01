@@ -29,30 +29,15 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     depend on the calendar (day-of-year, month, etc.) — not on
     observed data that could leak future information.
 
-    Features added (when USE_ENHANCED_TEMPORAL_FEATURES=True):
-      sin_day_of_year, cos_day_of_year, month, sin_month, cos_month,
-      quarter, sin_week_of_year, cos_week_of_year, is_bloom_season,
-      days_since_start
-
+    Features added:
+      sin_day_of_year, cos_day_of_year, month
     """
     df = df.copy()
 
-    if getattr(config, "USE_ENHANCED_TEMPORAL_FEATURES", True):
-        day_of_year = df["date"].dt.dayofyear
-        df["sin_day_of_year"] = np.sin(2 * np.pi * day_of_year / 365)
-        df["cos_day_of_year"] = np.cos(2 * np.pi * day_of_year / 365)
-        df["month"] = df["date"].dt.month
-        df["sin_month"] = np.sin(2 * np.pi * df["month"] / 12)
-        df["cos_month"] = np.cos(2 * np.pi * df["month"] / 12)
-        df["quarter"] = df["date"].dt.quarter
-        week_of_year = df["date"].dt.isocalendar().week.astype(int)
-        df["sin_week_of_year"] = np.sin(2 * np.pi * week_of_year / 52)
-        df["cos_week_of_year"] = np.cos(2 * np.pi * week_of_year / 52)
-        df["is_bloom_season"] = df["month"].between(3, 10).astype(int)
-        df["days_since_start"] = (df["date"] - df["date"].min()).dt.days
-    else:
-        df["month"] = df["date"].dt.month
-        df["quarter"] = df["date"].dt.quarter
+    day_of_year = df["date"].dt.dayofyear
+    df["sin_day_of_year"] = np.sin(2 * np.pi * day_of_year / 365)
+    df["cos_day_of_year"] = np.cos(2 * np.pi * day_of_year / 365)
+    df["month"] = df["date"].dt.month
 
     return df
 

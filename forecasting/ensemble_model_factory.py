@@ -37,7 +37,7 @@ class EnsembleModelFactory:
     Factory for creating configured ML models for the raw-data ensemble pipeline.
 
     Supported regression models:
-      - ensemble: 3-model blend (XGBoost + Random Forest + Naive)
+      - ensemble: 2-model ML blend (XGBoost + Random Forest); naïve persistence is a standalone external baseline
       - naive:    Last-known-DA baseline
       - linear:   Linear regression baseline
 

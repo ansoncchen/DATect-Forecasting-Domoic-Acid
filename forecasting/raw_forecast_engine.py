@@ -3,7 +3,7 @@ Raw-Data Forecast Engine
 ========================
 
 Drop-in replacement for the original ``ForecastEngine`` that uses the
-raw-data ensemble pipeline (XGBoost + Random Forest + Naive baseline)
+raw-data ensemble pipeline (XGBoost + Random Forest two-model ML ensemble, with naïve persistence as an external standalone baseline)
 with per-site hyperparameter tuning, observation-order lag features,
 leak-free anchor-date environmental features, and quantile prediction
 intervals.
@@ -155,6 +155,48 @@ class RawForecastEngine:
         return feature_frame
 
     # ------------------------------------------------------------------
+    # Pooled cross-site training data for spike classifier
+    # ------------------------------------------------------------------
+
+    def _build_pooled_spike_data(
+        self,
+        feature_frame: pd.DataFrame,
+        anchor_date: pd.Timestamp,
+    ) -> tuple[Optional[pd.DataFrame], Optional[pd.Series]]:
+        """Build pooled ALL-SITE training data for the spike binary classifier.
+
+        Uses data from every site up to *anchor_date* (temporal integrity),
+        keeping only rows with real ``da_raw`` measurements.  No per-site
+        feature selection is applied — the spike classifier gets a uniform
+        feature set across all sites.
+
+        Returns (X_pooled, y_da_raw) or (None, None) if insufficient data.
+        """
+        anchor_date = pd.Timestamp(anchor_date)
+        all_train = feature_frame[feature_frame["date"] <= anchor_date].copy()
+
+        # Only real measurements — can't define "spike" from interpolated DA
+        all_train = all_train[all_train["da_raw"].notna()].copy()
+        if len(all_train) < 30:
+            return None, None
+
+        all_train = add_temporal_features(all_train)
+
+        y_raw = all_train["da_raw"].astype(float).copy()
+
+        # Standard drops: meta cols + zero-importance features
+        # NO per-site drops — spike classifier uses uniform features
+        zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
+        drop_cols = [
+            "date", "site", "da_raw", "da", "_is_interpolated",
+        ] + list(zero_imp)
+
+        transformer, X_pooled = create_transformer(all_train, drop_cols)
+        X_pooled = transformer.fit_transform(X_pooled)
+
+        return X_pooled, y_raw
+
+    # ------------------------------------------------------------------
     # Single forecast (realtime)
     # ------------------------------------------------------------------
 
@@ -225,9 +267,13 @@ class RawForecastEngine:
             )
             return None
 
-        # Recompute persistence features from training data only
+        # Recompute persistence features from real observations only
+        if "_is_interpolated" in train_data.columns:
+            real_train = train_data[~train_data["_is_interpolated"]]
+        else:
+            real_train = train_data
         test_row = recompute_test_row_persistence_features(
-            test_row, train_data, config.SPIKE_THRESHOLD
+            test_row, real_train, config.SPIKE_THRESHOLD
         )
 
         # Add temporal features
@@ -238,7 +284,7 @@ class RawForecastEngine:
         use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
         zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
 
-        drop_cols = ["date", "site", "da_raw", "da"] + list(zero_imp)
+        drop_cols = ["date", "site", "da_raw", "da", "_is_interpolated"] + list(zero_imp)
 
         if use_per_site:
             drop_cols = compute_site_drop_cols(
@@ -299,9 +345,9 @@ class RawForecastEngine:
         rf_raw = float(rf_model.predict(X_test_processed)[0])
         rf_prediction = _postprocess(rf_raw)
 
-        # --- Naive baseline ---
+        # --- Naive baseline (always use real observations only) ---
         naive_prediction = get_last_known_raw_da(
-            train_data,
+            real_train,
             anchor_date=anchor_date,
             max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
         )
@@ -442,6 +488,43 @@ class RawForecastEngine:
             result["predicted_category"] = (
                 self.classification_adapter.threshold_classify(primary_prediction)
             )
+
+        # --- Spike binary classifier (pooled cross-site training) ---
+        if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
+            try:
+                X_pooled, y_pooled = self._build_pooled_spike_data(
+                    feature_frame, anchor_date,
+                )
+                if X_pooled is not None:
+                    spike_result = (
+                        self.classification_adapter.train_spike_binary_classifier(
+                            X_pooled,
+                            y_pooled,
+                            spike_threshold=config.SPIKE_THRESHOLD,
+                            site=site,
+                        )
+                    )
+                    if spike_result is not None:
+                        spike_prob = (
+                            self.classification_adapter.predict_spike_probability(
+                                spike_result, X_test_processed,
+                            )
+                        )
+                        result["spike_probability"] = spike_prob
+                        classifier_fires = spike_prob >= getattr(
+                            config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
+                        )
+                        regression_fires = primary_prediction >= getattr(
+                            config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0
+                        )
+                        result["spike_alert"] = classifier_fires or regression_fires
+            except Exception as exc:
+                logger.debug("Spike classifier failed: %s", exc)
+
+        # Regression-only fallback when classifier is unavailable
+        if "spike_alert" not in result:
+            if primary_prediction >= getattr(config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0):
+                result["spike_alert"] = True
 
         return result
 
@@ -683,7 +766,8 @@ class RawForecastEngine:
             site_df = site_df.sort_values("date")
             n_candidates = len(site_df)
             total_site = site_total_counts.get(site, n_candidates)
-            target = min(int(np.ceil(0.2 * total_site)), n_candidates)
+            test_frac = getattr(config, "TEST_SAMPLE_FRACTION", 0.20)
+            target = min(int(np.ceil(test_frac * total_site)), n_candidates)
             if target <= 0:
                 continue
             idx = rng.choice(n_candidates, size=target, replace=False)
@@ -710,8 +794,9 @@ class RawForecastEngine:
         enable_parallel = getattr(config, "ENABLE_PARALLEL", True)
         n_jobs = getattr(config, "N_JOBS", -1)
 
+        parallel_backend = getattr(config, "PARALLEL_BACKEND", "loky")
         if enable_parallel:
-            results = Parallel(n_jobs=n_jobs)(
+            results = Parallel(n_jobs=n_jobs, backend=parallel_backend)(
                 delayed(self._run_single_retrospective)(
                     row, feature_frame, base_params
                 )
@@ -947,14 +1032,19 @@ class RawForecastEngine:
         if test_row is None:
             return None
 
+        # Recompute persistence features from real observations only
+        if "_is_interpolated" in train_data.columns:
+            real_train = train_data[~train_data["_is_interpolated"]]
+        else:
+            real_train = train_data
         test_row = recompute_test_row_persistence_features(
-            test_row, train_data, config.SPIKE_THRESHOLD
+            test_row, real_train, config.SPIKE_THRESHOLD
         )
 
         train_data = add_temporal_features(train_data)
         test_row = add_temporal_features(test_row)
 
-        drop_cols = ["date", "site", "da_raw", "da"] + list(zero_imp)
+        drop_cols = ["date", "site", "da_raw", "da", "_is_interpolated"] + list(zero_imp)
         if use_per_site:
             drop_cols = compute_site_drop_cols(
                 drop_cols, train_data.columns.tolist(), site
@@ -1010,9 +1100,9 @@ class RawForecastEngine:
             except Exception:
                 rf_prediction = prediction
 
-        # Naive
+        # Naive (always use real observations only)
         naive_prediction = get_last_known_raw_da(
-            train_data,
+            real_train,
             anchor_date=anchor_date,
             max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
         )
@@ -1078,6 +1168,50 @@ class RawForecastEngine:
             except Exception:
                 pass
 
+        # Spike binary classifier (pooled cross-site training)
+        spike_prob = None
+        spike_alert = None
+        if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
+            try:
+                X_pooled, y_pooled = self._build_pooled_spike_data(
+                    feature_frame, anchor_date,
+                )
+                if X_pooled is not None:
+                    spike_result = (
+                        self.classification_adapter.train_spike_binary_classifier(
+                            X_pooled,
+                            y_pooled,
+                            spike_threshold=config.SPIKE_THRESHOLD,
+                            site=site,
+                        )
+                    )
+                    if spike_result is not None:
+                        spike_prob = (
+                            self.classification_adapter.predict_spike_probability(
+                                spike_result, X_test_processed,
+                            )
+                        )
+                        classifier_fires = spike_prob >= getattr(
+                            config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
+                        )
+                        w_xgb, w_rf, _ = get_site_ensemble_weights(site)
+                        rf_val = rf_prediction if rf_prediction is not None else prediction
+                        ensemble_pred = w_xgb * prediction + w_rf * rf_val
+                        regression_fires = ensemble_pred >= getattr(
+                            config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0
+                        )
+                        spike_alert = classifier_fires or regression_fires
+            except Exception as exc:
+                logger.debug("Spike classifier failed in validation: %s", exc)
+
+        # Regression-only fallback when classifier is unavailable
+        if spike_alert is None:
+            w_xgb, w_rf, _ = get_site_ensemble_weights(site)
+            rf_val = rf_prediction if rf_prediction is not None else prediction
+            ensemble_pred = w_xgb * prediction + w_rf * rf_val
+            if ensemble_pred >= getattr(config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0):
+                spike_alert = True
+
         result = {
             "test_date": test_date,
             "anchor_date": anchor_date,
@@ -1095,6 +1229,8 @@ class RawForecastEngine:
                 abs((test_row["date"].iloc[0] - test_date).days)
             ),
             "feature_importance": feature_importance,
+            "spike_probability": spike_prob,
+            "spike_alert": spike_alert,
         }
 
         return {**result, **quantile_predictions}

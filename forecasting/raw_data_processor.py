@@ -44,9 +44,11 @@ class RawDataProcessor:
         df = df.sort_values([group_col, "date"]).reset_index(drop=True)
 
         # Initialise new columns
+        # weeks_ago only needed for lags 2-3 (lag 4 has negligible importance)
+        max_weeks_ago_lag = min(max_obs_lags, 3)
         for i in range(1, max_obs_lags + 1):
             df[f"{value_col}_prev_obs_{i}"] = np.nan
-            if i >= 2:
+            if 2 <= i <= max_weeks_ago_lag:
                 df[f"{value_col}_prev_obs_{i}_weeks_ago"] = np.nan
 
         # Process each site
@@ -75,7 +77,7 @@ class RawDataProcessor:
                 for lag_i in range(1, min(max_obs_lags + 1, n_past + 1)):
                     val = float(past_vals[-lag_i])
                     df.at[idx, f"{value_col}_prev_obs_{lag_i}"] = val
-                    if lag_i >= 2:
+                    if 2 <= lag_i <= max_weeks_ago_lag:
                         obs_dt = pd.Timestamp(past_dts[-lag_i])
                         weeks_ago = (row_date - obs_dt).days / 7.0
                         df.at[idx, f"{value_col}_prev_obs_{lag_i}_weeks_ago"] = weeks_ago

@@ -1,5 +1,6 @@
 # DATect Forecasting Configuration
 # Settings for data processing, modeling, and web interface
+import os
 
 # Data Sources and Paths
 
@@ -244,8 +245,9 @@ N_BOOTSTRAP_ITERATIONS = 100  # Number of bootstrap iterations for confidence in
 # Enable/disable lag features for time series modeling
 USE_LAG_FEATURES = True
 
-# Time series lags for raw observation-order lag features
-LAG_FEATURES = [1, 2, 3, 4]
+# Time series lags for raw observation-order lag features (env override: comma-separated or "none")
+_lag_env = os.environ.get("DATECT_LAG_FEATURES", "")
+LAG_FEATURES = [] if _lag_env.lower() == "none" else [int(x) for x in _lag_env.split(",") if x.strip()] if _lag_env else [1, 2, 3, 4]
 
 # DA Category Configuration
 
@@ -257,6 +259,25 @@ DA_CATEGORY_LABELS = [0, 1, 2, 3]
 SPIKE_THRESHOLD = 20.0  # DA > 20 μg/g considered a spike event
 SPIKE_FALSE_NEGATIVE_WEIGHT = 500.0  # Heavy penalty for missing actual spikes
 SPIKE_TRUE_NEGATIVE_WEIGHT = 0.1  # Very low weight for correct non-spike predictions
+SPIKE_ALERT_PROB_THRESHOLD = 0.10  # Probability threshold for spike alert (optimized for transition recall)
+SPIKE_CLASSIFIER_ENABLED = True    # Toggle spike binary classifier on/off
+SPIKE_REGRESSION_ALERT_THRESHOLD = 12.0  # Fire spike_alert when ensemble prediction >= this (µg/g)
+
+# Spike binary classifier hyperparameters (tuned for per-test-point training
+# with small safe-baseline datasets — shallower/simpler than 4-category classifier)
+SPIKE_CLASSIFIER_PARAMS = {
+    "n_estimators": 300,
+    "max_depth": 4,
+    "learning_rate": 0.05,
+    "subsample": 0.85,
+    "colsample_bytree": 0.85,
+    "reg_alpha": 0.5,
+    "reg_lambda": 1.0,
+    "gamma": 0.1,
+    "min_child_weight": 3,
+    "eval_metric": "logloss",
+}
+
 
 # Bootstrap subsample fraction for uncertainty estimation
 BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
@@ -278,7 +299,6 @@ CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 
 # Feature engineering toggles
 USE_ROLLING_FEATURES = True  # Enable rolling statistics features for raw pipeline
-USE_ENHANCED_TEMPORAL_FEATURES = True  # Enable/disable sin/cos temporal encoding and derived features
 
 # Biological Decay Interpolation Parameters
 # Used for filling gaps in DA/PN measurements with exponential decay
@@ -307,8 +327,9 @@ RF_REGRESSION_PARAMS = {
     "max_features": 0.85,
 }
 
-# Target and model toggles
-USE_PER_SITE_MODELS = True       # Enable per-site XGB/RF params, features, ensemble weights
+# Target and model toggles (overridable via env vars for ablation studies)
+USE_PER_SITE_MODELS = os.environ.get("DATECT_USE_PER_SITE_MODELS", "true").lower() == "true"
+USE_INTERPOLATED_TRAINING = os.environ.get("DATECT_USE_INTERPOLATED_TRAINING", "true").lower() == "true"
 USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
 
 # Prediction clipping
@@ -332,28 +353,29 @@ PARAM_GRID = [
 # Quantile prediction intervals
 ENABLE_QUANTILE_INTERVALS = True
 
+# Fraction of per-site raw measurements sampled as test points for retrospective
+TEST_SAMPLE_FRACTION = 0.20
+
 # History requirement: anchor must have >= this fraction of site's total history
 HISTORY_REQUIREMENT_FRACTION = 0.33
 
-# Zero/near-zero importance features to always drop.
-# Original Phase 4 drops + 8 features confirmed < 1% of max importance
-# in leak-free pipeline.
+# Features to drop before model training.
+# Includes columns from the parquet that have negligible importance,
+# plus rolling-mean variants that are computed but not useful.
+# Many previously-listed derived features (mhw_flag, beuti_squared, etc.)
+# are no longer computed at all — see paper_feature_ablation_results.json.
 ZERO_IMPORTANCE_FEATURES = [
-    # Phase 4 original drops
-    'lat', 'lon', 'weeks_since_last_raw',
-    'is_bloom_season', 'quarter',
-    # Leak-free feature importance < 1% of max (0.0037 threshold)
-    'raw_obs_roll_mean_12',
+    # Parquet columns with negligible importance
+    'lat', 'lon',
     'modis-par',
-    'raw_obs_roll_mean_8',
-    'sin_week_of_year',
-    'cos_month',
-    'cos_week_of_year',
-    'da_raw_prev_obs_4_weeks_ago',
-    # NOTE: modis-k490 removed from this list — restored for non-linear (k490_squared)
-    # feature engineering in build_raw_feature_frame(). Sites that don't include
-    # 'modis-k490' or 'k490_squared' in their feature_subset will still not use it.
+    'modis-k490',       # ΔR² = +0.001 (removing improves performance)
+    'chla-anom',        # ΔR² = -0.001
+    'modis-chla',       # ΔR² = -0.004
 ]
+# Env override: append extra features to drop (comma-separated)
+_extra_drop = os.environ.get("DATECT_EXTRA_DROP_FEATURES", "")
+if _extra_drop:
+    ZERO_IMPORTANCE_FEATURES += [f.strip() for f in _extra_drop.split(",") if f.strip()]
 
 # Minimum test date (early lower bound; per-site history fraction is the real filter)
 MIN_TEST_DATE = "2003-01-01"

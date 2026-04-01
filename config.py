@@ -339,7 +339,7 @@ PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training
 # None = standard MSE (reg:squarederror). Higher values bias predictions upward.
 # Tradeoff: better spike recall, worse MAE on low-DA observations.
 # Can be overridden per-site via per_site_models.py 'quantile_alpha' field.
-QUANTILE_REGRESSION_ALPHA = None
+QUANTILE_REGRESSION_ALPHA = 0.7
 
 # Cross-site pooled training: minimum total observations required across all sites
 POOLED_TRAINING_MIN_SAMPLES = 30
@@ -363,7 +363,7 @@ PARAM_GRID = [
 ENABLE_QUANTILE_INTERVALS = True
 
 # Fraction of per-site raw measurements sampled as test points for retrospective
-TEST_SAMPLE_FRACTION = 0.20
+TEST_SAMPLE_FRACTION = 0.30
 
 # History requirement: anchor must have >= this fraction of site's total history
 HISTORY_REQUIREMENT_FRACTION = 0.33

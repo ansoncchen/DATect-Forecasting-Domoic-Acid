@@ -347,73 +347,27 @@ class RawForecastEngine:
 
         # --- Feature preparation ---
         use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
-        use_pooled = (
-            use_per_site and get_site_use_pooled_training(site)
-        )
         zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
 
+        drop_cols = ["date", "site", "da_raw", "da", "_is_interpolated"] + list(zero_imp)
+
+        if use_per_site:
+            drop_cols = compute_site_drop_cols(
+                drop_cols, train_data.columns.tolist(), site
+            )
+
         try:
-            if use_pooled:
-                # Cross-site pooled training for data-starved sites
-                pooled = self._build_pooled_regression_data(
-                    feature_frame, anchor_date, site,
-                )
-                if pooled is not None:
-                    X_train_processed, y_train, transformer, train_cols = pooled
-                    training_sample_count = len(y_train)
+            transformer, X_train = create_transformer(train_data, drop_cols)
+            y_train = train_data["da_raw"].astype(float).copy()
 
-                    # Build test row with same feature set
-                    # One-hot encode site to match pooled training columns
-                    test_row_pooled = test_row.copy()
-                    site_dummies_test = pd.get_dummies(
-                        test_row_pooled["site"], prefix="site"
-                    ).astype(int)
-                    test_row_pooled = pd.concat(
-                        [test_row_pooled.drop(columns=["site"]), site_dummies_test],
-                        axis=1,
-                    )
-                    drop_cols_pooled = [
-                        "date", "da_raw", "da", "_is_interpolated", "_target",
-                    ] + list(zero_imp)
-                    X_test = test_row_pooled.drop(columns=drop_cols_pooled, errors="ignore")
-                    X_test = X_test.reindex(columns=train_cols, fill_value=0)
-                    X_test_processed = transformer.transform(X_test)
+            X_train_processed = transformer.fit_transform(X_train)
 
-                    # Leakage check (pooled data still respects anchor_date)
-                    _verify_no_data_leakage(train_data, forecast_date, anchor_date)
+            X_test = test_row.drop(columns=drop_cols, errors="ignore")
+            X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
+            X_test_processed = transformer.transform(X_test)
 
-                    logger.info(
-                        "Pooled training for %s: %d samples (vs %d site-only)",
-                        site, training_sample_count, len(train_data),
-                    )
-                else:
-                    logger.warning(
-                        "Pooled training insufficient for %s, falling back to per-site",
-                        site,
-                    )
-                    use_pooled = False
-
-            if not use_pooled:
-                # Standard per-site feature preparation
-                drop_cols = ["date", "site", "da_raw", "da", "_is_interpolated"] + list(zero_imp)
-
-                if use_per_site:
-                    drop_cols = compute_site_drop_cols(
-                        drop_cols, train_data.columns.tolist(), site
-                    )
-
-                transformer, X_train = create_transformer(train_data, drop_cols)
-                y_train = train_data["da_raw"].astype(float).copy()
-                training_sample_count = len(y_train)
-
-                X_train_processed = transformer.fit_transform(X_train)
-
-                X_test = test_row.drop(columns=drop_cols, errors="ignore")
-                X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
-                X_test_processed = transformer.transform(X_test)
-
-                # Leakage check
-                _verify_no_data_leakage(train_data, forecast_date, anchor_date)
+            # Leakage check
+            _verify_no_data_leakage(train_data, forecast_date, anchor_date)
 
         except Exception as exc:
             logger.error("Feature preparation failed: %s", exc)
@@ -512,7 +466,7 @@ class RawForecastEngine:
         feature_importance = {}
         if hasattr(xgb_model, "feature_importances_"):
             try:
-                feat_names = train_cols if use_pooled else X_train.columns.tolist()
+                feat_names = X_train.columns.tolist()
                 feature_importance = dict(
                     zip(feat_names, xgb_model.feature_importances_)
                 )
@@ -526,8 +480,7 @@ class RawForecastEngine:
             "site": site,
             "task": task,
             "model_type": model_type,
-            "training_samples": training_sample_count,
-            "pooled_training": use_pooled,
+            "training_samples": len(train_data),
             "predicted_da": float(primary_prediction),
             "feature_importance": feature_importance,
             # Ensemble breakdown (new fields)

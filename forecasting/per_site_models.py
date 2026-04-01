@@ -268,7 +268,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
-        'use_pooled_training': True,  # N=67, R²=-0.039 — borrow from cross-site pool
+        # Pooled training tested: no improvement (see test_results/metrics.json)
     },
 
     # ==================================================================
@@ -295,7 +295,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.95,
         'prediction_clip_max': 80.0,
-        'use_pooled_training': True,  # N=61 — borrow from cross-site pool
+        # Pooled training tested: no improvement (see test_results/metrics.json)
     },
 
     'Gold Beach': {
@@ -319,7 +319,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.95,
         'prediction_clip_max': None,
-        'use_pooled_training': True,  # R²=0.041 — borrow from cross-site pool
+        # Pooled training tested: no improvement (see test_results/metrics.json)
     },
 
     'Newport': {
@@ -347,7 +347,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
-        'use_pooled_training': True,  # R²=-0.382 — borrow from cross-site pool
+        # Pooled training tested: no improvement (see test_results/metrics.json)
     },
 }
 

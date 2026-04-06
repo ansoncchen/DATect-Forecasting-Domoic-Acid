@@ -6,7 +6,6 @@ FastAPI backend providing forecasting, visualization, and analysis endpoints
 import logging
 import math
 import os
-import re
 from pathlib import Path
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
@@ -14,7 +13,7 @@ from functools import lru_cache
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
@@ -77,6 +76,13 @@ if not os.path.isabs(config.FINAL_OUTPUT_PATH):
     config.FINAL_OUTPUT_PATH = os.path.join(project_root, config.FINAL_OUTPUT_PATH)
 
 
+def _resolve_repo_relative_path(rel_path: str) -> str:
+    p = (rel_path or "").strip()
+    if os.path.isabs(p):
+        return p
+    return os.path.join(project_root, p.lstrip("./"))
+
+
 app = FastAPI(
     title="DATect API",
     description="Domoic Acid Forecasting System REST API",
@@ -88,8 +94,8 @@ allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
 if allowed_origins_env:
     origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 else:
-    # Default for local dev; production uses same-origin
-    origins = ["http://localhost:3000", "http://localhost:5173", "*"]
+    # Local dev only — set ALLOWED_ORIGINS for production (comma-separated)
+    origins = ["http://localhost:3000", "http://localhost:5173"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -243,15 +249,13 @@ async def get_models():
 @app.post("/api/forecast", response_model=ForecastResponse)
 async def generate_forecast(request: ForecastRequest):
     """Generate a forecast for the specified parameters."""
+    if request.task not in ["regression", "classification"]:
+        raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
+
     try:
-        if request.task not in ["regression", "classification"]:
-            raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
-        
-        data = get_data_copy()
         actual_site = resolve_site(request.site)
-        
         forecast_date = pd.to_datetime(request.date)
-        
+
         model_type = request.model or config.FORECAST_MODEL or "ensemble"
         if model_type == "linear" and request.task == "classification":
             model_type = "logistic"
@@ -263,58 +267,91 @@ async def generate_forecast(request: ForecastRequest):
             request.task,
             model_type
         )
-        
+
         if result is None:
-            return ForecastResponse(
-                success=False,
-                forecast_date=forecast_date.date(),
-                site=request.site,
-                task=request.task,
-                model=request.model,
-                error="Insufficient data for forecast"
+            raise HTTPException(
+                status_code=422,
+                detail="Insufficient data for forecast",
             )
-        
-        # Format response based on task type
+
         response_data = {
             "success": True,
             "forecast_date": forecast_date.date(),
             "site": request.site,
             "task": request.task,
             "model": request.model,
-            "training_samples": result.get('training_samples')
+            "training_samples": result.get('training_samples'),
         }
-        
-        if request.task == "regression":
-            response_data["prediction"] = result.get('predicted_da')
-        elif request.task == "classification":
-            response_data["predicted_category"] = result.get('predicted_category')
-        
-        if 'feature_importance' in result and result['feature_importance'] is not None:
-            importance_df = result['feature_importance']
-            if hasattr(importance_df, 'to_dict'):
-                response_data["feature_importance"] = importance_df.head(10).to_dict('records')
 
-        # Spike classifier fields
-        if result.get('spike_probability') is not None:
-            response_data["spike_probability"] = result['spike_probability']
-            response_data["spike_alert"] = result.get('spike_alert', False)
+        if request.task == "regression":
+            response_data["prediction"] = result.get("predicted_da")
+        elif request.task == "classification":
+            response_data["predicted_category"] = result.get("predicted_category")
+
+        if "feature_importance" in result and result["feature_importance"] is not None:
+            importance_df = result["feature_importance"]
+            if hasattr(importance_df, "to_dict"):
+                response_data["feature_importance"] = importance_df.head(10).to_dict("records")
+
+        if result.get("spike_probability") is not None:
+            response_data["spike_probability"] = result["spike_probability"]
+            response_data["spike_alert"] = result.get("spike_alert", False)
 
         return ForecastResponse(**response_data)
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        # Use request date if forecast_date wasn't calculated due to early error
-        error_date = request.date
-        if 'forecast_date' in locals():
-            error_date = forecast_date.date()
-        
-        return ForecastResponse(
-            success=False,
-            forecast_date=error_date,
-            site=request.site,
-            task=request.task,
-            model=request.model,
-            error=str(e)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/historical/all")
+async def get_all_sites_historical(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: Optional[int] = 1000,
+):
+    """Get historical data for all sites."""
+    try:
+        data = get_data_copy()
+        data["date"] = pd.to_datetime(data["date"])
+
+        if start_date:
+            data = data[data["date"] >= pd.to_datetime(start_date)]
+        if end_date:
+            data = data[data["date"] <= pd.to_datetime(end_date)]
+
+        # Most recent rows across all sites (aligned with per-site .tail(limit))
+        data = data.sort_values(["date", "site"])
+        if limit:
+            data = data.tail(limit)
+
+        result = []
+        for _, row in data.iterrows():
+            da_val = row["da"] if pd.notna(row["da"]) else None
+            da_category = (
+                row["da-category"]
+                if "da-category" in row and pd.notna(row["da-category"])
+                else None
+            )
+
+            rec = {
+                "date": row["date"].strftime("%Y-%m-%d") if pd.notna(row["date"]) else None,
+                "site": row["site"],
+                "actual_da": clean_for_json(da_val),
+            }
+            if da_category is not None:
+                rec["actual_category"] = clean_for_json(da_category)
+            result.append(rec)
+
+        return JSONResponse(
+            content={"success": True, "data": result, "count": len(result)}
         )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve historical data: {str(e)}"
+        )
+
 
 @app.get("/api/historical/{site}")
 async def get_historical_data(
@@ -357,7 +394,9 @@ async def get_historical_data(
             "count": len(canonical),
             "data": canonical.to_dict('records')
         }
-        
+    
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load historical data: {str(e)}")
 
@@ -374,111 +413,40 @@ async def get_config():
     }
 
 @app.post("/api/config")
-async def update_config(config_request: ConfigUpdateRequest):
-    """Update system configuration and write to config.py file."""
+async def update_config(request: Request, config_request: ConfigUpdateRequest):
+    """Apply forecast UI settings for this API process only."""
     try:
-        # Update in-memory config values
+        client_host = request.client.host if request.client else None
+        local_hosts = {"127.0.0.1", "::1", "localhost"}
+        allow_remote_updates = os.getenv("ENABLE_RUNTIME_CONFIG_UPDATE", "").lower() == "true"
+        if client_host not in local_hosts and not allow_remote_updates:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Runtime config updates are restricted to localhost unless "
+                    "ENABLE_RUNTIME_CONFIG_UPDATE=true"
+                ),
+            )
+
         config.FORECAST_MODE = config_request.forecast_mode
-        config.FORECAST_TASK = config_request.forecast_task  
+        config.FORECAST_TASK = config_request.forecast_task
         config.FORECAST_MODEL = config_request.forecast_model
         config.FORECAST_HORIZON_WEEKS = config_request.forecast_horizon_weeks
         config.FORECAST_HORIZON_DAYS = config_request.forecast_horizon_weeks * 7
-        
-        # Write changes to config.py file
-        config_file_path = os.path.join(project_root, 'config.py')
-        
-        # Read current config.py
-        with open(config_file_path, 'r') as f:
-            config_content = f.read()
-        
-        # Update the specific lines
-        config_content = re.sub(
-            r'FORECAST_MODE = ".*?"',
-            f'FORECAST_MODE = "{config_request.forecast_mode}"',
-            config_content
-        )
-        config_content = re.sub(
-            r'FORECAST_TASK = ".*?"',
-            f'FORECAST_TASK = "{config_request.forecast_task}"',
-            config_content
-        )
-        config_content = re.sub(
-            r'FORECAST_MODEL = ".*?"',
-            f'FORECAST_MODEL = "{config_request.forecast_model}"',
-            config_content
-        )
-        config_content = re.sub(
-            r'FORECAST_HORIZON_WEEKS = \d+',
-            f'FORECAST_HORIZON_WEEKS = {config_request.forecast_horizon_weeks}',
-            config_content
-        )
-        config_content = re.sub(
-            r'FORECAST_HORIZON_DAYS = .*',
-            f'FORECAST_HORIZON_DAYS = FORECAST_HORIZON_WEEKS * 7  # Derived days value for internal calculations',
-            config_content
-        )
-        
-        # Write back to file
-        with open(config_file_path, 'w') as f:
-            f.write(config_content)
-        
+
         return {
             "success": True,
-            "message": "Configuration updated successfully in config.py",
+            "message": "Configuration updated for this server process (not persisted to disk)",
             "config": {
                 "forecast_mode": config.FORECAST_MODE,
                 "forecast_task": config.FORECAST_TASK,
-                "forecast_model": config.FORECAST_MODEL
-            }
+                "forecast_model": config.FORECAST_MODEL,
+            },
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update configuration: {str(e)}")
-
-@app.get("/api/historical/all")
-async def get_all_sites_historical(
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    limit: Optional[int] = 1000
-):
-    """Get historical data for all sites."""
-    try:
-        data = get_data_copy()
-        
-        # Apply date filters
-        if start_date:
-            data = data[pd.to_datetime(data['date']) >= pd.to_datetime(start_date)]
-        if end_date:
-            data = data[pd.to_datetime(data['date']) <= pd.to_datetime(end_date)]
-        
-        # Sort by date and site
-        data = data.sort_values(['site', 'date'])
-        
-        # Limit results
-        if limit:
-            data = data.head(limit)
-        
-        # Convert to dict for JSON response with proper float cleaning (canonical-only)
-        result = []
-        for _, row in data.iterrows():
-            da_val = row['da'] if pd.notna(row['da']) else None
-            da_category = row['da-category'] if 'da-category' in row and pd.notna(row['da-category']) else None
-            
-            rec = {
-                'date': row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else None,
-                'site': row['site'],
-                'actual_da': clean_for_json(da_val),
-            }
-            if da_category is not None:
-                rec['actual_category'] = clean_for_json(da_category)
-            result.append(rec)
-        
-        return JSONResponse(content={
-            "success": True,
-            "data": result,
-            "count": len(result)
-        })
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve historical data: {str(e)}")
 
 # Visualization endpoints
 # NOTE: More specific routes must come before generic parameter routes
@@ -602,93 +570,65 @@ async def get_spectral_analysis_single(site: str):
         raise HTTPException(status_code=500, detail=f"Failed to generate spectral analysis: {str(e)}")
 
 def get_latest_da_from_raw_files():
-    """Get the latest DA measurements from raw CSV files."""
-    import os
-    from datetime import datetime
-    
-    raw_da_dir = "./data/raw/da-input"
+    """Latest DA from raw CSVs; uses ``config.ORIGINAL_DA_FILES`` (same paths as the forecast pipeline)."""
+    from forecasting.raw_data_forecaster import _normalize_site_name
+
     latest_da_data = {}
-    
-    # Site mapping from file names to display names
-    site_file_mapping = {
-        'cannon-beach': 'Cannon Beach',
-        'clatsop-beach': 'Clatsop Beach', 
-        'coos-bay': 'Coos Bay',
-        'copalis': 'Copalis',
-        'gold-beach': 'Gold Beach',
-        'kalaloch': 'Kalaloch',
-        'long-beach': 'Long Beach',
-        'newport': 'Newport',
-        'quinault': 'Quinault', 
-        'twin-harbors': 'Twin Harbors'
-    }
-    
-    for file_key, site_name in site_file_mapping.items():
-        file_path = os.path.join(raw_da_dir, f"{file_key}-da.csv")
-        
+
+    for site_key, rel_path in config.ORIGINAL_DA_FILES.items():
+        file_path = _resolve_repo_relative_path(rel_path)
+        site_name = _normalize_site_name(site_key)
+
         if not os.path.exists(file_path):
             continue
-            
+
         try:
-            # Read the CSV file
             df = pd.read_csv(file_path)
-            
-            if df.empty:
-                continue
-                
-            # Get the last row (most recent entry)
-            last_row = df.iloc[-1]
-            
-            # Parse date and DA value based on format
-            if 'CollectDate' in df.columns and 'Domoic Result' in df.columns:
-                # Format B: CollectDate,Domoic Result
-                date_str = str(last_row['CollectDate'])
-                da_value = last_row['Domoic Result']
-                
-                # Parse date (format like "11/30/2023")
-                try:
-                    date_obj = pd.to_datetime(date_str)
-                except:
-                    date_obj = datetime.now()
-                    
-            elif 'Harvest Month' in df.columns and 'Harvest Date' in df.columns and 'Harvest Year' in df.columns:
-                # Format A: Harvest Month,Harvest Date,Harvest Year,Domoic Acid
-                month = str(last_row['Harvest Month'])
-                day = str(last_row['Harvest Date'])
-                year = str(last_row['Harvest Year'])
-                da_value = last_row['Domoic Acid']
-                
-                # Parse date
-                try:
-                    date_str = f"{month} {day}, {year}"
-                    date_obj = pd.to_datetime(date_str)
-                except:
-                    date_obj = datetime.now()
-            else:
-                continue
-            
-            # Handle DA value (might be "<1" or other string formats)
-            try:
-                if isinstance(da_value, str):
-                    if '<' in da_value:
-                        # Handle "<1" as 0.5
-                        da_numeric = float(da_value.replace('<', '')) / 2
-                    else:
-                        da_numeric = float(da_value)
-                else:
-                    da_numeric = float(da_value)
-            except:
-                da_numeric = 0.0
-            
-            latest_da_data[site_name] = {
-                'da': da_numeric,
-                'date': date_obj
-            }
-            
         except Exception as e:
-            logging.warning(f"Failed to parse {file_path}: {e}")
+            logger.warning("Failed to read raw DA file %s: %s", file_path, e)
             continue
-    
+
+        if df.empty:
+            continue
+
+        last_row = df.iloc[-1]
+        date_obj = None
+        da_value = None
+
+        if "CollectDate" in df.columns and "Domoic Result" in df.columns:
+            date_obj = pd.to_datetime(str(last_row["CollectDate"]), errors="coerce")
+            da_value = last_row["Domoic Result"]
+        elif (
+            "Harvest Month" in df.columns
+            and "Harvest Date" in df.columns
+            and "Harvest Year" in df.columns
+            and "Domoic Acid" in df.columns
+        ):
+            date_str = (
+                f"{last_row['Harvest Month']} {last_row['Harvest Date']}, "
+                f"{last_row['Harvest Year']}"
+            )
+            date_obj = pd.to_datetime(date_str, errors="coerce")
+            da_value = last_row["Domoic Acid"]
+        else:
+            logger.warning("Unknown raw DA schema for %s", file_path)
+            continue
+
+        if pd.isna(date_obj):
+            logger.warning("Unparseable date in last row of %s", file_path)
+            continue
+
+        try:
+            if isinstance(da_value, str) and "<" in da_value:
+                da_numeric = float(da_value.replace("<", "").strip()) / 2
+            else:
+                da_numeric = float(da_value)
+        except (TypeError, ValueError):
+            logger.warning("Unparseable DA value in last row of %s", file_path)
+            continue
+
+        latest_da_data[site_name] = {"da": da_numeric, "date": date_obj}
+
     return latest_da_data
 
 @app.get("/api/visualizations/map")

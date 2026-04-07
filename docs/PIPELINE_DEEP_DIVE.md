@@ -18,10 +18,10 @@ The pipeline starts with two completely separate data sources that get merged.
 
 ### 1A. Raw DA Measurements (`raw_data_forecaster.py → load_raw_da_measurements()`)
 
-This reads the actual toxin measurement CSVs from `data/raw/da-input/` — one file per site. These are irregularly-spaced field samples collected by state agencies. The data has two different CSV schemas:
+This reads the actual toxin measurement CSVs from `data/raw/da-input/` — one file per site. These are irregularly-spaced field samples collected by state agencies. The loader auto-detects two raw CSV schemas on a per-file basis:
 
-- **Washington sites** (Kalaloch, Quinault, Copalis, Twin Harbors, Long Beach): Use `CollectDate` + `Domoic Result` columns
-- **Oregon sites** (Clatsop Beach, Cannon Beach, Newport, Coos Bay, Gold Beach): Use `Harvest Month/Date/Year` + `Domoic Acid` columns
+- **Schema A**: `CollectDate` + `Domoic Result`
+- **Schema B**: `Harvest Month/Date/Year` + `Domoic Acid`
 
 The function detects the schema automatically, parses dates, filters out negative/invalid values, normalizes site names (e.g., `"twin-harbors"` → `"Twin Harbors"`), and produces a clean DataFrame with columns `[date, site, da_raw]`.
 
@@ -197,7 +197,7 @@ Every ML prediction goes through:
 
 ## Phase 6: Ensemble Blending
 
-The two ML predictions are combined using **per-site weighted averaging**:
+The two ML predictions are combined using a site-specific ensemble interface:
 
 ```
 ensemble_prediction = w_xgb * xgb_pred + w_rf * rf_pred
@@ -205,25 +205,25 @@ ensemble_prediction = w_xgb * xgb_pred + w_rf * rf_pred
 
 (w_naive = 0.0 for all sites; naïve persistence is an external baseline)
 
-The weights are completely customized per site based on which models perform best there:
+In the current paper configuration, every site converged to a single-model assignment (`w ∈ {0,1}`), so the "ensemble" behaves as site-wise model selection between XGBoost and Random Forest:
 
 | Site | XGB | RF | Character |
 |------|-----|-----|-----------|
-| **Twin Harbors** | 0.30 | 0.10 | XGB + RF blend (naïve persistence evaluated separately) |
-| **Kalaloch** | 0.00 | 0.35 | RF-only ML blend (naïve persistence evaluated separately) |
-| **Copalis** | 0.45 | 0.00 | XGB-only ML blend (naïve persistence evaluated separately) |
-| **Quinault** | 0.40 | 0.15 | XGB + RF blend |
-| **Long Beach** | **0.95** | 0.00 | XGB-dominant |
-| **Clatsop Beach** | **0.95** | 0.05 | XGB-dominant |
-| **Coos Bay** | 0.00 | **1.00** | RF-only |
-| **Newport** | **1.00** | 0.00 | XGB-only |
-| **Gold Beach** | **1.00** | 0.00 | XGB-only |
-| **Cannon Beach** | 0.10 | **0.75** | RF-leaning (all models struggle) |
+| **Twin Harbors** | 0.00 | 1.00 | RF-only |
+| **Kalaloch** | 0.00 | 1.00 | RF-only |
+| **Copalis** | 0.00 | 1.00 | RF-only |
+| **Quinault** | 0.00 | 1.00 | RF-only |
+| **Long Beach** | 1.00 | 0.00 | XGB-only |
+| **Clatsop Beach** | 1.00 | 0.00 | XGB-only |
+| **Coos Bay** | 0.00 | 1.00 | RF-only |
+| **Newport** | 1.00 | 0.00 | XGB-only |
+| **Gold Beach** | 1.00 | 0.00 | XGB-only |
+| **Cannon Beach** | 0.00 | 1.00 | RF-only |
 
 The site categories in `per_site_models.py` are:
-- **Persistence-dominant** (Twin Harbors, Kalaloch, Copalis, Quinault): DA changes slowly; the external naïve baseline is strong at these sites, and ML weights are conservative
-- **ML-dominant** (Long Beach, Clatsop Beach, Coos Bay, Newport, Gold Beach): ML models outperform naive; with interpolated training, XGB is now the strongest ML model at most sites
-- **Struggle sites** (Cannon Beach): All models have near-zero or negative R-squared — the data is fundamentally hard to predict. These sites get aggressive regularization and conservative clipping.
+- **RF-selected sites** (Twin Harbors, Kalaloch, Copalis, Quinault, Coos Bay, Cannon Beach): Random Forest gives the better per-site development performance.
+- **XGB-selected sites** (Long Beach, Clatsop Beach, Newport, Gold Beach): XGBoost gives the better per-site development performance.
+- **Naïve persistence** remains external to the ML ensemble so the paper can compare pure ML skill against raw autocorrelation directly.
 
 ---
 
@@ -268,7 +268,7 @@ Two methods for uncertainty estimation:
 
 ### 9A: XGBoost Quantile Regression (preferred)
 
-Uses XGBoost's `objective="reg:quantile"` with `quantile_alpha` of 0.05, 0.50, and 0.95 to directly estimate the 5th, 50th, and 95th percentile predictions. Three separate XGBoost models are trained — one per quantile.
+Uses XGBoost's `objective="reg:quantile"` with `quantile_alpha` of 0.05, 0.50, and 0.95 to directly estimate the 5th, 50th, and 95th percentile predictions. Three separate XGBoost models are trained — one per quantile. In ensemble mode these quantile predictions are combined with point-estimate RF and naïve components, so the result should be interpreted as an empirical predictive band rather than a fully calibrated posterior interval.
 
 ### 9B: Bootstrap (fallback)
 

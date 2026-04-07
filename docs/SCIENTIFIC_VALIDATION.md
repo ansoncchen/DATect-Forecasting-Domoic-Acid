@@ -62,24 +62,19 @@ train_data = data_sorted[data_sorted['date'] <= anchor_date]
 test_data = data_sorted[data_sorted['date'] == forecast_date]
 ```
 
-### 4. Per-Forecast Category Creation
+### 4. Fixed Regulatory Thresholds
 
-For classification, DA risk categories are computed per-forecast using only training data:
-
-```python
-# WRONG: Global categories (includes future data)
-all_data['category'] = categorize(all_data['da'])  # Leakage!
-
-# CORRECT: Per-forecast categories
-train_data['category'] = categorize_from_training_only(train_data['da'])
-```
+For threshold-based classification, DATect uses fixed DA category cut points from
+`config.DA_CATEGORY_BINS` (`0, 5, 20, 40, inf`). Because these bins are
+regulatory constants rather than values estimated from the full dataset, they do
+not introduce target leakage.
 
 ## Per-Prediction Validation
 
 The system validates temporal integrity on **every single prediction** via `_verify_no_data_leakage()` (defined in `raw_forecast_engine.py`), which raises an `AssertionError` if any temporal violation is detected:
 
 ```python
-def verify_no_data_leakage(train_data, test_date, anchor_date):
+def _verify_no_data_leakage(train_data, test_date, anchor_date):
     """Called for every prediction — raises on temporal leakage."""
     # 1. Training data must not extend past anchor
     assert train_data['date'].max() <= anchor_date
@@ -116,9 +111,9 @@ python precompute_cache.py # Cache generation
 
 ### Reproducibility
 
-- Fixed random seeds (`RANDOM_SEED = 42`)
+- Fixed random seeds for development and held-out evaluation (`RANDOM_SEED = 42`, paper hold-out seed = 123)
 - Versioned dependencies
-- Deterministic results
+- Deterministic preprocessing and model configuration
 
 ### Conservative Evaluation
 
@@ -128,9 +123,9 @@ python precompute_cache.py # Cache generation
 
 ### Statistical Rigor
 
-- Chronological cross-validation
-- Quantile/bootstrap confidence intervals (configurable)
-- Proper hypothesis testing
+- Chronological retrospective evaluation
+- Quantile/bootstrap uncertainty summaries (configurable)
+- Proper hypothesis testing where applicable
 
 ## Configuration Parameters
 
@@ -182,15 +177,15 @@ Before using results for publication:
 - [ ] Performance metrics documented (R², MAE, Spike F1)
 - [ ] Feature importance scientifically reasonable
 - [ ] Confidence intervals properly calibrated
-- [ ] Reproducibility verified (fixed seeds, `RANDOM_SEED = 42`)
+- [ ] Reproducibility verified (development and held-out seeds documented)
 
 ## Why Trust DATect Results
 
-1. **Mathematical impossibility of leakage**: `verify_no_data_leakage()` called for every prediction
+1. **Strong structural safeguards against leakage**: `_verify_no_data_leakage()` is called for every prediction, and the train/test split, lag features, delays, and persistence recomputation are built around the anchor date
 2. **Operational realism**: Data availability delays match real-world constraints
 3. **Conservative evaluation**: No optimistic metrics
 4. **Structural enforcement**: Safeguards built into pipeline code, not just checked after
-5. **Transparent implementation**: All safeguards documented and auditable
+5. **Transparent implementation**: Safeguards are documented, auditable, and paired with held-out retrospective evaluation
 
 ## References
 

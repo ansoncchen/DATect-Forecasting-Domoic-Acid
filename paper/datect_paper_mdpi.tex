@@ -64,7 +64,7 @@ $^{2}$ \quad Applied Physics Laboratory, University of Washington, Seattle, WA 9
 %  ABSTRACT
 % ══════════════════════════════════════════════════════════════════════════════
 \abstract{
-Domoic acid (DA) contamination of shellfish is a recurring public health crisis along the U.S.\ Pacific Northwest coast, yet no quantitative forecasting system exists. We present DATect, the first machine learning system to generate one-week-ahead DA concentration forecasts for 10 monitoring sites spanning \SI{600}{\kilo\meter} of coastline, trained on 21 years of satellite, climate, and biological data (2003--2023). DATect uses per-site XGBoost or Random Forest models with nine data-leakage prevention mechanisms, evaluated on a fully independent test set ($n = 2{,}181$). All five Washington sites achieve high skill ($R^2 = 0.480$--$0.789$), while Oregon sites show lower skill due to sparser monitoring---a data quality limitation rather than a forecasting ceiling. Standard regression models detect fewer than 24\% of the spike transitions that trigger beach closures. A dedicated binary classifier using safe-baseline training detects 65.2\% of these transitions [95\% CI: 55\%--74\%], a 2.8$\times$ improvement over na\"ive persistence, demonstrating that actionable early warning requires a purpose-built transition detector. DATect is deployed as a publicly accessible web dashboard.
+Domoic acid (DA) contamination of shellfish is a recurring public health crisis along the U.S.\ Pacific Northwest coast, yet no quantitative forecasting system exists for Washington and Oregon. We present DATect, a one-week-ahead forecasting system for 10 monitoring sites spanning \SI{600}{\kilo\meter} of coastline, trained on 21 years of satellite, climate, hydrological, and biological data (2003--2023). DATect uses per-site XGBoost or Random Forest models and is evaluated with leak-free retrospective validation on a held-out test set ($n = 2{,}181$) kept separate from configuration development. All five Washington sites achieve high skill ($R^2 = 0.480$--$0.789$), whereas Oregon sites show lower skill consistent with sparser and less regular monitoring. At the operational \SI{20}{\microgrampeg} threshold, thresholding the regression ensemble detects only 12.4\% of held-out below-to-above-threshold transitions, while na\"ive persistence detects 23.6\%. A dedicated binary classifier trained with a safe-baseline filter detects 65.2\% of these transitions [95\% CI: 55\%--74\%], a 2.8$\times$ improvement over na\"ive persistence. These results show that actionable early warning requires a transition-focused detector in addition to magnitude forecasting. DATect is deployed as a publicly accessible web dashboard.
 }
 
 \keyword{domoic acid; harmful algal blooms; machine learning; ensemble forecasting; \textit{Pseudo-nitzschia}; Pacific Northwest; XGBoost; data leakage prevention}
@@ -84,17 +84,11 @@ Domoic acid (DA) contamination of shellfish is a recurring public health crisis 
 \subsection{Domoic Acid and \textit{Pseudo-nitzschia} Blooms}
 \label{sec:intro-biology}
 
-Domoic acid (DA) is a potent neurotoxin produced by certain species of the marine diatom genus \textit{Pseudo-nitzschia}, primarily \textit{P.\ australis} and \textit{P.\ multiseries} \cite{Bates2018, Trainer2012}. As the causative agent of amnesic shellfish poisoning (ASP), DA bioaccumulates in filter-feeding shellfish and poses severe risks to human health, from gastrointestinal distress to permanent neurological damage and death \cite{Mos2001, Lefebvre2010, Wright1989}. Since the first documented ASP outbreak in 1987 \cite{Wright1989, Bates1998}, DA contamination has become a persistent and recurring threat along the U.S.\ Pacific coast, with particularly severe consequences in the Pacific Northwest (PNW) region of Washington and Oregon \cite{Lewitus2012, Horner1997, Trainer2012}.
+Domoic acid (DA) is a potent neurotoxin produced by certain species of the marine diatom genus \textit{Pseudo-nitzschia} and is the causative agent of amnesic shellfish poisoning \cite{Bates2018, Trainer2012, Wright1989}. Since the first documented outbreak in 1987, DA contamination has become a persistent threat along the U.S.\ Pacific coast, with severe consequences for human health, coastal economies, and marine wildlife \cite{Mos2001, Lefebvre2010, Trainer2012}. The 2015 marine heatwave event illustrates the scale of this risk: DA concentrations in razor clams exceeded the federal safety limit by over 700\%, and the resulting fishery disruptions caused tens of millions of dollars in losses \cite{McCabe2016, Bond2015, Moore2020, Trainer2020}.
 
-The production of DA by \textit{Pseudo-nitzschia} is driven by a complex interplay of environmental factors that makes forecasting exceptionally challenging. Unlike many freshwater cyanobacteria harmful algal blooms (HABs), where toxin production correlates relatively directly with cell abundance and nutrient loading \cite{Paerl2013}, DA production in \textit{Pseudo-nitzschia} is triggered by physiological stress responses---particularly limitation of silicic acid and iron---rather than simply by the presence of blooms \cite{Trick2010, Marchetti2004, Lelong2012}. A given \textit{Pseudo-nitzschia} bloom may produce no measurable DA or extremely high concentrations depending on nutrient stress conditions, making cell counts alone a poor predictor of toxicity \cite{Bates2018, Trainer2012, Sauvey2023}. This decoupling between cell abundance and toxin production represents one of the fundamental challenges in DA forecasting: a bloom may be present but benign, or a modest cell population under stress may produce dangerous toxin levels.
+Forecasting DA is difficult because toxin production is only weakly coupled to bloom magnitude. Unlike many freshwater HAB systems, DA production depends strongly on physiological stress---particularly nutrient stress---so a large \textit{Pseudo-nitzschia} bloom may be weakly toxic while a smaller bloom may generate dangerous shellfish contamination \cite{Trick2010, Marchetti2004, Lelong2012, Sauvey2023}. In the Pacific Northwest (PNW), this biology interacts with coastal upwelling, upwelling relaxation, climate variability, and retention zones such as the Juan de Fuca eddy and Heceta Bank, creating a multiscale nonlinear system with strong spatial heterogeneity \cite{Trainer2002, Trainer2009, McKibben2017, Jacox2018, McCabe2023}.
 
-Coastal upwelling is the primary mechanism delivering nutrients that fuel \textit{Pseudo-nitzschia} growth in the PNW. Wind-driven displacement of surface waters, largely from the California Current System, brings nutrient-rich deep water to the surface \cite{McKibben2017, Trainer2009}. The Biologically Effective Upwelling Transport Index (BEUTI) quantifies not only the physical intensity of upwelling but also the nutrient content of upwelled waters \cite{Jacox2018}, making it a particularly informative predictor for DA risk. This upwelling process is modulated by broader climate patterns: El Ni\~no events increase sea surface temperatures and disrupt nutrient dynamics by weakening upwelling \cite{Zhu2017}, while the Pacific Decadal Oscillation (PDO) shifts between warm and cool phases over decades, influencing water temperature, nutrient distribution, and upwelling intensity \cite{Mantua1997, Wolter2011, DiLorenzo2016}. Critically, it is the relaxation of upwelling---not upwelling itself---that often triggers the onshore transport of toxic cells to shellfish beaches, creating a ``Goldilocks zone'' where moderate upwelling followed by relaxation produces the highest DA risk \cite{Trainer2002, Trainer2020}.
-
-Specific oceanographic retention zones further concentrate blooms in the PNW. The Juan de Fuca eddy near northwest Washington and Heceta Bank off central Oregon create circulation patterns that retain \textit{Pseudo-nitzschia} cells, allowing blooms to persist and intensify \cite{Trainer2009, Trainer2002, McCabe2023}. These hotspots have been associated with the most severe DA events in the region and contribute to the extreme spatial heterogeneity in DA dynamics along the coast.
-
-The 2015 West Coast event exemplifies the scale of potential impacts. An unprecedented marine heatwave (``The Blob'') fueled the largest recorded DA outbreak along the North American west coast, with DA concentrations in razor clams exceeding the federal safety limit by over 700\% and causing \$97.5 million in Dungeness crab fishery losses alone \cite{McCabe2016, Bond2015, Moore2020, Trainer2020}. DA also poses ecological risks, including mass mortality events in marine mammals \cite{Scholin2000, Lefebvre2010, Lefebvre2016}. Climate change is expected to increase the frequency and geographic range of DA contamination events \cite{Wells2015, Litchman2023}, making the development of robust forecasting systems increasingly urgent.
-
-These characteristics make DA arguably the most difficult marine biotoxin to predict. Compared to general cyanobacteria HABs in freshwater systems, DA forecasting faces four compounding challenges: (1) toxin production is decoupled from cell abundance, being triggered by physiological stress rather than bloom magnitude; (2) monitoring data are sparse and irregularly sampled, with most sites collecting only weekly or biweekly samples; (3) spatial heterogeneity is extreme across the 5\textdegree\ of latitude from southern Oregon to northern Washington; and (4) there is no simple nutrient-loading relationship, as the interaction of upwelling, relaxation, retention, and climate forcing creates a multi-scale, nonlinear system \cite{Bates2018, Trainer2012, McKibben2017}.
+The forecasting problem is further complicated by the structure of the monitoring data themselves. DA measurements are sparse, irregularly sampled, and highly site-dependent, while the target distribution is dominated by zeros and low values punctuated by rare but operationally critical spikes. Together, these properties make DA one of the hardest coastal biotoxins to forecast quantitatively and motivate both DATect's feature design and its emphasis on leak-free evaluation.
 
 % ── 1.2 Existing Monitoring and Forecasting ──────────────────────────────────
 \subsection{Existing Monitoring and Forecasting in the Pacific Northwest}
@@ -114,6 +108,8 @@ A critical gap thus exists: \textbf{no quantitative DA concentration forecasting
 
 This paper addresses the absence of quantitative DA forecasting in the PNW by developing DATect, the first system to produce site-specific, numerical DA concentration predictions for this region. We formalize the prediction task as follows: given environmental features available at time $t - 7$ days (the ``anchor date''), predict the DA concentration (\si{\microgrampeg}) at time $t$ for a specific monitoring site $s$ among 10 Pacific Coast locations.
 
+Two evaluation targets matter operationally. The first is magnitude forecasting: how accurately can a system predict DA concentration one week ahead? The second is transition detection: can the system anticipate below-to-above-threshold crossings at \SI{20}{\microgrampeg}, the events that trigger harvest closures? DATect is evaluated on both targets because a model can achieve useful average regression error while still missing the closure-relevant transitions that matter most to managers.
+
 This task presents five compounding challenges:
 \begin{enumerate}[nosep]
     \item \textbf{Sparse, irregular target variable}: DA measurements are collected approximately weekly but with frequent gaps, missingness, and inconsistent timing across sites.
@@ -123,15 +119,12 @@ This task presents five compounding challenges:
     \item \textbf{Actionable, interpretable output}: Coastal managers need not only point predictions but also uncertainty estimates and risk categories aligned with regulatory thresholds.
 \end{enumerate}
 
-This paper makes the following contributions:
+This paper makes four main contributions:
 \begin{enumerate}[nosep]
-    \item \textbf{First quantitative DA forecasting for the PNW}: DATect produces numerical concentration predictions and four-level risk classifications, filling a gap that has persisted throughout the entire history of DA monitoring in the region.
-    \item \textbf{Transition-focused spike detection}: A dedicated binary classifier using safe-baseline training provides genuine ML-derived advance warning for the below-to-above-threshold crossings that trigger beach closures (Section~\ref{sec:results-spike}).
-    \item \textbf{Per-site ML architecture}: Per-site XGBoost or Random Forest models with custom hyperparameters, feature subsets, and prediction clipping for each of 10 coastal sites. Na\"ive persistence is evaluated as a standalone external baseline.
-    \item \textbf{Data quality as the primary performance driver}: A clear performance split between Washington sites (consistent WDFW/Tribal monitoring, $R^2 = 0.480$--$0.789$) and Oregon sites (sparser monitoring, $R^2 \leq 0.290$) demonstrates that monitoring data density, not model architecture, is the binding constraint on forecast skill.
-    \item \textbf{Rigorous leak-free validation}: Nine explicit data-leakage prevention mechanisms, including per-prediction temporal boundary assertions, addressing a pervasive problem in environmental machine learning \cite{Kapoor2023}.
-    \item \textbf{Largest scope}: The longest temporal record (21 years) and broadest geographic span of any published quantitative DA machine learning study.
-    \item \textbf{Publicly deployed web dashboard}: A React/FastAPI application deployed on Google Cloud Run, providing the first operational quantitative DA forecasting capability for the PNW.
+    \item \textbf{Quantitative PNW DA forecasting under leak-free evaluation}: DATect provides the first site-specific, one-week-ahead DA concentration forecasts for Washington and Oregon, using 21 years of data across 10 monitoring sites and a held-out retrospective test set separated from configuration development.
+    \item \textbf{Transition-focused early warning}: A dedicated binary classifier trained with a safe-baseline filter provides advance warning for below-to-above-threshold crossings that trigger harvest closures, complementing the regression forecast rather than replacing it (Section~\ref{sec:results-spike}).
+    \item \textbf{Per-site modeling on sparse, irregular records}: Per-site XGBoost or Random Forest configurations, interpolated training, and raw-only persistence features provide a practical approach to sparse monitoring data while keeping evaluation tied to real observations.
+    \item \textbf{Data quality as the binding constraint}: The Washington--Oregon performance split shows that monitoring density and regularity, not a more complex model family, are the main limits on forecast skill in the current regional record.
 \end{enumerate}
 
 
@@ -155,11 +148,7 @@ The California Harmful Algae Risk Mapping (C-HARM) system \cite{Anderson2016} pr
 \subsection{Machine Learning Methods for Harmful Algal Blooms}
 \label{sec:rw-ml-habs}
 
-Machine learning has been increasingly applied to HAB prediction across diverse systems. Cruz et al.\ \cite{Cruz2021} provide a comprehensive review of recent ML advances for forecasting HABs and shellfish contamination, identifying Random Forests, support vector machines (SVMs), and neural networks as the most commonly applied methods. Shin et al.\ \cite{Shin2024} further surveyed recent advances in algal bloom detection and prediction technology using machine learning, highlighting the growing role of explainable AI and ensemble methods. Hill et al.\ \cite{Hill2020} developed HABNet, a CNN-LSTM system for HAB detection and prediction using MODIS satellite data. Yu et al.\ \cite{Yu2021} demonstrated machine learning approaches for predicting coastal algal blooms using environmental factors. Manning et al.\ \cite{Manning2019} extended HAB forecast models to predict cyanobacteria blooms in western Lake Erie at multiple spatial scales.
-
-Gradient boosting methods, pioneered by Friedman \cite{Friedman2001} and particularly the XGBoost implementation \cite{Chen2016}, have shown strong performance in environmental prediction tasks due to their ability to handle heterogeneous features, missing values, and nonlinear interactions. Random Forests \cite{Breiman2001} remain popular for ecological applications due to their interpretability and robustness. Ensemble methods that combine multiple model types have consistently outperformed single-model approaches in environmental forecasting \cite{Dietterich2000}. Ahn et al.\ \cite{Ahn2023} recently demonstrated that gradient boosting ensembles (XGBoost, LightGBM, CatBoost) combined with attention-based CNN-LSTM models achieve strong HAB forecasting performance, corroborating DATect's choice of XGBoost as a core ensemble component.
-
-Remote sensing approaches using satellite imagery have also been applied to HAB detection. Gonz\'alez Vilas et al.\ \cite{GonzalezVilas2024} developed an SVM-based algorithm to detect \textit{Pseudo-nitzschia} blooms from OLCI satellite data, while Blondeau-Patissier et al.\ \cite{BlondeauPatissier2014} reviewed ocean color remote sensing methods and instruments for marine monitoring relevant to HAB detection. Stumpf et al.\ \cite{Stumpf2009} demonstrated skill assessment methodologies for operational HAB forecast systems that inform evaluation frameworks for tools like DATect.
+Across HAB forecasting more broadly, tree ensembles, linear models, and deep sequence models have all been applied to heterogeneous environmental data \cite{Cruz2021, Shin2024, Hill2020, Yu2021, Manning2019}. For DATect, the most relevant lesson is not that one model family dominates universally, but that coastal forecasting methods must tolerate missingness, nonlinear interactions, and mixed satellite/climate/biological covariates. Gradient boosting and Random Forests therefore provide natural nonlinear competitors \cite{Friedman2001, Chen2016, Breiman2001}, while linear models remain useful baselines for testing whether the gains come from model flexibility or from feature engineering and site-specific design.
 
 \subsection{Data Leakage in Environmental Machine Learning}
 \label{sec:rw-leakage}
@@ -279,11 +268,13 @@ WDOH / ODFW & \textit{Pseudo-nitzschia} cell counts & Irregular & 2003--2023 & -
 \end{tabular}
 \end{table}
 
+\footnotesize{Several satellite products in Table~\ref{tab:data-sources} are ingested into the unified dataset for ablation and audit purposes but dropped before final model fitting. In the final training pipeline, chlorophyll-$a$, PAR, K490, chlorophyll anomaly, and site coordinates are removed after confirming negligible marginal value (Appendix~\ref{app:feature-engineering}).}\normalsize
+
 Satellite data from MODIS-Aqua \cite{NASA2002} are retrieved as 8-day composites from the NOAA CoastWatch ERDDAP server for each site's local bounding box. The use of 8-day composites mitigates the effects of cloud cover, which frequently obstructs satellite observations in the PNW---a region that experiences cloud cover on approximately 70\% of days during the peak DA season. A 7-day processing buffer is enforced to simulate operational satellite data availability delays.
 
 Climate indices include the Pacific Decadal Oscillation (PDO) \cite{Mantua1997}, the Oceanic Ni\~no Index (ONI) \cite{Wolter2011}, and the Biologically Effective Upwelling Transport Index (BEUTI) \cite{Jacox2018}. BEUTI is provided at discrete 1\textdegree\ latitude bands from 31\textdegree\,N to 47\textdegree\,N; site-specific values are obtained via inverse distance weighting (IDW) interpolation to each site's exact latitude. PDO and ONI are subject to a 2-month reporting delay to reflect their official publication schedule; BEUTI, available daily, uses a 7-day buffer. Columbia River discharge data from the USGS gauge at The Dalles, Oregon, serves as a proxy for freshwater input influencing coastal salinity and nutrient dynamics, with the strongest signal at northern sites above 46.5\textdegree\,N. The Columbia River is the largest river by discharge volume entering the Pacific along the U.S.\ West Coast, and its plume can extend over 100~km offshore during high-flow periods, substantially altering coastal nutrient dynamics.
 
-DA measurements and \textit{Pseudo-nitzschia} cell counts were obtained through public records requests to WDOH, WDFW, ODFW, and the Olympic Region Harmful Algal Bloom (ORHAB) Partnership. Two distinct CSV formats are handled: Washington data uses separate columns for harvest month/date/year with DA in \si{\microgrampeg}, while Oregon data uses a single date column with DA as ``Domoic Result.'' Measurements reported as ``$<$1'' (below detection limit) are imputed as $0.5$~\si{\microgrampeg} (half the detection threshold), a standard practice for left-censored environmental data. These biological measurements are irregularly spaced, reflecting operational sampling schedules that intensify during suspected bloom events and relax during quiescent periods.
+DA measurements and \textit{Pseudo-nitzschia} cell counts were obtained through public records requests to WDOH, WDFW, ODFW, and the Olympic Region Harmful Algal Bloom (ORHAB) Partnership. The ingestion code auto-detects two raw CSV schemas at the per-file level: either a single collection-date column or separate harvest month/date/year fields, with DA stored as either ``Domoic Result'' or ``Domoic Acid.'' Measurements reported as ``$<$1'' (below detection limit) are imputed as $0.5$~\si{\microgrampeg} (half the detection threshold), a standard practice for left-censored environmental data. These biological measurements are irregularly spaced, reflecting operational sampling schedules that intensify during suspected bloom events and relax during quiescent periods.
 
 \subsection{Data Engineering}
 \label{sec:data-engineering}
@@ -336,7 +327,7 @@ DATect employs a per-site model selection framework, formalized as a weighted tw
 \hat{y} = w_{\text{XGB}} \cdot \hat{y}_{\text{XGB}} + w_{\text{RF}} \cdot \hat{y}_{\text{RF}}
 \label{eq:ensemble}
 \end{equation}
-where $w_{\text{XGB}} + w_{\text{RF}} = 1$ and the weights are site-specific (Table~\ref{tab:ensemble-config}). In the current configuration, all sites converged to single-model assignments ($w \in \{0, 1\}$), making this effectively a per-site model selection between XGBoost and Random Forest; the ensemble formulation is retained for generality, as future sites or data updates may favor blended weights. Na\"ive persistence is computed for every prediction and reported as a standalone external baseline (Section~\ref{sec:results-overall}), enabling a direct assessment of how much skill the ML models add beyond simple autocorrelation.
+where $w_{\text{XGB}} + w_{\text{RF}} = 1$ and the weights are site-specific (Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config}). In the current configuration, all sites converged to single-model assignments ($w \in \{0, 1\}$), making this effectively a per-site model selection between XGBoost and Random Forest; the ensemble formulation is retained for generality, as future sites or data updates may favor blended weights. Na\"ive persistence is computed for every prediction and reported as a standalone external baseline (Section~\ref{sec:results-overall}), enabling a direct assessment of how much skill the ML models add beyond simple autocorrelation.
 
 \textbf{XGBoost} \cite{Chen2016}: A gradient boosted tree model using the histogram-based training method (\texttt{tree\_method=hist}) with global base hyperparameters ($n_{\text{estimators}} = 400$, max depth $= 6$, learning rate $= 0.05$, subsample $= 0.85$, colsample\_bytree $= 0.85$, colsample\_bylevel $= 0.8$, $\alpha = 0.1$, $\lambda = 1.0$, $\gamma = 0.1$, min\_child\_weight $= 3$) and per-site overrides (Appendix~\ref{app:hyperparams}). During retrospective evaluation, per-anchor hyperparameter selection uses a calibration fraction of 30\% of training data (maximum 20 rows), searching over a site-specific candidate grid of 1--3 configurations; in real-time deployment, per-site hyperparameters are used directly without per-anchor tuning. XGBoost's native handling of missing values and its L1/L2 regularization make it well-suited for the noisy, gap-filled environmental feature space.
 
@@ -348,35 +339,7 @@ where $w_{\text{XGB}} + w_{\text{RF}} = 1$ and the weights are site-specific (Ta
 
 A distinguishing feature of DATect is that each of the 10 monitoring sites receives a custom configuration encompassing: (1) XGBoost and Random Forest hyperparameter overrides, (2) a curated feature subset, (3) ensemble weights $(w_{\text{XGB}}, w_{\text{RF}})$, and (4) prediction clipping parameters. This per-site approach acknowledges that the 10 sites exhibit fundamentally different DA dynamics due to their distinct oceanographic settings, sampling histories, and bloom characteristics. A single global model would be forced to compromise across these diverse regimes, while per-site customization allows each site's model to specialize.
 
-Table~\ref{tab:ensemble-config} summarizes the per-site ensemble configuration. Sites are categorized into three tiers based on validation performance:
-
-\begin{table}[H]
-\caption{Per-site ensemble configuration showing weights, prediction clipping, and development-set performance tier used during configuration selection (see Table~\ref{tab:per-site-results} for independent test set $R^2$).}
-\label{tab:ensemble-config}
-\small
-\begin{tabular}{lccccl}
-\toprule
-\textbf{Site} & $\boldsymbol{w_{\text{XGB}}}$ & $\boldsymbol{w_{\text{RF}}}$ & \textbf{Clip $q$} & \textbf{Clip max} & \textbf{Tier} \\
-\midrule
-Copalis       & 0.00 & 1.00 & 0.97 & --- & High-skill \\
-Twin Harbors  & 0.00 & 1.00 & 0.98 & --- & High-skill \\
-Quinault      & 0.00 & 1.00 & 0.98 & --- & High-skill \\
-Long Beach    & 1.00 & 0.00 & 0.98 & --- & High-skill \\
-Kalaloch      & 0.00 & 1.00 & 0.95 & 80 & High-skill \\
-\addlinespace
-Clatsop Beach & 1.00 & 0.00 & --- & --- & Moderate \\
-Cannon Beach  & 0.00 & 1.00 & 0.95 & 80 & Moderate \\
-Gold Beach    & 1.00 & 0.00 & 0.95 & --- & Moderate \\
-\addlinespace
-Coos Bay      & 0.00 & 1.00 & 0.97 & --- & Low-skill \\
-Newport       & 1.00 & 0.00 & 0.98 & --- & Low-skill \\
-\bottomrule
-\end{tabular}
-\vspace{0.3em}\\
-\footnotesize{Clip~$q$: predictions clipped to this quantile of training targets. ``---'' = global default ($q = 0.99$) or no hard ceiling. Clip max in \si{\microgrampeg}.}
-\end{table}
-
-\textbf{RF-dominant sites} (Copalis, Kalaloch, Twin Harbors, Quinault, Coos Bay, Cannon Beach) assign all weight to Random Forest ($w_{\text{RF}} = 1.0$); RF's bagging approach better captures the strong autocorrelation signal at these sites. \textbf{XGBoost-only sites} (Long Beach, Clatsop Beach, Gold Beach, Newport) converged to XGBoost exclusively during development evaluation. Most low-skill and moderate sites use heavy regularization and aggressive prediction clipping due to limited data or unusual dynamics (Clatsop Beach is the exception, using global defaults). Na\"ive persistence remains available as a standalone model type for direct baseline comparison (Section~\ref{sec:results-overall}).
+Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config} summarizes the per-site configuration. In the final paper configuration, six sites select Random Forest and four select XGBoost, so the ``ensemble'' acts as a site-wise model selector rather than a blended average. Most moderate- and low-skill sites also use stronger clipping or regularization, reflecting the need for more conservative predictions when data are sparse or highly variable. Na\"ive persistence remains available as a standalone model type for direct baseline comparison (Section~\ref{sec:results-overall}).
 
 \textbf{Configuration selection procedure.} Per-site ensemble weights, feature subsets, and hyperparameter overrides were selected through an iterative manual process informed by both domain knowledge and preliminary evaluation results. For each site, XGBoost and Random Forest were evaluated independently using the leak-free retrospective protocol described in Section~\ref{sec:validation}, using a \textit{development} test set (seed = 42, 20\% sampling fraction). Ensemble weights were set proportionally to each component's relative per-site performance; sites where one model clearly dominated converged to a single-model configuration, while sites with comparable ML model performance received split weights. Na\"ive persistence was also evaluated independently as an external baseline but was excluded from the ensemble blend in order to provide a clean separation between ML ensemble skill and raw autocorrelation. Feature subsets were curated by removing feature groups that degraded site-specific performance, prioritizing parsimony at data-sparse sites to reduce overfitting.
 
@@ -393,29 +356,11 @@ Two additional models are included as competitors (not baselines):
 \subsubsection{Classification}
 \label{sec:classification}
 
-DATect classifies continuous DA predictions into four risk categories aligned with regulatory thresholds via \textbf{threshold-based classification}:
-
-\begin{table}[H]
-\caption{DA risk categories used in DATect classification.}
-\label{tab:da-categories}
-\small
-\begin{tabular}{lcl}
-\toprule
-\textbf{Category} & \textbf{DA Range (\si{\microgrampeg})} & \textbf{Interpretation} \\
-\midrule
-Low      & 0--5   & Safe for harvest \\
-Moderate & 5--20  & Monitor closely \\
-High     & 20--40 & Elevated toxicity; closures likely \\
-Extreme  & $>$40  & Dangerous; immediate closure \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The 20~\si{\microgrampeg} threshold between Moderate and High corresponds to the FDA regulatory action level---the concentration above which shellfish harvest is prohibited. All classification results reported in this paper use this threshold-based approach applied to regression predictions. The web dashboard additionally trains a dedicated XGBoost classifier to provide per-class probability estimates for visualization purposes.
+DATect classifies continuous DA predictions into four risk categories aligned with fixed regulatory thresholds: Low (0--5), Moderate (5--20), High (20--40), and Extreme ($>$40) \si{\microgrampeg} (Appendix~\ref{app:classification-details}, Table~\ref{tab:da-categories}). The 20~\si{\microgrampeg} threshold between Moderate and High corresponds to the FDA regulatory action level---the concentration above which shellfish harvest is prohibited. All classification results reported in this paper use this threshold-based approach applied to regression predictions. The web dashboard additionally trains a dedicated XGBoost classifier to provide per-class probability estimates for visualization purposes.
 
 \subsubsection{Confidence Intervals}
 
-Prediction uncertainty is estimated via \textbf{quantile regression} \cite{Koenker1978}, which trains separate XGBoost models with the \texttt{reg:quantile} objective at specified percentiles---the 5th, 50th, and 95th for real-time forecasts (90\% confidence interval) and the 10th, 50th, and 90th for retrospective evaluation (80\% confidence interval, chosen for tighter calibration assessment). In ensemble mode, the quantile XGBoost predictions are blended with point-estimate Random Forest and na\"ive predictions using the site-specific ensemble weights, producing a hybrid confidence interval that reflects both quantile uncertainty and ensemble diversity.
+Prediction uncertainty is summarized via \textbf{quantile regression} \cite{Koenker1978}, which trains separate XGBoost models with the \texttt{reg:quantile} objective at specified percentiles---the 5th, 50th, and 95th for real-time forecasts (90\% interval) and the 10th, 50th, and 90th for retrospective summaries (80\% interval). In ensemble mode, these XGBoost quantiles are combined with point-estimate Random Forest and na\"ive components using the site-specific ensemble weights, producing an empirical predictive band rather than a fully calibrated posterior interval. Bootstrap summaries reported elsewhere in the paper similarly quantify variation across held-out prediction rows, but they do not eliminate all temporal dependence in the retrospective frame.
 
 \subsection{Validation and Scientific Integrity}
 \label{sec:validation}
@@ -440,18 +385,18 @@ DATect enforces nine explicit data-leakage prevention mechanisms, summarized in 
 6 & Fixed category thresholds & DA risk bins (5, 20, 40 \si{\microgrampeg}) are regulatory constants, not derived from training data \\
 7 & Persistence recomputation & Persistence features recomputed per test point using only training data \\
 8 & Fresh model per test point & New model trained for each prediction; no shared state \\
-9 & Runtime assertion & \texttt{verify\_no\_data\_leakage()} called on every prediction \\
+9 & Runtime assertion & \texttt{\_verify\_no\_data\_leakage()} called on every prediction \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The central concept is the \textit{anchor date}, defined as $t_{\text{anchor}} = t_{\text{forecast}} - 7$ days. All training data must satisfy date $\leq t_{\text{anchor}}$, and the test date must satisfy $t_{\text{test}} > t_{\text{anchor}}$. This is verified by an assertion function called on every single prediction, raising an error if violated. Safeguard \#7 (fresh model per test point) is particularly aggressive---rather than training a single model and applying it to multiple test points, DATect retrains from scratch for each prediction, ensuring that no information from future test points can influence earlier predictions through model state.
+The central concept is the \textit{anchor date}, defined as $t_{\text{anchor}} = t_{\text{forecast}} - 7$ days. All training data must satisfy date $\leq t_{\text{anchor}}$, and the test date must satisfy $t_{\text{test}} > t_{\text{anchor}}$. This is verified by an assertion function called on every single prediction, raising an error if violated. Safeguard \#8 (fresh model per test point) is particularly aggressive---rather than training a single model and applying it to multiple test points, DATect retrains from scratch for each prediction, ensuring that no information from future test points can influence earlier predictions through model state.
 
 \subsubsection{Retrospective Evaluation}
 
-Model performance is evaluated through leak-free retrospective validation using a two-stage protocol. Per-site configurations (ensemble weights, feature subsets, hyperparameter overrides) were developed using a \textit{development} test set (seed = 42, 20\% sampling fraction). All results reported in this paper are evaluated on an \textit{independent} test set drawn with a different random seed (seed = 123) and a larger sampling fraction (40\%), ensuring that no reported metric was influenced by the configuration selection process. For each site, 40\% of raw DA measurements are sampled as candidate test points, subject to a history requirement that $\geq 33\%$ of the site's total record must precede the test date. At each test point, a fresh model is trained on all data up to the anchor date, predictions are generated, and metrics are computed. Bootstrap 95\% confidence intervals ($B = 10{,}000$; percentile method \cite{Efron1979}) are reported for key metrics to quantify estimation uncertainty, particularly at sites with limited sample sizes.
+Model performance is evaluated through leak-free retrospective validation using a two-stage protocol. Per-site configurations (ensemble weights, feature subsets, hyperparameter overrides) were developed using a \textit{development} test set (seed = 42, 20\% sampling fraction). All results reported in this paper are evaluated on a separate \textit{held-out} test set drawn with a different random seed (seed = 123) and a larger sampling fraction (40\%), ensuring that no reported metric informed configuration selection. For each site, 40\% of raw DA measurements are sampled as candidate test points, subject to a history requirement that $\geq 33\%$ of the site's total record must precede the test date. At each test point, a fresh model is trained on all data up to the anchor date, predictions are generated, and metrics are computed. Bootstrap 95\% confidence intervals ($B = 10{,}000$; percentile method \cite{Efron1979}) are reported for key metrics as summaries of variation across held-out prediction rows, particularly at sites with limited sample sizes.
 
-Algorithm~\ref{alg:forecast} presents the pseudocode for a single forecast generation.
+Algorithm~\ref{alg:forecast} presents the pseudocode for a single forecast generation, and Figure~\ref{fig:ml-pipeline} provides a visual summary of the same chronology-preserving workflow.
 
 \begin{algorithm}[H]
 \SetAlgoLined
@@ -464,7 +409,7 @@ $x_{\text{test}} \gets$ environmental features at or before $t_{\text{anchor}}$\
 Recompute persistence features from $\mathcal{D}_{\text{train}}$ only\;
 Build observation-order lag features from $\mathcal{D}_{\text{train}}$ only\;
 Apply preprocessing (median impute $\to$ MinMax scale)\;
-\texttt{verify\_no\_data\_leakage}($\mathcal{D}_{\text{train}}, t, t_{\text{anchor}}$)\;
+\texttt{\_verify\_no\_data\_leakage}($\mathcal{D}_{\text{train}}, t, t_{\text{anchor}}$)\;
 $m \gets$ site-specific model type for $s$ \tcp*{XGBoost or Random Forest}
 Train model $m$ on $\mathcal{D}_{\text{train}}$ with site-specific hyperparameters\;
 $\hat{y} \gets m(x_{\text{test}})$\;
@@ -476,6 +421,13 @@ Classify $\hat{y}$ into risk category (Low/Moderate/High/Extreme)\;
 \caption{DATect Single Forecast Generation}
 \label{alg:forecast}
 \end{algorithm}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/fig3b_ml_pipeline.png}
+\caption{DATect forecasting pipeline. For each forecast point, an expanding window enforces chronological splitting at the anchor date and trains a fresh site-specific XGBoost or Random Forest model. Features include observation-order lags, rolling statistics, persistence indicators recomputed from real observations only, and environmental covariates available at or before the anchor date. A separate spike classifier supports transition-focused early warning, and post-processing applies prediction clipping, empirical predictive bands, and threshold-based DA risk classification.}
+\label{fig:ml-pipeline}
+\end{figure}
 
 \subsubsection{Evaluation Metrics}
 
@@ -493,10 +445,10 @@ DATect is deployed as a publicly accessible web dashboard providing real-time fo
 \subsection{Overall Model Performance}
 \label{sec:results-overall}
 
-Table~\ref{tab:model-comparison} compares the five model variants evaluated under leak-free retrospective validation on the independent test set ($n = 2{,}181$). The two-model ML ensemble achieves $R^2 = 0.204$, MAE $= \SI{6.42}{\microgrampeg}$, and RMSE $= \SI{17.92}{\microgrampeg}$.
+Table~\ref{tab:model-comparison} compares the five model variants evaluated under leak-free retrospective validation on the held-out test set ($n = 2{,}181$). The two-model ML ensemble achieves $R^2 = 0.204$, MAE $= \SI{6.42}{\microgrampeg}$, and RMSE $= \SI{17.92}{\microgrampeg}$. Figure~\ref{fig:site-performance} visualizes the site-to-site split that drives this pooled result.
 
 \begin{table}[H]
-\caption{Overall regression performance of five model variants under leak-free retrospective validation on the independent test set ($n = 2{,}181$, seed = 123). Bootstrap 95\% confidence intervals ($B = 10{,}000$; percentile method) are shown for $R^2$ and MAE. Paired $\Delta R^2$ vs.\ ensemble reported with 95\% CI.}
+\caption{Overall regression performance of five model variants under leak-free retrospective validation on the held-out test set ($n = 2{,}181$, seed = 123). Bootstrap 95\% confidence intervals ($B = 10{,}000$; percentile method) are shown for $R^2$ and MAE and summarize variation across held-out prediction rows. Paired $\Delta R^2$ vs.\ ensemble reported with 95\% CI.}
 \label{tab:model-comparison}
 \small
 \begin{tabular}{lcccc}
@@ -512,8 +464,7 @@ Na\"ive Persistence        & $-$0.426 [$-$0.951, $-$0.034] & 7.73 [6.84, 8.76] &
 \end{tabular}
 \end{table}
 
-XGBoost and Random Forest achieve similar individual performance ($R^2 = 0.207$ and $0.194$, respectively), with Linear (Ridge) near the ensemble at $R^2 = 0.202$.
-Na\"ive persistence achieves $R^2 = -0.426$, indicating that simply predicting the most recent DA observation performs substantially worse than predicting the mean, strongly validating the necessity of ML modeling. The convergence of all three ML models ($\Delta R^2 < 0.013$ between them) suggests that much of the predictive information is captured similarly across model architectures. Paired bootstrap differences between the ensemble and individual models are small and statistically consistent with zero (Table~\ref{tab:model-comparison}), while the ensemble's advantage over na\"ive persistence is large and clearly significant ($\Delta R^2 = +0.630$\, $[+0.293,\, +1.117]$), reflecting the value of per-site model selection and feature engineering over raw autocorrelation.
+XGBoost and Random Forest achieve similar individual performance ($R^2 = 0.207$ and $0.194$, respectively), with Linear (Ridge) near the ensemble at $R^2 = 0.202$. Na\"ive persistence achieves $R^2 = -0.426$ at the pooled held-out scale, indicating that simply predicting the most recent DA observation is not sufficient once all sites are combined. This pooled result does not imply that persistence is useless at every site; rather, it underscores the importance of per-site modeling under strong regional heterogeneity. The convergence of all three ML models ($\Delta R^2 < 0.013$ between them) suggests that much of the predictive information is captured similarly across model architectures. Paired bootstrap differences between the ensemble and individual models are small and statistically consistent with zero (Table~\ref{tab:model-comparison}), while the ensemble's advantage over na\"ive persistence is large and clearly significant ($\Delta R^2 = +0.630$\, $[+0.293,\, +1.117]$), reflecting the value of per-site model selection and feature engineering over raw autocorrelation.
 
 \subsection{Per-Site Regression Performance}
 \label{sec:results-per-site}
@@ -521,7 +472,7 @@ Na\"ive persistence achieves $R^2 = -0.426$, indicating that simply predicting t
 Table~\ref{tab:per-site-results} presents detailed per-site ensemble performance. Sites naturally partition into three tiers:
 
 \begin{table}[H]
-\caption{Per-site ensemble regression and classification performance under leak-free validation (seed = 123, independent of configuration-tuning data). Bootstrap 95\% confidence intervals ($B = 10{,}000$) are shown for $R^2$ and MAE. Sites are ordered by $R^2$ and grouped into performance tiers. Total test set $n = 2{,}181$.}
+\caption{Per-site ensemble regression and classification performance under leak-free validation (seed = 123, held out from configuration-tuning data). Bootstrap 95\% confidence intervals ($B = 10{,}000$) are shown for $R^2$ and MAE. Sites are ordered by $R^2$ and grouped into performance tiers. Total test set $n = 2{,}181$.}
 \label{tab:per-site-results}
 \small
 \begin{tabular}{lrrllrl}
@@ -549,7 +500,7 @@ Newport        & 218 & $-$0.299 [$-$1.930, $-$0.043] & 10.53 [7.52, 14.42] & 28.
 \footnotesize{Adjusted $R^2$ values (not shown) differ from $R^2$ by $< 0.02$ at all sites due to favorable sample-size-to-feature ratios ($N/p > 3$ at all sites).}
 \end{table}
 
-\textbf{High-skill sites} (5 of 10, $R^2 > 0.4$): Copalis, Twin Harbors, Quinault, Long Beach, and Kalaloch---all five Washington sites---achieve $R^2 \geq 0.480$ on the fully independent test set, confirming that the strong performance at these sites is genuine and not an artifact of per-site configuration tuning. The best-performing site, Copalis ($R^2 = 0.789$ [0.709, 0.843]), benefits from both strong persistence signal and informative environmental features. These five sites account for 1,127 of the 2,181 validation samples (52\%), and the concentration of all high-skill sites in Washington reflects the more predictable DA dynamics north of the Columbia River mouth.
+\textbf{High-skill sites} (5 of 10, $R^2 > 0.4$): Copalis, Twin Harbors, Quinault, Long Beach, and Kalaloch---all five Washington sites---achieve $R^2 \geq 0.480$ on the held-out test set, confirming that the strong performance at these sites is genuine and not an artifact of per-site configuration tuning. The best-performing site, Copalis ($R^2 = 0.789$ [0.709, 0.843]), benefits from both strong persistence signal and informative environmental features. These five sites account for 1,127 of the 2,181 validation samples (52\%), and the concentration of all high-skill sites in Washington reflects the more predictable DA dynamics north of the Columbia River mouth.
 
 \textbf{Moderate sites} (3 of 10): Clatsop Beach ($R^2 = 0.290$) and Gold Beach ($R^2 = 0.041$) show marginally positive skill, while Cannon Beach ($R^2 = -0.044$) is near zero. Clatsop Beach benefits from interpolated training, which provides gap-filled data that captures seasonal DA patterns between sparse raw measurements. Cannon Beach, despite having a mean DA of just \SI{1.06}{\microgrampeg}, achieves 92.2\% classification accuracy due to the dominance of the Low category.
 
@@ -557,57 +508,24 @@ Newport        & 218 & $-$0.299 [$-$1.930, $-$0.043] & 10.53 [7.52, 14.42] & 28.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{figures/fig2_scatter_best_sites.png}
-\caption{Predicted versus actual DA concentrations for Copalis ($R^2 = 0.789$) and Long Beach ($R^2 = 0.631$), among the highest-performing sites. Points are colored by DA risk category.}
-\label{fig:scatter-best}
+\includegraphics[width=0.9\textwidth]{figures/fig2_site_performance.png}
+\caption{Held-out per-site regression performance. Washington sites (blue) consistently outperform Oregon sites (red), reinforcing the interpretation that monitoring density and site-specific data quality are the main drivers of forecast skill in the current record. Point labels denote the number of validation samples at each site.}
+\label{fig:site-performance}
 \end{figure}
 
 \subsection{Classification Performance}
 \label{sec:results-classification}
 
-Table~\ref{tab:classification} presents per-category classification performance on the independent test set. The Low category achieves the strongest performance (F1 $= 0.857$, precision $= 0.858$), providing a reliable safety margin for identifying safe harvest conditions. Higher-risk categories are more challenging due to limited samples and class imbalance.
-
-\begin{table}[H]
-\caption{Per-category classification performance under leak-free validation ($n = 2{,}181$). The Low category achieves the highest reliability, while High and Extreme categories are limited by sample size. Overall accuracy 74.1\% (macro-average precision 0.593, recall 0.560, F1 0.573).}
-\label{tab:classification}
-\small
-\begin{tabular}{lrrrrr}
-\toprule
-\textbf{Category} & \textbf{DA Range} & $\boldsymbol{N}$ & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
-\midrule
-Low      & 0--5 \si{\microgrampeg}  & 1{,}382 & 0.858 & 0.856 & 0.857 \\
-Moderate & 5--20 \si{\microgrampeg} & 523 & 0.573 & 0.625 & 0.598 \\
-High     & 20--40 \si{\microgrampeg} & 168 & 0.429 & 0.399 & 0.414 \\
-Extreme  & $\geq$40 \si{\microgrampeg}  & 108 & 0.513 & 0.361 & 0.424 \\
-\midrule
-\multicolumn{2}{l}{\textbf{Overall (macro)}} & \textbf{2,181} & \textbf{0.593} & \textbf{0.560} & \textbf{0.573} \\
-\multicolumn{2}{l}{Overall accuracy} & & \multicolumn{3}{r}{74.1\%} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The confusion matrix (Table~\ref{tab:confusion}) reveals that most misclassifications occur between adjacent categories (Low$\leftrightarrow$Moderate), which is less consequential for management decisions than misclassifying dangerous events as safe. Of 108 Extreme samples, 54 errors fall into adjacent bins (22 Moderate, 32 High); however, 15 Extreme events (13.9\%) are misclassified as Low---a safety-relevant error discussed further in Section~\ref{sec:discussion-limitations}.
-
-\begin{table}[H]
-\caption{Confusion matrix for four-category DA classification. Most errors occur between adjacent categories.}
-\label{tab:confusion}
-\small
-\begin{tabular}{l|rrrr}
-\toprule
-\textbf{Actual \textbackslash\ Predicted} & \textbf{Low} & \textbf{Moderate} & \textbf{High} & \textbf{Extreme} \\
-\midrule
-Low      & 1183 & 142 & 27 & 30 \\
-Moderate & 164  & 327 & 30 & 2 \\
-High     & 16   & 80  & 67 & 5 \\
-Extreme  & 15   & 22  & 32 & 39 \\
-\bottomrule
-\end{tabular}
-\end{table}
+Threshold-based four-category performance is summarized in Appendix~\ref{app:classification-details} (Tables~\ref{tab:classification} and \ref{tab:confusion}). Overall accuracy is 74.1\% on the held-out test set, driven largely by reliable identification of the Low category (F1 $= 0.857$). Higher-risk categories remain more difficult because of limited samples and class imbalance. Most errors occur between adjacent categories, but 15 of 108 Extreme samples (13.9\%) are misclassified as Low---a safety-relevant failure mode that motivates the dedicated spike analysis below and is revisited in Section~\ref{sec:discussion-limitations}.
 
 \subsection{Spike Transition Detection}
 \label{sec:results-spike}
 
 While regression metrics characterize average forecasting skill, the operationally critical question is whether DATect can anticipate \emph{spike transitions}---the moment DA crosses from below to at or above the \SI{20}{\microgrampeg} regulatory threshold. These below-to-above crossings are exactly the events that trigger beach closures, and early detection would provide the advance warning that current reactive monitoring cannot.
+
+\subsubsection{Event Cohorts and Definitions}
+
+Two related but distinct event cohorts are used in this section. Environmental lead-signal analysis uses all raw-observation threshold crossings identified from consecutive site-level DA measurements (385 events), because the goal is to ask whether pre-spike environmental conditions differ from baseline in the underlying record. Forecast evaluation uses only held-out retrospective test rows that correspond to below-to-above-threshold crossings relative to the most recent prior raw observation at the same site (89 events, seed = 123). The first cohort is used for mechanistic evidence; the second is used for operational skill evaluation.
 
 \subsubsection{Environmental Lead Signals}
 \label{sec:results-env-lead}
@@ -617,17 +535,17 @@ Analysis of 385 spike transition events across all 10 sites reveals that environ
 \subsubsection{Regression Threshold Limitations}
 \label{sec:results-threshold-limit}
 
-Despite this, the regression ensemble's spike transition recall at the standard \SI{20}{\microgrampeg} decision threshold is poor: only 12.4\% of transitions are correctly predicted as spikes ($n = 89$ transitions, seed = 123 independent test set). Na\"ive persistence achieves 23.6\%. The ensemble \emph{does} predict elevated values before spikes---mean predicted DA for transition events is \SI{13.1}{\microgrampeg}---but the conservative bias inherent in MSE-optimized regression prevents predictions from crossing the regulatory threshold. A threshold sensitivity analysis confirms this: lowering the decision boundary from 20 to \SI{12}{\microgrampeg} increases transition recall substantially while maintaining acceptable precision.
+Despite this, the regression ensemble's spike transition recall at the standard \SI{20}{\microgrampeg} decision threshold is poor: only 12.4\% of held-out transition events are correctly predicted as spikes ($n = 89$, seed = 123). Na\"ive persistence achieves 23.6\%. The ensemble \emph{does} predict elevated values before spikes---mean predicted DA for transition events is \SI{13.1}{\microgrampeg}---but the conservative bias inherent in MSE-optimized regression prevents predictions from crossing the regulatory threshold. A threshold sensitivity analysis confirms this: lowering the decision boundary from 20 to \SI{12}{\microgrampeg} increases transition recall substantially while maintaining acceptable precision.
 
 \subsubsection{Transition-Focused Binary Classifier}
 \label{sec:results-spike-classifier}
 
 To exploit the pre-spike environmental signals without the regression's conservative bias, we developed a dedicated binary spike classifier trained alongside the regression ensemble. The classifier uses a \emph{safe-baseline} training strategy: it trains only on observations where the previous DA measurement was below \SI{20}{\microgrampeg}, forcing it to learn from environmental and rolling features rather than simple persistence. This prevents the classifier from relying on ``last DA was already high'' as its primary signal---a strategy that would detect ongoing spikes but miss the operationally critical below-to-above transitions.
 
-Table~\ref{tab:spike-transition} compares spike transition detection across approaches on the independent test set (seed = 123, $n = 2{,}181$, 89 transitions).
+Table~\ref{tab:spike-transition} compares spike transition detection across approaches on the held-out test set (seed = 123, $n = 2{,}181$, 89 transitions). Figure~\ref{fig:spike-summary} highlights the same operating-point tradeoff visually.
 
 \begin{table}[H]
-\caption{Spike transition detection performance on the independent test set ($n = 2{,}181$, 89 below-to-above-threshold transitions). Transition recall measures the fraction of below-to-above-threshold crossings correctly identified. The transition-focused classifier achieves 2.8$\times$ the transition recall of na\"ive persistence. Spike classifier counts: 225 TP, 439 FP, 51 FN (276 actual spike events total).}
+\caption{Spike transition detection performance on the held-out test set ($n = 2{,}181$, 89 below-to-above-threshold transitions). Transition recall measures the fraction of below-to-above-threshold crossings correctly identified. The transition-focused classifier achieves 2.8$\times$ the transition recall of na\"ive persistence. Spike classifier counts: 225 TP, 439 FP, 51 FN (276 actual spike events total).}
 \label{tab:spike-transition}
 \centering
 \begin{tabular}{lcccc}
@@ -641,35 +559,21 @@ Spike classifier ($p \geq 0.10$) & \textbf{0.652} & \textbf{0.815} & 0.339 & 0.6
 \end{tabular}
 \end{table}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\textwidth]{figures/fig4_spike_detection_summary.png}
+\caption{Spike-focused summary of the held-out results in Table~\ref{tab:spike-transition}. Thresholding the regression ensemble at \SI{20}{\microgrampeg} misses most below-to-above-threshold transitions, whereas the safe-baseline classifier substantially improves transition recall at the cost of lower precision. The hybrid alert used in the deployed dashboard is discussed in Section~\ref{sec:discussion-spike}.}
+\label{fig:spike-summary}
+\end{figure}
+
 The transition-focused classifier achieves 65.2\% recall on spike transitions [95\% CI: 55\%--74\%]---detecting 58 of 89 below-to-above crossings---compared to 23.6\% for na\"ive persistence and 12.4\% for the standard regression ensemble. This represents a 2.8$\times$ improvement over the operational baseline ($0.652 / 0.236 = 2.8\times$). The classifier's top features are rolling DA maximum over 4 weeks (gain importance 0.41--0.45), consistent with the biological mechanism where gradual toxin accumulation precedes a threshold crossing. Environmental features including PDO, BEUTI, and fluorescence contribute meaningfully when persistence features are excluded by the safe-baseline filter.
 
 \subsection{Ablation Study}
 \label{sec:results-ablation}
 
-To quantify the contribution of each DATect component, Table~\ref{tab:ablation} presents a component ablation study. Each row removes one system component while keeping all others intact, evaluated on the development test set (seed = 42, $n = 1{,}177$).
+Component ablation is summarized in Appendix~\ref{app:component-ablation} (Table~\ref{tab:ablation}) using the development set (seed = 42, $n = 1{,}177$). Per-site customization is the most impactful component ($\Delta R^2 = -0.158$), confirming that the 10 monitoring sites cannot be represented well by a single global configuration. Interpolated training provides a modest improvement ($\Delta R^2 = -0.029$ when removed), while observation-order lags and derived features show negligible standalone impact at the one-week horizon. These latter effects are best interpreted as redundancy rather than as proof that the features are uninformative: persistence and rolling statistics already capture much of the same recent-history signal.
 
-\begin{table}[H]
-\caption{Component ablation study showing the contribution of each DATect design choice. Each row removes one component from the full system. $\Delta R^2$ and $\Delta$MAE are relative to the baseline. Evaluated on the development set (seed = 42, $n = 1{,}177$); the independent test set (seed = 123) was reserved for final reporting.}
-\label{tab:ablation}
-\small
-\begin{tabular}{lcccl}
-\toprule
-\textbf{Configuration} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} & \textbf{Notes} \\
-\midrule
-Full DATect (baseline)        & 0.414 & ---      & 6.38 & Current configuration (dev set) \\
-No per-site customization     & 0.256 & $-0.158$ & 6.69 & Largest impact \\
-No interpolated training      & 0.385 & $-0.029$ & 6.61 & Data augmentation effect \\
-No observation-order lags     & 0.413 & $-0.001$ & 6.39 & Minimal standalone impact \\
-No derived features           & 0.415 & $+0.001$ & 6.38 & Negligible impact \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Per-site customization is the most impactful component ($\Delta R^2 = -0.158$), confirming that the 10 monitoring sites exhibit fundamentally different DA dynamics that cannot be captured by a single global model configuration. The $R^2 = 0.256$ achieved without per-site customization on the development set (seed = 42) reflects the cost of using a single global model; the independent test set $R^2 = 0.204$ (seed = 123, Table~\ref{tab:model-comparison}) is lower still, driven primarily by the poor Oregon site performance on the larger sample.
-
-Interpolated training ($\Delta R^2 = -0.029$) provides a modest contribution, while observation-order lags and derived environmental features show negligible standalone impact. The small effect of lag removal likely reflects redundancy with the persistence features (\texttt{last\_observed\_da\_raw}), which capture similar recent-DA information. The negligible impact of derived features---removing \texttt{pn\_log} actually produces a marginal $R^2$ \emph{increase} of 0.001---suggests that the tree-based models can implicitly learn the nonlinear relationships that derived features encode explicitly. Note that ablation $\Delta R^2$ values are reported as point estimates without confidence intervals, as each experiment requires a separate full retrospective evaluation on Hyak and prediction-level data were not cached. The small magnitudes for observation-order lags ($-0.001$) and derived features ($+0.001$) are within typical sampling variability and should be interpreted as indicating negligible rather than precisely measured contributions.
-
-The difference between development set $R^2$ (0.414, seed = 42) and independent test set $R^2$ (0.204, seed = 123) reflects two factors. First, the gap is expected by design: per-site configurations were tuned on seed = 42, so reporting on a separate seed produces unbiased (and thus lower) estimates. Second, the independent test set's larger sampling fraction (40\% vs.\ 20\%) includes more Oregon test points, and the four low-skill Oregon sites disproportionately depress the aggregate (Table~\ref{tab:per-site-results}). Critically, Washington sites achieve $R^2 = 0.480$--$0.789$ on both seeds, confirming that tuned configurations generalize where sufficient data quality exists; the aggregate $R^2$ reflects Oregon data sparsity, not overfitting.
+The difference between development-set $R^2$ (0.414, seed = 42) and held-out test-set $R^2$ (0.204, seed = 123) reflects two factors. First, the gap is expected by design: per-site configurations were tuned on seed = 42, so reporting on a separate seed produces less biased (and thus typically lower) estimates. Second, the held-out test set's larger sampling fraction (40\% vs.\ 20\%) includes more Oregon test points, and the four low-skill Oregon sites disproportionately depress the aggregate (Table~\ref{tab:per-site-results}). Critically, Washington sites achieve $R^2 = 0.480$--$0.789$ on both seeds, confirming that tuned configurations generalize where sufficient data quality exists; the aggregate $R^2$ reflects Oregon data sparsity, not overfitting.
 
 A fine-grained per-feature ablation (Appendix~\ref{app:feature-ablation}) confirms that no individual environmental feature exceeds noise-level impact ($|\Delta R^2| \leq 0.005$); removing all low-importance features simultaneously costs only $\Delta R^2 = -0.004$. Feature importance analysis (Appendix~\ref{app:feature-importance}) confirms that persistence and observation-order lag features dominate, with BEUTI, SST, PDO, and discharge contributing meaningfully at Washington sites. However, high feature importance does not imply high marginal contribution---lag features rank highly in model splits but are largely redundant with \texttt{last\_observed\_da\_raw} ($\Delta R^2 = -0.001$ when removed). Predictive skill derives overwhelmingly from DA persistence history and per-site architectural choices, not environmental feature engineering; the features that do contribute operate through raw input values, not derived transformations.
 
@@ -680,106 +584,47 @@ A fine-grained per-feature ablation (Appendix~\ref{app:feature-ablation}) confir
 \section{Discussion}
 \label{sec:discussion}
 
-\subsection{Explanations and Analysis}
-\label{sec:discussion-analysis}
+\subsection{Data Quality and Site Heterogeneity}
 
-\subsubsection{Data Source Split and Performance Gradient}
+The clearest pattern in the held-out results is the Washington--Oregon performance gradient. All five Washington sites achieve $R^2 = 0.480$--$0.789$, whereas Oregon sites range from modest positive skill to strongly negative $R^2$. The most parsimonious explanation is data quality: Washington records from WDFW and Tribal monitoring are denser and more temporally regular, so persistence, lag, and rolling features can be estimated more reliably. Oregon records are sparser and less regular, reducing the effective information content available to both linear and nonlinear models.
 
-The striking performance gradient---five high-skill Washington sites versus lower-skill Oregon sites---is confirmed on the fully independent test set (seed = 123), ruling out per-site configuration overfitting as an explanation. All five Washington sites achieve $R^2 = 0.480$--$0.789$, while three Oregon sites (Cannon Beach, Coos Bay, Newport) have $R^2 < 0$ and the best-performing Oregon site (Clatsop Beach) achieves only $R^2 = 0.290$. We attribute this split primarily to differences between the two monitoring programs: Washington data originates from the Washington Department of Fish and Wildlife (WDFW) and Tribal monitoring programs, which provide higher sampling density and more temporally consistent records \cite{McCabe2023}, while Oregon data originates from a separate state program with sparser and less regular sampling. Machine learning models require sufficient training density to learn lag and rolling features reliably; irregular Oregon sampling reduces the effective information content of these features. The Columbia River discharge feature (\texttt{discharge}) also provides an informative environmental signal specific to the Washington sites north of the river mouth, further contributing to the performance gap.
+This interpretation does not rule out genuine oceanographic differences. Washington beaches are influenced by the Juan de Fuca eddy and by the Columbia River plume, both of which may increase persistence or provide stronger environmental structure in the predictor set \cite{Trainer2009, McCabe2023}. Even so, the paper's central scientific implication is that monitoring density is currently the binding constraint on forecast skill. Better-sampled Oregon records would likely improve performance more than swapping in a more complex model family.
 
-We cannot rule out that oceanographic differences also play a role---Washington's Juan de Fuca eddy retention zone may produce more persistent DA dynamics that are intrinsically easier to forecast \cite{Trainer2009}---but the data quality explanation is the more parsimonious primary cause. Oregon site performance should therefore be interpreted as a current data limitation rather than a fundamental forecasting ceiling: better-sampled Oregon data would likely yield substantially improved skill.
+\subsection{Persistence, Model Choice, and ML Contribution}
 
-\subsubsection{The Persistence Signal and ML Contribution}
+Strong persistence at several Washington sites is biologically plausible. DA depuration from razor clam tissue occurs over weeks to months \cite{Drum1993, Bricelj1998}, so one-week-ahead DA often remains close to the most recent observation during sustained bloom periods. DATect therefore treats na\"ive persistence as a serious external baseline rather than a straw man. The pooled held-out result ($R^2 = -0.426$) should not be read as evidence that persistence is never useful; rather, it reflects the fact that persistence is highly site-dependent and degrades sharply at the low-skill Oregon sites.
 
-The strong autocorrelation in DA at Washington sites reflects a genuine biological phenomenon: DA depuration from razor clam tissue occurs slowly, with half-lives measured in weeks to months \cite{Drum1993, Bricelj1998}. DA concentrations at time $t$ are therefore highly correlated with concentrations at time $t - 7$ days during sustained bloom events. Na\"ive persistence (reported here as an external standalone baseline) exploits this autocorrelation directly, achieving high $R^2$ at Washington sites in retrospective evaluation.
+The near-tie between the tree-based models and Ridge regression further shows that most forecast signal comes from the feature set and the per-site design, not from an intrinsically superior model family. Removing per-site customization costs $\Delta R^2 = -0.158$ in the development ablation, far more than any other single component. Likewise, model-selection robustness in Appendix~\ref{app:weight-robustness} shows that choosing XGBoost versus Random Forest per site changes aggregate $R^2$ only modestly. DATect's main methodological contribution is therefore not a novel learner, but a leak-aware way to combine per-site modeling, sparse-data feature engineering, and raw-only evaluation.
 
-By excluding na\"ive persistence from the ML ensemble, DATect enables a clean separation: the ensemble $R^2$ represents the contribution of XGBoost and Random Forest \textit{alone}, without any persistence component inflating the metric. At Oregon sites, where na\"ive persistence has negative $R^2$ on the development set (Gold Beach: $-0.858$; Coos Bay: $-0.286$; Newport: $-1.572$ [dev set, seed = 42]), persistence actively degrades performance, confirming that the ML ensemble's Oregon results already reflect pure ML skill. The overall na\"ive persistence $R^2 = -0.426$ on the independent test set further confirms this. The geographic split thus reflects two distinct forecasting regimes: autocorrelation-rich in Washington (where both ML models and naive persistence perform well), and highly variable in Oregon where persistence is counterproductive and ML models provide all available skill.
+This perspective also helps interpret the ablations. Interpolated training provides a modest gain, while observation-order lags and the removed derived features have little standalone marginal effect at the one-week horizon. That does not mean those features are useless; it means that much of their signal overlaps with persistence and rolling-history terms, and that the tree models can often capture simple nonlinear structure without handcrafted interactions.
 
-The genuine ML contribution \textit{beyond} persistence is most clearly demonstrated by the transition-focused binary classifier, which uses safe-baseline training that excludes high-DA persistence signals and instead relies on environmental precursors and gradual toxin accumulation patterns, yet still outperforms na\"ive persistence by 2.8$\times$ on the operationally critical low-to-high crossings (Section~\ref{sec:results-spike}).
+\subsection{Spike Detection and Management Relevance}
+\label{sec:discussion-spike}
 
-The overall $R^2$ of 0.204 should be interpreted in context: DATect is evaluated under strict leak-free conditions where every prediction is made with a fresh model trained only on past data, and reported on an independent test set separate from all configuration-tuning data. Many published environmental ML studies use random train-test splits that allow future data to contaminate training sets, which can inflate $R^2$ by 0.1--0.3 or more \cite{Kapoor2023}. DATect's metrics therefore represent a conservative lower bound on actual performance, and the per-site breakdown (Table~\ref{tab:per-site-results}) shows that the aggregate is depressed primarily by low-skill Oregon sites rather than uniformly modest skill.
+The spike results reveal a different operational problem from regression accuracy. Thresholding the regression ensemble at \SI{20}{\microgrampeg} catches only 12.4\% of held-out below-to-above-threshold transitions even though the model often predicts elevated pre-spike values. This is a predictable consequence of MSE-optimized regression on an imbalanced target: the model is rewarded for shrinking extreme values toward the center of the distribution. For closure-relevant early warning, that conservative bias is a feature for average error but a liability for threshold crossings.
 
-\subsubsection{Tree-Based Models vs.\ Linear Regression}
+The transition-focused classifier addresses that failure mode by changing the task definition. Its safe-baseline filter removes the trivial ``DA is already high'' cue and forces the classifier to rely on environmental precursors and gradual toxin accumulation patterns. The result is a 2.8$\times$ improvement over na\"ive persistence on held-out transitions. In the deployed dashboard, DATect combines this classifier with a regression trigger at \SI{12}{\microgrampeg}, yielding an 89\% hybrid spike recall across all sites. This is best understood as a decision-support system: a false alert increases sampling attention, whereas a missed transition can leave managers reacting only after DA has already crossed the regulatory limit.
 
-The aggregate $R^2$ of the per-site ML models (0.204) and Ridge regression (0.202) are nearly identical. This is expected: Ridge receives the same per-site feature subsets, prediction clipping, and persistence/lag features as the tree-based models, and 85\% of its signal derives from DA persistence and rolling features, which have an approximately linear relationship with future DA during sustained blooms.
-
-Despite similar $R^2$, tree-based models achieve lower MAE at 9 of 10 sites (overall \SI{6.42}{\microgrampeg} vs.\ \SI{6.76}{\microgrampeg}, a 5\% reduction), with the largest improvements at the most challenging sites. For spike detection (DA $\geq$ \SI{20}{\microgrampeg}), Ridge actually detects more events (68.1\% vs.\ 55.8\%) because its less regularized, pre-clipped predictions tend to be higher, retaining more spike signals after per-site prediction clipping.
-
-This underscores that the dominant contribution to forecast skill comes from \textit{per-site feature engineering and prediction postprocessing} rather than model type, consistent with the component ablation (Table~\ref{tab:ablation}), where removing per-site customization costs $\Delta R^2 = -0.158$---by far the largest single factor.
-
-This motivates DATect's \textit{dual-component architecture}: the regression models and spike classifier serve complementary roles that cannot be collapsed into a single model. MSE-optimized regression with prediction clipping produces accurate magnitude estimates but inherently underestimates rare extreme events due to mean regression toward the low-DA majority. The spike classifier sidesteps this tradeoff by reframing the problem as binary classification with inverse-frequency class weighting and a low probability threshold ($p \geq 0.10$; Section~\ref{sec:results-spike}), mirroring established practices in extreme weather forecasting \cite{Herman2018}.
-
-For the deployed dashboard, DATect combines both components into a \emph{hybrid alert}: a spike warning is issued when either the binary classifier probability exceeds $p \geq 0.10$ \emph{or} the regression ensemble prediction exceeds \SI{12}{\microgrampeg}. This addresses a complementary failure mode: at persistence-dominant sites (e.g., Kalaloch, $R^2 = 0.480$), the regression model tracks DA well but the safe-baseline classifier---which drops persistence features by design---lacks the environmental precursors needed for anticipatory detection. The hybrid approach leverages each component's strength: the classifier detects transitions at environment-driven sites, while the regression threshold catches elevated DA at persistence-dominant sites. On the independent test set, the hybrid alert achieves 89\% spike recall across all sites (245 of 276 events), with six of ten sites at 95\% recall or above, compared to 81.5\% for the classifier alone.
-
-\subsubsection{Spike Detection: From Regression to Binary Classification}
-
-The contrast between regression performance and spike transition recall (12.4\% at the \SI{20}{\microgrampeg} threshold; Section~\ref{sec:results-spike}) reveals a fundamental limitation of MSE-optimized regression for safety-critical event detection: conservative bias pulls extreme predictions toward the mean, preventing threshold crossings even when the model correctly identifies elevated trends (mean predicted DA for transitions is \SI{13.1}{\microgrampeg}).
-
-The transition-focused binary classifier addresses this by reframing the problem from ``how much DA?'' to ``will DA cross the regulatory threshold?''. The safe-baseline training strategy forces reliance on environmental precursors and gradual toxin accumulation signals rather than the trivial ``DA is already high'' persistence signal, which is exactly why it outperforms na\"ive persistence on the operationally critical below-to-above transitions.
-
-In practical terms, the classifier's 66\% false discovery rate corresponds to approximately five to six precautionary alerts per site per year (439 false positives across 10 sites, $\sim$8 years of test data). The deployed hybrid alert (classifier or regression $\geq$ \SI{12}{\microgrampeg}) increases total alerts to 737, approximately nine per site per year, while raising spike recall from 81.5\% to 89\%. Since shellfish sampling already occurs weekly, a false alarm represents a recommendation to prioritize sampling---not an automatic harvest closure. This low operational cost justifies the recall-optimized operating point ($p \geq 0.10$). The classifier is designed as a decision-support tool that flags weeks warranting heightened attention, not as an autonomous trigger for management action.
-
-\subsubsection{Model Selection Robustness, Feature Engineering, and Site-Specific Anomalies}
-\label{sec:weight-robustness}
-
-\textbf{Model selection robustness.} Since all sites use single-model configurations (XGBoost-only or RF-only), weight selection reduces to a binary model choice per site. Table~\ref{tab:weight-robustness} (Appendix~\ref{app:weight-robustness}) compares three strategies on the independent test set: XGBoost at all sites ($R^2 = 0.207$), Random Forest at all sites ($R^2 = 0.194$), and per-site dev-set selection ($R^2 = 0.204$). All differences fall within bootstrap confidence intervals ($\Delta R^2 < 0.013$), and the oracle upper bound ($R^2 = 0.210$, selecting the better model per site using test-set $R^2$) confirms negligible loss from dev-set selection.
-
-\textbf{Derived features and implicit nonlinearity.} Six derived environmental features encoding documented ecological relationships \cite{Trainer2020, McKibben2017, Bond2015, McCabe2016} were explored but confirmed negligible ($|\Delta R^2| \leq 0.005$; Appendix~\ref{app:feature-ablation}) and removed. This extends to satellite observations: removing chlorophyll-$a$, FLH, SST anomaly, or K490 individually also falls within sampling variability. Tree-based models learn these nonlinear relationships implicitly through sequential splits on raw features, making explicit encoding redundant. The features that remain---SST, BEUTI, PDO, ONI, and Columbia River discharge---contribute through raw input values, not derived transformations.
-
-\textbf{The Coos Bay anomaly.} Coos Bay presents the highest MAE (\SI{24.55}{\microgrampeg}) of any site, with mean DA more than double any other site. The model fails to capture DA spike magnitudes ($R^2 = -0.039$), likely due to Coos Bay's unique estuarine setting where nutrient inputs from the Coos River and tidal dynamics create conditions particularly favorable for sustained \textit{Pseudo-nitzschia} blooms.
-
-\subsection{Significance}
-\label{sec:discussion-significance}
-
-DATect represents several firsts in DA forecasting:
-
-\textbf{First quantitative DA forecast for the PNW.} No prior system has produced numerical DA concentration predictions for Washington or Oregon. DATect fills this gap with site-specific weekly forecasts achieving high skill at all five Washington sites (Table~\ref{tab:per-site-results}).
-
-\textbf{ML outperforms baselines where it matters most.} The dedicated spike classifier detects 65.2\% of below-to-above-threshold transitions [95\% CI: 55\%--74\%], compared to $<$24\% for regression thresholding and na\"ive persistence. No prior HAB forecasting study has specifically targeted transition detection.
-
-\textbf{Data quality as a binding constraint.} The WA--OR performance split demonstrates that monitoring data density---not model architecture---is the primary limiting factor. Investment in consistent, high-density sampling would likely yield greater forecasting improvements than algorithmic advances alone.
-
-\textbf{Largest geographic and temporal scope.} With 21 years of data across 10 sites spanning $\sim$\SI{600}{\kilo\meter}, DATect uses the longest temporal record and broadest geographic span of any published quantitative DA/\textit{Pseudo-nitzschia} ML study \cite{Alaez2021, Grasso2019, Lane2009}.
-
-\textbf{Leak-free validation as standard.} Nine structural data-leakage prevention mechanisms, particularly the per-prediction assertion check, establish a rigorous standard for temporal ML validation \cite{Kapoor2023}.
-
-\subsection{Implications for Coastal Management}
-\label{sec:discussion-management}
-
-DATect has direct implications for coastal resource management in the PNW. Currently, razor clam harvest seasons are managed reactively: beaches open when DA levels test below 20~\si{\microgrampeg}, and close when they exceed this threshold. This reactive approach forces managers to make decisions based solely on the most recent test results, without any forward-looking information about whether DA levels are likely to rise or fall in the coming week.
-
-To illustrate the operational value, consider the spike classifier's performance over the independent test period ($\sim$8 years across 10 sites). Of 89 below-to-above-threshold transitions---each representing a beach closure event---the classifier flagged 58 one week in advance, providing seven days of lead time that the current reactive system cannot offer. Under the status quo, those 58 closures would have been announced only \textit{after} DA was already above the safety limit. Even with the classifier's 66\% false discovery rate, each false alarm costs only an expedited sampling run at a site already on a weekly schedule---a minor operational burden compared to the public health risk of an unwarned closure. For the five high-skill Washington sites, where the regression model simultaneously provides accurate magnitude forecasts ($R^2 = 0.480$--$0.789$), managers would additionally know \textit{by how much} DA is expected to rise, enabling graduated responses (e.g., precautionary advisory vs.\ immediate closure). The deployed dashboard further improves recall through a hybrid alert that combines the binary classifier with a regression-threshold trigger (\SI{12}{\microgrampeg}), achieving 89\% spike recall (245 of 276 events) with particular gains at flash-spike sites where the classifier alone has limited environmental precursors.
-
-With quantitative one-week-ahead forecasts, managers could: (1) issue precautionary advisories before DA levels exceed regulatory thresholds, providing a safety buffer; (2) plan harvest openings with greater confidence by predicting when DA levels are likely to decline; (3) optimize sampling effort by directing resources to sites where DA is forecast to rise; and (4) communicate risk more effectively to the public using numerical predictions rather than qualitative categories.
-
-The economic value of such forecasts has been estimated for the related PNW HAB Bulletin system \cite{Jin2024}. Jin et al.\ found that the Bulletin's qualitative, biweekly-to-monthly advisories already provide substantial value to fisheries management by helping optimize harvest timing. DATect's quantitative, weekly, site-specific predictions could provide even greater value by enabling more targeted decisions---particularly for the \$30+ million annual recreational razor clam fishery in Washington State \cite{Dyson2010, Moore2020}, where a single well-timed harvest opening or precautionary closure can affect thousands of recreational diggers and associated coastal tourism revenue.
+That distinction matters for management value. Quantitative one-week forecasts can support precautionary advisories, sampling prioritization, and more informed timing of openings and closures. The existing PNW HAB Bulletin already provides measurable value through qualitative expert advisories \cite{Jin2024}; DATect's contribution is to complement that workflow with explicit numerical forecasts and a transition-focused alert channel.
 
 \subsection{Limitations}
 \label{sec:discussion-limitations}
 
-Several limitations should be acknowledged:
-
 \begin{enumerate}[nosep]
-    \item \textbf{Low-skill Oregon sites}: Two of 10 sites (Coos Bay, Newport) have negative $R^2$, and three additional Oregon sites have near-zero skill. This is attributed primarily to sparser, less consistent sampling by the Oregon monitoring program relative to WDFW/Tribal data in Washington, rather than a fundamental oceanographic forecasting barrier. Improved Oregon sampling density would likely yield substantially better model performance.
-    \item \textbf{High-risk classification weakness}: The High and Extreme DA categories---the most critical for public safety---achieve F1 scores of only 0.41 and 0.42 respectively, and 13.9\% of Extreme events are misclassified as Low.
-    \item \textbf{Per-site tuning generalization}: Per-site configurations were manually tuned on a development set (seed = 42, 20\%). Comparison with uniform model-selection strategies (Section~\ref{sec:weight-robustness}) shows that no alternative outperforms manual per-site selection on the independent test set, primarily because the $R^2$ surface is flat at high-skill sites and poorly conditioned at low-skill sites. Nevertheless, the per-site feature subsets and hyperparameters were also manually selected and may not generalize optimally to all future data distributions. End-to-end automated tuning with nested cross-validation remains a desirable methodological improvement.
-    \item \textbf{Satellite data continuity}: MODIS-Aqua, the primary satellite data source, is approaching end of life. Transition to successor instruments (e.g., PACE) will require recalibration.
-    \item \textbf{Forecast horizon}: The 7-day horizon, while aligned with the HAB Bulletin's operational cycle, may be insufficient for some management decisions that require longer lead times for harvest planning and public communication.
-    \item \textbf{No real-time ingestion}: The current system relies on pre-computed cache rather than real-time data feeds, introducing potential latency in operational use.
+    \item \textbf{Low-skill Oregon sites}: Two of 10 sites (Coos Bay, Newport) have negative $R^2$, and three additional Oregon sites have near-zero skill. The current record supports the interpretation that sparse monitoring is the main cause, but the paper cannot fully separate data limitations from true regional oceanographic complexity.
+    \item \textbf{High-risk category weakness}: The High and Extreme DA categories remain difficult, with F1 scores of 0.41 and 0.42, and 13.9\% of Extreme events are misclassified as Low under threshold-based four-category classification.
+    \item \textbf{Manual per-site tuning}: Feature subsets, clipping rules, and model choices were selected on a development split. The held-out seed-123 evaluation reduces optimistic bias, but a fully nested or automated tuning workflow would provide a stronger estimate of long-run generalization.
+    \item \textbf{Uncertainty summaries are not full probabilistic guarantees}: The quantile bands used for forecasts are hybrid empirical intervals, and the bootstrap confidence intervals reported for retrospective metrics resample held-out prediction rows. They are useful uncertainty summaries, but they do not fully resolve temporal dependence or establish exact calibration.
+    \item \textbf{Operational deployment remains simplified}: The current system relies on pre-computed cache and a seven-day forecast horizon aligned with the PNW HAB Bulletin. Real-time ingestion and longer forecast horizons remain open engineering and scientific challenges.
+    \item \textbf{Sensor continuity}: MODIS-Aqua is approaching end of life, so future operational use will require careful recalibration to successor instruments such as PACE.
 \end{enumerate}
 
 \subsection{Future Work}
 \label{sec:discussion-future}
 
-Four directions are most promising for extending DATect:
+The highest-impact next step is improved Oregon monitoring. If data quality is the binding constraint, then denser and more regular sampling should produce larger gains than architecture changes alone. Transfer learning or hierarchical models could help in the interim, but they are unlikely to substitute fully for missing observations.
 
-\textbf{Improved Oregon monitoring.} Given that data quality---not model architecture---is the binding constraint, the highest-impact improvement would be denser, more consistent sampling at Oregon sites. Transfer learning from data-rich Washington sites could also improve low-skill site performance without additional monitoring investment.
-
-\textbf{PACE satellite integration.} NASA's PACE mission \cite{Werdell2019} provides hyperspectral ocean color data (350--885~nm at 5~nm intervals) that could enable direct identification of \textit{Pseudo-nitzschia} from space. Integrating PACE data could substantially improve DATect's satellite-based features, particularly as MODIS-Aqua approaches end of life.
-
-\textbf{Deep learning and spatial models.} LSTM \cite{Hochreiter1997} or Transformer \cite{Vaswani2017} architectures could capture sequential dependencies more effectively than the current non-sequential ensemble. Graph neural networks that model along-coast DA propagation---where blooms move southward with the California Current---could improve predictions at data-poor sites by transferring information from data-rich neighbors.
-
-\textbf{Molecular forecasting integration.} Brunson et al.\ \cite{Brunson2024} demonstrated that coexpression of DA biosynthesis genes can predict DA one week in advance. Integrating molecular data from Environmental Sample Processors deployed offshore of PNW beaches could complement DATect's satellite and climate-based features.
+Additional gains may come from richer observing systems. PACE hyperspectral ocean color \cite{Werdell2019} could improve satellite characterization of bloom conditions, while offshore molecular measurements \cite{Brunson2024} could provide more direct evidence of toxigenic \textit{Pseudo-nitzschia} activity. Sequence models or spatial along-coast models may also become more attractive once the observational record is dense enough to support them.
 
 
 % ══════════════════════════════════════════════════════════════════════════════
@@ -788,9 +633,9 @@ Four directions are most promising for extending DATect:
 \section{Conclusions}
 \label{sec:conclusions}
 
-This paper presented DATect, the first quantitative domoic acid concentration forecasting system for the U.S.\ Pacific Northwest coast. Using per-site XGBoost or Random Forest models with interpolated-training data augmentation and nine data-leakage prevention mechanisms, DATect achieves $R^2 = 0.480$--$0.789$ at all five Washington coast sites under strict leak-free validation on a fully independent test set ($n = 2{,}181$). Oregon sites show substantially lower skill, attributed primarily to sparser monitoring data rather than a fundamental forecasting limitation.
+DATect provides the first quantitative one-week-ahead domoic acid forecasting system for Washington and Oregon. Under leak-free retrospective evaluation on a held-out test set, all five Washington sites achieve high skill ($R^2 = 0.480$--$0.789$), while Oregon performance is limited by sparser and less regular monitoring. The resulting scientific message is not simply that DATect can forecast DA, but that regional monitoring quality currently places the strongest upper bound on forecast skill.
 
-The most operationally significant finding is that standard regression models detect fewer than 24\% of the spike transitions that trigger beach closures, while a dedicated binary classifier using safe-baseline training detects 65.2\%---demonstrating that actionable early warning requires a purpose-built transition detector beyond regression. The deployed dashboard combines both components via a hybrid alert (classifier probability or regression prediction $\geq$ \SI{12}{\microgrampeg}), achieving 89\% spike recall across all sites. Component ablation confirms that per-site customization is the most impactful design choice ($\Delta R^2 = -0.158$). These methodological contributions---per-site model selection, interpolated training, and leak-free validation---are applicable beyond DA forecasting to any environmental prediction task with sparse, irregular monitoring data. Deployed as a publicly accessible web dashboard, DATect offers coastal managers the first automated, quantitative complement to the qualitative PNW HAB Bulletin.
+The paper's main operational result is that magnitude forecasting and closure-warning are related but distinct tasks. Thresholding the regression ensemble at \SI{20}{\microgrampeg} detects only 12.4\% of held-out below-to-above-threshold transitions, whereas the dedicated safe-baseline classifier detects 65.2\% and the deployed hybrid alert reaches 89\% overall spike recall. DATect therefore contributes both a quantitative forecasting pipeline and a transition-focused early-warning layer that can complement the qualitative PNW HAB Bulletin and provide a reusable template for other sparse, irregular environmental forecasting problems.
 
 
 % ══════════════════════════════════════════════════════════════════════════════
@@ -817,6 +662,111 @@ The most operationally significant finding is that standard regression models de
 %  APPENDICES
 % ══════════════════════════════════════════════════════════════════════════════
 \appendix
+
+\section{Per-Site Model Configuration}
+\label{app:model-config}
+
+Table~\ref{tab:ensemble-config} summarizes the site-wise model selection, clipping rules, and development-set performance tiers used during configuration selection.
+
+\begin{table}[H]
+\caption{Per-site ensemble configuration showing weights, prediction clipping, and development-set performance tier used during configuration selection (see Table~\ref{tab:per-site-results} for held-out test-set $R^2$).}
+\label{tab:ensemble-config}
+\small
+\begin{tabular}{lccccl}
+\toprule
+\textbf{Site} & $\boldsymbol{w_{\text{XGB}}}$ & $\boldsymbol{w_{\text{RF}}}$ & \textbf{Clip $q$} & \textbf{Clip max} & \textbf{Tier} \\
+\midrule
+Copalis       & 0.00 & 1.00 & 0.97 & --- & High-skill \\
+Twin Harbors  & 0.00 & 1.00 & 0.98 & --- & High-skill \\
+Quinault      & 0.00 & 1.00 & 0.98 & --- & High-skill \\
+Long Beach    & 1.00 & 0.00 & 0.98 & --- & High-skill \\
+Kalaloch      & 0.00 & 1.00 & 0.95 & 80 & High-skill \\
+\addlinespace
+Clatsop Beach & 1.00 & 0.00 & --- & --- & Moderate \\
+Cannon Beach  & 0.00 & 1.00 & 0.95 & 80 & Moderate \\
+Gold Beach    & 1.00 & 0.00 & 0.95 & --- & Moderate \\
+\addlinespace
+Coos Bay      & 0.00 & 1.00 & 0.97 & --- & Low-skill \\
+Newport       & 1.00 & 0.00 & 0.98 & --- & Low-skill \\
+\bottomrule
+\end{tabular}
+\vspace{0.3em}\\
+\footnotesize{Clip~$q$: predictions clipped to this quantile of training targets. ``---'' = global default ($q = 0.99$) or no hard ceiling. Clip max in \si{\microgrampeg}.}
+\end{table}
+
+\section{Classification Details}
+\label{app:classification-details}
+
+\begin{table}[H]
+\caption{DA risk categories used in DATect classification.}
+\label{tab:da-categories}
+\small
+\begin{tabular}{lcl}
+\toprule
+\textbf{Category} & \textbf{DA Range (\si{\microgrampeg})} & \textbf{Interpretation} \\
+\midrule
+Low      & 0--5   & Safe for harvest \\
+Moderate & 5--20  & Monitor closely \\
+High     & 20--40 & Elevated toxicity; closures likely \\
+Extreme  & $>$40  & Dangerous; immediate closure \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\caption{Per-category classification performance under leak-free validation ($n = 2{,}181$). The Low category achieves the highest reliability, while High and Extreme categories are limited by sample size. Overall accuracy 74.1\% (macro-average precision 0.593, recall 0.560, F1 0.573).}
+\label{tab:classification}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Category} & \textbf{DA Range} & $\boldsymbol{N}$ & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+Low      & 0--5 \si{\microgrampeg}  & 1{,}382 & 0.858 & 0.856 & 0.857 \\
+Moderate & 5--20 \si{\microgrampeg} & 523 & 0.573 & 0.625 & 0.598 \\
+High     & 20--40 \si{\microgrampeg} & 168 & 0.429 & 0.399 & 0.414 \\
+Extreme  & $\geq$40 \si{\microgrampeg}  & 108 & 0.513 & 0.361 & 0.424 \\
+\midrule
+\multicolumn{2}{l}{\textbf{Overall (macro)}} & \textbf{2,181} & \textbf{0.593} & \textbf{0.560} & \textbf{0.573} \\
+\multicolumn{2}{l}{Overall accuracy} & & \multicolumn{3}{r}{74.1\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\caption{Confusion matrix for four-category DA classification. Most errors occur between adjacent categories.}
+\label{tab:confusion}
+\small
+\begin{tabular}{l|rrrr}
+\toprule
+\textbf{Actual \textbackslash\ Predicted} & \textbf{Low} & \textbf{Moderate} & \textbf{High} & \textbf{Extreme} \\
+\midrule
+Low      & 1183 & 142 & 27 & 30 \\
+Moderate & 164  & 327 & 30 & 2 \\
+High     & 16   & 80  & 67 & 5 \\
+Extreme  & 15   & 22  & 32 & 39 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Component Ablation}
+\label{app:component-ablation}
+
+\begin{table}[H]
+\caption{Component ablation study showing the contribution of each DATect design choice. Each row removes one component from the full system. $\Delta R^2$ and $\Delta$MAE are relative to the baseline. Evaluated on the development set (seed = 42, $n = 1{,}177$); the held-out test set (seed = 123) was reserved for final reporting.}
+\label{tab:ablation}
+\small
+\begin{tabular}{lcccl}
+\toprule
+\textbf{Configuration} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} & \textbf{Notes} \\
+\midrule
+Full DATect (baseline)        & 0.414 & ---      & 6.38 & Current configuration (dev set) \\
+No per-site customization     & 0.256 & $-0.158$ & 6.69 & Largest impact \\
+No interpolated training      & 0.385 & $-0.029$ & 6.61 & Data augmentation effect \\
+No observation-order lags     & 0.413 & $-0.001$ & 6.39 & Minimal standalone impact \\
+No derived features           & 0.415 & $+0.001$ & 6.38 & Negligible impact \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Per-Site Hyperparameter Configuration}
 \label{app:hyperparams}
@@ -921,31 +871,13 @@ Additional temporal encodings (\texttt{quarter}, \texttt{is\_bloom\_season}, sin
 \label{fig:architecture}
 \end{figure}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.85\textwidth]{figures/fig3b_ml_pipeline.png}
-\caption{DATect ML forecasting pipeline. For each forecast point, an expanding window splits data chronologically and trains fresh models. Features include observation-order lags, rolling statistics, persistence indicators, and environmental variables. XGBoost and Random Forest regressors are blended with per-site tuned weights; a separate spike classifier provides risk categorization. Post-processing applies prediction clipping, confidence intervals (quantile regression + bootstrap), and threshold-based DA risk classification.}
-\label{fig:ml-pipeline}
-\end{figure}
-
 The DATect backend serves forecast requests, retrospective evaluation results, and visualization data (correlation heatmaps, sensitivity analyses, spectral analyses, feature importance rankings). A pre-computed cache system stores results from computationally intensive retrospective evaluations as JSON and Parquet files, with an optional Redis backend providing 100$\times$ faster cache reads for production deployments. The retrospective evaluation cache---encompassing all 2,181 validation points across 10 sites and 8 model configurations---was pre-computed on the University of Washington Hyak high-performance computing cluster (\textit{klone} partition, STF allocation). Because each test point requires training a fresh ensemble on its own chronological training subset, the per-anchor computation is embarrassingly parallel and well-suited to HPC execution; running the full retrospective evaluation sequentially on a laptop would require several days, whereas the Hyak cluster completes the computation in approximately 2--3 hours across parallel jobs.
 
 The system is containerized with Docker and deployed on Google Cloud Run, a serverless platform that scales to zero when idle and scales up to three concurrent instances under load. Cold start time is approximately 10--15 seconds. The deployment pipeline uses Google Cloud Build for continuous integration.
 
 \subsection*{Operational Modes}
 
-The dashboard supports two modes. In \textbf{real-time forecasting mode}, users select a target date and monitoring site; DATect trains a fresh model on all data up to the anchor date, returning a point prediction, 90\% confidence interval, risk category, and per-category probability distribution. In \textbf{retrospective analysis mode}, users select a model type and task to browse pre-computed validation results across all 2,181 test points, with interactive Plotly charts for scatter plots, confusion matrices, residual distributions, and time series overlays, filterable by site, date range, and DA risk category. Seven additional visualization types---including correlation heatmaps, sensitivity analyses, spectral density plots, SHAP-style feature waterfalls, and an interactive geographic map---are available for exploratory analysis.
-
-\begin{figure}[H]
-\centering
-\fbox{\parbox{0.75\textwidth}{\centering\vspace{5cm}
-\textbf{[PLACEHOLDER FIGURE]}\\[0.5em]
-Screenshot of the DATect web dashboard showing: (a) the configuration panel with site/model/date selectors, (b) a real-time forecast result with point prediction, confidence interval, and risk category, and (c) a retrospective scatter plot of predicted vs.\ actual DA values colored by site. \\[0.5em]
-\textit{Source: \texttt{http://localhost:3000} via \texttt{python3 run\_datect.py}}
-\vspace{1cm}}}
-\caption{DATect web dashboard interface. The dashboard provides both real-time forecasting (left panel) and retrospective analysis (right panel), with interactive Plotly charts that support filtering by site, model type, and date range.}
-\label{fig:dashboard}
-\end{figure}
+The dashboard supports two modes. In \textbf{real-time forecasting mode}, users select a target date and monitoring site; DATect trains a fresh model on all data up to the anchor date, returning a point prediction, 90\% confidence interval, risk category, and per-category probability distribution. In \textbf{retrospective analysis mode}, users select a model type and task to browse pre-computed validation results across all 2,181 test points, with interactive Plotly charts for scatter plots, confusion matrices, residual distributions, and time series overlays, filterable by site, date range, and DA risk category. Seven additional visualization types---including correlation heatmaps, sensitivity analyses, spectral density plots, SHAP-style feature waterfalls, and an interactive geographic map---are available for exploratory analysis. We omit a dashboard screenshot here because the manuscript no longer includes placeholder figures; the live interface is available through the deployed application and local development workflow described in the repository.
 
 
 \section{Individual Feature Ablation}
@@ -995,59 +927,18 @@ Full DATect (baseline) & 0.457 & --- & 6.15 & --- \\
 \section{Feature Importance Analysis}
 \label{app:feature-importance}
 
-Persistence and observation-order lag features consistently rank among the most important predictors across all sites, confirming the strong autocorrelation in DA time series. At high-skill Washington sites, environmental features (BEUTI, SST, PDO) contribute meaningful additional predictive power, while Oregon sites rely more heavily on persistence features. Note that high feature importance does not imply high marginal contribution: lag features rank highly because the model uses them extensively, but ablation shows they are largely redundant with \texttt{last\_observed\_da\_raw} ($\Delta R^2 = -0.001$; Table~\ref{tab:ablation}).
+Persistence and observation-order lag features consistently rank among the most important predictors across all sites, confirming the strong autocorrelation in DA time series. At high-skill Washington sites, environmental features such as BEUTI, SST, PDO, and Columbia River discharge contribute meaningful additional predictive power, while lower-skill Oregon sites rely more heavily on persistence-dominated history features. Importantly, high feature importance does not imply large marginal contribution: lag features rank highly because the model uses them often, but the component ablation indicates that much of this information overlaps with \texttt{last\_observed\_da\_raw} and rolling-history terms.
 
-Key patterns:
-\begin{itemize}[nosep]
-    \item \textbf{Persistence dominance}: \texttt{last\_observed\_da\_raw} and \texttt{da\_raw\_prev\_obs\_1} are the top features at most sites, reflecting slow DA depuration in razor clam tissue.
-    \item \textbf{Upwelling signal}: BEUTI ranks highly at coastal upwelling sites, consistent with the upwelling--DA relationship \cite{Trainer2020, McKibben2017}.
-    \item \textbf{Climate forcing}: Raw PDO and ONI indices rank in the top 15 features \cite{McKibben2017}. Derived climate features (PDO--ONI phase, MHW flag) were removed after ablation confirmed negligible contribution.
-    \item \textbf{Columbia River effect}: \texttt{discharge} ranks highly at northern Washington sites ($> 46.5$\textdegree\,N), consistent with the freshwater plume's influence on coastal stratification.
-\end{itemize}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.85\textwidth]{figures/fig5_feature_importance.png}
-\caption{Top 15 features by XGBoost gain importance, averaged across all 10 sites.}
-\label{fig:feature-importance}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{figures/fig6_feature_heatmap.png}
-\caption{Per-site feature importance heatmap.}
-\label{fig:feature-heatmap}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.85\textwidth]{figures/fig7_correlation_heatmap.png}
-\caption{Correlation heatmap for Twin Harbors ($R^2 = 0.594$).}
-\label{fig:correlation-heatmap}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{figures/fig4_waterfall_timeseries.png}
-\caption{Waterfall time series of DA concentrations across all 10 monitoring sites (2003--2024). Each site's trace is vertically offset by latitude, revealing spatiotemporal bloom patterns and cross-site coherence. Reference bars indicate DA = 20, 50, and 100~\si{\microgrampeg} for scale. Notable synchronized spikes are visible in 2003, 2015, and 2020--2021 across Washington sites.}
-\label{fig:waterfall}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.85\textwidth]{figures/fig8_spectral_density.png}
-\caption{Power spectral density of DA time series across all 10 sites (Welch method). A dominant annual peak ($\sim$52-week period) is visible at most sites, reflecting the seasonal bloom cycle driven by spring--summer upwelling. Washington sites show stronger annual periodicity, consistent with their higher forecast skill; Oregon sites exhibit flatter spectra, indicating less regular bloom timing.}
-\label{fig:spectral}
-\end{figure}
+Exploratory feature-importance, correlation, and spectral plots remain part of the repository figure-generation workflow, but they are omitted from the manuscript to keep the appendix focused on reproducibility tables and methods details rather than diagnostic panels.
 
 
 \section{Model Selection Robustness}
 \label{app:weight-robustness}
 
-Since DATect assigns each site a single model (XGBoost or Random Forest) based on development-set performance, weight robustness reduces to model-selection robustness: how sensitive are aggregate results to the per-site XGB vs.\ RF choice? Table~\ref{tab:weight-robustness} compares three strategies evaluated on the independent test set ($n = 2{,}181$, seed = 123). The oracle selects the better model per site using test-set performance itself and represents an unattainable upper bound.
+Since DATect assigns each site a single model (XGBoost or Random Forest) based on development-set performance, weight robustness reduces to model-selection robustness: how sensitive are aggregate results to the per-site XGB vs.\ RF choice? Table~\ref{tab:weight-robustness} compares three strategies evaluated on the held-out test set ($n = 2{,}181$, seed = 123). The oracle selects the better model per site using test-set performance itself and represents an unattainable upper bound.
 
 \begin{table}[H]
-\caption{Model selection robustness on the independent test set ($n = 2{,}181$, seed = 123). The oracle selects the better single model per site using test-set $R^2$ directly and represents an unattainable upper bound. Bootstrap 95\% CIs computed with $B = 10{,}000$ resamples.}
+\caption{Model selection robustness on the held-out test set ($n = 2{,}181$, seed = 123). The oracle selects the better single model per site using test-set $R^2$ directly and represents an unattainable upper bound. Bootstrap 95\% CIs computed with $B = 10{,}000$ resamples.}
 \label{tab:weight-robustness}
 \small
 \begin{tabular}{lccc}

@@ -6,16 +6,22 @@ Usage:
     python3 paper/generate_figures.py
 
 Reads from:
-    cache/retrospective/*.parquet     (seed=123 independent test set)
+    cache/retrospective/*.parquet     (seed=123 held-out test set; used where available)
     cache/spectral/all_sites.json     (power spectral density)
     cache/visualizations/*_correlation.json  (feature correlations)
     config.py                          (site coordinates)
 
+Notes:
+    Figure 2 and Figure 4 are manuscript-synced summary panels built from
+    paper-reported metrics/constants so they stay aligned with the final tables
+    even when the retrospective cache is unavailable locally.
+
 Outputs to:
     paper/figures/fig1_study_area.png
-    paper/figures/fig2_scatter_best_sites.png
+    paper/figures/fig2_site_performance.png
     paper/figures/fig3_architecture.png
     paper/figures/fig3b_ml_pipeline.png
+    paper/figures/fig4_spike_detection_summary.png
     paper/figures/fig4_waterfall_timeseries.png
     paper/figures/fig5_feature_importance.png
     paper/figures/fig6_feature_heatmap.png
@@ -36,7 +42,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 import seaborn as sns
-from sklearn.metrics import r2_score
 
 # Add project root to path for config import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -78,20 +83,21 @@ SITE_ORDER = [
 # Feature category colors for importance plots
 FEAT_CATEGORIES = {
     'persistence': ('#e67e22', [
-        'last_observed_da_raw', 'weeks_since_spike', 'last_da_raw_above_20',
+        'last_observed_da_raw', 'weeks_since_last_spike',
     ]),
     'lag': ('#f39c12', [
         'da_raw_prev_obs_1', 'da_raw_prev_obs_2', 'da_raw_prev_obs_3',
         'da_raw_prev_obs_4', 'da_raw_prev_obs_diff_1_2',
         'da_raw_prev_obs_2_weeks_ago', 'da_raw_prev_obs_3_weeks_ago',
+        'da_raw_prev_obs_4_weeks_ago',
     ]),
     'rolling': ('#d35400', [
-        'da_raw_rolling_mean_4wk', 'da_raw_rolling_max_4wk',
-        'da_raw_rolling_std_8wk', 'da_raw_rolling_max_8wk',
-        'da_raw_rolling_std_12wk', 'da_raw_rolling_max_12wk',
+        'raw_obs_roll_mean_4', 'raw_obs_roll_std_4', 'raw_obs_roll_max_4',
+        'raw_obs_roll_std_8', 'raw_obs_roll_max_8',
+        'raw_obs_roll_std_12', 'raw_obs_roll_max_12',
     ]),
     'satellite': ('#3498db', [
-        'sst', 'sst_anom', 'flh',
+        'modis-sst', 'sst-anom', 'flh',
     ]),
     'climate': ('#27ae60', [
         'beuti', 'pdo', 'oni', 'discharge',
@@ -217,53 +223,48 @@ def generate_fig1_study_area():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  FIGURE 2: Scatter — Predicted vs Actual DA (Best Sites)
+#  FIGURE 2: Per-Site Held-Out Performance
 # ═════════════════════════════════════════════════════════════════════════════
 
 def generate_fig2_scatter():
-    """Scatter plots of predicted vs actual DA for Copalis and Long Beach."""
-    df = load_ensemble_parquet()
+    """Per-site held-out R^2 plot supporting the WA/OR performance split."""
+    sites = [
+        'Copalis', 'Long Beach', 'Twin Harbors', 'Quinault', 'Kalaloch',
+        'Clatsop Beach', 'Gold Beach', 'Cannon Beach', 'Coos Bay', 'Newport',
+    ]
+    r2_values = np.array([0.789, 0.631, 0.594, 0.582, 0.480, 0.290, 0.041, -0.044, -0.039, -0.299])
+    n_values = [277, 209, 225, 181, 235, 354, 257, 116, 109, 218]
+    colors = ['#2874a6' if site in SITE_ORDER[:5] else '#c0392b' for site in sites]
 
-    fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
+    y_pos = np.arange(len(sites))
+    fig, ax = plt.subplots(figsize=(7.2, 4.6))
+    ax.axvline(0, color='#777777', linewidth=0.8, linestyle='--', alpha=0.7)
+    ax.hlines(y_pos, 0, r2_values, color=colors, linewidth=2.2, alpha=0.85)
+    ax.scatter(r2_values, y_pos, s=50, color=colors, edgecolor='white', linewidth=0.8, zorder=3)
 
-    for ax, site in zip(axes, ['Copalis', 'Long Beach']):
-        site_df = df[df['site'] == site].copy()
-        actual = site_df['actual_da'].values
-        predicted = site_df['predicted_da'].values
-        categories = site_df['actual_category'].values
-        r2 = r2_score(actual, predicted)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(sites, fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xlabel(r'Held-out $R^2$')
+    ax.set_title('Per-site held-out regression performance')
+    ax.set_xlim(-0.4, 0.85)
+    ax.xaxis.grid(True, alpha=0.25)
+    ax.set_axisbelow(True)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
-        # Plot by category
-        for cat in sorted(site_df['actual_category'].unique()):
-            mask = categories == cat
-            ax.scatter(actual[mask], predicted[mask],
-                       c=CAT_COLORS[cat], s=18, alpha=0.6,
-                       edgecolors='white', linewidths=0.3,
-                       label=CAT_NAMES[cat], zorder=3)
+    for x, y, n, color in zip(r2_values, y_pos, n_values, colors):
+        offset = 0.03 if x >= 0 else -0.03
+        ha = 'left' if x >= 0 else 'right'
+        ax.text(x + offset, y, f'n={n}', va='center', ha=ha, fontsize=7, color=color)
 
-        # Perfect prediction line
-        max_val = max(actual.max(), predicted.max()) * 1.05
-        ax.plot([0, max_val], [0, max_val], 'k--', linewidth=0.8, alpha=0.5,
-                label='$y = x$', zorder=2)
+    wa_patch = mpatches.Patch(color='#2874a6', label='Washington')
+    or_patch = mpatches.Patch(color='#c0392b', label='Oregon')
+    ax.legend(handles=[wa_patch, or_patch], loc='lower right', fontsize=7,
+              framealpha=0.9, edgecolor='#cccccc')
 
-        # 20 µg/g threshold lines
-        ax.axhline(y=20, color='red', linewidth=0.5, linestyle=':', alpha=0.5)
-        ax.axvline(x=20, color='red', linewidth=0.5, linestyle=':', alpha=0.5)
-
-        ax.set_xlim(0, max_val)
-        ax.set_ylim(0, max_val)
-        ax.set_xlabel('Actual DA (µg/g)')
-        ax.set_ylabel('Predicted DA (µg/g)')
-        ax.set_title(f'{site} ($R^2 = {r2:.3f}$, $n = {len(site_df)}$)')
-        ax.set_aspect('equal')
-
-    # Single legend for both panels
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='lower center', ncol=5, fontsize=7,
-               bbox_to_anchor=(0.5, -0.02), frameon=True, edgecolor='#cccccc')
-
-    fig.tight_layout(rect=[0, 0.06, 1, 1])
-    outpath = os.path.join(OUTDIR, 'fig2_scatter_best_sites.png')
+    fig.tight_layout()
+    outpath = os.path.join(OUTDIR, 'fig2_site_performance.png')
     fig.savefig(outpath)
     plt.close(fig)
     print(f"  Saved: {outpath}")
@@ -504,6 +505,53 @@ def generate_fig3b_ml_pipeline():
     outpath = os.path.join(OUTDIR, 'fig3b_ml_pipeline')
     dot.render(outpath, cleanup=True)
     print(f"  Saved: {outpath}.png")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  FIGURE 4: Spike Detection Summary
+# ═════════════════════════════════════════════════════════════════════════════
+
+def generate_fig4_spike_summary():
+    """Bar-chart summary of held-out spike-detection performance."""
+    approaches = ["Naive", "Regression\n(>=20)", "Spike\nclassifier"]
+    transition_recall = np.array([0.236, 0.124, 0.652])
+    spike_recall = np.array([0.754, 0.558, 0.815])
+    precision = np.array([0.546, 0.618, 0.339])
+    colors = ['#7f8c8d', '#2874a6', '#c0392b']
+
+    fig, axes = plt.subplots(1, 3, figsize=(8.4, 3.2), sharey=False)
+    metrics = [
+        ("Transition recall", transition_recall, "Below-to-above threshold"),
+        ("Spike recall", spike_recall, "All DA >= 20 ug/g events"),
+        ("Precision", precision, "Fraction of alerts that were spikes"),
+    ]
+
+    for ax, (title, values, subtitle) in zip(axes, metrics):
+        bars = ax.bar(approaches, values, color=colors, edgecolor='white', linewidth=0.7)
+        ax.set_ylim(0, 0.9)
+        ax.set_title(title, fontsize=10)
+        ax.text(0.5, 1.02, subtitle, transform=ax.transAxes,
+                ha='center', va='bottom', fontsize=7, color='#555555')
+        ax.tick_params(axis='x', labelsize=7)
+        ax.tick_params(axis='y', labelsize=8)
+        ax.set_axisbelow(True)
+        ax.yaxis.grid(True, alpha=0.25)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        for bar, value in zip(bars, values):
+            ax.text(bar.get_x() + bar.get_width() / 2, value + 0.02,
+                    f"{value:.3f}", ha='center', va='bottom', fontsize=7)
+
+    fig.suptitle(
+        'Held-out spike-detection summary (seed=123, n=2,181, transitions=89)',
+        fontsize=10,
+        y=1.03,
+    )
+    fig.tight_layout()
+    outpath = os.path.join(OUTDIR, 'fig4_spike_detection_summary.png')
+    fig.savefig(outpath)
+    plt.close(fig)
+    print(f"  Saved: {outpath}")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -834,10 +882,11 @@ def main():
 
     generators = [
         ("Figure 1: Study Area Map", generate_fig1_study_area),
-        ("Figure 2: Scatter (Copalis, Long Beach)", generate_fig2_scatter),
+        ("Figure 2: Per-Site Performance", generate_fig2_scatter),
         ("Figure 3a: System Architecture", generate_fig3_architecture),
         ("Figure 3b: ML Pipeline Detail", generate_fig3b_ml_pipeline),
-        ("Figure 4: Waterfall Time Series", generate_fig4_waterfall),
+        ("Figure 4: Spike Detection Summary", generate_fig4_spike_summary),
+        ("Appendix Figure: Waterfall Time Series", generate_fig4_waterfall),
         ("Figure 5: Feature Importance (Top 15)", generate_fig5_feature_importance),
         ("Figure 6: Feature Importance Heatmap", generate_fig6_feature_heatmap),
         ("Figure 7: Correlation Heatmap (Twin Harbors)", generate_fig7_correlation),

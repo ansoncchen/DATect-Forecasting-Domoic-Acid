@@ -309,6 +309,117 @@ def compute_classification_table(actual: np.ndarray, predicted: np.ndarray) -> p
 
 
 # ---------------------------------------------------------------------------
+# Spike / hybrid helpers
+# ---------------------------------------------------------------------------
+
+def _binary_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    return {
+        "precision": float(precision_score(y_true, y_pred, zero_division=0)),
+        "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+        "f1": float(f1_score(y_true, y_pred, zero_division=0)),
+        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "n_positive": int(y_true.sum()),
+        "n_total": int(len(y_true)),
+    }
+
+
+def _transition_labels(values: np.ndarray, threshold: float) -> np.ndarray:
+    """
+    Label below->above threshold transitions for consecutive points within each site.
+    values should already be sorted by date within a site.
+    """
+    is_spike = values >= threshold
+    transitions = np.zeros_like(is_spike, dtype=int)
+    if len(values) < 2:
+        return transitions
+    transitions[1:] = ((~is_spike[:-1]) & is_spike[1:]).astype(int)
+    return transitions
+
+
+def compute_spike_tables(
+    ensemble_raw_df: pd.DataFrame,
+    spike_threshold: float = 20.0,
+    reg_alert_threshold: float = 12.0,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Build event-level and transition-level spike metrics for:
+      - regression@20
+      - classifier probability
+      - hybrid alert
+    """
+    df = ensemble_raw_df.copy()
+    if "date" not in df.columns and "test_date" in df.columns:
+        df = df.rename(columns={"test_date": "date"})
+    df = df.dropna(subset=["actual_da", "predicted_da"]).copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["site", "date"]).reset_index(drop=True)
+
+    y_event = (df["actual_da"].values.astype(float) >= spike_threshold).astype(int)
+
+    reg_pred = (df["predicted_da"].values.astype(float) >= spike_threshold).astype(int)
+    cls_pred = np.zeros(len(df), dtype=int)
+    if "spike_probability" in df.columns:
+        if "spike_prob_threshold" in df.columns:
+            cls_pred = (df["spike_probability"].fillna(0).values >= df["spike_prob_threshold"].fillna(0.10).values).astype(int)
+        else:
+            cls_pred = (df["spike_probability"].fillna(0).values >= 0.10).astype(int)
+    hybrid_pred = np.maximum(
+        (df["predicted_da"].values.astype(float) >= reg_alert_threshold).astype(int),
+        cls_pred,
+    )
+    if "spike_alert" in df.columns:
+        hybrid_pred = df["spike_alert"].fillna(False).astype(int).values
+
+    event_rows = []
+    for name, pred in [
+        ("regression@20", reg_pred),
+        ("classifier", cls_pred),
+        ("hybrid", hybrid_pred),
+    ]:
+        row = {"model": name}
+        row.update(_binary_metrics(y_event, pred))
+        event_rows.append(row)
+    event_df = pd.DataFrame(event_rows)
+
+    # Transition labels are built per-site to respect chronology.
+    trans_true = np.zeros(len(df), dtype=int)
+    trans_reg = np.zeros(len(df), dtype=int)
+    trans_cls = np.zeros(len(df), dtype=int)
+    trans_hyb = np.zeros(len(df), dtype=int)
+    for _, site_df in df.groupby("site", sort=False):
+        idx = site_df.index.values
+        trans_true[idx] = _transition_labels(site_df["actual_da"].values.astype(float), spike_threshold)
+        trans_reg[idx] = _transition_labels(site_df["predicted_da"].values.astype(float), spike_threshold)
+        if "spike_probability" in site_df.columns:
+            if "spike_prob_threshold" in site_df.columns:
+                p_cls = (site_df["spike_probability"].fillna(0).values >= site_df["spike_prob_threshold"].fillna(0.10).values).astype(float)
+            else:
+                p_cls = (site_df["spike_probability"].fillna(0).values >= 0.10).astype(float)
+            trans_cls[idx] = _transition_labels(p_cls, 0.5)
+        if "spike_alert" in site_df.columns:
+            p_hyb = site_df["spike_alert"].fillna(False).astype(float).values
+        else:
+            p_hyb = np.maximum(
+                (site_df["predicted_da"].values.astype(float) >= reg_alert_threshold).astype(float),
+                (site_df.get("spike_probability", pd.Series(0, index=site_df.index)).fillna(0).values >= 0.10).astype(float),
+            )
+        trans_hyb[idx] = _transition_labels(p_hyb, 0.5)
+
+    transition_rows = []
+    for name, pred in [
+        ("regression@20", trans_reg),
+        ("classifier", trans_cls),
+        ("hybrid", trans_hyb),
+    ]:
+        row = {"model": name}
+        row.update(_binary_metrics(trans_true, pred))
+        transition_rows.append(row)
+    transition_df = pd.DataFrame(transition_rows)
+
+    return event_df, transition_df
+
+
+# ---------------------------------------------------------------------------
 # Pretty-print helpers
 # ---------------------------------------------------------------------------
 
@@ -576,10 +687,39 @@ def main():
               f"F1={row.get('f1', 'n/a')!r}")
 
     # -----------------------------------------------------------------------
-    # Step 5: Appendix — Weight robustness comparison
+    # Step 5: Spike and hybrid metrics (event + transition)
     # -----------------------------------------------------------------------
     print("\n" + "=" * 60)
-    print("STEP 5: Weight robustness comparison (Appendix)")
+    print("STEP 5: Computing spike and hybrid metrics")
+    print("=" * 60)
+    ensemble_raw_df = load_or_run_retro(
+        run_key="xgb",
+        retro_dir=retro_dir,
+        seed=seed,
+        sample_fraction=sample_fraction,
+        force_rerun=force_rerun,
+    )
+    if ensemble_raw_df is None or ensemble_raw_df.empty:
+        print("  WARNING: could not load raw ensemble run for spike metrics.")
+        spike_event_df = pd.DataFrame()
+        spike_transition_df = pd.DataFrame()
+    else:
+        import config as cfg
+        spike_event_df, spike_transition_df = compute_spike_tables(
+            ensemble_raw_df,
+            spike_threshold=getattr(cfg, "SPIKE_THRESHOLD", 20.0),
+            reg_alert_threshold=getattr(cfg, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0),
+        )
+        print("  Event-level spike metrics:")
+        print(spike_event_df.to_string(index=False))
+        print("\n  Transition-level spike metrics:")
+        print(spike_transition_df.to_string(index=False))
+
+    # -----------------------------------------------------------------------
+    # Step 6: Appendix — Weight robustness comparison
+    # -----------------------------------------------------------------------
+    print("\n" + "=" * 60)
+    print("STEP 6: Weight robustness comparison (Appendix)")
     print("=" * 60)
 
     # For now, only the 'manual' strategy (current per_site_models.py weights)
@@ -640,13 +780,23 @@ def main():
     t1_path = os.path.join(output_dir, "table1_model_comparison.csv")
     t2_path = os.path.join(output_dir, "table2_per_site.csv")
     t3_path = os.path.join(output_dir, "table3_classification.csv")
+    t4a_path = os.path.join(output_dir, "table4_spike_event_metrics.csv")
+    t4b_path = os.path.join(output_dir, "table4_spike_transition_metrics.csv")
 
     table1_df.to_csv(t1_path, index=False)
     table2_df.to_csv(t2_path, index=False)
     table3_df.to_csv(t3_path, index=False)
+    if not spike_event_df.empty:
+        spike_event_df.to_csv(t4a_path, index=False)
+    if not spike_transition_df.empty:
+        spike_transition_df.to_csv(t4b_path, index=False)
     print(f"  Saved {t1_path}")
     print(f"  Saved {t2_path}")
     print(f"  Saved {t3_path}")
+    if not spike_event_df.empty:
+        print(f"  Saved {t4a_path}")
+    if not spike_transition_df.empty:
+        print(f"  Saved {t4b_path}")
 
     # JSON with all values including CIs
     def _safe(v):
@@ -689,6 +839,8 @@ def main():
         "table1_delta_r2_vs_ensemble": delta_r2_serializable,
         "table2_per_site": _df_to_records(table2_df),
         "table3_classification": _df_to_records(table3_df),
+        "table4_spike_event_metrics": _df_to_records(spike_event_df) if not spike_event_df.empty else [],
+        "table4_spike_transition_metrics": _df_to_records(spike_transition_df) if not spike_transition_df.empty else [],
         "appendix_weight_robustness": _df_to_records(appendix_df),
     }
 

@@ -26,6 +26,8 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import f1_score
 from sklearn.utils.class_weight import compute_class_weight
 
 import config
@@ -149,6 +151,7 @@ class ClassificationAdapter:
         y_da_raw: pd.Series,
         spike_threshold: float = 20.0,
         site: Optional[str] = None,
+        site_labels: Optional[pd.Series] = None,
     ) -> Optional[dict]:
         """
         Train a binary XGBoost classifier for spike detection.
@@ -163,7 +166,8 @@ class ClassificationAdapter:
 
         Returns
         -------
-        dict with keys ``model``, ``columns`` (features used), or None.
+        dict with keys ``model``, ``columns``, and optional calibration
+        metadata, or None.
         """
         # Binary target from raw DA values
         y_spike = (y_da_raw >= spike_threshold).astype(int)
@@ -187,6 +191,10 @@ class ClassificationAdapter:
         cols_to_drop = [c for c in leaky_cols if c in X_safe.columns]
         if cols_to_drop:
             X_safe = X_safe.drop(columns=cols_to_drop)
+        if site_labels is not None:
+            site_safe = site_labels.loc[safe_mask]
+        else:
+            site_safe = None
 
         # Need at least 2 classes and minimum samples
         if len(y_safe) < 10 or y_safe.nunique() < 2:
@@ -221,7 +229,74 @@ class ClassificationAdapter:
             logger.warning("Spike binary classifier training failed: %s", exc)
             return None
 
-        return {"model": model, "columns": list(X_safe.columns)}
+        out = {
+            "model": model,
+            "columns": list(X_safe.columns),
+            "prob_threshold": float(getattr(config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10)),
+            "site_prob_thresholds": {},
+        }
+
+        # Optional in-sample probability calibration (Platt scaling).
+        method = str(getattr(config, "SPIKE_CALIBRATION_METHOD", "none")).lower()
+        if method == "platt":
+            try:
+                raw_scores = model.predict_proba(X_safe)
+                if raw_scores.shape[1] > 1:
+                    score_col = raw_scores[:, 1].reshape(-1, 1)
+                    calibrator = LogisticRegression(
+                        C=1.0,
+                        random_state=config.RANDOM_SEED,
+                        max_iter=500,
+                    )
+                    calibrator.fit(score_col, y_safe.values)
+                    out["prob_calibrator"] = calibrator
+            except Exception as exc:
+                logger.debug("Spike probability calibration skipped: %s", exc)
+
+        # Global operating threshold optimized for balanced F1.
+        try:
+            raw_scores = model.predict_proba(X_safe)
+            if raw_scores.shape[1] > 1:
+                probs = pd.Series(raw_scores[:, 1].astype(float), index=X_safe.index)
+                if "prob_calibrator" in out:
+                    calibrated = out["prob_calibrator"].predict_proba(
+                        probs.values.reshape(-1, 1)
+                    )[:, 1]
+                    probs = pd.Series(calibrated, index=probs.index)
+                candidate_thresholds = np.linspace(0.05, 0.95, 19)
+                best_thr = out["prob_threshold"]
+                best_f1 = -1.0
+                for thr in candidate_thresholds:
+                    pred = (probs.values >= thr).astype(int)
+                    cur_f1 = f1_score(y_safe.values, pred, zero_division=0)
+                    if cur_f1 > best_f1:
+                        best_f1 = cur_f1
+                        best_thr = float(thr)
+                out["prob_threshold"] = best_thr
+
+                # Site-specific thresholds when enough site samples exist.
+                min_site = int(getattr(config, "SPIKE_SITE_THRESHOLD_MIN_SAMPLES", 25))
+                if site_safe is not None:
+                    site_thresholds = {}
+                    for site_name, idx in site_safe.groupby(site_safe).groups.items():
+                        y_site = y_safe.loc[idx].values
+                        if len(y_site) < min_site or len(np.unique(y_site)) < 2:
+                            continue
+                        p_site = probs.loc[idx].values
+                        s_best_thr = out["prob_threshold"]
+                        s_best_f1 = -1.0
+                        for thr in candidate_thresholds:
+                            pred = (p_site >= thr).astype(int)
+                            cur_f1 = f1_score(y_site, pred, zero_division=0)
+                            if cur_f1 > s_best_f1:
+                                s_best_f1 = cur_f1
+                                s_best_thr = float(thr)
+                        site_thresholds[str(site_name)] = float(s_best_thr)
+                    out["site_prob_thresholds"] = site_thresholds
+        except Exception as exc:
+            logger.debug("Spike threshold calibration skipped: %s", exc)
+
+        return out
 
     def predict_spike_probability(
         self,
@@ -241,7 +316,14 @@ class ClassificationAdapter:
         # Class 1 = spike; handle case where model only saw one class
         if proba.shape[1] == 1:
             return 0.0
-        return float(proba[0, 1])
+        p1 = float(proba[0, 1])
+        calibrator = spike_result.get("prob_calibrator")
+        if calibrator is not None:
+            try:
+                return float(calibrator.predict_proba(np.array([[p1]], dtype=float))[0, 1])
+            except Exception:
+                return p1
+        return p1
 
     def predict_with_probabilities(
         self,

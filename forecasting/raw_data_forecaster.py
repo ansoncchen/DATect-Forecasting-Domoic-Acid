@@ -164,6 +164,24 @@ def build_raw_feature_frame(
                 rolling_group.max().reset_index(level=0, drop=True)
             )
 
+        # Regime features: past-only volatility/spike context for dynamic models.
+        # These use shifted histories, so they remain leak-free.
+        if "raw_obs_roll_std_4" in merged.columns and "raw_obs_roll_mean_4" in merged.columns:
+            denom = merged["raw_obs_roll_mean_4"].abs() + 1.0
+            merged["raw_obs_volatility_ratio_4"] = merged["raw_obs_roll_std_4"] / denom
+        if "da_raw" in merged.columns:
+            shifted_spike = (
+                (merged["da_raw"] > config.SPIKE_THRESHOLD)
+                .astype(float)
+                .groupby(merged["site"])
+                .shift(1)
+                .fillna(0.0)
+            )
+            merged["recent_spike_rate_12"] = (
+                shifted_spike.groupby(merged["site"]).rolling(12, min_periods=1).mean()
+                .reset_index(level=0, drop=True)
+            )
+
     processor = DataProcessor()
     merged = processor.create_raw_lag_features(
         merged, group_col="site", value_col="da_raw", lags=list(cfg.lags)

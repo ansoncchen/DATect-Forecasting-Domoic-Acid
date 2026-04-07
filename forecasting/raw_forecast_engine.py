@@ -18,7 +18,7 @@ import os
 import random
 import warnings
 from collections import defaultdict
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -162,7 +162,7 @@ class RawForecastEngine:
         self,
         feature_frame: pd.DataFrame,
         anchor_date: pd.Timestamp,
-    ) -> tuple[Optional[pd.DataFrame], Optional[pd.Series]]:
+    ) -> tuple[Optional[pd.DataFrame], Optional[pd.Series], Optional[pd.Series]]:
         """Build pooled ALL-SITE training data for the spike binary classifier.
 
         Uses data from every site up to *anchor_date* (temporal integrity),
@@ -170,7 +170,7 @@ class RawForecastEngine:
         feature selection is applied — the spike classifier gets a uniform
         feature set across all sites.
 
-        Returns (X_pooled, y_da_raw) or (None, None) if insufficient data.
+        Returns (X_pooled, y_da_raw, site_labels) or (None, None, None) if insufficient data.
         """
         anchor_date = pd.Timestamp(anchor_date)
         all_train = feature_frame[feature_frame["date"] <= anchor_date].copy()
@@ -178,11 +178,12 @@ class RawForecastEngine:
         # Only real measurements — can't define "spike" from interpolated DA
         all_train = all_train[all_train["da_raw"].notna()].copy()
         if len(all_train) < 30:
-            return None, None
+            return None, None, None
 
         all_train = add_temporal_features(all_train)
 
         y_raw = all_train["da_raw"].astype(float).copy()
+        site_labels = all_train["site"].astype(str).copy()
 
         # Standard drops: meta cols + zero-importance features
         # NO per-site drops — spike classifier uses uniform features
@@ -194,7 +195,116 @@ class RawForecastEngine:
         transformer, X_pooled = create_transformer(all_train, drop_cols)
         X_pooled = transformer.fit_transform(X_pooled)
 
-        return X_pooled, y_raw
+        return X_pooled, y_raw, site_labels
+
+    def _compute_sample_weights(self, train_data: pd.DataFrame) -> np.ndarray:
+        """Compute leak-safe per-row sample weights for regression models."""
+        weights = np.ones(len(train_data), dtype=float)
+        if len(train_data) == 0:
+            return weights
+        if not getattr(config, "ENABLE_GAP_AWARE_SAMPLE_WEIGHTS", False):
+            return weights
+
+        try:
+            if "date" in train_data.columns:
+                date_vals = pd.to_datetime(train_data["date"])
+                gap_days = date_vals.diff().dt.days.fillna(7.0).clip(lower=1.0)
+                decay = float(getattr(config, "GAP_WEIGHT_DECAY", 0.08))
+                gap_weight = np.exp(-decay * np.maximum(gap_days.values - 7.0, 0.0))
+                weights *= gap_weight
+
+            if "_is_interpolated" in train_data.columns:
+                interp_w = float(getattr(config, "INTERPOLATED_SAMPLE_WEIGHT", 0.70))
+                site_name = str(train_data["site"].iloc[0]) if "site" in train_data.columns and not train_data.empty else None
+                site_overrides = getattr(config, "SITE_INTERPOLATED_WEIGHT_OVERRIDES", {})
+                if site_name and site_name in site_overrides:
+                    interp_w = float(site_overrides[site_name])
+                is_interp = train_data["_is_interpolated"].fillna(False).values.astype(bool)
+                weights[is_interp] *= interp_w
+
+            weights = np.clip(weights, 0.1, 1.0)
+        except Exception as exc:
+            logger.debug("Sample weight computation failed: %s", exc)
+            return np.ones(len(train_data), dtype=float)
+        return weights
+
+    def _compute_dynamic_ensemble_weights(
+        self,
+        site: str,
+        train_data: pd.DataFrame,
+        y_train: pd.Series,
+        xgb_model,
+        rf_model,
+        X_train_processed,
+    ) -> Tuple[float, float, float]:
+        """Derive per-anchor XGB/RF weights from recent pre-anchor fit quality."""
+        site_w = get_site_ensemble_weights(site)
+        if not getattr(config, "ENABLE_DYNAMIC_ENSEMBLE_GATING", False):
+            return site_w
+        if rf_model is None:
+            return site_w
+        try:
+            recent_n = int(getattr(config, "DYNAMIC_GATING_RECENT_ROWS", 64))
+            alpha = float(getattr(config, "DYNAMIC_GATING_BLEND_ALPHA", 0.70))
+            n_rows = len(y_train)
+            if n_rows < 20:
+                return site_w
+            start = max(0, n_rows - recent_n)
+            y_recent = y_train.iloc[start:].values.astype(float)
+
+            xgb_fit = np.asarray(xgb_model.predict(X_train_processed))[start:].astype(float)
+            rf_fit = np.asarray(rf_model.predict(X_train_processed))[start:].astype(float)
+            xgb_mae = float(np.mean(np.abs(y_recent - xgb_fit)))
+            rf_mae = float(np.mean(np.abs(y_recent - rf_fit)))
+            inv_xgb = 1.0 / max(xgb_mae, 1e-6)
+            inv_rf = 1.0 / max(rf_mae, 1e-6)
+            dyn_xgb = inv_xgb / (inv_xgb + inv_rf)
+            dyn_rf = 1.0 - dyn_xgb
+
+            base_xgb, base_rf, base_naive = site_w
+            mixed_xgb = (1.0 - alpha) * base_xgb + alpha * dyn_xgb
+            mixed_rf = (1.0 - alpha) * base_rf + alpha * dyn_rf
+            norm = mixed_xgb + mixed_rf
+            if norm <= 0:
+                return site_w
+            return (float(mixed_xgb / norm), float(mixed_rf / norm), float(base_naive))
+        except Exception as exc:
+            logger.debug("Dynamic gating fallback to static weights: %s", exc)
+            return site_w
+
+    def _apply_residual_correction(
+        self,
+        prediction: float,
+        train_data: pd.DataFrame,
+    ) -> tuple[float, float]:
+        """Apply a decayed recent residual correction from pre-anchor history."""
+        if not getattr(config, "ENABLE_RESIDUAL_CORRECTION", False):
+            return float(prediction), 0.0
+        if train_data is None or train_data.empty or "da_raw" not in train_data.columns:
+            return float(prediction), 0.0
+        if "last_observed_da_raw" not in train_data.columns:
+            return float(prediction), 0.0
+        try:
+            n_recent = int(getattr(config, "RESIDUAL_CORRECTION_RECENT_ROWS", 80))
+            decay = float(getattr(config, "RESIDUAL_CORRECTION_DECAY", 0.03))
+            max_abs = float(getattr(config, "RESIDUAL_CORRECTION_MAX_ABS", 8.0))
+
+            resid_series = (
+                train_data["da_raw"].astype(float)
+                - train_data["last_observed_da_raw"].astype(float)
+            )
+            resid_series = resid_series.replace([np.inf, -np.inf], np.nan).dropna()
+            if resid_series.empty:
+                return float(prediction), 0.0
+            resid_series = resid_series.iloc[-n_recent:]
+            # Exponential decay: newer residuals carry more weight.
+            weights = np.exp(-decay * np.arange(len(resid_series) - 1, -1, -1))
+            correction = float(np.average(resid_series.values, weights=weights))
+            correction = float(np.clip(correction, -max_abs, max_abs))
+            return float(prediction + correction), correction
+        except Exception as exc:
+            logger.debug("Residual correction skipped: %s", exc)
+            return float(prediction), 0.0
 
     # ------------------------------------------------------------------
     # Single forecast (realtime)
@@ -294,6 +404,7 @@ class RawForecastEngine:
         try:
             transformer, X_train = create_transformer(train_data, drop_cols)
             y_train = train_data["da_raw"].astype(float).copy()
+            sample_weights = self._compute_sample_weights(train_data)
 
             X_train_processed = transformer.fit_transform(X_train)
 
@@ -332,7 +443,7 @@ class RawForecastEngine:
             xgb_params = apply_site_xgb_params(xgb_params, site)
 
         xgb_model = build_xgb_regressor(xgb_params)
-        xgb_model.fit(X_train_processed, y_train)
+        xgb_model.fit(X_train_processed, y_train, sample_weight=sample_weights)
         xgb_raw = float(xgb_model.predict(X_test_processed)[0])
         xgb_prediction = _postprocess(xgb_raw)
 
@@ -341,7 +452,7 @@ class RawForecastEngine:
         if use_per_site:
             rf_params = apply_site_rf_params(rf_params, site)
         rf_model = build_rf_regressor(rf_params)
-        rf_model.fit(X_train_processed, y_train)
+        rf_model.fit(X_train_processed, y_train, sample_weight=sample_weights)
         rf_raw = float(rf_model.predict(X_test_processed)[0])
         rf_prediction = _postprocess(rf_raw)
 
@@ -367,12 +478,18 @@ class RawForecastEngine:
                 linear_prediction = None
 
         # --- Ensemble blend ---
-        w_xgb, w_rf, w_naive = get_site_ensemble_weights(site)
+        w_xgb, w_rf, w_naive = self._compute_dynamic_ensemble_weights(
+            site, train_data, y_train, xgb_model, rf_model, X_train_processed
+        )
         ensemble_prediction = (
             w_xgb * xgb_prediction
             + w_rf * rf_prediction
             + w_naive * naive_prediction
         )
+        corrected_ensemble, residual_correction = self._apply_residual_correction(
+            ensemble_prediction, train_data
+        )
+        ensemble_prediction = _postprocess(corrected_ensemble)
 
         # Choose which prediction to expose as primary
         if model_type in ("ensemble", "threshold"):
@@ -419,6 +536,7 @@ class RawForecastEngine:
             "rf_prediction": float(rf_prediction),
             "ensemble_prediction": float(ensemble_prediction),
             "ensemble_weights": [float(w_xgb), float(w_rf), float(w_naive)],
+            "residual_correction": float(residual_correction),
         }
 
         # --- Quantile / bootstrap confidence intervals ---
@@ -492,7 +610,7 @@ class RawForecastEngine:
         # --- Spike binary classifier (pooled cross-site training) ---
         if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
             try:
-                X_pooled, y_pooled = self._build_pooled_spike_data(
+                X_pooled, y_pooled, pooled_sites = self._build_pooled_spike_data(
                     feature_frame, anchor_date,
                 )
                 if X_pooled is not None:
@@ -502,6 +620,7 @@ class RawForecastEngine:
                             y_pooled,
                             spike_threshold=config.SPIKE_THRESHOLD,
                             site=site,
+                            site_labels=pooled_sites,
                         )
                     )
                     if spike_result is not None:
@@ -511,13 +630,22 @@ class RawForecastEngine:
                             )
                         )
                         result["spike_probability"] = spike_prob
-                        classifier_fires = spike_prob >= getattr(
-                            config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
+                        site_prob_thresholds = spike_result.get("site_prob_thresholds", {})
+                        prob_threshold = float(
+                            site_prob_thresholds.get(
+                                str(site),
+                                spike_result.get(
+                                    "prob_threshold",
+                                    getattr(config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10),
+                                ),
+                            )
                         )
+                        classifier_fires = spike_prob >= prob_threshold
                         regression_fires = primary_prediction >= getattr(
                             config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0
                         )
                         result["spike_alert"] = classifier_fires or regression_fires
+                        result["spike_prob_threshold"] = prob_threshold
             except Exception as exc:
                 logger.debug("Spike classifier failed: %s", exc)
 
@@ -831,6 +959,7 @@ class RawForecastEngine:
             not results_df.empty
             and "predicted_da" in results_df.columns
             and "naive_prediction" in results_df.columns
+            and "ensemble_prediction" not in results_df.columns
         ):
             if use_per_site:
                 ens = []
@@ -1053,6 +1182,7 @@ class RawForecastEngine:
         try:
             transformer, X_train = create_transformer(train_data, drop_cols)
             y_train = train_data["da_raw"].astype(float).copy()
+            sample_weights = self._compute_sample_weights(train_data)
 
             X_train_processed = transformer.fit_transform(X_train)
 
@@ -1082,19 +1212,20 @@ class RawForecastEngine:
 
         # XGBoost
         xgb_model = build_xgb_regressor(model_params)
-        xgb_model.fit(X_train_processed, y_train)
+        xgb_model.fit(X_train_processed, y_train, sample_weight=sample_weights)
         xgb_raw = float(xgb_model.predict(X_test_processed)[0])
         prediction = _postprocess(xgb_raw)
 
         # Random Forest
         rf_prediction = None
+        rf_model = None
         if not skip_rf:
             try:
                 rf_base = dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
                 if use_per_site:
                     rf_base = apply_site_rf_params(rf_base, site)
                 rf_model = build_rf_regressor(rf_base)
-                rf_model.fit(X_train_processed, y_train)
+                rf_model.fit(X_train_processed, y_train, sample_weight=sample_weights)
                 rf_raw = float(rf_model.predict(X_test_processed)[0])
                 rf_prediction = _postprocess(rf_raw)
             except Exception:
@@ -1168,12 +1299,26 @@ class RawForecastEngine:
             except Exception:
                 pass
 
+        # Dynamic ensemble blend used for spike fallback + retrospective output.
+        w_xgb, w_rf, w_naive = self._compute_dynamic_ensemble_weights(
+            site, train_data, y_train, xgb_model, rf_model, X_train_processed
+        )
+        rf_val = rf_prediction if rf_prediction is not None else prediction
+        ensemble_pred = (
+            w_xgb * prediction + w_rf * rf_val + w_naive * float(naive_prediction)
+        )
+        corrected_ensemble, residual_correction = self._apply_residual_correction(
+            ensemble_pred, train_data
+        )
+        ensemble_pred = _postprocess(corrected_ensemble)
+
         # Spike binary classifier (pooled cross-site training)
         spike_prob = None
         spike_alert = None
+        spike_prob_threshold = float(getattr(config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10))
         if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
             try:
-                X_pooled, y_pooled = self._build_pooled_spike_data(
+                X_pooled, y_pooled, pooled_sites = self._build_pooled_spike_data(
                     feature_frame, anchor_date,
                 )
                 if X_pooled is not None:
@@ -1183,6 +1328,7 @@ class RawForecastEngine:
                             y_pooled,
                             spike_threshold=config.SPIKE_THRESHOLD,
                             site=site,
+                            site_labels=pooled_sites,
                         )
                     )
                     if spike_result is not None:
@@ -1191,12 +1337,17 @@ class RawForecastEngine:
                                 spike_result, X_test_processed,
                             )
                         )
-                        classifier_fires = spike_prob >= getattr(
-                            config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
+                        site_prob_thresholds = spike_result.get("site_prob_thresholds", {})
+                        spike_prob_threshold = float(
+                            site_prob_thresholds.get(
+                                str(site),
+                                spike_result.get(
+                                    "prob_threshold",
+                                    getattr(config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10),
+                                ),
+                            )
                         )
-                        w_xgb, w_rf, _ = get_site_ensemble_weights(site)
-                        rf_val = rf_prediction if rf_prediction is not None else prediction
-                        ensemble_pred = w_xgb * prediction + w_rf * rf_val
+                        classifier_fires = spike_prob >= spike_prob_threshold
                         regression_fires = ensemble_pred >= getattr(
                             config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0
                         )
@@ -1206,9 +1357,6 @@ class RawForecastEngine:
 
         # Regression-only fallback when classifier is unavailable
         if spike_alert is None:
-            w_xgb, w_rf, _ = get_site_ensemble_weights(site)
-            rf_val = rf_prediction if rf_prediction is not None else prediction
-            ensemble_pred = w_xgb * prediction + w_rf * rf_val
             if ensemble_pred >= getattr(config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0):
                 spike_alert = True
 
@@ -1220,9 +1368,12 @@ class RawForecastEngine:
             "actual_da_raw": actual_da,
             "predicted_da": prediction,
             "predicted_da_rf": rf_prediction if rf_prediction is not None else prediction,
+            "ensemble_prediction": ensemble_pred,
             "naive_prediction": naive_prediction,
             "predicted_da_linear": linear_prediction,
             "predicted_category_logistic": predicted_category_logistic,
+            "ensemble_weights_dynamic": [float(w_xgb), float(w_rf), float(w_naive)],
+            "residual_correction": float(residual_correction),
             "training_samples": len(train_data),
             "days_ahead": (test_date - anchor_date).days,
             "date_diff_to_processed": int(
@@ -1230,6 +1381,7 @@ class RawForecastEngine:
             ),
             "feature_importance": feature_importance,
             "spike_probability": spike_prob,
+            "spike_prob_threshold": spike_prob_threshold,
             "spike_alert": spike_alert,
         }
 

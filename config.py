@@ -262,6 +262,8 @@ SPIKE_TRUE_NEGATIVE_WEIGHT = 0.1  # Very low weight for correct non-spike predic
 SPIKE_ALERT_PROB_THRESHOLD = 0.10  # Probability threshold for spike alert (optimized for transition recall)
 SPIKE_CLASSIFIER_ENABLED = True    # Toggle spike binary classifier on/off
 SPIKE_REGRESSION_ALERT_THRESHOLD = 12.0  # Fire spike_alert when ensemble prediction >= this (µg/g)
+SPIKE_CALIBRATION_METHOD = os.environ.get("DATECT_SPIKE_CALIBRATION_METHOD", "platt").lower()
+SPIKE_SITE_THRESHOLD_MIN_SAMPLES = int(os.environ.get("DATECT_SPIKE_SITE_THRESHOLD_MIN_SAMPLES", "25"))
 
 # Spike binary classifier hyperparameters (tuned for per-test-point training
 # with small safe-baseline datasets — shallower/simpler than 4-category classifier)
@@ -334,6 +336,28 @@ USE_GPU = False                  # CPU inference (set True for CUDA-enabled syst
 
 # Prediction clipping
 PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training targets
+
+# R2 optimization knobs (all leak-safe; train-data-only behavior)
+ENABLE_DYNAMIC_ENSEMBLE_GATING = os.environ.get("DATECT_ENABLE_DYNAMIC_ENSEMBLE_GATING", "true").lower() == "true"
+DYNAMIC_GATING_RECENT_ROWS = int(os.environ.get("DATECT_DYNAMIC_GATING_RECENT_ROWS", "64"))
+DYNAMIC_GATING_BLEND_ALPHA = float(os.environ.get("DATECT_DYNAMIC_GATING_BLEND_ALPHA", "0.70"))
+
+ENABLE_RESIDUAL_CORRECTION = os.environ.get("DATECT_ENABLE_RESIDUAL_CORRECTION", "true").lower() == "true"
+RESIDUAL_CORRECTION_RECENT_ROWS = int(os.environ.get("DATECT_RESIDUAL_CORRECTION_RECENT_ROWS", "80"))
+RESIDUAL_CORRECTION_DECAY = float(os.environ.get("DATECT_RESIDUAL_CORRECTION_DECAY", "0.03"))
+RESIDUAL_CORRECTION_MAX_ABS = float(os.environ.get("DATECT_RESIDUAL_CORRECTION_MAX_ABS", "8.0"))
+
+ENABLE_GAP_AWARE_SAMPLE_WEIGHTS = os.environ.get("DATECT_ENABLE_GAP_AWARE_SAMPLE_WEIGHTS", "true").lower() == "true"
+GAP_WEIGHT_DECAY = float(os.environ.get("DATECT_GAP_WEIGHT_DECAY", "0.08"))
+INTERPOLATED_SAMPLE_WEIGHT = float(os.environ.get("DATECT_INTERPOLATED_SAMPLE_WEIGHT", "0.70"))
+# Site-specific multiplier applied to interpolated rows (low-skill sites get
+# stricter downweighting of synthetic targets).
+SITE_INTERPOLATED_WEIGHT_OVERRIDES = {
+    "Coos Bay": 0.55,
+    "Newport": 0.60,
+    "Cannon Beach": 0.60,
+    "Gold Beach": 0.65,
+}
 
 # Parallelization
 ENABLE_PARALLEL = True

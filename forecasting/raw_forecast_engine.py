@@ -354,17 +354,16 @@ class RawForecastEngine:
         if naive_prediction is None:
             naive_prediction = 0.0
 
-        # --- Ridge (linear competitor) ---
+        # --- Ridge (always trained as scientific baseline) ---
         linear_prediction = None
-        if model_type == "linear":
-            try:
-                linear_model = build_linear_regressor()
-                linear_model.fit(X_train_processed, y_train)
-                linear_raw = float(linear_model.predict(X_test_processed)[0])
-                linear_prediction = _postprocess(linear_raw)
-            except Exception as exc:
-                logger.warning("Linear regression failed: %s", exc)
-                linear_prediction = None
+        try:
+            linear_model = build_linear_regressor()
+            linear_model.fit(X_train_processed, y_train)
+            linear_raw = float(linear_model.predict(X_test_processed)[0])
+            linear_prediction = _postprocess(linear_raw)
+        except Exception as exc:
+            logger.warning("Linear regression failed: %s", exc)
+            linear_prediction = None
 
         # --- Ensemble blend ---
         w_xgb, w_rf, w_naive = get_site_ensemble_weights(site)
@@ -623,7 +622,9 @@ class RawForecastEngine:
 
         rf_params = rf_params or dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
         if ensemble_weights is None:
-            ensemble_weights = (0.50, 0.15, 0.35)
+            # naive_weight must always be 0.0 — naive persistence is an external baseline,
+            # never blended into the ensemble. Default splits evenly between XGB and RF.
+            ensemble_weights = (0.50, 0.50, 0.00)
         w_xgb, w_rf, w_naive = ensemble_weights
         if naive_prediction is None:
             naive_prediction = 0.0
@@ -844,7 +845,8 @@ class RawForecastEngine:
                     )
                 results_df["ensemble_prediction"] = ens
             else:
-                w_xgb, w_rf, w_naive = 0.50, 0.15, 0.35
+                # Fallback: equal XGB/RF split, no naive blending (naive is external baseline)
+                w_xgb, w_rf, w_naive = 0.50, 0.50, 0.00
                 rf_preds = results_df.get(
                     "predicted_da_rf", results_df["predicted_da"]
                 )
@@ -968,10 +970,15 @@ class RawForecastEngine:
 
         best_params = effective_params
 
+        # Skip tuning when the full training set is too small — every row matters
+        # more than marginal param selection between near-identical grid entries.
+        min_train_for_tuning = getattr(config, "MIN_TRAINING_FOR_TUNING", 80)
+
         if (
             not calib_candidates.empty
             and len(calib_candidates) >= min_tuning
             and len(effective_grid) > 1
+            and len(train_data) >= min_train_for_tuning
         ):
             # Sample calibration rows
             rng_seed = self.random_seed + int(test_date.value % 1_000_000)
@@ -995,8 +1002,10 @@ class RawForecastEngine:
             best_params = {**effective_params, **effective_grid[0]}
 
         # --- Run the actual prediction ---
+        # skip_quantiles=True: retrospective evaluation does not use quantile
+        # intervals, so avoid the 3 extra XGB quantile model trainings per point.
         return self._run_single_raw_validation(
-            raw_measurement, feature_frame, best_params, skip_quantiles=False
+            raw_measurement, feature_frame, best_params, skip_quantiles=True
         )
 
     def _run_single_raw_validation(
@@ -1080,8 +1089,16 @@ class RawForecastEngine:
                 value = min(value, sm)
             return float(value)
 
-        # XGBoost
-        xgb_model = build_xgb_regressor(model_params)
+        # XGBoost — optionally add monotonic constraints on persistence features
+        xgb_params_final = dict(model_params)
+        if getattr(config, "USE_MONOTONIC_CONSTRAINTS", False):
+            constraint_map = getattr(config, "MONOTONIC_FEATURE_CONSTRAINTS", {})
+            if constraint_map and hasattr(X_train_processed, "columns"):
+                cols = list(X_train_processed.columns)
+                mono_tuple = tuple(constraint_map.get(c, 0) for c in cols)
+                if any(v != 0 for v in mono_tuple):
+                    xgb_params_final["monotone_constraints"] = mono_tuple
+        xgb_model = build_xgb_regressor(xgb_params_final)
         xgb_model.fit(X_train_processed, y_train)
         xgb_raw = float(xgb_model.predict(X_test_processed)[0])
         prediction = _postprocess(xgb_raw)
@@ -1109,16 +1126,16 @@ class RawForecastEngine:
         if naive_prediction is None:
             return None
 
-        # Ridge (linear competitor, only when needed for retrospective)
+        # Ridge (always trained as scientific baseline for "ML earns its keep" comparison)
+        # Negligible cost — single matrix solve. Ensemble stays ML-only regardless.
         linear_prediction = None
-        if getattr(self, "_retro_model_type", None) == "linear":
-            try:
-                linear_model = build_linear_regressor()
-                linear_model.fit(X_train_processed, y_train)
-                linear_raw = float(linear_model.predict(X_test_processed)[0])
-                linear_prediction = _postprocess(linear_raw)
-            except Exception:
-                linear_prediction = None
+        try:
+            linear_model = build_linear_regressor()
+            linear_model.fit(X_train_processed, y_train)
+            linear_raw = float(linear_model.predict(X_test_processed)[0])
+            linear_prediction = _postprocess(linear_raw)
+        except Exception:
+            linear_prediction = None
 
         # Logistic classification (only when needed for retrospective)
         predicted_category_logistic = None

@@ -242,10 +242,8 @@ N_BOOTSTRAP_ITERATIONS = 100  # Number of bootstrap iterations for confidence in
 
 # Lag Feature Configuration
 
-# Enable/disable lag features for time series modeling
-USE_LAG_FEATURES = True
-
 # Time series lags for raw observation-order lag features (env override: comma-separated or "none")
+# Set DATECT_LAG_FEATURES=none to disable all lag features for ablation studies.
 _lag_env = os.environ.get("DATECT_LAG_FEATURES", "")
 LAG_FEATURES = [] if _lag_env.lower() == "none" else [int(x) for x in _lag_env.split(",") if x.strip()] if _lag_env else [1, 2, 3, 4]
 
@@ -332,6 +330,22 @@ USE_PER_SITE_MODELS = os.environ.get("DATECT_USE_PER_SITE_MODELS", "true").lower
 USE_INTERPOLATED_TRAINING = os.environ.get("DATECT_USE_INTERPOLATED_TRAINING", "true").lower() == "true"
 USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
 
+# Monotonic constraints on persistence features (XGBoost only)
+# Prevents learning physically implausible relationships (e.g. higher recent DA → lower forecast)
+# Especially valuable at small-N Oregon sites where overfitting is likely.
+# +1 = strictly non-decreasing, -1 = strictly non-increasing, 0 = unconstrained
+USE_MONOTONIC_CONSTRAINTS = os.environ.get("DATECT_USE_MONOTONIC_CONSTRAINTS", "true").lower() == "true"
+MONOTONIC_FEATURE_CONSTRAINTS: dict = {
+    "last_observed_da_raw": 1,       # More recent DA → higher or equal forecast
+    "raw_obs_roll_max_4": 1,         # Higher 4-week max → higher or equal forecast
+    "raw_obs_roll_mean_4": 1,        # Higher 4-week mean → higher or equal forecast
+}
+
+# Minimum training rows required before per-anchor XGB tuning is attempted.
+# Oregon sites with ~50-80 rows lose 30% of training data to tuning between
+# nearly-identical param sets. Skip tuning below this threshold.
+MIN_TRAINING_FOR_TUNING = int(os.environ.get("DATECT_MIN_TRAINING_FOR_TUNING", "80"))
+
 # Prediction clipping
 PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training targets
 
@@ -379,3 +393,13 @@ if _extra_drop:
 
 # Minimum test date (early lower bound; per-site history fraction is the real filter)
 MIN_TEST_DATE = "2003-01-01"
+
+# Temporal hold-out evaluation mode
+# When ralph_evaluate.py --temporal-holdout is used, only dates >= TEMPORAL_HOLDOUT_CUTOFF
+# are used as test points. Training still uses all data before each anchor date.
+# Provides an uncontaminated generalization estimate separate from hyperparameter tuning.
+TEMPORAL_HOLDOUT_CUTOFF = os.environ.get("DATECT_TEMPORAL_HOLDOUT_CUTOFF", "2019-01-01")
+TEMPORAL_HOLDOUT_FRACTION = float(os.environ.get("DATECT_TEMPORAL_HOLDOUT_FRACTION", "1.0"))
+
+# Parallelization backend (used by joblib in retrospective evaluation)
+PARALLEL_BACKEND = os.environ.get("DATECT_PARALLEL_BACKEND", "loky")

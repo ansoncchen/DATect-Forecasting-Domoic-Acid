@@ -243,23 +243,22 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
 
     'Coos Bay': {
         # Interp-trained: N=67, XGB=+0.310, RF=+0.337, Naive=-0.286, Ens=+0.337.
+        # Autocorrelation ceiling: rho=0.054, R²_ceil=0.003 — site is near-unpredictable.
+        # Feature set trimmed to 5 (from 20) to reduce overfitting on tiny N.
+        # Single param_grid entry — tuning skipped below MIN_TRAINING_FOR_TUNING anyway.
         'xgb_params': {
-            'max_depth': 3, 'n_estimators': 200, 'learning_rate': 0.03,
-            'min_child_weight': 7, 'reg_alpha': 0.5, 'reg_lambda': 3.0,
-            'gamma': 0.5, 'subsample': 0.8, 'colsample_bytree': 0.8,
+            'max_depth': 2, 'n_estimators': 80, 'learning_rate': 0.02,
+            'min_child_weight': 15, 'reg_alpha': 2.0, 'reg_lambda': 10.0,
+            'gamma': 2.0, 'subsample': 0.6, 'colsample_bytree': 0.6,
         },
         'rf_params': dict(RF_CONSERVATIVE),
         'param_grid': [
-            {'max_depth': 3, 'n_estimators': 200, 'learning_rate': 0.03,
-             'min_child_weight': 7},
-            {'max_depth': 2, 'n_estimators': 150, 'learning_rate': 0.03,
-             'min_child_weight': 10},
+            {'max_depth': 2, 'n_estimators': 80, 'learning_rate': 0.02,
+             'min_child_weight': 15},
         ],
         'feature_subset': (
-            PERSISTENCE_FEATURES + LAG_FEATURES_FULL
-            + ROLLING_FEATURES_SHORT + ENV_FEATURES_CORE
-            + TEMPORAL_FEATURES_CORE
-            + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
+            PERSISTENCE_FEATURES + ['da_raw_prev_obs_1']
+            + ['month', 'modis-sst', 'pdo']
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.97,
@@ -272,10 +271,12 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
 
     'Cannon Beach': {
         # Interp-trained: N=61, XGB=-0.006, RF=-0.006, Naive=-0.167, Ens=-0.001.
+        # Autocorrelation ceiling: rho=0.44, R²_ceil=0.197 — limited but real signal.
+        # Feature set trimmed to 7 (from 12) to reduce p/N ratio for N=61.
         'xgb_params': {
-            'max_depth': 2, 'n_estimators': 100, 'learning_rate': 0.03,
-            'min_child_weight': 10, 'reg_alpha': 1.0, 'reg_lambda': 5.0,
-            'gamma': 1.0, 'subsample': 0.7, 'colsample_bytree': 0.7,
+            'max_depth': 2, 'n_estimators': 80, 'learning_rate': 0.02,
+            'min_child_weight': 12, 'reg_alpha': 1.5, 'reg_lambda': 7.0,
+            'gamma': 1.5, 'subsample': 0.6, 'colsample_bytree': 0.6,
         },
         'rf_params': dict(RF_CONSERVATIVE),
         'param_grid': [
@@ -283,9 +284,8 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
              'min_child_weight': 12},
         ],
         'feature_subset': (
-            PERSISTENCE_FEATURES + LAG_FEATURES_SHORT
-            + TEMPORAL_FEATURES_CORE + ['modis-sst', 'pdo']
-            + CLIMATE_FEATURES_CORE
+            PERSISTENCE_FEATURES + ['da_raw_prev_obs_1', 'da_raw_prev_obs_2']
+            + ['month', 'modis-sst', 'pdo']
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),
         'prediction_clip_q': 0.95,
@@ -294,21 +294,22 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
 
     'Gold Beach': {
         # Interp-trained: N=144, XGB=+0.156, RF=+0.140, Naive=-0.858, Ens=+0.156.
+        # Autocorrelation ceiling: rho=0.038, R²_ceil=0.001 — near-unpredictable.
+        # Current R²=0.041 already beats the ceiling (env drivers help despite low autocorr).
+        # Feature set trimmed to 5 (from 15) to preserve this signal without overfitting.
         'xgb_params': {
-            'max_depth': 2, 'n_estimators': 150, 'learning_rate': 0.03,
-            'min_child_weight': 10, 'reg_alpha': 1.0, 'reg_lambda': 5.0,
-            'gamma': 1.0, 'subsample': 0.7, 'colsample_bytree': 0.7,
+            'max_depth': 2, 'n_estimators': 100, 'learning_rate': 0.02,
+            'min_child_weight': 15, 'reg_alpha': 2.0, 'reg_lambda': 10.0,
+            'gamma': 2.0, 'subsample': 0.6, 'colsample_bytree': 0.6,
         },
         'rf_params': dict(RF_CONSERVATIVE),
         'param_grid': [
-            {'max_depth': 2, 'n_estimators': 150, 'learning_rate': 0.03,
-             'min_child_weight': 10},
+            {'max_depth': 2, 'n_estimators': 100, 'learning_rate': 0.02,
+             'min_child_weight': 15},
         ],
         'feature_subset': (
-            PERSISTENCE_FEATURES + LAG_FEATURES_SHORT
-            + ROLLING_FEATURES_SHORT + ['modis-sst', 'pdo']
-            + TEMPORAL_FEATURES_CORE
-            + CLIMATE_FEATURES_CORE + PN_FEATURES
+            PERSISTENCE_FEATURES + ['da_raw_prev_obs_1']
+            + ['month', 'modis-sst', 'pdo']
         ),
         'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.95,
@@ -317,25 +318,22 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
 
     'Newport': {
         # Interp-trained: N=142, XGB=-0.409, RF=-0.550, Naive=-1.572, Ens=-0.382.
+        # Autocorrelation ceiling: rho=0.19, R²_ceil=0.036 — site is near-unpredictable.
+        # Feature set trimmed to 5 (from 21) to stop active harm from overfitting.
+        # Single param_grid entry — no tuning benefit at this N with near-zero signal.
         'xgb_params': {
-            'max_depth': 3, 'n_estimators': 250, 'learning_rate': 0.03,
-            'min_child_weight': 7, 'reg_alpha': 0.5, 'reg_lambda': 3.0,
-            'gamma': 0.5, 'subsample': 0.8, 'colsample_bytree': 0.8,
+            'max_depth': 2, 'n_estimators': 100, 'learning_rate': 0.02,
+            'min_child_weight': 15, 'reg_alpha': 2.0, 'reg_lambda': 10.0,
+            'gamma': 2.0, 'subsample': 0.6, 'colsample_bytree': 0.6,
         },
         'rf_params': dict(RF_CONSERVATIVE),
         'param_grid': [
-            {'max_depth': 3, 'n_estimators': 250, 'learning_rate': 0.03,
-             'min_child_weight': 7},
-            {'max_depth': 4, 'n_estimators': 200, 'learning_rate': 0.03,
-             'min_child_weight': 5},
-            {'max_depth': 2, 'n_estimators': 150, 'learning_rate': 0.03,
-             'min_child_weight': 10},
+            {'max_depth': 2, 'n_estimators': 100, 'learning_rate': 0.02,
+             'min_child_weight': 15},
         ],
         'feature_subset': (
-            PERSISTENCE_FEATURES + LAG_FEATURES_FULL
-            + ROLLING_FEATURES_SHORT + ENV_FEATURES_CORE
-            + TEMPORAL_FEATURES_CORE
-            + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES + PN_FEATURES
+            PERSISTENCE_FEATURES + ['da_raw_prev_obs_1']
+            + ['month', 'modis-sst', 'pdo']
         ),
         'ensemble_weights': (1.00, 0.00, 0.00),
         'prediction_clip_q': 0.98,

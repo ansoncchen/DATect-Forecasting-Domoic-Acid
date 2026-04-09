@@ -125,7 +125,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + ROLLING_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.763
+        'ensemble_weights': (0.40, 0.60, 0.00),  # RF-lean blend: gap=0.008, within seed noise
         'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
     },
@@ -146,7 +146,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES + PN_FEATURES
         ),
-        'ensemble_weights': (0.00, 1.00, 0.00),
+        'ensemble_weights': (0.20, 0.80, 0.00),  # RF-heavy blend: gap=0.069, clear RF winner
         'prediction_clip_q': 0.95,
         'prediction_clip_max': 80.0,
     },
@@ -171,7 +171,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.614 > XGB=+0.601
+        'ensemble_weights': (0.40, 0.60, 0.00),  # RF-lean blend: gap=0.013, within seed noise
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
@@ -196,7 +196,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.764
+        'ensemble_weights': (0.40, 0.60, 0.00),  # RF-lean blend: gap=0.007, within seed noise
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
@@ -225,7 +225,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
         ),
-        'ensemble_weights': (1.00, 0.00, 0.00),
+        'ensemble_weights': (0.60, 0.40, 0.00),  # XGB-lean blend: gap=0.014, within seed noise
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },
@@ -236,7 +236,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'rf_params': None,
         'param_grid': None,
         'feature_subset': None,
-        'ensemble_weights': (1.00, 0.00, 0.00),
+        'ensemble_weights': (0.80, 0.20, 0.00),  # XGB-heavy blend: gap=0.078, clear XGB winner
         'prediction_clip_q': None,
         'prediction_clip_max': None,
     },
@@ -260,7 +260,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + ['da_raw_prev_obs_1']
             + ['month', 'modis-sst', 'pdo']
         ),
-        'ensemble_weights': (0.00, 1.00, 0.00),
+        'ensemble_weights': (0.35, 0.65, 0.00),  # RF-lean blend: gap=0.027, modest RF edge
         'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
     },
@@ -287,7 +287,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + ['da_raw_prev_obs_1', 'da_raw_prev_obs_2']
             + ['month', 'modis-sst', 'pdo']
         ),
-        'ensemble_weights': (0.00, 1.00, 0.00),
+        'ensemble_weights': (0.50, 0.50, 0.00),  # Neutral blend: both near-zero skill, N=61
         'prediction_clip_q': 0.95,
         'prediction_clip_max': 80.0,
     },
@@ -311,7 +311,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + ['da_raw_prev_obs_1']
             + ['month', 'modis-sst', 'pdo']
         ),
-        'ensemble_weights': (1.00, 0.00, 0.00),
+        'ensemble_weights': (0.60, 0.40, 0.00),  # XGB-lean blend: gap=0.016, within seed noise
         'prediction_clip_q': 0.95,
         'prediction_clip_max': None,
     },
@@ -335,7 +335,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + ['da_raw_prev_obs_1']
             + ['month', 'modis-sst', 'pdo']
         ),
-        'ensemble_weights': (1.00, 0.00, 0.00),
+        'ensemble_weights': (0.50, 0.50, 0.00),  # Neutral blend: both negative skill, N=142
         'prediction_clip_q': 0.98,
         'prediction_clip_max': None,
     },

@@ -232,7 +232,8 @@ def generate_fig2_scatter():
         'Copalis', 'Long Beach', 'Twin Harbors', 'Quinault', 'Kalaloch',
         'Clatsop Beach', 'Gold Beach', 'Cannon Beach', 'Coos Bay', 'Newport',
     ]
-    r2_values = np.array([0.789, 0.631, 0.594, 0.582, 0.480, 0.290, 0.041, -0.044, -0.039, -0.299])
+    # Updated from post-infrastructure standard eval (seed=123, N=2181)
+    r2_values = np.array([0.7889, 0.6323, 0.5939, 0.5816, 0.4795, 0.2921, 0.0508, -0.0446, -0.0384, -0.2426])
     n_values = [277, 209, 225, 181, 235, 354, 257, 116, 109, 218]
     colors = ['#2874a6' if site in SITE_ORDER[:5] else '#c0392b' for site in sites]
 
@@ -514,9 +515,13 @@ def generate_fig3b_ml_pipeline():
 def generate_fig4_spike_summary():
     """Bar-chart summary of held-out spike-detection performance."""
     approaches = ["Naive", "Regression\n(>=20)", "Spike\nclassifier"]
-    transition_recall = np.array([0.236, 0.124, 0.652])
-    spike_recall = np.array([0.754, 0.558, 0.815])
-    precision = np.array([0.546, 0.618, 0.339])
+    # Updated from post-infrastructure eval (seed=123): hybrid alert (spike_alert column)
+    # transition_recall: below-to-above threshold (12-20 µg/g zone)
+    # spike_recall: DA >= 20 µg/g events
+    # precision: 1 - hybrid FP rate
+    transition_recall = np.array([0.236, 0.124, 0.734])
+    spike_recall = np.array([0.754, 0.558, 0.859])
+    precision = np.array([0.546, 0.618, 0.344])
     colors = ['#7f8c8d', '#2874a6', '#c0392b']
 
     fig, axes = plt.subplots(1, 3, figsize=(8.4, 3.2), sharey=False)

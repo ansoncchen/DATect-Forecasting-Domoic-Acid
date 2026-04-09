@@ -138,18 +138,36 @@ def load_or_run_retro(
     seed: int,
     sample_fraction: float,
     force_rerun: bool,
+    min_test_date: str | None = None,
 ) -> pd.DataFrame | None:
-    """Load a cached retrospective parquet or run a fresh evaluation."""
+    """Load a cached retrospective parquet or run a fresh evaluation.
+
+    Args:
+        min_test_date: When set (e.g. "2019-01-01" for temporal holdout), only
+            test points at or after this date are included. If loading from a
+            cached parquet, the filter is applied post-load. If running fresh,
+            config.MIN_TEST_DATE is patched so the engine only evaluates those dates.
+    """
     cache_path = get_retro_path(retro_dir, run_key)
     os.makedirs(retro_dir, exist_ok=True)
 
     if os.path.exists(cache_path) and not force_rerun:
         print(f"  Loading cached {run_key} results from {cache_path}")
         df = pd.read_parquet(cache_path)
+        if min_test_date is not None:
+            cutoff = pd.Timestamp(min_test_date)
+            date_col = "date" if "date" in df.columns else "test_date"
+            if date_col in df.columns:
+                df[date_col] = pd.to_datetime(df[date_col])
+                n_before = len(df)
+                df = df[df[date_col] >= cutoff].copy()
+                print(f"  Temporal holdout: filtered {n_before} → {len(df)} rows "
+                      f"(dates >= {min_test_date})")
         return df
 
+    mode_str = f"temporal holdout >= {min_test_date}" if min_test_date else "standard"
     print(f"  Running retrospective evaluation for run_key='{run_key}' "
-          f"(seed={seed}, fraction={sample_fraction})...")
+          f"(seed={seed}, fraction={sample_fraction}, {mode_str})...")
     print("  (This may take 15-60 minutes on Hyak)")
 
     try:
@@ -157,9 +175,12 @@ def load_or_run_retro(
         import config as cfg
         original_seed = cfg.RANDOM_SEED
         original_frac = getattr(cfg, "TEST_SAMPLE_FRACTION", 0.20)
+        original_min_date = getattr(cfg, "MIN_TEST_DATE", "2003-01-01")
 
         cfg.RANDOM_SEED = seed
         cfg.TEST_SAMPLE_FRACTION = sample_fraction
+        if min_test_date is not None:
+            cfg.MIN_TEST_DATE = min_test_date
 
         try:
             from forecasting.raw_forecast_engine import RawForecastEngine
@@ -172,6 +193,7 @@ def load_or_run_retro(
         finally:
             cfg.RANDOM_SEED = original_seed
             cfg.TEST_SAMPLE_FRACTION = original_frac
+            cfg.MIN_TEST_DATE = original_min_date
 
         if results_df is not None and not results_df.empty:
             results_df.to_parquet(cache_path, index=False)
@@ -189,6 +211,7 @@ def get_model_predictions(
     seed: int,
     sample_fraction: float,
     force_rerun: bool,
+    min_test_date: str | None = None,
 ) -> pd.DataFrame | None:
     """
     Return a DataFrame with columns [site, date, anchor_date, actual_da,
@@ -198,7 +221,8 @@ def get_model_predictions(
     run_key = cfg["run_key"]
     pred_col = cfg["pred_col"]
 
-    df = load_or_run_retro(run_key, retro_dir, seed, sample_fraction, force_rerun)
+    df = load_or_run_retro(run_key, retro_dir, seed, sample_fraction, force_rerun,
+                           min_test_date=min_test_date)
     if df is None or df.empty:
         return None
 
@@ -493,22 +517,38 @@ def main():
                         help="Force re-run retrospective evaluations even if parquets exist")
     parser.add_argument("--output-dir", default="eval_results/paper_metrics",
                         help="Output directory for CSV/JSON results")
+    parser.add_argument("--temporal-holdout", action="store_true",
+                        help="Restrict test points to 2019-01-01 and later (temporal holdout). "
+                             "Output goes to eval_results/paper_metrics_temporal/. "
+                             "Provides an unbiased generalization estimate: no tuning decisions "
+                             "informed by post-2019 data.")
     args = parser.parse_args()
 
     seed = args.seed
     sample_fraction = args.sample_fraction
     force_rerun = args.force_rerun
-    output_dir = args.output_dir
+    temporal_holdout = args.temporal_holdout
 
-    seed_suffix = f"_seed{seed}" if seed != 42 else ""
-    retro_dir = os.path.join("eval_results", f"retro{seed_suffix}")
+    # Temporal holdout: override output dir and retro dir to avoid overwriting standard results
+    if temporal_holdout:
+        holdout_cutoff = getattr(__import__("config"), "TEMPORAL_HOLDOUT_CUTOFF", "2019-01-01")
+        output_dir = args.output_dir.replace("paper_metrics", "paper_metrics_temporal") \
+            if args.output_dir == "eval_results/paper_metrics" else args.output_dir + "_temporal"
+        seed_suffix = f"_seed{seed}" if seed != 42 else ""
+        retro_dir = os.path.join("eval_results", f"retro{seed_suffix}_temporal")
+    else:
+        holdout_cutoff = None
+        output_dir = args.output_dir
+        seed_suffix = f"_seed{seed}" if seed != 42 else ""
+        retro_dir = os.path.join("eval_results", f"retro{seed_suffix}")
 
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(retro_dir, exist_ok=True)
 
     rng = np.random.default_rng(42)  # fixed RNG for reproducible bootstrap
 
-    print(f"\nDATect Paper Metrics — seed={seed}, fraction={sample_fraction}")
+    mode_label = f"temporal holdout >= {holdout_cutoff}" if temporal_holdout else "standard"
+    print(f"\nDATect Paper Metrics — seed={seed}, fraction={sample_fraction}, mode={mode_label}")
     print(f"Retrospective cache dir: {retro_dir}")
     print(f"Output dir:              {output_dir}")
     print()
@@ -526,7 +566,8 @@ def main():
     for model_name in MODEL_NAMES:
         print(f"\nModel: {model_name}")
         df = get_model_predictions(
-            model_name, retro_dir, seed, sample_fraction, force_rerun
+            model_name, retro_dir, seed, sample_fraction, force_rerun,
+            min_test_date=holdout_cutoff,
         )
         if df is not None:
             print(f"  {len(df)} test points loaded for '{model_name}'")
@@ -772,6 +813,7 @@ def main():
             "bootstrap_rng_seed": 42,
             "da_category_thresholds": {"Low": "<5", "Moderate": "5-20",
                                         "High": "20-40", "Extreme": ">=40"},
+            "evaluation_mode": f"temporal_holdout_{holdout_cutoff}" if temporal_holdout else "standard",
         },
         "table1_model_comparison": _df_to_records(table1_df),
         "table1_delta_r2_vs_ensemble": delta_r2_serializable,

@@ -497,20 +497,26 @@ def run_evaluation(
             reg_alert_threshold=getattr(cfg, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0),
         )
         for _, row in transition_df.iterrows():
-            if row["model"] == "classifier":
-                spike_metrics["transition_recall"] = round(float(row["recall"]), 4)
-                spike_metrics["transition_f1"] = round(float(row["f1"]), 4)
             if row["model"] == "hybrid":
-                spike_metrics["hybrid_transition_recall"] = round(float(row["recall"]), 4)
+                val = row["recall"]
+                spike_metrics["transition_recall"] = round(float(val), 4) if val is not None else None
+                val = row["f1"]
+                spike_metrics["transition_f1"] = round(float(val), 4) if val is not None else None
+            if row["model"] == "regression":
+                val = row["recall"]
+                spike_metrics["regression_transition_recall"] = round(float(val), 4) if val is not None else None
         for _, row in event_df.iterrows():
-            if row["model"] == "classifier":
-                spike_metrics["event_recall"] = round(float(row["recall"]), 4)
-                spike_metrics["event_precision"] = round(float(row["precision"]), 4)
             if row["model"] == "hybrid":
-                spike_metrics["hybrid_event_recall"] = round(float(row["recall"]), 4)
+                val = row["recall"]
+                spike_metrics["event_recall"] = round(float(val), 4) if val is not None else None
+                val = row["precision"]
+                spike_metrics["event_precision"] = round(float(val), 4) if val is not None else None
                 spike_metrics["hybrid_fp_rate"] = (
-                    round(1.0 - float(row["precision"]), 4) if row["precision"] > 0 else None
+                    round(1.0 - float(val), 4) if (val is not None and float(val) > 0) else None
                 )
+            if row["model"] == "regression":
+                val = row["recall"]
+                spike_metrics["regression_event_recall"] = round(float(val), 4) if val is not None else None
     except Exception as exc:
         spike_metrics["error"] = str(exc)
 

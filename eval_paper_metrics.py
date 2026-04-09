@@ -309,6 +309,94 @@ def compute_classification_table(actual: np.ndarray, predicted: np.ndarray) -> p
 
 
 # ---------------------------------------------------------------------------
+# Spike / alert metrics  (used by ralph_evaluate.py)
+# ---------------------------------------------------------------------------
+
+def compute_spike_tables(
+    df: pd.DataFrame,
+    spike_threshold: float = 20.0,
+    reg_alert_threshold: float = 12.0,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Compute spike-detection metrics from a retrospective results DataFrame.
+
+    Two tables are returned:
+      event_df      — metrics where the target is an actual spike (DA >= spike_threshold)
+      transition_df — metrics where the target is the transition zone
+                      (reg_alert_threshold <= DA < spike_threshold), i.e. the zone
+                      where early warnings matter most.
+
+    Each DataFrame has columns: model, recall, precision, f1, n_positive, n_total.
+    Model values:
+      "hybrid"     — spike_alert column (classifier OR regression threshold, the
+                     primary signal used in production)
+      "regression" — ensemble_prediction >= reg_alert_threshold only
+
+    Args:
+        df: retrospective results DataFrame from RawForecastEngine.
+        spike_threshold: DA value above which an event is a spike (default 20 µg/g).
+        reg_alert_threshold: DA value at which regression alone fires an alert (12 µg/g).
+    """
+    df = df.copy()
+
+    # Normalise actual column
+    if "actual_da" not in df.columns and "actual_da_raw" in df.columns:
+        df["actual_da"] = df["actual_da_raw"]
+
+    pred_col = "ensemble_prediction" if "ensemble_prediction" in df.columns else "predicted_da"
+
+    df = df.dropna(subset=["actual_da", pred_col])
+    actual = df["actual_da"].astype(float)
+
+    # --- Predicted alert signals ---
+    # Hybrid: use spike_alert column when available, fall back to regression threshold
+    if "spike_alert" in df.columns:
+        hybrid_alert = df["spike_alert"].fillna(False).astype(bool)
+    else:
+        hybrid_alert = df[pred_col].astype(float) >= reg_alert_threshold
+
+    regression_alert = df[pred_col].astype(float) >= reg_alert_threshold
+
+    def _row(model: str, predicted_positive: pd.Series, actual_positive: pd.Series) -> dict:
+        y_true = actual_positive.astype(int).values
+        y_pred = predicted_positive.astype(int).values
+        n_pos = int(y_true.sum())
+        if n_pos == 0:
+            return {
+                "model": model, "recall": None, "precision": None, "f1": None,
+                "n_positive": 0, "n_total": len(y_true),
+            }
+        rec  = float(recall_score(y_true, y_pred, zero_division=0))
+        prec = float(precision_score(y_true, y_pred, zero_division=0))
+        f1v  = float(f1_score(y_true, y_pred, zero_division=0))
+        return {
+            "model": model,
+            "recall": round(rec, 4),
+            "precision": round(prec, 4),
+            "f1": round(f1v, 4),
+            "n_positive": n_pos,
+            "n_total": int(len(y_true)),
+        }
+
+    # --- Event table: actual DA >= spike_threshold ---
+    event_positive = actual >= spike_threshold
+    event_rows = [
+        _row("hybrid",     hybrid_alert,     event_positive),
+        _row("regression", regression_alert,  event_positive),
+    ]
+
+    # --- Transition table: reg_alert_threshold <= actual < spike_threshold ---
+    # Correct prediction = alert fires when DA is in the warning zone
+    transition_positive = (actual >= reg_alert_threshold) & (actual < spike_threshold)
+    transition_rows = [
+        _row("hybrid",     hybrid_alert,     transition_positive),
+        _row("regression", regression_alert,  transition_positive),
+    ]
+
+    return pd.DataFrame(event_rows), pd.DataFrame(transition_rows)
+
+
+# ---------------------------------------------------------------------------
 # Pretty-print helpers
 # ---------------------------------------------------------------------------
 

@@ -233,9 +233,6 @@ XGB_CLASSIFICATION_PARAMS = {
 MIN_TRAINING_SAMPLES = 10
 RANDOM_SEED = 42
 
-# Retrospective evaluation anchor points (higher = more thorough)
-N_RANDOM_ANCHORS = 500
-
 # Bootstrap confidence intervals
 ENABLE_BOOTSTRAP_INTERVALS = True  # Disable to skip bootstrap uncertainty
 N_BOOTSTRAP_ITERATIONS = 100  # Number of bootstrap iterations for confidence intervals
@@ -255,8 +252,6 @@ DA_CATEGORY_LABELS = [0, 1, 2, 3]
 
 # Spike Detection Configuration
 SPIKE_THRESHOLD = 20.0  # DA > 20 μg/g considered a spike event
-SPIKE_FALSE_NEGATIVE_WEIGHT = 500.0  # Heavy penalty for missing actual spikes
-SPIKE_TRUE_NEGATIVE_WEIGHT = 0.1  # Very low weight for correct non-spike predictions
 SPIKE_ALERT_PROB_THRESHOLD = 0.10  # Probability threshold for spike alert (optimized for transition recall)
 SPIKE_CLASSIFIER_ENABLED = True    # Toggle spike binary classifier on/off
 SPIKE_REGRESSION_ALERT_THRESHOLD = 12.0  # Fire spike_alert when ensemble prediction >= this (µg/g)

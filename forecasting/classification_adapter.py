@@ -178,6 +178,12 @@ class ClassificationAdapter:
             safe_mask = X_train[prev_obs_col].fillna(0) < spike_threshold
         else:
             # If prev_obs_col was already dropped, fall back to full training set
+            import logging
+            logging.getLogger(__name__).warning(
+                "Safe-baseline filter bypassed: %s not in feature set. "
+                "Classifier will train on all rows including already-spiked states.",
+                prev_obs_col,
+            )
             safe_mask = pd.Series(True, index=X_train.index)
 
         X_safe = X_train.loc[safe_mask].copy()

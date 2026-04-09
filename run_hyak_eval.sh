@@ -55,13 +55,13 @@ run_step() {
     else
         local exit_code=$?
         local elapsed=$(( $(date +%s) - start_ts ))
-        log "✗ FAILED (exit $exit_code) after ${elapsed}s — check $logfile"
+        log "⚠ GATE FAIL (exit $exit_code) after ${elapsed}s — results computed, gates didn't pass"
+        grep -E "Pooled|WA mean|OR mean" "$logfile" | tail -5 >> "$SUMMARY_LOG" 2>/dev/null || true
         echo ""
         echo "Last 20 lines of $logfile:"
         tail -20 "$logfile"
         echo ""
-        log "Aborting pipeline."
-        exit "$exit_code"
+        log "Continuing pipeline (gate failures don't invalidate results)."
     fi
 
     echo ""

@@ -1114,7 +1114,8 @@ class RawForecastEngine:
                 rf_model.fit(X_train_processed, y_train)
                 rf_raw = float(rf_model.predict(X_test_processed)[0])
                 rf_prediction = _postprocess(rf_raw)
-            except Exception:
+            except Exception as e:
+                logger.warning("RF training failed for %s on %s: %s — using XGB prediction only", site, test_date, e)
                 rf_prediction = prediction
 
         # Naive (always use real observations only)

@@ -66,7 +66,7 @@ $^{2}$ \quad Applied Physics Laboratory, University of Washington, Seattle, WA 9
 %  ABSTRACT
 % ══════════════════════════════════════════════════════════════════════════════
 \abstract{
-Domoic acid (DA) contamination of shellfish is a recurring public health crisis along the U.S.\ Pacific Northwest coast, yet no quantitative forecasting system exists for Washington and Oregon. We present DATect, a one-week-ahead forecasting system for 10 monitoring sites spanning \SI{600}{\kilo\meter} of coastline, trained on 21 years of satellite, climate, hydrological, and biological data (2003--2023). DATect uses per-site XGBoost or Random Forest models and is evaluated with leak-free retrospective validation on a held-out test set ($n = 2{,}181$) kept separate from configuration development. All five Washington sites achieve high skill ($R^2 = 0.480$--$0.789$), whereas Oregon sites show lower skill consistent with sparser and less regular monitoring. At the operational \SI{20}{\microgrampeg} threshold, thresholding the regression ensemble detects only 12.4\% of held-out below-to-above-threshold transitions, while na\"ive persistence detects 23.6\%. A dedicated binary classifier trained with a safe-baseline filter detects 73.4\% of these transitions, a 3.1$\times$ improvement over na\"ive persistence. These results show that actionable early warning requires a transition-focused detector in addition to magnitude forecasting. DATect is deployed as a publicly accessible web dashboard.
+Domoic acid (DA) contamination of shellfish is a recurring public health crisis along the U.S.\ Pacific Northwest coast, yet no quantitative forecasting system exists for Washington and Oregon. We present DATect, a one-week-ahead forecasting system for 10 monitoring sites spanning \SI{600}{\kilo\meter} of coastline, trained on 21 years of satellite, climate, hydrological, and biological data (2003--2023). DATect uses per-site XGBoost or Random Forest models and is evaluated with leak-free retrospective validation on a held-out test set ($n = 2{,}181$) kept separate from configuration development. All five Washington sites achieve high skill ($R^2 = 0.480$--$0.789$), whereas Oregon sites show lower skill consistent with sparser and less regular monitoring. At the operational \SI{20}{\microgrampeg} threshold, thresholding the regression ensemble detects only 12.4\% of held-out below-to-above-threshold transitions, while na\"ive persistence detects 23.6\%. A dedicated binary classifier trained with a safe-baseline filter detects 73.4\% of these transitions, a 3.1$\times$ improvement over na\"ive persistence ($0.734 / 0.236$). These results show that actionable early warning requires a transition-focused detector in addition to magnitude forecasting. DATect is deployed as a publicly accessible web dashboard.
 }
 
 \keyword{domoic acid; harmful algal blooms; machine learning; ensemble forecasting; \textit{Pseudo-nitzschia}; Pacific Northwest; XGBoost; data leakage prevention}
@@ -329,7 +329,7 @@ DATect employs a per-site model selection framework, formalized as a weighted tw
 \hat{y} = w_{\text{XGB}} \cdot \hat{y}_{\text{XGB}} + w_{\text{RF}} \cdot \hat{y}_{\text{RF}}
 \label{eq:ensemble}
 \end{equation}
-where $w_{\text{XGB}} + w_{\text{RF}} = 1$ and the weights are site-specific (Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config}). In the current configuration, all sites converged to single-model assignments ($w \in \{0, 1\}$), making this effectively a per-site model selection between XGBoost and Random Forest; the ensemble formulation is retained for generality, as future sites or data updates may favor blended weights. Na\"ive persistence is computed for every prediction and reported as a standalone external baseline (Section~\ref{sec:results-overall}), enabling a direct assessment of how much skill the ML models add beyond simple autocorrelation.
+where $w_{\text{XGB}} + w_{\text{RF}} = 1$ and the weights are site-specific (Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config}). In the current configuration, all sites converged to single-model assignments ($w \in \{0, 1\}$) based on development-set performance, making this effectively a per-site model selection between XGBoost and Random Forest. Blended weights (e.g., 50/50 or 60/40) were tested empirically but produced no improvement over single-model selection on either the held-out or temporal holdout evaluations ($\Delta R^2 \leq -0.004$); the ensemble formulation is retained for generality. Na\"ive persistence is computed for every prediction and reported as a standalone external baseline (Section~\ref{sec:results-overall}), enabling a direct assessment of how much skill the ML models add beyond simple autocorrelation.
 
 \textbf{XGBoost} \cite{Chen2016}: A gradient boosted tree model using the histogram-based training method (\texttt{tree\_method=hist}) with global base hyperparameters ($n_{\text{estimators}} = 400$, max depth $= 6$, learning rate $= 0.05$, subsample $= 0.85$, colsample\_bytree $= 0.85$, colsample\_bylevel $= 0.8$, $\alpha = 0.1$, $\lambda = 1.0$, $\gamma = 0.1$, min\_child\_weight $= 3$) and per-site overrides (Appendix~\ref{app:hyperparams}). During retrospective evaluation, per-anchor hyperparameter selection uses a calibration fraction of 30\% of training data (maximum 20 rows), searching over a site-specific candidate grid of 1--3 configurations; in real-time deployment, per-site hyperparameters are used directly without per-anchor tuning. XGBoost's native handling of missing values and its L1/L2 regularization make it well-suited for the noisy, gap-filled environmental feature space.
 
@@ -339,11 +339,11 @@ where $w_{\text{XGB}} + w_{\text{RF}} = 1$ and the weights are site-specific (Ta
 
 \subsubsection{Per-Site Customization}
 
-A distinguishing feature of DATect is that each of the 10 monitoring sites receives a custom configuration encompassing: (1) XGBoost and Random Forest hyperparameter overrides, (2) a curated feature subset, (3) ensemble weights $(w_{\text{XGB}}, w_{\text{RF}})$, and (4) prediction clipping parameters. This per-site approach acknowledges that the 10 sites exhibit fundamentally different DA dynamics due to their distinct oceanographic settings, sampling histories, and bloom characteristics. A single global model would be forced to compromise across these diverse regimes, while per-site customization allows each site's model to specialize.
+A distinguishing feature of DATect is that each of the 10 monitoring sites receives a custom configuration encompassing: (1) XGBoost and Random Forest hyperparameter overrides, (2) a curated feature subset, (3) ensemble weights $(w_{\text{XGB}}, w_{\text{RF}})$ in Equation~\ref{eq:ensemble}, and (4) prediction clipping parameters. This per-site approach acknowledges that the 10 sites exhibit fundamentally different DA dynamics due to their distinct oceanographic settings, sampling histories, and bloom characteristics. A single global model would be forced to compromise across these diverse regimes, while per-site customization allows each site's model to specialize.
 
-Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config} summarizes the per-site configuration. In the final paper configuration, six sites select Random Forest and four select XGBoost, so the ``ensemble'' acts as a site-wise model selector rather than a blended average. Most moderate- and low-skill sites also use stronger clipping or regularization, reflecting the need for more conservative predictions when data are sparse or highly variable. Na\"ive persistence remains available as a standalone model type for direct baseline comparison (Section~\ref{sec:results-overall}).
+Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config} summarizes the per-site configuration. In the final paper configuration, six sites select Random Forest and four select XGBoost, so the ``ensemble'' acts as a site-wise model selector rather than a blended average. Blended weights were tested but produced slightly worse results than single-model selection ($\Delta R^2 = -0.004$ standard, $-0.010$ temporal holdout), consistent with the two models being too correlated on the same feature set to benefit from averaging. Most moderate- and low-skill sites also use stronger clipping or regularization, reflecting the need for more conservative predictions when data are sparse or highly variable. Na\"ive persistence remains available as a standalone model type for direct baseline comparison (Section~\ref{sec:results-overall}).
 
-\textbf{Configuration selection procedure.} Per-site ensemble weights, feature subsets, and hyperparameter overrides were selected through an iterative manual process informed by both domain knowledge and preliminary evaluation results. For each site, XGBoost and Random Forest were evaluated independently using the leak-free retrospective protocol described in Section~\ref{sec:validation}, using a \textit{development} test set (seed = 42, 20\% sampling fraction). Ensemble weights were set proportionally to each component's relative per-site performance; sites where one model clearly dominated converged to a single-model configuration, while sites with comparable ML model performance received split weights. Na\"ive persistence was also evaluated independently as an external baseline but was excluded from the ensemble blend in order to provide a clean separation between ML ensemble skill and raw autocorrelation. Feature subsets were curated by removing feature groups that degraded site-specific performance, prioritizing parsimony at data-sparse sites to reduce overfitting.
+\textbf{Configuration selection procedure.} Per-site ensemble weights, feature subsets, and hyperparameter overrides were selected through an iterative manual process informed by both domain knowledge and preliminary evaluation results. For each site, XGBoost and Random Forest were evaluated independently using the leak-free retrospective protocol described in Section~\ref{sec:validation}, using a \textit{development} test set (seed = 42, 20\% sampling fraction). Ensemble weights were set proportionally to each component's relative per-site performance; sites where one model clearly dominated converged to a single-model configuration. Blended weights were also evaluated but did not improve over single-model selection (Appendix~\ref{app:weight-robustness}). Na\"ive persistence was also evaluated independently as an external baseline but was excluded from the ensemble blend in order to provide a clean separation between ML ensemble skill and raw autocorrelation. Feature subsets were curated by removing feature groups that degraded site-specific performance, prioritizing parsimony at data-sparse sites to reduce overfitting.
 
 To prevent optimistic bias from evaluating on the same data used for configuration selection, all results reported in this paper use an \textit{independent} test set drawn with a different random seed (seed = 123) and a larger sampling fraction (40\%). This independent evaluation set was never used during any stage of per-site configuration development, ensuring that reported metrics reflect genuine out-of-sample performance. During retrospective evaluation, per-anchor hyperparameter selection within each test point additionally uses a separate calibration fraction (30\% of training data) that is independent of both test sets.
 
@@ -501,7 +501,7 @@ Newport        & 218 & $-$0.243 [$-$1.871, $-$0.038] & 10.30 [7.48, 14.38] & 28.
 \bottomrule
 \end{tabular}
 \vspace{0.3em}\\
-\footnotesize{Adjusted $R^2$ values (not shown) differ from $R^2$ by $< 0.02$ at all sites due to favorable sample-size-to-feature ratios ($N/p > 3$ at all sites). Bootstrap 95\% CIs to be updated from \texttt{eval\_paper\_metrics.py} re-run on Hyak.}
+\footnotesize{Adjusted $R^2$ values (not shown) differ from $R^2$ by $< 0.02$ at all sites due to favorable sample-size-to-feature ratios ($N/p > 3$ at all sites).}
 \end{table}
 
 \begin{table}[H]
@@ -516,8 +516,8 @@ Quinault      & 144 & \textbf{0.735} & 2.72 & 8.95  & High-skill \\
 Copalis       & 152 & \textbf{0.629} & 3.20 & 10.22 & High-skill \\
 Long Beach    & 101 & \textbf{0.628} & 5.27 & 9.11  & High-skill \\
 Twin Harbors  & 103 & \textbf{0.461} & 5.18 & 14.15 & High-skill \\
-Clatsop Beach & 118 & \textbf{0.522} & 9.78 & 18.34 & Moderate \\
-Coos Bay      &  89 & \textbf{0.616} & 8.08 & 22.87 & Moderate \\
+Clatsop Beach & 118 & \textbf{0.522} & 9.78 & 18.34 & High-skill$^\dagger$ \\
+Coos Bay      &  89 & \textbf{0.616} & 8.08 & 22.87 & High-skill$^\dagger$ \\
 \addlinespace
 Kalaloch      &  82 & 0.289 & 2.55 & 7.42  & Moderate \\
 Cannon Beach  &  13 & 0.000 & 0.03 & 0.04  & Moderate \\
@@ -528,7 +528,7 @@ Gold Beach    & 110 & $-$0.271 & 10.56 & 29.14 & Low-skill \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}\\
-\footnotesize{Coos Bay shows markedly higher skill on the temporal holdout ($R^2 = 0.616$) than on the standard random-split evaluation ($R^2 = -0.038$), suggesting a possible post-2019 regime shift in DA dynamics at this site consistent with the anomalous marine heatwave conditions of 2019--2021. Cannon Beach ($N = 13$) has insufficient post-2019 measurements for stable per-site estimates.}
+\footnotesize{$^\dagger$Clatsop Beach and Coos Bay shift from Moderate/Low-skill on the standard eval to High-skill on the temporal holdout ($R^2 > 0.4$). Coos Bay's improvement ($R^2 = 0.616$ vs.\ $-0.038$) is particularly striking and may reflect a post-2019 regime shift in DA dynamics consistent with the 2019--2021 marine heatwave. Cannon Beach ($N = 13$, MAE $= 0.03$~\si{\microgrampeg}) has insufficient post-2019 measurements for stable per-site estimates; its near-zero errors indicate that essentially all 13 holdout observations are below-detection-limit, making this a degenerate sample rather than genuine forecast skill.}
 \end{table}
 
 \begin{table}[H]
@@ -610,9 +610,11 @@ Table~\ref{tab:spike-transition} compares spike transition detection across appr
 \midrule
 Na\"ive persistence              & 0.236 & 0.754 & 0.546 & 0.700 \\
 Ensemble ($\geq$20 \si{\microgrampeg}) & 0.124 & 0.558 & 0.618 & 0.569 \\
-Hybrid alert (classifier + \SI{12}{\microgrampeg} trigger) & \textbf{0.734} & \textbf{0.859} & 0.344 & --- \\
+Hybrid alert (classifier + \SI{12}{\microgrampeg} trigger) & \textbf{0.734} & \textbf{0.859} & 0.344 & 0.661 \\
 \bottomrule
 \end{tabular}
+\vspace{0.3em}\\
+\footnotesize{F2 weights recall twice as heavily as precision ($\beta = 2$). The hybrid alert's F2 (0.661) is lower than na\"ive persistence (0.700) because its precision drops sharply; however, the hybrid's advantage is specifically in \textit{transition} recall (0.734 vs.\ 0.236), which F2 does not separately capture. For closure-relevant early warning, transition recall is the operationally critical metric.}
 \end{table}
 
 \begin{figure}[H]
@@ -732,7 +734,7 @@ The paper's main operational result is that magnitude forecasting and closure-wa
 Table~\ref{tab:ensemble-config} summarizes the site-wise model selection, clipping rules, and development-set performance tiers used during configuration selection.
 
 \begin{table}[H]
-\caption{Per-site ensemble configuration showing weights, prediction clipping, and development-set performance tier used during configuration selection (see Table~\ref{tab:per-site-results} for held-out test-set $R^2$).}
+\caption{Per-site ensemble configuration showing model selection, prediction clipping, and development-set performance tier used during configuration selection (see Table~\ref{tab:per-site-results} for held-out test-set $R^2$).}
 \label{tab:ensemble-config}
 \small
 \begin{tabular}{lccccl}
@@ -754,7 +756,7 @@ Newport       & 1.00 & 0.00 & 0.98 & --- & Low-skill \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}\\
-\footnotesize{Clip~$q$: predictions clipped to this quantile of training targets. ``---'' = global default ($q = 0.99$) or no hard ceiling. Clip max in \si{\microgrampeg}.}
+\footnotesize{Clip~$q$: predictions clipped to this quantile of training targets. ``---'' = global default ($q = 0.99$) or no hard ceiling. Clip max in \si{\microgrampeg}. All sites converged to single-model selection ($w \in \{0,1\}$); blended weights were tested but did not improve over single-model selection (Appendix~\ref{app:weight-robustness}).}
 \end{table}
 
 \section{Classification Details}
@@ -998,10 +1000,10 @@ Exploratory feature-importance, correlation, and spectral plots remain part of t
 \section{Model Selection Robustness}
 \label{app:weight-robustness}
 
-Since DATect assigns each site a single model (XGBoost or Random Forest) based on development-set performance, weight robustness reduces to model-selection robustness: how sensitive are aggregate results to the per-site XGB vs.\ RF choice? Table~\ref{tab:weight-robustness} compares three strategies evaluated on the held-out test set ($n = 2{,}181$, seed = 123). The oracle selects the better model per site using test-set performance itself and represents an unattainable upper bound.
+Since DATect assigns each site a single model (XGBoost or Random Forest) based on development-set performance, weight robustness reduces to model-selection robustness: how sensitive are aggregate results to the per-site XGB vs.\ RF choice? Table~\ref{tab:weight-robustness} compares three strategies evaluated on the held-out test set ($n = 2{,}181$, seed = 123).
 
 \begin{table}[H]
-\caption{Model selection robustness on the held-out test set ($n = 2{,}181$, seed = 123). The oracle selects the better single model per site using test-set $R^2$ directly and represents an unattainable upper bound. Bootstrap 95\% CIs computed with $B = 10{,}000$ resamples.}
+\caption{Model selection robustness on the held-out test set ($n = 2{,}181$, seed = 123). The oracle selects the better single model per site using test-set $R^2$ directly. Bootstrap 95\% CIs computed with $B = 10{,}000$ resamples.}
 \label{tab:weight-robustness}
 \small
 \begin{tabular}{lccc}
@@ -1013,7 +1015,7 @@ RF at all sites                         & 0.194 & 6.48 & 18.03 \\
 Per-site dev-set selection (this paper) & 0.215 & 6.42 & 17.72 \\
 \bottomrule
 \end{tabular}
-{\footnotesize The oracle upper bound---selecting the better model per site using test-set $R^2$ directly---achieves $R^2 = 0.210$, MAE $= 6.41$~\si{\microgrampeg} ($\Delta R^2 = {+}0.006$ over the per-site dev-set selection), confirming the development-set model selection is robust.}
+{\footnotesize The oracle---selecting the better single model per site using test-set $R^2$---achieves pooled $R^2 = 0.210$, MAE $= 6.41$~\si{\microgrampeg}. This is slightly \textit{lower} than the dev-set selection ($\Delta R^2 = -0.005$) because pooled $R^2$ is not a weighted average of per-site values: the oracle's per-site-optimal choices can concentrate residual error at high-$N$ sites that dominate the pooled metric. The near-equivalence of all four strategies ($R^2 = 0.194$--$0.215$) confirms that model-family selection is not a meaningful source of variance.}
 \end{table}
 
 

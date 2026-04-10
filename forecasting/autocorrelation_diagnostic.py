@@ -3,7 +3,10 @@ autocorrelation_diagnostic.py — Per-site DA predictability ceiling
 
 Computes the lag-1 autocorrelation of raw DA measurements for each site.
 The squared autocorrelation (rho²) is the theoretical upper bound on R² for
-any one-step-ahead forecast: if rho=0.45, no model can exceed R²≈0.20.
+a **persistence-only** (last-value) forecast.  Models that use environmental
+features (SST, BEUTI, PDO, discharge, etc.) can and do exceed this bound —
+rho² is a floor on model potential (what persistence alone captures), not an
+upper bound on what is achievable with additional predictors.
 
 This is a read-only diagnostic — it does not affect predictions.
 """
@@ -117,8 +120,8 @@ def print_ceiling_table(results: Dict[str, dict], current_r2: Dict[str, float] |
         print(f"  OR mean R² ceiling: {np.mean(or_ceil):.4f}")
     print("=" * 90)
     print("  ρ lag-1: Pearson correlation of consecutive raw DA observations")
-    print("  R² ceil: ρ² — theoretical max R² for a one-step-ahead forecast")
-    print("  Gap: current model R² minus ceiling (positive = model beats persistence bound)")
+    print("  R² ceil: ρ² — theoretical max R² for a persistence-only forecast")
+    print("  Gap: current model R² minus ceiling (positive = env features add signal beyond persistence)")
 
 
 if __name__ == "__main__":

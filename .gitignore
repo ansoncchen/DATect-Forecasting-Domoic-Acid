@@ -65,6 +65,7 @@ tools/testing/results/
 analysis/*/outputs/
 claude.md
 .claude/
+.cursor/
 paper/figures/
 
 # AI agent config files

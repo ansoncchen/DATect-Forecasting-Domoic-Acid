@@ -73,10 +73,6 @@ seed = int(os.environ.get("DATECT_STABILITY_SEED", "42"))
 sample_frac = float(os.environ.get("DATECT_STABILITY_FRACTION", "0.20"))
 config.RANDOM_SEED = seed
 config.TEST_SAMPLE_FRACTION = sample_frac
-# Use threading so monkey-patched module state (RF params, feature_subset,
-# clipping) is visible to worker threads. loky spawns fresh processes that
-# re-import config and lose all in-process patches.
-config.PARALLEL_BACKEND = "threading"
 
 # Print config for debugging
 print(f"Seed={{seed}}, Fraction={{sample_frac}}, PerSite={{config.USE_PER_SITE_MODELS}}", file=sys.stderr)
@@ -249,94 +245,41 @@ PATCH_GLOBAL_DEFAULTS = """
 config.USE_PER_SITE_MODELS = False
 """
 
-PATCH_RF_SHALLOW = """
-config.RF_REGRESSION_PARAMS = {
-    'n_estimators': 200, 'max_depth': 6,
-    'min_samples_split': 5, 'min_samples_leaf': 3, 'max_features': 0.5,
-}
-# Also override per-site RF conservative params
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site, cfg in SITE_SPECIFIC_CONFIGS.items():
-    cfg['rf_params'] = dict(config.RF_REGRESSION_PARAMS)
-"""
+# RF param perturbations use DATECT_RF_PARAMS_JSON env var — loky workers
+# inherit env and re-import config.py which reads the override at module load.
+ENV_RF_SHALLOW = {"DATECT_RF_PARAMS_JSON":
+    '{"n_estimators": 200, "max_depth": 6, "min_samples_split": 5, "min_samples_leaf": 3, "max_features": 0.5}'}
+ENV_RF_DEEP = {"DATECT_RF_PARAMS_JSON":
+    '{"n_estimators": 600, "max_depth": 16, "min_samples_split": 5, "min_samples_leaf": 3, "max_features": 0.9}'}
+ENV_RF_MORE_TREES = {"DATECT_RF_PARAMS_JSON":
+    '{"n_estimators": 800, "max_depth": 12, "min_samples_split": 5, "min_samples_leaf": 3, "max_features": 0.85}'}
+ENV_RF_LESS_REG = {"DATECT_RF_PARAMS_JSON":
+    '{"n_estimators": 400, "max_depth": 12, "min_samples_split": 2, "min_samples_leaf": 1, "max_features": 0.85}'}
 
-PATCH_RF_DEEP = """
-config.RF_REGRESSION_PARAMS = {
-    'n_estimators': 600, 'max_depth': 16,
-    'min_samples_split': 5, 'min_samples_leaf': 3, 'max_features': 0.9,
-}
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site, cfg in SITE_SPECIFIC_CONFIGS.items():
-    cfg['rf_params'] = dict(config.RF_REGRESSION_PARAMS)
-"""
-
-PATCH_RF_MORE_TREES = """
-config.RF_REGRESSION_PARAMS = {
-    'n_estimators': 800, 'max_depth': 12,
-    'min_samples_split': 5, 'min_samples_leaf': 3, 'max_features': 0.85,
-}
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site, cfg in SITE_SPECIFIC_CONFIGS.items():
-    cfg['rf_params'] = dict(config.RF_REGRESSION_PARAMS)
-"""
-
-PATCH_RF_LESS_REG = """
-config.RF_REGRESSION_PARAMS = {
-    'n_estimators': 400, 'max_depth': 12,
-    'min_samples_split': 2, 'min_samples_leaf': 1, 'max_features': 0.85,
-}
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site, cfg in SITE_SPECIFIC_CONFIGS.items():
-    cfg['rf_params'] = dict(config.RF_REGRESSION_PARAMS)
-"""
-
-PATCH_ALL_FEATURES = """
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site, cfg in SITE_SPECIFIC_CONFIGS.items():
-    cfg['feature_subset'] = None  # Use all default features
-"""
-
-PATCH_MINIMAL_FEATURES = """
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-MINIMAL = ['last_observed_da_raw', 'da_raw_prev_obs_1', 'month', 'modis-sst']
-for site, cfg in SITE_SPECIFIC_CONFIGS.items():
-    cfg['feature_subset'] = MINIMAL
-"""
-
-PATCH_RELAX_CLIPPING = """
-config.PREDICTION_CLIP_Q = 0.99
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site, cfg in SITE_SPECIFIC_CONFIGS.items():
-    cfg['prediction_clip_q'] = 0.99
-    cfg['prediction_clip_max'] = None
-"""
-
-PATCH_NO_CLIPPING = """
-config.PREDICTION_CLIP_Q = None
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site, cfg in SITE_SPECIFIC_CONFIGS.items():
-    cfg['prediction_clip_q'] = None
-    cfg['prediction_clip_max'] = None
-"""
+# Feature subset and clipping use env vars read by per_site_models.py at import time.
+ENV_ALL_FEATURES = {"DATECT_FEATURE_SUBSET_MODE": "all"}
+ENV_MINIMAL_FEATURES = {"DATECT_FEATURE_SUBSET_MODE": "minimal"}
+ENV_RELAX_CLIPPING = {"DATECT_CLIP_Q_OVERRIDE": "0.99"}
+ENV_NO_CLIPPING = {"DATECT_CLIP_Q_OVERRIDE": "none"}
 
 
 PERTURBATIONS = [
-    # Model selection (3 runs)
+    # Model selection (3 runs) — blending applied in parent process, patch works fine
     ("swap_rf_to_xgb", "Swap all RF→XGB", {}, PATCH_SWAP_RF_TO_XGB),
     ("swap_xgb_to_rf", "Swap all XGB→RF", {}, PATCH_SWAP_XGB_TO_RF),
     ("global_defaults", "No per-site config", {"DATECT_USE_PER_SITE_MODELS": "false"}, ""),
 
-    # RF hyperparameters (4 runs)
-    ("rf_shallow", "RF shallow (depth=6, trees=200)", {}, PATCH_RF_SHALLOW),
-    ("rf_deep", "RF deep (depth=16, trees=600)", {}, PATCH_RF_DEEP),
-    ("rf_more_trees", "RF more trees (n=800)", {}, PATCH_RF_MORE_TREES),
-    ("rf_less_reg", "RF less regularized (leaf=1)", {}, PATCH_RF_LESS_REG),
+    # RF hyperparameters (4 runs) — env vars read by config.py at loky worker import
+    ("rf_shallow", "RF shallow (depth=6, trees=200)", ENV_RF_SHALLOW, ""),
+    ("rf_deep", "RF deep (depth=16, trees=600)", ENV_RF_DEEP, ""),
+    ("rf_more_trees", "RF more trees (n=800)", ENV_RF_MORE_TREES, ""),
+    ("rf_less_reg", "RF less regularized (leaf=1)", ENV_RF_LESS_REG, ""),
 
-    # Features + clipping (5 runs)
-    ("all_features", "All features everywhere", {}, PATCH_ALL_FEATURES),
-    ("minimal_features", "Minimal features (4 only)", {}, PATCH_MINIMAL_FEATURES),
-    ("relax_clipping", "Relax clipping (0.99 all)", {}, PATCH_RELAX_CLIPPING),
-    ("no_clipping", "No prediction clipping", {}, PATCH_NO_CLIPPING),
+    # Features + clipping (5 runs) — env vars read by per_site_models.py at loky worker import
+    ("all_features", "All features everywhere", ENV_ALL_FEATURES, ""),
+    ("minimal_features", "Minimal features (4 only)", ENV_MINIMAL_FEATURES, ""),
+    ("relax_clipping", "Relax clipping (0.99 all)", ENV_RELAX_CLIPPING, ""),
+    ("no_clipping", "No prediction clipping", ENV_NO_CLIPPING, ""),
     ("monotonic_off", "Monotonic constraints off",
      {"DATECT_USE_MONOTONIC_CONSTRAINTS": "false"}, ""),
 ]

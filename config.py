@@ -319,6 +319,11 @@ RF_REGRESSION_PARAMS = {
     "min_samples_leaf": 3,
     "max_features": 0.85,
 }
+# Allow stability study to override RF params via env var (loky workers re-import this)
+_rf_params_json = os.environ.get("DATECT_RF_PARAMS_JSON", "")
+if _rf_params_json:
+    import json as _json
+    RF_REGRESSION_PARAMS = {**RF_REGRESSION_PARAMS, **_json.loads(_rf_params_json)}
 
 # Target and model toggles (overridable via env vars for ablation studies)
 USE_PER_SITE_MODELS = os.environ.get("DATECT_USE_PER_SITE_MODELS", "true").lower() == "true"

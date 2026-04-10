@@ -356,6 +356,31 @@ DEFAULT_SITE_CONFIG: Dict[str, Any] = {
     'prediction_clip_max': None,
 }
 
+# --------------------------------------------------------------------------
+# Env-var overrides for stability study (loky workers re-import this module)
+# --------------------------------------------------------------------------
+import os as _os
+
+_feature_mode = _os.environ.get("DATECT_FEATURE_SUBSET_MODE", "")
+if _feature_mode == "all":
+    for _sc in SITE_SPECIFIC_CONFIGS.values():
+        _sc['feature_subset'] = None
+elif _feature_mode == "minimal":
+    _MINIMAL = ['last_observed_da_raw', 'da_raw_prev_obs_1', 'month', 'modis-sst']
+    for _sc in SITE_SPECIFIC_CONFIGS.values():
+        _sc['feature_subset'] = _MINIMAL
+
+_clip_override = _os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")
+if _clip_override == "none":
+    for _sc in SITE_SPECIFIC_CONFIGS.values():
+        _sc['prediction_clip_q'] = None
+        _sc['prediction_clip_max'] = None
+elif _clip_override:
+    _cq = float(_clip_override)
+    for _sc in SITE_SPECIFIC_CONFIGS.values():
+        _sc['prediction_clip_q'] = _cq
+        _sc['prediction_clip_max'] = None
+
 
 # --------------------------------------------------------------------------
 # Helper functions

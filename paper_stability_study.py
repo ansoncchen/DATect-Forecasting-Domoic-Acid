@@ -73,6 +73,10 @@ seed = int(os.environ.get("DATECT_STABILITY_SEED", "42"))
 sample_frac = float(os.environ.get("DATECT_STABILITY_FRACTION", "0.20"))
 config.RANDOM_SEED = seed
 config.TEST_SAMPLE_FRACTION = sample_frac
+# Use threading so monkey-patched module state (RF params, feature_subset,
+# clipping) is visible to worker threads. loky spawns fresh processes that
+# re-import config and lose all in-process patches.
+config.PARALLEL_BACKEND = "threading"
 
 # Print config for debugging
 print(f"Seed={{seed}}, Fraction={{sample_frac}}, PerSite={{config.USE_PER_SITE_MODELS}}", file=sys.stderr)

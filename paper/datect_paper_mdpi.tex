@@ -459,16 +459,16 @@ Table~\ref{tab:model-comparison} compares the five model variants evaluated unde
 \toprule
 \textbf{Model} & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [95\% CI] (\si{\microgrampeg})} & \textbf{RMSE (\si{\microgrampeg})} & \textbf{$\Delta R^2$ vs.\ ens.\ [95\% CI]} \\
 \midrule
-\textbf{Ensemble (XGB+RF)} & \textbf{0.215} [0.089, 0.344] & \textbf{6.42} [5.79, 7.15] & \textbf{17.72} & --- \\
-XGBoost                    & 0.207 [0.086, 0.336] & 6.39 [5.67, 7.11] & 17.88 & $-$0.004 [$-$0.018, $+$0.009] \\
-Random Forest              & 0.194 [0.060, 0.322] & 6.48 [5.80, 7.24] & 18.03 & $+$0.010 [$-$0.005, $+$0.027] \\
-Linear (Ridge)             & 0.202 [0.068, 0.322] & 6.76 [6.07, 7.54] & 17.94 & $+$0.002 [$-$0.028, $+$0.034] \\
-Na\"ive Persistence        & $-$0.426 [$-$0.951, $-$0.034] & 7.73 [6.84, 8.76] & 23.98 & $+$0.630 [$+$0.293, $+$1.117] \\
+\textbf{Ensemble (XGB+RF)} & \textbf{0.215} [0.096, 0.342] & \textbf{6.42} [5.78, 7.15] & \textbf{17.79} & --- \\
+XGBoost                    & 0.221 [0.112, 0.339] & 6.38 [5.67, 7.08] & 17.72 & $-$0.006 [$-$0.020, $+$0.007] \\
+Random Forest              & 0.190 [0.057, 0.320] & 6.47 [5.79, 7.25] & 18.07 & $+$0.025 [$+$0.005, $+$0.045] \\
+Linear (Ridge)             & 0.202 [0.070, 0.324] & 6.62 [5.93, 7.39] & 17.94 & $+$0.013 [$-$0.020, $+$0.042] \\
+Na\"ive Persistence        & $-$0.426 [$-$0.951, $-$0.034] & 7.73 [6.84, 8.76] & 23.98 & $+$0.641 [$+$0.297, $+$1.122] \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-XGBoost and Random Forest achieve similar individual performance ($R^2 = 0.207$ and $0.194$, respectively), with Linear (Ridge) near the ensemble at $R^2 = 0.202$. Na\"ive persistence achieves $R^2 = -0.426$ at the pooled held-out scale, indicating that simply predicting the most recent DA observation is not sufficient once all sites are combined. This pooled result does not imply that persistence is useless at every site; rather, it underscores the importance of per-site modeling under strong regional heterogeneity. The convergence of all three ML models ($\Delta R^2 < 0.013$ between them) suggests that much of the predictive information is captured similarly across model architectures. Paired bootstrap differences between the ensemble and individual models are small and statistically consistent with zero (Table~\ref{tab:model-comparison}), while the ensemble's advantage over na\"ive persistence is large and clearly significant ($\Delta R^2 = +0.630$\, $[+0.293,\, +1.117]$), reflecting the value of per-site model selection and feature engineering over raw autocorrelation.
+XGBoost achieves the highest individual model $R^2 = 0.221$, marginally above the ensemble ($R^2 = 0.215$); the ensemble's slight underperformance relative to XGB alone reflects that per-site RF selection at WA sites trades some global XGB advantage for local calibration. Random Forest ($R^2 = 0.190$) and Linear/Ridge ($R^2 = 0.202$) trail XGB but remain competitive. Na\"ive persistence achieves $R^2 = -0.426$ at the pooled held-out scale, indicating that simply predicting the most recent DA observation is not sufficient once all sites are combined. This pooled result does not imply that persistence is useless at every site; rather, it underscores the importance of per-site modeling under strong regional heterogeneity. Paired bootstrap differences between the ensemble and individual ML models are small and statistically consistent with zero (Table~\ref{tab:model-comparison}), while the ensemble's advantage over na\"ive persistence is large and clearly significant ($\Delta R^2 = +0.641$\, $[+0.297,\, +1.122]$), reflecting the value of per-site model selection and feature engineering over raw autocorrelation.
 
 \subsection{Per-Site Regression Performance}
 \label{sec:results-per-site}
@@ -495,9 +495,9 @@ Cannon Beach   & 116 & $-$0.045 [$-$0.091, $-$0.010] & 3.93 [1.38, 6.97] & 16.15
 Gold Beach     & 257 & 0.051 [$-$0.113, 0.236] & 8.02 [5.30, 10.78] & 23.45 & 0.763 & Moderate \\
 \addlinespace
 Coos Bay       & 109 & $-$0.038 [$-$0.681, 0.304] & 24.55 [18.75, 30.47] & 40.12 & 0.450 & Low-skill \\
-Newport        & 218 & $-$0.243 [$-$1.871, $-$0.038] & 10.30 [7.48, 14.38] & 28.64 & 0.615 & Low-skill \\
+Newport        & 218 & $-$0.243 [$-$1.512, $-$0.017] & 10.30 [7.28, 14.13] & 28.28 & 0.610 & Low-skill \\
 \midrule
-\textbf{Overall} & \textbf{2,181} & \textbf{0.215} [0.089, 0.344] & \textbf{6.42} [5.79, 7.15] & \textbf{17.72} & \textbf{0.741} & --- \\
+\textbf{Overall} & \textbf{2,181} & \textbf{0.215} [0.096, 0.342] & \textbf{6.42} [5.78, 7.15] & \textbf{17.79} & \textbf{0.751} & --- \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}\\
@@ -505,34 +505,34 @@ Newport        & 218 & $-$0.243 [$-$1.871, $-$0.038] & 10.30 [7.48, 14.38] & 28.
 \end{table}
 
 \begin{table}[H]
-\caption{Per-site ensemble performance on the 2019--2023 temporal holdout ($N = 1{,}036$). All per-site configurations and hyperparameter grids were developed exclusively on pre-2019 data; no tuning decisions were informed by any post-2018 date. Training for each test point still uses all data before the anchor date. The temporal holdout therefore provides an unbiased estimate of generalization to future periods. Pooled $R^2 = 0.315$, WA mean $R^2 = 0.549$, OR mean $R^2 = 0.113$.}
+\caption{Per-site ensemble performance on the 2019--2023 temporal holdout ($N = 1{,}036$). All per-site configurations and hyperparameter grids were developed exclusively on pre-2019 data; no tuning decisions were informed by any post-2018 date. Training for each test point still uses all data before the anchor date. The temporal holdout therefore provides an unbiased estimate of generalization to future periods. Pooled $R^2 = 0.315$ [0.138, 0.476], WA mean $R^2 = 0.549$, OR mean $R^2 = 0.113$.}
 \label{tab:temporal-holdout}
 \small
-\begin{tabular}{lrrrll}
+\begin{tabular}{lrllrl}
 \toprule
-\textbf{Site} & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ & \textbf{MAE (\si{\microgrampeg})} & \textbf{RMSE (\si{\microgrampeg})} & \textbf{Tier} \\
+\textbf{Site} & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [95\% CI] (\si{\microgrampeg})} & \textbf{RMSE (\si{\microgrampeg})} & \textbf{Tier} \\
 \midrule
-Quinault      & 144 & \textbf{0.735} & 2.72 & 8.95  & High-skill \\
-Copalis       & 152 & \textbf{0.629} & 3.20 & 10.22 & High-skill \\
-Long Beach    & 101 & \textbf{0.628} & 5.27 & 9.11  & High-skill \\
-Twin Harbors  & 103 & \textbf{0.461} & 5.18 & 14.15 & High-skill \\
-Clatsop Beach & 118 & \textbf{0.522} & 9.78 & 18.34 & High-skill$^\dagger$ \\
-Coos Bay      &  89 & \textbf{0.616} & 8.08 & 22.87 & High-skill$^\dagger$ \\
+Quinault      & 144 & \textbf{0.735} [0.609, 0.831] & 2.72 [2.12, 3.40] & 4.69  & High-skill \\
+Copalis       & 152 & \textbf{0.629} [0.504, 0.753] & 3.20 [2.51, 3.96] & 5.56  & High-skill \\
+Long Beach    & 101 & \textbf{0.628} [0.452, 0.766] & 5.27 [3.83, 6.83] & 9.33  & High-skill \\
+Twin Harbors  & 103 & \textbf{0.461} [0.236, 0.712] & 5.18 [3.67, 7.04] & 10.26 & High-skill \\
+Clatsop Beach & 118 & \textbf{0.522} [0.013, 0.770] & 9.78 [7.13, 12.73] & 18.69 & High-skill$^\dagger$ \\
+Coos Bay      &  89 & \textbf{0.616} [0.181, 0.857] & 8.08 [5.32, 11.55] & 16.78 & High-skill$^\dagger$ \\
 \addlinespace
-Kalaloch      &  82 & 0.289 & 2.55 & 7.42  & Moderate \\
-Cannon Beach  &  13 & 0.000 & 0.03 & 0.04  & Moderate \\
-Newport       & 124 & $-$0.305 & 12.88 & 30.44 & Low-skill \\
-Gold Beach    & 110 & $-$0.271 & 10.56 & 29.14 & Low-skill \\
+Kalaloch      &  82 & 0.289 [0.138, 0.612] & 2.55 [1.44, 3.92] & 6.31  & Moderate \\
+Cannon Beach  &  13 & 0.000$^\ddagger$ & 0.03 & 0.03  & Moderate \\
+Newport       & 124 & $-$0.305 [$-$1.514, 0.129] & 12.88 [9.19, 17.16] & 25.15 & Low-skill \\
+Gold Beach    & 110 & $-$0.271 [$-$2.336, $-$0.048] & 10.56 [6.95, 15.04] & 24.96 & Low-skill \\
 \midrule
-\textbf{Overall} & \textbf{1,036} & \textbf{0.315} & \textbf{6.55} & \textbf{17.91} & --- \\
+\textbf{Overall} & \textbf{1,036} & \textbf{0.315} [0.138, 0.476] & \textbf{6.55} [5.72, 7.43] & \textbf{15.35} & --- \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}\\
-\footnotesize{$^\dagger$Clatsop Beach and Coos Bay shift from Moderate/Low-skill on the standard eval to High-skill on the temporal holdout ($R^2 > 0.4$). Coos Bay's improvement ($R^2 = 0.616$ vs.\ $-0.038$) is particularly striking and may reflect a post-2019 regime shift in DA dynamics consistent with the 2019--2021 marine heatwave. Cannon Beach ($N = 13$, MAE $= 0.03$~\si{\microgrampeg}) has insufficient post-2019 measurements for stable per-site estimates; its near-zero errors indicate that essentially all 13 holdout observations are below-detection-limit, making this a degenerate sample rather than genuine forecast skill.}
+\footnotesize{Bootstrap 95\% CIs ($B = 10{,}000$; percentile method). $^\dagger$Clatsop Beach and Coos Bay shift from Moderate/Low-skill on the standard eval to High-skill on the temporal holdout ($R^2 > 0.4$). Coos Bay's improvement ($R^2 = 0.616$ vs.\ $-0.038$) is particularly striking and may reflect a post-2019 regime shift in DA dynamics consistent with the 2019--2021 marine heatwave. $^\ddagger$Cannon Beach ($N = 13$) has insufficient post-2019 measurements for stable per-site estimates; essentially all 13 holdout observations are near-zero DA, making this a degenerate sample rather than genuine forecast skill. Bootstrap CI omitted.}
 \end{table}
 
 \begin{table}[H]
-\caption{Theoretical $R^2$ ceiling per site, computed as the squared lag-1 autocorrelation ($\rho^2$) of consecutive raw DA measurements. The ceiling represents the maximum $R^2$ achievable by any optimal linear one-step-ahead forecast given the observed autocorrelation structure. Sites with near-zero ceilings are fundamentally unpredictable at the weekly horizon regardless of model architecture.}
+\caption{Persistence-forecast $R^2$ ceiling per site, computed as the squared lag-1 autocorrelation ($\rho^2$) of consecutive raw DA measurements. The ceiling bounds the maximum $R^2$ achievable by a \emph{persistence-only} (last-value) one-step-ahead forecast; models that incorporate environmental predictors (SST, BEUTI, PDO, discharge, etc.) can and do exceed $\rho^2$, as illustrated by Gold Beach ($\rho^2 = 0.002$, held-out $R^2 = 0.051$). Sites with near-zero ceilings indicate that persistence alone carries very little information about future DA levels.}
 \label{tab:predictability-ceiling}
 \small
 \begin{tabular}{lrrrr}
@@ -558,9 +558,9 @@ Gold Beach    &  717 & 0.038 & 0.002 & 0.051 \\
 
 \textbf{High-skill sites} (5 of 10, $R^2 > 0.4$): Copalis, Twin Harbors, Quinault, Long Beach, and Kalaloch---all five Washington sites---achieve $R^2 \geq 0.480$ on the held-out test set, confirming that the strong performance at these sites is genuine and not an artifact of per-site configuration tuning. The best-performing site, Copalis ($R^2 = 0.789$ [0.709, 0.843]), benefits from both strong persistence signal and informative environmental features. These five sites account for 1,127 of the 2,181 validation samples (52\%), and the concentration of all high-skill sites in Washington reflects the more predictable DA dynamics north of the Columbia River mouth.
 
-\textbf{Moderate sites} (3 of 10): Clatsop Beach ($R^2 = 0.290$) and Gold Beach ($R^2 = 0.041$) show marginally positive skill, while Cannon Beach ($R^2 = -0.044$) is near zero. Clatsop Beach benefits from interpolated training, which provides gap-filled data that captures seasonal DA patterns between sparse raw measurements. Cannon Beach, despite having a mean DA of just \SI{1.06}{\microgrampeg}, achieves 92.2\% classification accuracy due to the dominance of the Low category.
+\textbf{Moderate sites} (3 of 10): Clatsop Beach ($R^2 = 0.292$) and Gold Beach ($R^2 = 0.051$) show marginally positive skill, while Cannon Beach ($R^2 = -0.045$) is near zero. Clatsop Beach benefits from interpolated training, which provides gap-filled data that captures seasonal DA patterns between sparse raw measurements. Cannon Beach, despite having a mean DA of just \SI{1.06}{\microgrampeg}, achieves 92.2\% classification accuracy due to the dominance of the Low category.
 
-\textbf{Low-skill sites} (2 of 10, $R^2 < 0$): Coos Bay ($R^2 = -0.039$) and Newport ($R^2 = -0.299$) have negative $R^2$, indicating the ensemble is worse than predicting the site mean. Coos Bay is notable for having the highest mean DA and the largest MAE (\SI{24.55}{\microgrampeg}), reflecting extreme variance in DA concentrations at this site. Newport's wide confidence interval [$-1.930$, $-0.043$] reflects high variability driven by episodic, unpredictable bloom events in its distinct oceanographic regime.
+\textbf{Low-skill sites} (2 of 10, $R^2 < 0$): Coos Bay ($R^2 = -0.038$) and Newport ($R^2 = -0.243$) have negative $R^2$, indicating the ensemble is worse than predicting the site mean. Coos Bay is notable for having the highest mean DA and the largest MAE (\SI{24.55}{\microgrampeg}), reflecting extreme variance in DA concentrations at this site. Newport's wide confidence interval [$-1.512$, $-0.017$] reflects high variability driven by episodic, unpredictable bloom events in its distinct oceanographic regime.
 
 \begin{figure}[H]
 \centering
@@ -572,7 +572,7 @@ Gold Beach    &  717 & 0.038 & 0.002 & 0.051 \\
 \subsection{Classification Performance}
 \label{sec:results-classification}
 
-Threshold-based four-category performance is summarized in Appendix~\ref{app:classification-details} (Tables~\ref{tab:classification} and \ref{tab:confusion}). Overall accuracy is 74.1\% on the held-out test set, driven largely by reliable identification of the Low category (F1 $= 0.857$). Higher-risk categories remain more difficult because of limited samples and class imbalance. Most errors occur between adjacent categories, but 15 of 108 Extreme samples (13.9\%) are misclassified as Low---a safety-relevant failure mode that motivates the dedicated spike analysis below and is revisited in Section~\ref{sec:discussion-limitations}.
+Threshold-based four-category performance is summarized in Appendix~\ref{app:classification-details} (Tables~\ref{tab:classification} and \ref{tab:confusion}). Overall accuracy is 75.1\% on the held-out test set, driven largely by reliable identification of the Low category (F1 $= 0.862$). Higher-risk categories remain more difficult because of limited samples and class imbalance. Most errors occur between adjacent categories, but 15 of 108 Extreme samples (13.9\%) are misclassified as Low---a safety-relevant failure mode that motivates the dedicated spike analysis below and is revisited in Section~\ref{sec:discussion-limitations}.
 
 \subsection{Spike Transition Detection}
 \label{sec:results-spike}
@@ -641,7 +641,7 @@ A fine-grained per-feature ablation (Appendix~\ref{app:feature-ablation}) confir
 
 Table~\ref{tab:temporal-holdout} reports performance on the 2019--2023 temporal holdout ($n = 1{,}036$), a set of test points entirely unseen by any tuning decision. The pooled held-out $R^2 = 0.315$ exceeds the standard seed-123 result (0.215), consistent with the post-2019 period containing proportionally more Washington test points and exhibiting stronger DA autocorrelation structure in that region. Washington sites achieve a mean $R^2 = 0.549$, while Oregon sites average $R^2 = 0.113$. The one notable anomaly is Coos Bay ($R^2 = 0.616$ on holdout vs.\ $-0.038$ on the standard eval), which may reflect a post-2019 oceanographic regime shift driven by the 2019--2021 marine heatwave and increased monitoring regularity during the post-heatwave recovery period; this site warrants targeted follow-up.
 
-Two additional diagnostic analyses characterize where and how the ensemble fails. First, an episodic-error decomposition shows that 88.6\% of total squared error is concentrated in the top 5\% of worst-performing test weeks ($n = 110$ rows). The five largest individual errors are all Oregon observations exceeding \SI{100}{\microgrampeg}, consistent with the near-zero autocorrelation ceilings at Newport, Coos Bay, and Gold Beach (Table~\ref{tab:predictability-ceiling}): these extreme events are essentially unpredictable by any lag-based forecaster, and they contribute a disproportionate share of aggregate MSE. Second, a bias analysis in the 12--30~\si{\microgrampeg} transition zone ($n = 311$ observations) reveals a systematic under-prediction of $+2.2$~\si{\microgrampeg} (i.e., predictions are on average 2.2~\si{\microgrampeg} below actuals). This conservative bias near bloom thresholds is a predictable consequence of MSE-optimized regression on a right-skewed target and motivates the hybrid alert's use of the transition-focused classifier to compensate.
+Two additional diagnostic analyses characterize where and how the ensemble fails. First, an episodic-error decomposition shows that 88.6\% of total squared error is concentrated in the top 5\% of worst-performing test weeks ($n = 110$ rows). The five largest individual errors are all Oregon observations exceeding \SI{100}{\microgrampeg}, consistent with the near-zero persistence-forecast ceilings at Newport, Coos Bay, and Gold Beach (Table~\ref{tab:predictability-ceiling}): persistence alone carries almost no signal for these extreme events, and they contribute a disproportionate share of aggregate MSE. Environmental predictors provide additional structure at these sites (Gold Beach $R^2 = 0.051 > \rho^2 = 0.002$), but extreme bloom magnitudes remain the primary driver of error. Second, a bias analysis in the 12--30~\si{\microgrampeg} transition zone ($n = 311$ observations) reveals a systematic under-prediction of $+2.2$~\si{\microgrampeg} (i.e., predictions are on average 2.2~\si{\microgrampeg} below actuals). This conservative bias near bloom thresholds is a predictable consequence of MSE-optimized regression on a right-skewed target and motivates the hybrid alert's use of the transition-focused classifier to compensate.
 
 % ══════════════════════════════════════════════════════════════════════════════
 %  5. DISCUSSION
@@ -676,8 +676,8 @@ That distinction matters for management value. Quantitative one-week forecasts c
 \label{sec:discussion-limitations}
 
 \begin{enumerate}[nosep]
-    \item \textbf{Low-skill Oregon sites}: Two of 10 sites (Coos Bay, Newport) have negative $R^2$, and three additional Oregon sites have near-zero skill. Lag-1 autocorrelation analysis (Table~\ref{tab:predictability-ceiling}) reveals theoretical $R^2$ ceilings of 0.003--0.036 for Newport, Coos Bay, and Gold Beach, indicating that near-zero predictive skill at these sites reflects fundamental temporal structure in the data rather than model limitations alone. Even a perfect one-step-ahead predictor would achieve $R^2 < 0.04$ at these sites given the observed autocorrelation structure. The paper cannot fully separate data sparsity from true regional oceanographic complexity, but the autocorrelation ceilings establish that architecture improvements alone cannot close the performance gap.
-    \item \textbf{High-risk category weakness}: The High and Extreme DA categories remain difficult, with F1 scores of 0.41 and 0.42, and 13.9\% of Extreme events are misclassified as Low under threshold-based four-category classification.
+    \item \textbf{Low-skill Oregon sites}: Two of 10 sites (Coos Bay, Newport) have negative $R^2$, and three additional Oregon sites have near-zero skill. Lag-1 autocorrelation analysis (Table~\ref{tab:predictability-ceiling}) reveals persistence-forecast $R^2$ ceilings of 0.003--0.036 for Newport, Coos Bay, and Gold Beach, indicating that consecutive DA measurements at these sites carry very little information about the next observation. This does not preclude improvement from environmental predictors---Gold Beach already exceeds its persistence ceiling ($R^2 = 0.051 > \rho^2 = 0.002$) via SST and BEUTI features---but the low autocorrelation structure means that persistence-based signal contributes little at these sites. The paper cannot fully separate data sparsity from true regional oceanographic complexity; denser Oregon monitoring records and richer environmental predictors may yet reveal exploitable structure currently obscured by irregular sampling.
+    \item \textbf{High-risk category weakness}: The High and Extreme DA categories remain difficult, with F1 scores of 0.445 and 0.440, and 13.9\% of Extreme events are misclassified as Low under threshold-based four-category classification.
     \item \textbf{Manual per-site tuning}: Feature subsets, clipping rules, and model choices were selected on a development split. The held-out seed-123 evaluation reduces optimistic bias, but a fully nested or automated tuning workflow would provide a stronger estimate of long-run generalization.
     \item \textbf{Uncertainty summaries are not full probabilistic guarantees}: The quantile bands used for forecasts are hybrid empirical intervals, and the bootstrap confidence intervals reported for retrospective metrics resample held-out prediction rows. They are useful uncertainty summaries, but they do not fully resolve temporal dependence or establish exact calibration.
     \item \textbf{Operational deployment remains simplified}: The current system relies on pre-computed cache and a seven-day forecast horizon aligned with the PNW HAB Bulletin. Real-time ingestion and longer forecast horizons remain open engineering and scientific challenges.
@@ -779,20 +779,20 @@ Extreme  & $>$40  & Dangerous; immediate closure \\
 \end{table}
 
 \begin{table}[H]
-\caption{Per-category classification performance under leak-free validation ($n = 2{,}181$). The Low category achieves the highest reliability, while High and Extreme categories are limited by sample size. Overall accuracy 74.1\% (macro-average precision 0.593, recall 0.560, F1 0.573).}
+\caption{Per-category classification performance under leak-free validation ($n = 2{,}181$). The Low category achieves the highest reliability, while High and Extreme categories are limited by sample size. Overall accuracy 75.1\% (macro-average precision 0.605, recall 0.581, F1 0.591).}
 \label{tab:classification}
 \small
 \begin{tabular}{lrrrrr}
 \toprule
 \textbf{Category} & \textbf{DA Range} & $\boldsymbol{N}$ & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
 \midrule
-Low      & 0--5 \si{\microgrampeg}  & 1{,}382 & 0.858 & 0.856 & 0.857 \\
-Moderate & 5--20 \si{\microgrampeg} & 523 & 0.573 & 0.625 & 0.598 \\
-High     & 20--40 \si{\microgrampeg} & 168 & 0.429 & 0.399 & 0.414 \\
-Extreme  & $\geq$40 \si{\microgrampeg}  & 108 & 0.513 & 0.361 & 0.424 \\
+Low      & 0--5 \si{\microgrampeg}  & 1{,}382 & 0.865 & 0.858 & 0.862 \\
+Moderate & 5--20 \si{\microgrampeg} & 523 & 0.593 & 0.642 & 0.617 \\
+High     & 20--40 \si{\microgrampeg} & 168 & 0.456 & 0.435 & 0.445 \\
+Extreme  & $\geq$40 \si{\microgrampeg}  & 108 & 0.506 & 0.389 & 0.440 \\
 \midrule
-\multicolumn{2}{l}{\textbf{Overall (macro)}} & \textbf{2,181} & \textbf{0.593} & \textbf{0.560} & \textbf{0.573} \\
-\multicolumn{2}{l}{Overall accuracy} & & \multicolumn{3}{r}{74.1\%} \\
+\multicolumn{2}{l}{\textbf{Overall (macro)}} & \textbf{2,181} & \textbf{0.605} & \textbf{0.581} & \textbf{0.591} \\
+\multicolumn{2}{l}{Overall accuracy} & & \multicolumn{3}{r}{75.1\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1010,12 +1010,12 @@ Since DATect assigns each site a single model (XGBoost or Random Forest) based o
 \toprule
 \textbf{Strategy} & \textbf{$R^2$} & \textbf{MAE (\si{\microgrampeg})} & \textbf{RMSE (\si{\microgrampeg})} \\
 \midrule
-XGBoost at all sites                    & 0.207 & 6.39 & 17.88 \\
-RF at all sites                         & 0.194 & 6.48 & 18.03 \\
-Per-site dev-set selection (this paper) & 0.215 & 6.42 & 17.72 \\
+XGBoost at all sites                    & 0.221 & 6.38 & 17.72 \\
+RF at all sites                         & 0.190 & 6.47 & 18.07 \\
+Per-site dev-set selection (this paper) & 0.215 & 6.42 & 17.79 \\
 \bottomrule
 \end{tabular}
-{\footnotesize The oracle---selecting the better single model per site using test-set $R^2$---achieves pooled $R^2 = 0.210$, MAE $= 6.41$~\si{\microgrampeg}. This is slightly \textit{lower} than the dev-set selection ($\Delta R^2 = -0.005$) because pooled $R^2$ is not a weighted average of per-site values: the oracle's per-site-optimal choices can concentrate residual error at high-$N$ sites that dominate the pooled metric. The near-equivalence of all four strategies ($R^2 = 0.194$--$0.215$) confirms that model-family selection is not a meaningful source of variance.}
+{\footnotesize The oracle---selecting the better single model per site using test-set $R^2$---achieves pooled $R^2 = 0.210$, MAE $= 6.41$~\si{\microgrampeg}. This is slightly \textit{lower} than the dev-set selection ($\Delta R^2 = -0.005$) because pooled $R^2$ is not a weighted average of per-site values: the oracle's per-site-optimal choices can concentrate residual error at high-$N$ sites that dominate the pooled metric. The near-equivalence of all four strategies ($R^2 = 0.190$--$0.221$) confirms that model-family selection is not a meaningful source of variance.}
 \end{table}
 
 

@@ -173,9 +173,11 @@ def latex_table_a(data: dict) -> str:
         val_cells = " & ".join(f"{v:.3f}" for v in vals)
         lines.append(f"{site} & {val_cells} & {mean:.3f} & {std:.3f} \\\\")
 
+    # Pooled row: 1 label + n_seeds empty cells + mean + std = n_seeds + 3 cells total
+    pooled_empties = " & ".join("" for _ in seeds)
     lines.extend([
         r"\midrule",
-        f"Pooled & & & & & {nf.get('pooled_on_mean', 0):.3f} & {nf.get('pooled_on_std', 0):.3f} \\\\",
+        f"Pooled & {pooled_empties} & {nf.get('pooled_on_mean', 0):.3f} & {nf.get('pooled_on_std', 0):.3f} \\\\",
         r"\bottomrule",
         r"\end{tabular}",
         r"\end{table}",

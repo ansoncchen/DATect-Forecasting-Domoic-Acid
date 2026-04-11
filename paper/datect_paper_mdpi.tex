@@ -9,7 +9,7 @@
 % Spike metrics (hybrid alert): transition recall=0.734, event recall=0.859 (up from 0.652/0.815).
 % Ablation table uses development set (seed=42, N=1,177) as intended; values unchanged.
 % Dev set reference (seed=42): R²=0.414, MAE=6.380, RMSE=16.434.
-% NOTE: Table 1/2 CIs use placeholder values from standard eval scoreboard pending full bootstrap re-run on Hyak.
+% Bootstrap CIs in Tables 1/2 are final values from eval_paper_metrics.py (B=10,000, seed=123, N=2,181).
 %
 
 \documentclass[toxins,article,submit,pdftex,moreauthors]{Definitions/mdpi}
@@ -1048,14 +1048,14 @@ To validate that per-site design choices are not fragile artifacts of the seed-4
 \multicolumn{4}{l}{\textit{Feature and clipping choices}} \\
 \quad All features at all sites                       & 0.415 & $+0.006$ & 6.45 \\
 \quad Minimal features (4 only)                       & 0.412 & $+0.002$ & 6.66 \\
-\quad Relax clipping (quantile = 0.99)                & 0.380 & $-0.030$ & 6.49 \\
-\quad Disable clipping                                & 0.380 & $-0.030$ & 6.49 \\
+\quad Relax clipping (quantile = 0.99)                & 0.380 & $-0.029$ & 6.49 \\
+\quad Disable clipping                                & 0.384 & $-0.026$ & 6.39 \\
 \quad Disable monotonic constraints                   & 0.410 & $+0.000$ & 6.43 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Three findings emerge. First, Random Forest hyperparameters are genuinely insensitive: across four configurations spanning depth 6--16 and 200--800 estimators, no perturbation exceeds $|\Delta R^2| = 0.001$. This validates the claim in Section~\ref{sec:results-ablation} that RF robustness to hyperparameters does not require per-site RF tuning. Second, per-site prediction clipping provides meaningful regularization: relaxing all per-site quantile thresholds from their current values (0.95--0.98) to a uniform 0.99 costs $\Delta R^2 = -0.030$, suggesting that the site-specific quantiles are well-calibrated. Third, feature subsets have negligible pooled impact ($+0.006$ with all features, $+0.002$ with only four persistence features), confirming that predictive skill is dominated by the DA persistence signal rather than feature engineering.
+Three findings emerge. First, Random Forest hyperparameters are genuinely insensitive: across four configurations spanning depth 6--16 and 200--800 estimators, no perturbation exceeds $|\Delta R^2| = 0.001$. This validates the claim in Section~\ref{sec:results-ablation} that RF robustness to hyperparameters does not require per-site RF tuning. Second, per-site prediction clipping provides meaningful regularization: relaxing all per-site quantile thresholds from their current values (0.95--0.98) to a uniform 0.99 costs $\Delta R^2 = -0.029$; notably, disabling clipping entirely costs only $-0.026$, revealing that the harm is not from clipping itself but from replacing well-calibrated site-specific thresholds with an overly permissive uniform one. Third, feature subsets have negligible pooled impact ($+0.006$ with all features, $+0.002$ with only four persistence features), confirming that predictive skill is dominated by the DA persistence signal rather than feature engineering.
 
 Multi-seed evaluation further characterizes the stability of these results. Table~\ref{tab:seed-stability} reports per-site $R^2$ across five random seeds with per-site configuration enabled.
 

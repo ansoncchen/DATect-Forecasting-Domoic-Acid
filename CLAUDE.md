@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Run the complete system (starts backend API + frontend + opens browser)
 python3 run_datect.py
 # After starting: Backend → http://localhost:8000 | Frontend → http://localhost:3000 | API docs → http://localhost:8000/docs
-# Auto-detects uv/bun/granian if installed for faster startup
+# Picks uv vs pip, bun vs npm, granian vs uvicorn from PATH; installs from requirements.txt
 
 # Pre-compute cache (MUST run on Hyak, not locally)
 python3 precompute_cache.py

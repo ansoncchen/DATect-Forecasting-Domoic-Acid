@@ -16,28 +16,5 @@ export const SITE_COLORS = [
   '#17becf'  // cyan
 ]
 
-/**
- * Get color for a site based on its index
- * @param {number} index - Site index
- * @returns {string} Hex color code
- */
+/** Hex color for a site by stable index (wraps palette). */
 export const getSiteColor = (index) => SITE_COLORS[index % SITE_COLORS.length]
-
-// DA risk category labels
-export const DA_CATEGORIES = {
-  0: { label: 'Low', color: '#22c55e', range: '0-5' },
-  1: { label: 'Moderate', color: '#eab308', range: '5-20' },
-  2: { label: 'High', color: '#f97316', range: '20-40' },
-  3: { label: 'Extreme', color: '#dc2626', range: '>40' }
-}
-
-// Get category info by value
-export const getCategoryInfo = (category) => DA_CATEGORIES[category] || DA_CATEGORIES[0]
-
-// Model descriptions for UI display
-export const MODEL_DESCRIPTIONS = {
-  ensemble: 'Ensemble (XGBoost + RF)',
-  naive: 'Naive Baseline (Last Known DA)',
-  linear: 'Linear / Logistic Models',
-  logistic: 'Logistic Regression'
-}

@@ -11,14 +11,6 @@ export const plotConfig = {
   }
 }
 
-export const plotConfigSquare = {
-  ...plotConfig,
-  toImageButtonOptions: {
-    ...plotConfig.toImageButtonOptions,
-    scale: 10
-  }
-}
-
 export const getPlotFilename = (prefix = 'datect') => {
   const date = new Date().toISOString().split('T')[0]
   return `${prefix}_${date}`

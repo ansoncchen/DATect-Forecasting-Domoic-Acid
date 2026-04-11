@@ -1,17 +1,13 @@
 """
-Cache Manager for DATect API
-Manages pre-computed results for Google Cloud deployment
+Cache Manager for DATect API — pre-computed results for deployment.
 
-Supports two caching backends:
-1. Redis (100x faster, recommended for production)
-2. File-based (default fallback)
-
-To enable Redis:
-    export REDIS_URL=redis://localhost:6379/0
+Backends: Redis when ``REDIS_URL`` is set (see ``redis_cache`` for URL formats),
+otherwise file-based cache under ``CACHE_DIR``.
 """
 
-import os
 import json
+import math
+import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import logging
@@ -28,14 +24,8 @@ except ImportError:
 
 
 class CacheManager:
-    """
-    Manages pre-computed cache file access with optional Redis backend.
-    
-    Cache priority:
-    1. Redis (if REDIS_URL is set and redis is available) - 100x faster
-    2. File-based cache (default)
-    """
-    
+    """Pre-computed cache reads: Redis first when configured, else files under ``CACHE_DIR``."""
+
     def __init__(self, cache_dir: Optional[str] = None):
         self.cache_dir = Path(os.getenv("CACHE_DIR", cache_dir or "./cache"))
         self.enabled = self._should_enable_cache()
@@ -69,11 +59,9 @@ class CacheManager:
             return True
         if os.getenv("NODE_ENV") == "production":
             return True
-        
+
         return False
-            
-        
-        
+
     def get_retrospective_forecast(self, task: str, model_type: str) -> Optional[List[Dict]]:
         """
         Get cached retrospective forecast results.
@@ -104,7 +92,6 @@ class CacheManager:
                     data = json.load(f)
                 
                 # Clean any inf/nan values from cached data
-                import math
                 def clean_cached_data(item):
                     if isinstance(item, dict):
                         cleaned = {}
@@ -300,18 +287,23 @@ class CacheManager:
         }
     
     def health_check(self) -> Dict[str, Any]:
-        """Get cache health status."""
+        """Precomputed cache status.
+
+        ``file_cache_*`` refers to the on-disk cache directory (always reported).
+        ``redis`` is detailed when ``REDIS_URL`` is set and Redis is reachable.
+        """
         status = {
             "file_cache_enabled": self.enabled,
             "file_cache_path": str(self.cache_dir),
             "file_cache_exists": self.cache_dir.exists(),
+            "redis_active": self.use_redis,
         }
-        
+
         if self.use_redis:
             status["redis"] = self._redis_cache.health_check()
         else:
             status["redis"] = {"status": "disabled"}
-        
+
         return status
 
 # Global cache manager instance

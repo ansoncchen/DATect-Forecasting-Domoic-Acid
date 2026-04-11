@@ -194,4 +194,4 @@ log "── Bootstrap CI summary (standard) ────────────
 
 echo ""
 log "Done. rsync cache to local when ready:"
-log "  rsync -avz klone-login:/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/cache/ ./cache/"
+log "  rsync -avz klone-login:/gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/ ./cache/"

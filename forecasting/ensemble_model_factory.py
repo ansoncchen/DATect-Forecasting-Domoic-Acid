@@ -152,7 +152,7 @@ class EnsembleModelFactory:
 
     def get_model_description(self, model_type: str) -> str:
         descriptions = {
-            "ensemble": "Ensemble (XGBoost + RF + Naive)",
+            "ensemble": "Ensemble (XGBoost + RF); naïve baseline is separate",
             "xgboost": "XGBoost",
             "xgb": "XGBoost",
             "rf": "Random Forest",

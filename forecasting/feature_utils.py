@@ -3,8 +3,7 @@ Feature Engineering Utilities
 =============================
 
 Shared helpers for temporal feature creation and data preprocessing.
-Extracted from the raw-data validation pipeline to avoid duplication
-between RawForecastEngine, validation scripts, and future modules.
+Extracted to avoid duplication across RawForecastEngine and related code.
 """
 
 from __future__ import annotations
@@ -17,8 +16,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
-
-import config
 
 
 def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:

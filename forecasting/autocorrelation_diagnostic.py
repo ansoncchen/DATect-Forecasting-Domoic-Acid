@@ -99,7 +99,6 @@ def print_ceiling_table(results: Dict[str, dict], current_r2: Dict[str, float] |
         if m.get("autocorr_lag1") is None:
             print(f"  {site:<18s}  {'n/a':>4s}  — insufficient data —")
             continue
-        region = "WA" if site in WA else "OR"
         row = (
             f"  {site:<18s}  {m['n']:>4d}  {m['autocorr_lag1']:>8.4f}"
             f"  {m['r2_ceiling']:>8.4f}  {m['mean_da']:>8.2f}  {m['std_da']:>8.2f}"

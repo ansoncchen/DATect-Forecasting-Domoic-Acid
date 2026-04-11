@@ -1,7 +1,4 @@
-"""
-Backend visualization module for DATect web application.
-Provides visualization functions for DATect web application.
-"""
+"""Plotly-backed visualization helpers for the DATect API."""
 
 import pandas as pd
 import numpy as np
@@ -11,7 +8,6 @@ from sklearn.linear_model import LinearRegression
 from sklearn.inspection import permutation_importance
 from scipy import signal
 import warnings
-import os
 import logging
 import plotly.graph_objs as go
 import plotly.io as pio
@@ -618,32 +614,36 @@ def generate_spectral_analysis(data, site=None):
 
     try:
         from pathlib import Path
+        import json
+
         cache_dir = Path("cache/retrospective")
 
-        # Load ensemble predictions from cache
-        cache_file_ensemble = cache_dir / "regression_ensemble.json"
-        cache_file_xgb = cache_dir / "regression_xgboost.parquet"
-
-        results_df = None
-        if cache_file_ensemble.exists():
-            import json
-            with open(cache_file_ensemble) as f:
-                cache_data = json.load(f)
-            if "results" in cache_data:
-                results_df = pd.DataFrame(cache_data["results"])
-                if 'date' in results_df.columns:
-                    results_df['date'] = pd.to_datetime(results_df['date'])
-        elif cache_file_xgb.exists():
-            # Legacy parquet cache fallback
-            results_df = pd.read_parquet(cache_file_xgb)
-
-        if results_df is not None and not results_df.empty:
+        # XGBoost-only retrospective (precompute_cache writes regression_xgboost.{parquet,json}).
+        # Do not gate this on regression_ensemble.json: precompute dumps a top-level JSON list
+        # (no "results" key), so an existing ensemble file used to skip the elif and hide XGB.
+        xgb_parquet = cache_dir / "regression_xgboost.parquet"
+        xgb_json = cache_dir / "regression_xgboost.json"
+        xgb_df = None
+        if xgb_parquet.exists():
+            xgb_df = pd.read_parquet(xgb_parquet)
+        elif xgb_json.exists():
+            with open(xgb_json) as f:
+                raw = json.load(f)
+            if isinstance(raw, list):
+                xgb_df = pd.DataFrame(raw)
+            elif isinstance(raw, dict) and "results" in raw:
+                xgb_df = pd.DataFrame(raw["results"])
+        if xgb_df is not None and not xgb_df.empty:
+            if "date" in xgb_df.columns:
+                xgb_df = xgb_df.copy()
+                xgb_df["date"] = pd.to_datetime(xgb_df["date"])
             if site:
-                results_df = results_df[results_df['site'] == site]
-            if not results_df.empty:
-                results_df = results_df.sort_values('date')
-                xgb_predictions = results_df['predicted_da'].dropna().values
-                actual_for_comparison = results_df['actual_da'].dropna().values
+                xgb_df = xgb_df[xgb_df["site"] == site]
+            if not xgb_df.empty:
+                xgb_df = xgb_df.sort_values("date")
+                xgb_predictions = xgb_df["predicted_da"].dropna().values
+                if "actual_da" in xgb_df.columns:
+                    actual_for_comparison = xgb_df["actual_da"].dropna().values
 
         # Load Random Forest predictions from cache when available
         cache_file_rf = cache_dir / "regression_rf.parquet"
@@ -802,7 +802,6 @@ def generate_spectral_analysis(data, site=None):
     coherence_annotations = []
     has_coherence = False
     if len(actual_for_comparison) >= 20:
-        nperseg = min(256, len(actual_for_comparison) // 4)
         if xgb_predictions is not None and len(xgb_predictions) >= 20:
             min_len = min(len(actual_for_comparison), len(xgb_predictions))
             actual_trimmed = actual_for_comparison[:min_len]

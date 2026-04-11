@@ -10,7 +10,6 @@ Usage (from repository root; Hyak recommended, or locally with cached results):
 """
 
 import argparse
-import json
 import os
 import sys
 import warnings
@@ -21,7 +20,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.metrics import fbeta_score, precision_score, recall_score
 
 from _repo import ensure_repo_root
 
@@ -186,7 +184,6 @@ def compute_transition_metrics(
     predicted = transitions[pred_col].values
 
     predicted_spike = predicted >= threshold
-    actual_spike = actual >= threshold  # should all be True by definition
 
     transition_recall = predicted_spike.sum() / len(transitions) if len(transitions) > 0 else 0.0
 
@@ -213,7 +210,6 @@ def run_threshold_sensitivity(
 
     rows = []
     for thresh in thresholds:
-        metrics = compute_spike_metrics(actual, predicted, threshold=SPIKE_THRESHOLD)
         # But override the prediction threshold
         pred_binary = (predicted >= thresh).astype(int)
         actual_binary = (actual >= SPIKE_THRESHOLD).astype(int)
@@ -221,7 +217,6 @@ def run_threshold_sensitivity(
         tp = int(((actual_binary == 1) & (pred_binary == 1)).sum())
         fn = int(((actual_binary == 1) & (pred_binary == 0)).sum())
         fp = int(((actual_binary == 0) & (pred_binary == 1)).sum())
-        tn = int(((actual_binary == 0) & (pred_binary == 0)).sum())
 
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0

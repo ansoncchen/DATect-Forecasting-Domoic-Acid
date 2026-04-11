@@ -3,7 +3,7 @@ import { MapPin, BarChart3, Activity, Map } from 'lucide-react'
 import Select from 'react-select'
 import Plot from 'react-plotly.js'
 import api from '../services/api'
-import { plotConfig, plotConfigSquare, getPlotFilename } from '../utils/plotConfig'
+import { plotConfig, getPlotFilename } from '../utils/plotConfig'
 
 const Historical = () => {
   const [sites, setSites] = useState([])
@@ -112,9 +112,9 @@ const Historical = () => {
     if (visualizationData.plot) {
       const isHeatmap = visualizationType === 'correlation'
       const config = {
-        ...(isHeatmap ? plotConfigSquare : plotConfig),
+        ...plotConfig,
         toImageButtonOptions: {
-          ...(isHeatmap ? plotConfigSquare : plotConfig).toImageButtonOptions,
+          ...plotConfig.toImageButtonOptions,
           filename: getPlotFilename(`${visualizationType}_${siteScope === 'all' ? 'all-sites' : selectedSite?.value || 'plot'}`)
         }
       }

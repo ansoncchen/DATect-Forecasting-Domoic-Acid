@@ -59,9 +59,6 @@ Thumbs.db
 .venv
 .eval_results
 
-# Testing results
-tools/testing/results/
-analysis/*/outputs/
 claude.md
 .claude/
 .cursor/

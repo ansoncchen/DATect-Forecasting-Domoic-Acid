@@ -59,10 +59,10 @@ salloc --account=stf --partition=cpu-g2 --nodes=1 --ntasks=1 \
 
 # 3. Activate environment
 source /sw/contrib/foster-src/python/miniconda/3.8/etc/profile.d/conda.sh
-conda activate /gscratch/stf/ac283/envs/datect_scratch
+conda activate /gscratch/stf/YOUR_UWNETID/envs/datect_scratch
 
 # 4. Pull latest code
-cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
+cd /gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid
 git checkout main
 git pull origin main
 
@@ -88,10 +88,10 @@ python precompute_cache.py
 ### Verify cache is complete before syncing
 ```bash
 # Still on Hyak — confirm all files exist
-ls /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/cache/retrospective/ | wc -l
+ls /gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/retrospective/ | wc -l
 # Must show: 8
 
-ls /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/cache/
+ls /gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/
 # Must show: manifest.json  retrospective/  spectral/  visualizations/
 ```
 
@@ -109,11 +109,11 @@ scancel --name datect-precompute      # release the allocation
 > login node so no compute node required — no SSH config update needed.
 
 ```bash
-# From project root on your Mac:
-cd /Users/ansonchen/Downloads/GitHub/DATect-Forecasting-Domoic-Acid
+# From project root on your machine:
+cd /path/to/DATect-Forecasting-Domoic-Acid
 
 # Sync cache down (only transfers changed files on re-runs)
-rsync -avz klone-login:/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/cache/ ./cache/
+rsync -avz klone-login:/gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/ ./cache/
 
 # Verify local cache looks correct
 ls -la cache/
@@ -134,7 +134,7 @@ export PROJECT_ID=your-gcp-project-id
 export REGION=us-west1        # or your preferred region
 
 # Run deploy script from project root
-cd /Users/ansonchen/Downloads/GitHub/DATect-Forecasting-Domoic-Acid
+cd /path/to/DATect-Forecasting-Domoic-Acid
 ./deploy_gcloud.sh
 ```
 
@@ -229,11 +229,11 @@ gcloud run services delete datect-api --platform managed --region $REGION
 
 ```bash
 # Full workflow in one block:
-ssh klone-login "cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid && \
+ssh klone-login "cd /gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid && \
   ls cache/retrospective/ | wc -l"                              # verify cache (should be 8)
 
-cd /Users/ansonchen/Downloads/GitHub/DATect-Forecasting-Domoic-Acid
-rsync -avz klone-login:/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/cache/ ./cache/
+cd /path/to/DATect-Forecasting-Domoic-Acid
+rsync -avz klone-login:/gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/ ./cache/
 
 export PROJECT_ID=your-gcp-project-id
 ./deploy_gcloud.sh                                              # answer N to cache regeneration

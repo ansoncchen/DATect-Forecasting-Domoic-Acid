@@ -739,7 +739,6 @@ async def get_site_map():
 async def generate_enhanced_forecast(request: ForecastRequest):
     """Generate enhanced forecast with both regression and classification for frontend."""
     try:
-        data = get_data_copy()
         actual_site = resolve_site(request.site)
         
         forecast_date = pd.to_datetime(request.date)
@@ -843,7 +842,7 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
         else:
             actual_model = config.FORECAST_MODEL  # "ensemble" or "naive" pass through
         
-        # First try to get from pre-computed cache (for production)
+        # Canonical on-disk path for this slice (response metadata); reads may come from Redis instead.
         cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{config.FORECAST_TASK}_{actual_model}.json"
         base_results = cache_manager.get_retrospective_forecast(config.FORECAST_TASK, actual_model)
         
@@ -903,6 +902,7 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
                 "file": str(cache_file),
                 "file_exists": cache_file.exists(),
                 "hit": base_results is not None,
+                "redis_active": cache_manager.use_redis,
             },
             "summary": summary,
             "results": filtered

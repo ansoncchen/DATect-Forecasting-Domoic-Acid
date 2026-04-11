@@ -21,8 +21,7 @@ DA Risk Categories:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -178,8 +177,7 @@ class ClassificationAdapter:
             safe_mask = X_train[prev_obs_col].fillna(0) < spike_threshold
         else:
             # If prev_obs_col was already dropped, fall back to full training set
-            import logging
-            logging.getLogger(__name__).warning(
+            logger.warning(
                 "Safe-baseline filter bypassed: %s not in feature set. "
                 "Classifier will train on all rows including already-spiked states.",
                 prev_obs_col,

@@ -4,7 +4,7 @@ Core Forecasting Components
 
 This module contains the core logic for domoic acid forecasting:
 
-- ForecastEngine: Raw-data ensemble forecasting engine (XGBoost + RF + Naive)
+- ForecastEngine: Raw-data forecasting engine (XGBoost + RF ensemble; naïve persistence as a separate baseline)
 - ModelFactory: Ensemble model factory with per-site configuration
 """
 

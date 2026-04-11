@@ -112,9 +112,9 @@ def bootstrap_delta_r2(
 #   run_key: value passed as model_type to run_retrospective_evaluation
 #   pred_col: column in the saved parquet that holds predictions for this model
 #
-# Note: The engine runs XGB, RF, Naive and Ensemble in a single pass when
-#       model_type='xgboost' (raw column name 'predicted_da' == XGB).
-#       'ensemble' is also in that same run (column 'ensemble_prediction').
+# Note: The engine runs XGB, RF, naïve (external baseline), and ensemble blend
+#       in a single pass when model_type='xgboost' (column 'predicted_da' == XGB).
+#       'ensemble' is in that same run (column 'ensemble_prediction').
 #       'rf' is in that run as 'predicted_da_rf'.
 #       'naive' is in that run as 'naive_prediction'.
 #       'linear' requires a separate run with model_type='linear'.

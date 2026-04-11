@@ -1,6 +1,6 @@
 #!/bin/bash
 # DATect Google Cloud Deployment
-# Pre-computes cache, builds container, and deploys to Cloud
+# Builds frontend, ensures local ./cache (generates only if missing unless you opt in), then deploys to Cloud Run
 
 set -e
 
@@ -121,8 +121,6 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         print_warning "Cannot open browser automatically"
     fi
 fi
-
-print_success "Deployment complete!"
 
 echo
 print_status "📚 Useful commands:"

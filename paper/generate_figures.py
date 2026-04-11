@@ -40,7 +40,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 import seaborn as sns
 
 # Add project root to path for config import
@@ -136,7 +135,6 @@ def load_xgboost_parquet():
 def generate_fig1_study_area():
     """Map of the Pacific Northwest coast with 10 monitoring sites."""
     import ssl
-    import certifi
     ssl._create_default_https_context = ssl._create_unverified_context
 
     import cartopy.crs as ccrs
@@ -158,9 +156,8 @@ def generate_fig1_study_area():
     ax.add_feature(cfeature.STATES, linewidth=0.4, linestyle=':', color='#aaaaaa')
     ax.add_feature(cfeature.RIVERS, linewidth=0.5, color='#85c1e9', alpha=0.7)
 
-    # Plot sites
+    # Plot sites (WA vs OR styling via name lists)
     wa_sites = ['Kalaloch', 'Quinault', 'Copalis', 'Twin Harbors', 'Long Beach']
-    or_sites = ['Clatsop Beach', 'Cannon Beach', 'Newport', 'Coos Bay', 'Gold Beach']
 
     for site_name, (lat, lon) in config.SITES.items():
         color = '#2874a6' if site_name in wa_sites else '#c0392b'
@@ -585,8 +582,8 @@ def generate_fig5_feature_importance():
     fig, ax = plt.subplots(figsize=(5, 4))
 
     colors = [get_feat_color(f) for f in top15.index]
-    bars = ax.barh(range(len(top15)), top15.values, color=colors,
-                   edgecolor='white', linewidth=0.5)
+    ax.barh(range(len(top15)), top15.values, color=colors,
+            edgecolor='white', linewidth=0.5)
 
     ax.set_yticks(range(len(top15)))
     ax.set_yticklabels([f.replace('_', ' ').replace('da raw ', 'DA ')

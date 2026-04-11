@@ -14,7 +14,7 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 - 21 years of integrated data (2003–2023)
 - Two-model ML ensemble (XGBoost + Random Forest) with per-site hyperparameter tuning
 - Observation-order lag features for sparse/irregular measurement data
-- No-data-leakage guarantees — `verify_no_data_leakage()` called on every prediction
+- No-data-leakage guarantees — `_verify_no_data_leakage()` runs on every prediction (see `forecasting/raw_forecast_engine.py`)
 - Quantile regression + bootstrap confidence intervals
 
 ## Quick Start
@@ -30,7 +30,7 @@ python3 run_datect.py
 
 Opens at http://localhost:3000. Backend API at http://localhost:8000 | API docs at http://localhost:8000/docs.
 
-Auto-detects `uv` (10× faster installs), `bun` (faster frontend), and `granian` (20–40% faster ASGI) if installed.
+`run_datect.py` picks the fastest tools present: `uv` or `pip` for Python (`requirements.txt`), `bun` or `npm` for the frontend, `granian` or `uvicorn` for the API.
 
 ## Commands
 
@@ -55,7 +55,7 @@ Auto-detects `uv` (10× faster installs), `bun` (faster frontend), and `granian`
 
 ```
 DATect-Forecasting-Domoic-Acid/
-├── run_datect.py                   # System launcher (auto-detects uv/bun/granian)
+├── run_datect.py                   # System launcher (uv/bun/granian when available)
 ├── dataset-creation.py             # Data pipeline (satellite, climate, toxins)
 ├── precompute_cache.py             # Cache pre-computation (run on Hyak)
 ├── run_full_validation.sh          # Parallel paper / cache jobs (Hyak)
@@ -143,7 +143,7 @@ The system enforces strict temporal integrity to prevent data leakage:
 6. **Per-forecast categories** — DA risk levels computed from training data only
 7. **Persistence features recomputed** — from real observations only, not gap-filled values
 8. **Fresh model per test point** — no lookahead via shared state
-9. **`verify_no_data_leakage()`** — called for every prediction, raises `AssertionError` on violation
+9. **`_verify_no_data_leakage()`** — called for every prediction, raises `AssertionError` on violation
 
 ## Hyak Workflow
 

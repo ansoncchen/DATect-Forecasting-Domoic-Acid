@@ -1,16 +1,8 @@
 """
-Redis Cache Manager for DATect
-==============================
+Redis-backed precomputed cache for DATect.
 
-High-performance caching using Redis for 100x faster cache reads
-compared to file-based caching.
-
-Usage:
-    Set REDIS_URL environment variable to enable Redis caching:
-    export REDIS_URL=redis://localhost:6379/0
-    
-    Or for Redis Cloud/managed:
-    export REDIS_URL=redis://user:password@host:port/db
+Set ``REDIS_URL`` to enable (e.g. ``redis://localhost:6379/0`` or a managed URL).
+``CacheManager`` falls back to files when Redis is unset or unavailable.
 """
 
 import os

@@ -14,10 +14,8 @@ FastAPI backend (``api.py``) works without interface changes.
 
 from __future__ import annotations
 
-import os
 import random
 import warnings
-from collections import defaultdict
 from typing import Optional
 
 import numpy as np
@@ -932,7 +930,6 @@ class RawForecastEngine:
         """
         test_date = raw_measurement["date"]
         site = raw_measurement["site"]
-        actual_da = raw_measurement["da_raw"]
         forecast_horizon = config.FORECAST_HORIZON_DAYS
         anchor_date = test_date - pd.Timedelta(days=forecast_horizon)
 

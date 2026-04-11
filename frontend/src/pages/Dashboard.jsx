@@ -6,7 +6,7 @@ import Plot from 'react-plotly.js'
 import { format, subDays } from 'date-fns'
 import api from '../services/api'
 import { plotConfig, getPlotFilename } from '../utils/plotConfig'
-import { SITE_COLORS } from '../utils/constants'
+import { getSiteColor } from '../utils/constants'
 import 'react-datepicker/dist/react-datepicker.css'
 
 const Dashboard = () => {
@@ -330,7 +330,7 @@ const Dashboard = () => {
         
         if (siteData.length === 0) return
         
-        const siteColor = SITE_COLORS[siteIndex % SITE_COLORS.length]
+        const siteColor = getSiteColor(siteIndex)
         
         // Color logic: single site = blue/red, multiple sites = site-specific colors
         const actualColor = isSingleSite ? 'blue' : siteColor
@@ -394,7 +394,7 @@ const Dashboard = () => {
         
         if (siteData.length === 0) return
         
-        const siteColor = SITE_COLORS[siteIndex % SITE_COLORS.length]
+        const siteColor = getSiteColor(siteIndex)
         
         // Color logic: single site = blue/red, multiple sites = site-specific colors
         const actualColor = isSingleSite ? 'blue' : siteColor
@@ -520,7 +520,7 @@ const Dashboard = () => {
           type: 'scatter',
           name: site,
           marker: { 
-            color: SITE_COLORS[index % SITE_COLORS.length],
+            color: getSiteColor(index),
             size: 8,
             opacity: 0.6
           },
@@ -607,7 +607,7 @@ const Dashboard = () => {
           type: 'scatter',
           name: site,
           marker: { 
-            color: SITE_COLORS[index % SITE_COLORS.length],
+            color: getSiteColor(index),
             size: 8,
             opacity: 0.7
           },

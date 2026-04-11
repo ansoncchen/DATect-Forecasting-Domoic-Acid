@@ -11,7 +11,6 @@ Pre-computes expensive operations for deployment to ensure EXACT match with fres
 import os
 import json
 import pandas as pd
-import numpy as np
 from datetime import datetime
 import warnings
 from pathlib import Path
@@ -36,7 +35,7 @@ class DATectCacheGenerator:
         print("Pre-computing retrospective forecasts...")
         
         combinations = [
-            ("regression", "ensemble"),       # Primary ML ensemble (XGBoost + RF + Naive)
+            ("regression", "ensemble"),       # Primary ML blend (XGBoost + RF); naive is a separate baseline model
             ("regression", "xgboost"),        # XGBoost only (for spectral analysis)
             ("regression", "rf"),             # Random Forest only (for spectral analysis)
             ("regression", "naive"),          # Naive persistence baseline
@@ -233,6 +232,10 @@ class DATectCacheGenerator:
         
 
 
+def main() -> None:
+    """Entry point for `python precompute_cache.py` and the `datect-cache` console script."""
+    DATectCacheGenerator().run_full_precomputation()
+
+
 if __name__ == "__main__":
-    generator = DATectCacheGenerator()
-    generator.run_full_precomputation()
+    main()

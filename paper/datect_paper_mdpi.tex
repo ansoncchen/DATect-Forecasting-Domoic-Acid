@@ -4,12 +4,12 @@
 % ══════════════════════════════════════════════════════════════════════════════
 %
 % METRICS UPDATED: Post-infrastructure overhaul (monotonic constraints, Oregon feature reduction).
-% Standard eval (seed=123, 40%, N=2,181): Ensemble R²=0.215, MAE=6.42. CIs pending eval_paper_metrics.py re-run.
+% Standard eval (seed=123, 40%, N=2,181): Ensemble R²=0.215, MAE=6.42. CIs pending scripts/eval/eval_paper_metrics.py re-run.
 % Temporal holdout (2019-2023, N=1,036): Pooled R²=0.315, WA mean=0.549, OR mean=0.113.
 % Spike metrics (hybrid alert): transition recall=0.734, event recall=0.859 (up from 0.652/0.815).
 % Ablation table uses development set (seed=42, N=1,177) as intended; values unchanged.
 % Dev set reference (seed=42): R²=0.414, MAE=6.380, RMSE=16.434.
-% Bootstrap CIs in Tables 1/2 are final values from eval_paper_metrics.py (B=10,000, seed=123, N=2,181).
+% Bootstrap CIs in Tables 1/2 are final values from scripts/eval/eval_paper_metrics.py (B=10,000, seed=123, N=2,181).
 %
 
 \documentclass[toxins,article,submit,pdftex,moreauthors]{Definitions/mdpi}

@@ -5,8 +5,8 @@ Evaluates each model type's ability to detect DA spike events (crossing 20 µg/g
 from below). Tests the hypothesis that ML significantly outperforms naive
 persistence on spike transitions, even though overall R² is similar.
 
-Usage (Hyak recommended, or locally with cached results):
-    python3 spike_detection_eval.py [--force-rerun]
+Usage (from repository root; Hyak recommended, or locally with cached results):
+    python3 scripts/eval/spike_detection_eval.py [--force-rerun]
 """
 
 import argparse
@@ -23,7 +23,10 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import fbeta_score, precision_score, recall_score
 
-sys.path.insert(0, os.path.dirname(__file__))
+from _repo import ensure_repo_root
+
+ensure_repo_root()
+
 import config
 from forecasting.raw_data_forecaster import load_raw_da_measurements
 

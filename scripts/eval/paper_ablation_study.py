@@ -11,9 +11,9 @@ Runs 4 ablation experiments, each disabling one key component:
 Each experiment runs as a subprocess so config.py is re-imported fresh
 with the correct environment variables (required for loky/joblib workers).
 
-Usage (run on Hyak):
-    python3 paper_ablation_study.py              # dev set (seed 42)
-    python3 paper_ablation_study.py --seed 123   # custom seed
+Usage (from repository root; run on Hyak):
+    python3 scripts/eval/paper_ablation_study.py              # dev set (seed 42)
+    python3 scripts/eval/paper_ablation_study.py --seed 123   # custom seed
 
 Output: paper_ablation_results.json
 """
@@ -164,6 +164,9 @@ print(json.dumps({"overall": overall, "per_site": per_site}))
 
 
 def main():
+    from _repo import ensure_repo_root
+
+    ensure_repo_root()
     parser = argparse.ArgumentParser(
         description="DATect ablation study for paper"
     )

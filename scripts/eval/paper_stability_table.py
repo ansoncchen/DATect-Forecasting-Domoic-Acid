@@ -3,13 +3,13 @@
 DATect Stability Table Generator (Phase 3)
 
 Reads eval_results/stability/stability_results.json (produced by
-paper_stability_study.py) and generates paper-ready tables in both
+scripts/eval/paper_stability_study.py) and generates paper-ready tables in both
 plain text and LaTeX formats.
 
-Usage:
-    python3 paper_stability_table.py                    # plain text
-    python3 paper_stability_table.py --latex             # LaTeX output
-    python3 paper_stability_table.py --output tables.tex # save to file
+Usage (from repository root):
+    python3 scripts/eval/paper_stability_table.py                    # plain text
+    python3 scripts/eval/paper_stability_table.py --latex             # LaTeX output
+    python3 scripts/eval/paper_stability_table.py --output tables.tex # save to file
 """
 
 import argparse
@@ -26,7 +26,7 @@ ALL_SITES = WA_SITES + OR_SITES
 
 def load_results() -> dict:
     if not os.path.exists(INPUT_FILE):
-        print(f"ERROR: {INPUT_FILE} not found. Run paper_stability_study.py first.")
+        print(f"ERROR: {INPUT_FILE} not found. Run scripts/eval/paper_stability_study.py first.")
         sys.exit(1)
     with open(INPUT_FILE) as f:
         return json.load(f)
@@ -225,6 +225,9 @@ def latex_table_b(data: dict) -> str:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    from _repo import ensure_repo_root
+
+    ensure_repo_root()
     parser = argparse.ArgumentParser(description="Generate stability tables")
     parser.add_argument("--latex", action="store_true", help="Output LaTeX format")
     parser.add_argument("--output", type=str, help="Save output to file")

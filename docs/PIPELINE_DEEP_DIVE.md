@@ -1,5 +1,7 @@
 # DATect Forecasting Pipeline — Complete Deep Dive
 
+**Related docs:** [`DATA_PIPELINE_DETAILED.md`](DATA_PIPELINE_DETAILED.md) covers `dataset-creation.py` and the Parquet environmental dataset only. [`EVALUATION_AND_RESEARCH.md`](EVALUATION_AND_RESEARCH.md) lists paper and Hyak evaluation scripts (ablation, stability, metrics).
+
 ## What DATect Does
 
 DATect forecasts **domoic acid (DA)** concentrations at 10 Pacific Coast monitoring sites. Domoic acid is a neurotoxin produced by *Pseudo-nitzschia* algae during harmful algal blooms (HABs). When shellfish accumulate DA above safety thresholds, fisheries must close. DATect aims to predict DA levels **7 days in advance** so coastal managers can act proactively.

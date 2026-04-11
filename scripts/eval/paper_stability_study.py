@@ -9,11 +9,11 @@ Phase 1 of the systematic tuning validation plan:
 Each experiment runs as a subprocess (clean config reload) following the
 same isolation pattern as paper_ablation_study.py.
 
-Usage (run on Hyak):
-    python3 paper_stability_study.py                    # full run (~3 hrs)
-    python3 paper_stability_study.py --quick             # 1% sample (~5 min)
-    python3 paper_stability_study.py --phase 1a          # noise floor only
-    python3 paper_stability_study.py --phase 1b          # perturbations only
+Usage (from repository root; run on Hyak):
+    python3 scripts/eval/paper_stability_study.py                    # full run (~3 hrs)
+    python3 scripts/eval/paper_stability_study.py --quick             # 1% sample (~5 min)
+    python3 scripts/eval/paper_stability_study.py --phase 1a          # noise floor only
+    python3 scripts/eval/paper_stability_study.py --phase 1b          # perturbations only
 
 Output: eval_results/stability/stability_results.json
 """
@@ -534,6 +534,9 @@ def print_summary(analysis: dict):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    from _repo import ensure_repo_root
+
+    ensure_repo_root()
     parser = argparse.ArgumentParser(
         description="DATect stability & sensitivity study (Phase 1)"
     )

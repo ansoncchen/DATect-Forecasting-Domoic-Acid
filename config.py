@@ -400,7 +400,7 @@ if _extra_drop:
 MIN_TEST_DATE = "2003-01-01"
 
 # Temporal hold-out evaluation mode
-# When ralph_evaluate.py --temporal-holdout is used, only dates >= TEMPORAL_HOLDOUT_CUTOFF
+# When scripts/eval/eval_paper_metrics.py --temporal-holdout is used, only dates >= TEMPORAL_HOLDOUT_CUTOFF
 # are used as test points. Training still uses all data before each anchor date.
 # Provides an uncontaminated generalization estimate separate from hyperparameter tuning.
 TEMPORAL_HOLDOUT_CUTOFF = os.environ.get("DATECT_TEMPORAL_HOLDOUT_CUTOFF", "2019-01-01")

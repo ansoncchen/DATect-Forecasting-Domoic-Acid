@@ -39,6 +39,7 @@ Auto-detects `uv` (10× faster installs), `bun` (faster frontend), and `granian`
 | `python3 run_datect.py` | Start system (backend + frontend + browser) |
 | `python3 precompute_cache.py` | Pre-compute cache — **run on Hyak, not locally** |
 | `python3 dataset-creation.py` | Regenerate dataset (30–60 min, only when data changes) |
+| `bash run_full_validation.sh` | Parallel paper metrics, ablation, stability, spike eval, cache (Hyak) |
 | `./deploy_gcloud.sh` | Deploy to Google Cloud Run |
 
 ## Environment Variables
@@ -48,6 +49,7 @@ Auto-detects `uv` (10× faster installs), `bun` (faster frontend), and `granian`
 | `ENABLE_PRECOMPUTED_CACHE` | `false` | Set `"true"` to use pre-computed cache locally |
 | `CACHE_DIR` | `./cache` | Path to pre-computed cache directory |
 | `REDIS_URL` | unset | Redis URL for 100× faster cache reads (e.g. `redis://localhost:6379/0`) |
+| `ALLOWED_ORIGINS` | unset | Comma-separated CORS origins for production (defaults allow localhost dev only) |
 
 ## System Architecture
 
@@ -56,6 +58,8 @@ DATect-Forecasting-Domoic-Acid/
 ├── run_datect.py                   # System launcher (auto-detects uv/bun/granian)
 ├── dataset-creation.py             # Data pipeline (satellite, climate, toxins)
 ├── precompute_cache.py             # Cache pre-computation (run on Hyak)
+├── run_full_validation.sh          # Parallel paper / cache jobs (Hyak)
+├── scripts/eval/                   # Paper metrics, ablation, stability, spike eval
 ├── config.py                       # All configuration (sites, models, parameters)
 ├── forecasting/                    # ML forecasting engine
 │   ├── raw_forecast_engine.py      # Main engine — ensemble pipeline with per-site tuning
@@ -74,8 +78,6 @@ DATect-Forecasting-Domoic-Acid/
 │   ├── cache_manager.py            # Pre-computed cache access (file-based + Redis)
 │   └── redis_cache.py              # Optional Redis caching (set REDIS_URL to enable)
 ├── frontend/                       # React + Vite dashboard
-├── scripts/
-│   └── setup_fast.sh               # Fast environment setup script
 ├── data/processed/                 # Processed dataset (final_output.parquet)
 ├── Dockerfile.production           # Production container
 └── cloudbuild.yaml                 # Google Cloud Build config
@@ -101,11 +103,13 @@ DATect-Forecasting-Domoic-Acid/
 
 ## Model Performance
 
+Reference numbers match the paper header in `paper/datect_paper_mdpi.tex` (seed=123 test sample, unless noted).
+
 | Metric | Value |
 |--------|-------|
-| Ensemble R² | 0.204 (independent test) / 0.414 (dev) |
-| Ensemble MAE | 6.42 µg/g |
-| Spike recall | 0.558 ensemble / 0.815 classifier |
+| Ensemble R² | 0.215 (independent test, seed=123, 40% sample) / 0.414 (dev, seed=42) / 0.315 (temporal holdout 2019+) |
+| Ensemble MAE | 6.42 µg/g (test sample above) |
+| Spike / alert | Regression spike recall 0.558 (ensemble); hybrid alert event recall 0.859, transition recall 0.734 |
 
 ## Data Sources
 
@@ -118,15 +122,14 @@ DATect-Forecasting-Domoic-Acid/
 
 | Document | Description |
 |----------|-------------|
-| [docs/FORECAST_PIPELINE.md](docs/FORECAST_PIPELINE.md) | Technical data flow, stages, and API endpoints |
-| [docs/PIPELINE_OVERVIEW.md](docs/PIPELINE_OVERVIEW.md) | High-level architecture diagram |
-| [docs/PIPELINE_DEEP_DIVE.md](docs/PIPELINE_DEEP_DIVE.md) | Complete step-by-step walkthrough of one prediction |
-| [docs/SCIENTIFIC_VALIDATION.md](docs/SCIENTIFIC_VALIDATION.md) | Temporal safeguards and leakage prevention |
-| [docs/DATA_PIPELINE_DETAILED.md](docs/DATA_PIPELINE_DETAILED.md) | dataset-creation.py technical details |
+| [docs/PIPELINE_DEEP_DIVE.md](docs/PIPELINE_DEEP_DIVE.md) | Forecast pipeline, temporal safeguards, leakage prevention, and API flow |
+| [docs/DATA_PIPELINE_DETAILED.md](docs/DATA_PIPELINE_DETAILED.md) | `dataset-creation.py` — ingestion, ERDDAP, buffers, Parquet output |
 | [docs/dataset-creation-scientific-decisions.md](docs/dataset-creation-scientific-decisions.md) | Scientific rationale for data decisions |
+| [docs/EVALUATION_AND_RESEARCH.md](docs/EVALUATION_AND_RESEARCH.md) | Paper and Hyak evaluation scripts (ablation, stability, metrics, spikes) |
 | [docs/VISUALIZATIONS_GUIDE.md](docs/VISUALIZATIONS_GUIDE.md) | Chart and visualization interpretation |
-| [docs/QUICK_START.md](docs/QUICK_START.md) | OS-specific setup and GCP deployment |
+| [docs/QUICK_START.md](docs/QUICK_START.md) | OS-specific local setup |
 | [docs/HYAK_SETUP.md](docs/HYAK_SETUP.md) | Hyak (UW Klone) cluster workflow for cache pre-computation |
+| [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Cache refresh on Hyak and Google Cloud Run deploy |
 
 ## Temporal Safeguards
 

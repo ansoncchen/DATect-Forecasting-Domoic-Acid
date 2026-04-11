@@ -4,6 +4,8 @@
 
 This document describes the technical details of the DATect data ingestion pipeline (`dataset-creation.py`), which transforms raw environmental data into a unified, forecast-ready dataset.
 
+**Related docs:** [`PIPELINE_DEEP_DIVE.md`](PIPELINE_DEEP_DIVE.md) explains how the forecasting engine consumes this dataset (features, temporal rules, API). [`EVALUATION_AND_RESEARCH.md`](EVALUATION_AND_RESEARCH.md) indexes evaluation scripts for the paper; they do not replace this pipeline.
+
 ## Source Data
 
 ### Biological Targets

@@ -73,7 +73,7 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 - `config.py`: Centralized configuration for data sources, model parameters, temporal settings
 
 **Technical Documentation** (`docs/`)
-8 detailed guides: `FORECAST_PIPELINE.md`, `PIPELINE_OVERVIEW.md`, `SCIENTIFIC_VALIDATION.md`, `VISUALIZATIONS_GUIDE.md`, `DATA_PIPELINE_DETAILED.md`, and more.
+`PIPELINE_DEEP_DIVE.md` (forecasting + safeguards), `DATA_PIPELINE_DETAILED.md` (`dataset-creation.py`), `dataset-creation-scientific-decisions.md`, `EVALUATION_AND_RESEARCH.md` (paper/Hyak scripts), `VISUALIZATIONS_GUIDE.md`, `QUICK_START.md`, `HYAK_SETUP.md`, `DEPLOYMENT_GUIDE.md`.
 
 ### Key Design Principles
 
@@ -81,7 +81,7 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 
 **Temporal Integrity**: Environmental features come from anchor date (test_date - 7 days). Persistence features recomputed from training data only. No future data leakage.
 
-**Per-Site Customization**: Each of the 10 Pacific Coast sites has custom XGBoost/RF hyperparameters, feature subsets, ensemble weights, and prediction clipping via `per_site_models.py`. These were hand-tuned on the seed=42 dev set; `paper_stability_study.py` validates their robustness across seeds and perturbations.
+**Per-Site Customization**: Each of the 10 Pacific Coast sites has custom XGBoost/RF hyperparameters, feature subsets, ensemble weights, and prediction clipping via `per_site_models.py`. These were hand-tuned on the seed=42 dev set; `scripts/eval/paper_stability_study.py` validates their robustness across seeds and perturbations.
 
 **Observation-Order Lag Features**: Instead of grid-shift lags, uses the Nth most recent actual observation, which is critical for sparse/irregular measurement data.
 
@@ -105,11 +105,13 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 2. SCP cache: `scp -r klone-node:/.../cache/ ./cache/`
 3. Run locally: `python run_datect.py`
 
-**paper_stability_study.py** (model validation):
-1. Run on Hyak: `python paper_stability_study.py` (~1.5 hrs at 20% sample)
-2. Smoke test locally: `python paper_stability_study.py --quick` (1% sample)
-3. Generate tables: `python paper_stability_table.py` or `--latex`
-4. Re-run Phase 1B only: `python paper_stability_study.py --phase 1b`
+**Paper evaluation scripts** (`scripts/eval/` — run from repo root):
+1. Stability: `python3 scripts/eval/paper_stability_study.py` (~1.5 hrs at 20% sample; full run can be ~3 hrs)
+2. Smoke test: `python3 scripts/eval/paper_stability_study.py --quick` (1% sample)
+3. Tables from stability JSON: `python3 scripts/eval/paper_stability_table.py` or `--latex`
+4. Phase 1B only: `python3 scripts/eval/paper_stability_study.py --phase 1b`
+5. Paper metrics / CIs: `python3 scripts/eval/eval_paper_metrics.py`
+6. Full Hyak sweep: `bash run_full_validation.sh`
 
 ## Development Workflow
 
@@ -137,7 +139,7 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 - Fresh model per test point (no lookahead)
 - `verify_no_data_leakage()` called for every prediction
 
-**Temporal holdout caveat**: The temporal holdout (2019+) evaluates post-2019 data that was never used as training targets, but per-site tuning decisions (ensemble weights, feature subsets, hyperparameters in `per_site_models.py`) were made on the seed=42 dev set which includes post-2019 test points. This means tuning decisions were indirectly informed by post-2019 patterns. `paper_stability_study.py` validates that these choices are robust across seeds and perturbations.
+**Temporal holdout caveat**: The temporal holdout (2019+) evaluates post-2019 data that was never used as training targets, but per-site tuning decisions (ensemble weights, feature subsets, hyperparameters in `per_site_models.py`) were made on the seed=42 dev set which includes post-2019 test points. This means tuning decisions were indirectly informed by post-2019 patterns. `scripts/eval/paper_stability_study.py` validates that these choices are robust across seeds and perturbations.
 
 ## Stability Study Results (Phase 1)
 

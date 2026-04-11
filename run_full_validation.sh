@@ -7,7 +7,7 @@
 #
 # Flags:
 #   --no-cache       skip precompute_cache.py
-#   --no-stability   skip paper_stability_study.py (~3 hrs)
+#   --no-stability   skip scripts/eval/paper_stability_study.py (~3 hrs)
 #   --quick          smoke test only (implies --no-stability)
 #
 # Output locations after completion:
@@ -93,24 +93,20 @@ wait_for() {
 # ── Group 1: Core regression metrics (parallel) ───────────────────────────────
 log "── GROUP 1: Core regression metrics ──────────────────────"
 
-launch "ralph_standard" \
-    "Tables 1+2 point estimates (ralph_evaluate seed=123)" \
-    python3 ralph_evaluate.py --seed 123
-
 launch "ci_standard" \
     "Tables 1+2 bootstrap CIs (eval_paper_metrics seed=123)" \
-    python3 eval_paper_metrics.py --seed 123 --force-rerun
+    python3 scripts/eval/eval_paper_metrics.py --seed 123 --force-rerun
 
 launch "ci_temporal" \
     "Table 3 temporal holdout CIs (eval_paper_metrics --temporal-holdout)" \
-    python3 eval_paper_metrics.py --seed 123 --temporal-holdout --force-rerun
+    python3 scripts/eval/eval_paper_metrics.py --seed 123 --temporal-holdout --force-rerun
 
 # ── Group 2: Spike detection (Table 9 + Fig 4) ────────────────────────────────
 log "── GROUP 2: Spike detection ───────────────────────────────"
 
 launch "spike_eval" \
     "Table 9 spike detection metrics" \
-    python3 spike_detection_eval.py
+    python3 scripts/eval/spike_detection_eval.py
 
 # ── Group 3: Ablation study (Appendix, dev set seed=42) ──────────────────────
 log "── GROUP 3: Ablation study ────────────────────────────────"
@@ -120,7 +116,7 @@ if [[ "$QUICK" == true ]]; then
 else
     launch "ablation" \
         "Ablation table (paper_ablation_study.py, seed=42)" \
-        python3 paper_ablation_study.py
+        python3 scripts/eval/paper_ablation_study.py
 fi
 
 # ── Group 4: Stability study (Appendix, ~3 hrs) ───────────────────────────────
@@ -131,18 +127,11 @@ if [[ "$SKIP_STABILITY" == true ]]; then
 else
     launch "stability" \
         "Stability/seed tables (paper_stability_study.py, ~3 hrs)" \
-        python3 paper_stability_study.py
+        python3 scripts/eval/paper_stability_study.py
 fi
 
-# ── Group 5: Environmental lead signals (fast, §4.5 prose) ───────────────────
-log "── GROUP 5: Environmental lead signals ────────────────────"
-
-launch "env_lead" \
-    "Env lead signal stats (spike_env_lead_analysis.py)" \
-    python3 spike_env_lead_analysis.py
-
-# ── Group 6: Dashboard cache ──────────────────────────────────────────────────
-log "── GROUP 6: Dashboard cache ───────────────────────────────"
+# ── Group 5: Dashboard cache ──────────────────────────────────────────────────
+log "── GROUP 5: Dashboard cache ───────────────────────────────"
 
 if [[ "$SKIP_CACHE" == true ]]; then
     log "  [SKIPPED] precompute_cache.py"
@@ -157,19 +146,17 @@ log "All jobs launched. Waiting for completion..."
 echo ""
 
 # ── Wait for all jobs ─────────────────────────────────────────────────────────
-wait_for "ralph_standard"
 wait_for "ci_standard"
 wait_for "ci_temporal"
 wait_for "spike_eval"
 [[ "$QUICK" != true ]]        && wait_for "ablation"
 [[ "$SKIP_STABILITY" != true ]] && wait_for "stability"
-wait_for "env_lead"
 [[ "$SKIP_CACHE" != true ]]   && wait_for "cache"
 
 # ── Post-stability: generate LaTeX tables ────────────────────────────────────
 if [[ "$SKIP_STABILITY" != true ]]; then
     log "── POST-STABILITY: Generate LaTeX tables ──────────────────"
-    python3 paper_stability_table.py --latex \
+    python3 scripts/eval/paper_stability_table.py --latex \
         > "$LOG_DIR/${RUN_ID}_stability_latex.txt" 2>&1 \
         && log "✓ Stability LaTeX → $LOG_DIR/${RUN_ID}_stability_latex.txt" \
         || log "⚠ paper_stability_table.py failed — check log"
@@ -189,10 +176,10 @@ log "  Full logs      : $LOG_DIR/"
 log "  Summary        : $SUMMARY_LOG"
 echo ""
 
-log "── Standard eval scoreboard ───────────────────────────────"
-grep -E "Pooled|WA mean|OR mean" \
-    "$LOG_DIR/${RUN_ID}_ralph_standard.txt" 2>/dev/null \
-    | tail -8 | while read -r line; do log "  $line"; done || log "  (not found)"
+log "── Standard eval (Tables 1+2) ─────────────────────────────"
+grep -E "TABLE 1|TABLE 2|Pooled|WA mean|OR mean|ensemble" \
+    "$LOG_DIR/${RUN_ID}_ci_standard.txt" 2>/dev/null \
+    | tail -20 | while read -r line; do log "  $line"; done || log "  (not found)"
 
 log "── Temporal holdout scoreboard ────────────────────────────"
 grep -E "Pooled|WA mean|OR mean" \

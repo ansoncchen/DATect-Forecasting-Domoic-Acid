@@ -9,8 +9,8 @@ paper tables:
   - Table 3: 4-category classification (precision, recall, F1 per category)
   - Appendix: Weight robustness comparison
 
-Usage:
-    python3 eval_paper_metrics.py [--seed 123] [--force-rerun] \
+Usage (from repository root):
+    python3 scripts/eval/eval_paper_metrics.py [--seed 123] [--force-rerun] \
         [--output-dir eval_results/paper_metrics]
 """
 
@@ -333,7 +333,7 @@ def compute_classification_table(actual: np.ndarray, predicted: np.ndarray) -> p
 
 
 # ---------------------------------------------------------------------------
-# Spike / alert metrics  (used by ralph_evaluate.py)
+# Spike / alert metrics (retrospective DataFrames; also useful ad hoc)
 # ---------------------------------------------------------------------------
 
 def compute_spike_tables(
@@ -506,6 +506,9 @@ def print_table3(table3_df: pd.DataFrame):
 # ---------------------------------------------------------------------------
 
 def main():
+    from _repo import ensure_repo_root
+
+    ensure_repo_root()
     parser = argparse.ArgumentParser(
         description="Compute all paper metrics for DATect (Tables 1–3 + Appendix)"
     )

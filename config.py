@@ -348,6 +348,11 @@ MIN_TRAINING_FOR_TUNING = int(os.environ.get("DATECT_MIN_TRAINING_FOR_TUNING", "
 
 # Prediction clipping
 PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training targets
+_clip_override = os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")
+if _clip_override == "none":
+    PREDICTION_CLIP_Q = None
+elif _clip_override:
+    PREDICTION_CLIP_Q = float(_clip_override)
 
 # Parallelization
 ENABLE_PARALLEL = True

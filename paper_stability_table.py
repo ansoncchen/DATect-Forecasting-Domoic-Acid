@@ -129,7 +129,10 @@ def print_table_c(data: dict):
         if consistent and d_m > 0:
             verdict = "keep"
         elif consistent and d_m < 0:
-            verdict = "remove"
+            # "remove" is misleading — turning per-site OFF changes both
+            # model selection AND feature subset simultaneously. Report as
+            # "blend?" to flag that winner-take-all may be sub-optimal.
+            verdict = "blend?"
         else:
             verdict = "unstable"
 

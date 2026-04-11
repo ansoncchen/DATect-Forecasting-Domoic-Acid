@@ -260,7 +260,17 @@ ENV_RF_LESS_REG = {"DATECT_RF_PARAMS_JSON":
 ENV_ALL_FEATURES = {"DATECT_FEATURE_SUBSET_MODE": "all"}
 ENV_MINIMAL_FEATURES = {"DATECT_FEATURE_SUBSET_MODE": "minimal"}
 ENV_RELAX_CLIPPING = {"DATECT_CLIP_Q_OVERRIDE": "0.99"}
+# no_clipping sets both global (config.py) and per-site (per_site_models.py) to None
 ENV_NO_CLIPPING = {"DATECT_CLIP_Q_OVERRIDE": "none"}
+
+# Targeted blend tests: 50/50 XGB+RF for sites whose winner-take-all choice
+# is consistently worse than the global 50/50 default (Table C "always −").
+PATCH_BLEND_COPALIS_LONGBEACH = """
+from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
+for site in ('Copalis', 'Long Beach'):
+    if site in SITE_SPECIFIC_CONFIGS:
+        SITE_SPECIFIC_CONFIGS[site]['ensemble_weights'] = (0.50, 0.50, 0.00)
+"""
 
 
 PERTURBATIONS = [
@@ -282,6 +292,11 @@ PERTURBATIONS = [
     ("no_clipping", "No prediction clipping", ENV_NO_CLIPPING, ""),
     ("monotonic_off", "Monotonic constraints off",
      {"DATECT_USE_MONOTONIC_CONSTRAINTS": "false"}, ""),
+
+    # Targeted blend: Copalis + Long Beach 50/50 (Table C showed winner-take-all
+    # is consistently worse than 50/50 for these two sites)
+    ("blend_copalis_longbeach", "50/50 blend: Copalis + Long Beach",
+     {}, PATCH_BLEND_COPALIS_LONGBEACH),
 ]
 
 

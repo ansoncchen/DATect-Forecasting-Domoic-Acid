@@ -252,7 +252,7 @@ DA_CATEGORY_LABELS = [0, 1, 2, 3]
 
 # Spike Detection Configuration
 SPIKE_THRESHOLD = 20.0  # DA > 20 μg/g considered a spike event
-SPIKE_ALERT_PROB_THRESHOLD = 0.10  # Probability threshold for spike alert (optimized for transition recall)
+SPIKE_ALERT_PROB_THRESHOLD = 0.10  # Fixed operating point (recall-oriented); paper metrics use this constant as-is on held-out rows (no grid search on seed-123)
 SPIKE_CLASSIFIER_ENABLED = True    # Toggle spike binary classifier on/off
 SPIKE_REGRESSION_ALERT_THRESHOLD = 12.0  # Fire spike_alert when ensemble prediction >= this (µg/g)
 

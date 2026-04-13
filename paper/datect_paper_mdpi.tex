@@ -151,8 +151,9 @@ DATect addresses the leakage problem explicitly through nine structural leakage-
 \begin{table}[H]
 \caption{Comparison of existing HAB forecasting systems with DATect. DATect provides the longest temporal record (21 years) and broadest geographic span ($\sim$\SI{600}{\kilo\meter}) of any published quantitative DA/\textit{Pseudo-nitzschia} ML forecasting study.}
 \label{tab:system-comparison}
+\begin{adjustwidth}{-\extralength}{}
 \footnotesize
-\begin{tabular}{p{2.8cm}lllllll}
+\begin{tabularx}{\fulllength}{lllllllX}
 \toprule
 \textbf{System} & \textbf{Region} & \textbf{Sites} & \textbf{Period} & \textbf{Method} & \textbf{Target} & \textbf{Horizon} & \textbf{Depl.} \\
 \midrule
@@ -162,13 +163,14 @@ Maine PST \cite{Grasso2019} & Maine & $\sim$10 & $\sim$5 yr & CNN & PST (not DA)
 \addlinespace
 Galician RF \cite{Alaez2021} & NW Spain & $\sim$5 & $\sim$10 yr & RF/AdaBoost & PN bloom (bin.) & --- & No \\
 \addlinespace
-C-HARM \cite{Anderson2016} & California & Grid & Ongoing & Satellite+model & PN prob. & Nowcast & Yes \\
+C-HARM \cite{Anderson2016} & California & Grid & Ongoing & Sat.+model & PN prob. & Nowcast & Yes \\
 \addlinespace
 Monterey Bay LR \cite{Lane2009} & California & 1 & $\sim$8 yr & Logistic reg. & PN bloom (bin.) & --- & No \\
 \addlinespace
-\textbf{DATect (this study)} & \textbf{WA/OR} & \textbf{10} & \textbf{21 yr} & \textbf{XGB+RF} & \textbf{DA conc.\ + categ.} & \textbf{1 wk} & \textbf{Yes} \\
+\textbf{DATect (this study)} & \textbf{WA/OR} & \textbf{10} & \textbf{21 yr} & \textbf{XGB+RF} & \textbf{DA conc.+categ.} & \textbf{1 wk} & \textbf{Yes} \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
+\end{adjustwidth}
 \end{table}
 
 
@@ -225,8 +227,9 @@ DATect integrates seven categories of environmental and biological data spanning
 \begin{table}[H]
 \caption{Data sources used in DATect, with temporal resolution, period of record, and operational availability delays enforced during forecasting.}
 \label{tab:data-sources}
-\small
-\begin{tabular}{p{3cm}p{3cm}lll}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{p{2.5cm}p{3cm}llX}
 \toprule
 \textbf{Source} & \textbf{Variables} & \textbf{Resolution} & \textbf{Period} & \textbf{Delay} \\
 \midrule
@@ -245,7 +248,8 @@ WDOH / ODFW & DA concentrations & Irregular ($\sim$weekly) & 2003--2023 & --- \\
 \addlinespace
 WDOH / ODFW & \textit{Pseudo-nitzschia} cell counts & Irregular & 2003--2023 & --- \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
+\end{adjustwidth}
 \end{table}
 
 Satellite data from MODIS-Aqua \cite{NASA2002} are retrieved as 8-day composites from the NOAA CoastWatch ERDDAP server for each site's local bounding box. The use of 8-day composites mitigates frequent cloud cover in the PNW. A 7-day processing buffer is enforced to simulate operational satellite data availability delays.
@@ -345,8 +349,9 @@ DATect enforces nine explicit data-leakage prevention mechanisms, summarized in 
 \begin{table}[H]
 \caption{Nine data-leakage prevention mechanisms enforced in DATect. Each safeguard is structural (enforced in code) rather than procedural.}
 \label{tab:leakage-safeguards}
-\small
-\begin{tabular}{clp{7cm}}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{clX}
 \toprule
 \textbf{\#} & \textbf{Safeguard} & \textbf{Implementation} \\
 \midrule
@@ -360,7 +365,8 @@ DATect enforces nine explicit data-leakage prevention mechanisms, summarized in 
 8 & Fresh model per test point & New model trained for each prediction; no shared state \\
 9 & Runtime assertion & \texttt{\_verify\_no\_data\_leakage()} called on every prediction \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
+\end{adjustwidth}
 \end{table}
 
 The central concept is the \textit{anchor date}, defined as $t_{\text{anchor}} = t_{\text{forecast}} - 7$ days. All training data must satisfy date $\leq t_{\text{anchor}}$, and the test date must satisfy $t_{\text{test}} > t_{\text{anchor}}$. This is verified by an assertion function called for every prediction, raising an error if violated. Safeguard \#8 (fresh model per test point) is particularly aggressive---rather than training a single model and applying it to multiple test points, DATect retrains from scratch for each prediction, ensuring that no information from future test points can influence earlier predictions through model state.
@@ -427,20 +433,22 @@ Table~\ref{tab:model-comparison} compares the five model variants evaluated unde
 \begin{table}[H]
 \caption{Overall regression performance of five model variants under leak-free retrospective validation on the held-out test set ($n = 2{,}181$, seed = 123). Bootstrap 95\% confidence intervals ($B = 10{,}000$; percentile method) are shown for $R^2$ and MAE and summarize variation across held-out prediction rows. Paired $\Delta R^2$ vs.\ ensemble reported with 95\% CI.}
 \label{tab:model-comparison}
-\small
-\begin{tabular}{lcccc}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{lcccc}
 \toprule
-\textbf{Model} & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [95\% CI] (\si{\microgrampeg})} & \textbf{RMSE (\si{\microgrampeg})} & \textbf{$\Delta R^2$ vs.\ ens.\ [95\% CI]} \\
+\textbf{Model} & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [95\% CI] (\si{\microgrampeg})} & \textbf{RMSE} & \textbf{$\Delta R^2$ vs.\ ens.\ [95\% CI]} \\
 \midrule
-\textbf{Per-site sel.\ (XGB or RF)}$^{\dagger}$ & \textbf{0.215} [0.096, 0.342] & \textbf{6.42} [5.78, 7.15] & \textbf{17.79} & --- \\
+\textbf{Per-site sel.\ (XGB/RF)}$^{\dagger}$ & \textbf{0.215} [0.096, 0.342] & \textbf{6.42} [5.78, 7.15] & \textbf{17.79} & --- \\
 XGBoost                    & 0.221 [0.112, 0.339] & 6.38 [5.67, 7.08] & 17.72 & $-$0.006 [$-$0.020, $+$0.007] \\
 Random Forest              & 0.190 [0.057, 0.320] & 6.47 [5.79, 7.25] & 18.07 & $+$0.025 [$+$0.005, $+$0.045] \\
 Linear (Ridge)             & 0.202 [0.070, 0.324] & 6.62 [5.93, 7.39] & 17.94 & $+$0.013 [$-$0.020, $+$0.042] \\
 Na\"ive Persistence        & $-$0.426 [$-$0.951, $-$0.034] & 7.73 [6.84, 8.76] & 23.98 & $+$0.641 [$+$0.297, $+$1.122] \\
 \bottomrule
-\end{tabular}
-\vspace{0.3em}\\
-\footnotesize{$^\dagger$ All per-site ensemble weights are $w \in \{0,1\}$ in the current configuration, so ``Per-site selection'' acts as a site-wise model selector (XGBoost at 4 sites, Random Forest at 6 sites) rather than a blended average; the ensemble formulation is retained for generality (Section~\ref{sec:model-selection}). $\Delta R^2$ is computed as $R^2_{\text{comparator}} - R^2_{\text{ensemble}}$: positive values indicate the ensemble outperforms the comparator; negative values indicate the comparator outperforms the ensemble.}
+\end{tabularx}
+\end{adjustwidth}
+\vspace{0.3em}
+\noindent\footnotesize{$^\dagger$ All per-site ensemble weights are $w \in \{0,1\}$ in the current configuration, so ``Per-site selection'' acts as a site-wise model selector (XGBoost at 4 sites, Random Forest at 6 sites) rather than a blended average; the ensemble formulation is retained for generality (Section~\ref{sec:model-selection}). $\Delta R^2$ is computed as $R^2_{\text{comparator}} - R^2_{\text{ensemble}}$: positive values indicate the ensemble outperforms the comparator; negative values indicate the comparator outperforms the ensemble.}
 \end{table}
 
 XGBoost achieves the highest individual model $R^2 = 0.221$, marginally above the ensemble ($R^2 = 0.215$). That the ensemble slightly underperforms XGB-everywhere reflects that per-site RF selection at several WA sites trades a small amount of pooled $R^2$ for better per-site fit; this is a consequence of pooled $R^2$ not being a weighted average of per-site values. Random Forest ($R^2 = 0.190$) and Linear/Ridge ($R^2 = 0.202$) trail XGB but remain competitive. Na\"ive persistence achieves $R^2 = -0.426$ at the pooled held-out scale, indicating that simply predicting the most recent DA observation is not sufficient once all sites are combined. This pooled result does not imply that persistence is useless at every site; rather, it underscores the importance of per-site modeling under strong regional heterogeneity. Paired bootstrap differences between the ensemble and individual ML models are small and statistically consistent with zero (Table~\ref{tab:model-comparison}), while the ensemble's advantage over na\"ive persistence is large and clearly significant ($\Delta R^2 = +0.641$\, $[+0.297,\, +1.122]$), reflecting the value of per-site model selection and feature engineering over raw autocorrelation.
@@ -453,8 +461,9 @@ Table~\ref{tab:per-site-results} presents detailed per-site ensemble performance
 \begin{table}[H]
 \caption{Per-site ensemble regression and classification performance on the held-out test set (seed = 123, separated from configuration-tuning data). Bootstrap 95\% confidence intervals ($B = 10{,}000$) are shown for $R^2$ and MAE. Sites are ordered by $R^2$ and grouped into performance tiers. Total test set $n = 2{,}181$.}
 \label{tab:per-site-results}
-\small
-\begin{tabular}{lrrllrl}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{lrrllrl}
 \toprule
 \textbf{Site} & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [95\% CI]} & \textbf{RMSE} & \textbf{Acc.} & \textbf{Tier} \\
 & & & \textbf{(\si{\microgrampeg})} & \textbf{(\si{\microgrampeg})} & & \\
@@ -474,16 +483,18 @@ Newport        & 218 & $-$0.243 [$-$1.512, $-$0.017] & 10.30 [7.28, 14.13] & 28.
 \midrule
 \textbf{Overall} & \textbf{2,181} & \textbf{0.215} [0.096, 0.342] & \textbf{6.42} [5.78, 7.15] & \textbf{17.79} & \textbf{0.751} & --- \\
 \bottomrule
-\end{tabular}
-\vspace{0.3em}\\
-\footnotesize{Adjusted $R^2$ values (not shown) differ from $R^2$ by $< 0.02$ at all sites; the modest sample-size-to-feature ratios at data-sparse sites are mitigated by per-site feature subsetting (Appendix~\ref{app:features}).}
+\end{tabularx}
+\end{adjustwidth}
+\vspace{0.3em}
+\noindent\footnotesize{Adjusted $R^2$ values (not shown) differ from $R^2$ by $< 0.02$ at all sites; the modest sample-size-to-feature ratios at data-sparse sites are mitigated by per-site feature subsetting (Appendix~\ref{app:features}).}
 \end{table}
 
 \begin{table}[H]
 \caption{Per-site ensemble performance on the 2019--2023 temporal holdout ($N = 1{,}036$). Per-site configurations were developed on the seed-42 development set, which draws test points from all years; however, the development set's 20\% sampling means that the large majority of post-2019 observations appear here for the first time, and a five-seed perturbation study (Appendix~\ref{app:perturbation-sensitivity}) confirms that all tuning choices are stable across seeds. Training for each test point uses all data before the anchor date. Pooled $R^2 = 0.315$ [0.138, 0.476], WA mean $R^2 = 0.549$, OR mean $R^2 = 0.113$.}
 \label{tab:temporal-holdout}
-\small
-\begin{tabular}{lrllrl}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{lrllrl}
 \toprule
 \textbf{Site} & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [95\% CI] (\si{\microgrampeg})} & \textbf{RMSE (\si{\microgrampeg})} & \textbf{Tier} \\
 \midrule
@@ -501,9 +512,10 @@ Gold Beach    & 110 & $-$0.271 [$-$2.336, $-$0.048] & 10.56 [6.95, 15.04] & 24.9
 \midrule
 \textbf{Overall} & \textbf{1,036} & \textbf{0.315} [0.138, 0.476] & \textbf{6.55} [5.72, 7.43] & \textbf{15.35} & --- \\
 \bottomrule
-\end{tabular}
-\vspace{0.3em}\\
-\footnotesize{Bootstrap 95\% CIs ($B = 10{,}000$; percentile method). $^\dagger$Clatsop Beach and Coos Bay shift from Moderate/Low-skill on the standard eval to High-skill on the temporal holdout ($R^2 > 0.4$); Coos Bay's large improvement ($R^2 = 0.616$ vs.\ $-0.038$) is difficult to interpret given the small post-2019 sample ($N = 89$). $^\ddagger$Cannon Beach ($N = 13$) has insufficient post-2019 measurements for stable per-site estimates; essentially all 13 holdout observations are near-zero DA, making this a degenerate sample rather than genuine forecast skill. Bootstrap CI omitted due to insufficient sample size.}
+\end{tabularx}
+\end{adjustwidth}
+\vspace{0.3em}
+\noindent\footnotesize{Bootstrap 95\% CIs ($B = 10{,}000$; percentile method). $^\dagger$Clatsop Beach and Coos Bay shift from Moderate/Low-skill on the standard eval to High-skill on the temporal holdout ($R^2 > 0.4$); Coos Bay's large improvement ($R^2 = 0.616$ vs.\ $-0.038$) is difficult to interpret given the small post-2019 sample ($N = 89$). $^\ddagger$Cannon Beach ($N = 13$) has insufficient post-2019 measurements for stable per-site estimates; essentially all 13 holdout observations are near-zero DA, making this a degenerate sample rather than genuine forecast skill. Bootstrap CI omitted due to insufficient sample size.}
 \end{table}
 
 \begin{table}[H]
@@ -712,8 +724,9 @@ Table~\ref{tab:ensemble-config} summarizes the site-wise model selection, clippi
 \begin{table}[H]
 \caption{Per-site ensemble configuration showing model selection, prediction clipping, and development-set performance tier used during configuration selection (see Table~\ref{tab:per-site-results} for held-out test-set $R^2$).}
 \label{tab:ensemble-config}
-\small
-\begin{tabular}{lccccl}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{lccccl}
 \toprule
 \textbf{Site} & $\boldsymbol{w_{\text{XGB}}}$ & $\boldsymbol{w_{\text{RF}}}$ & \textbf{Clip $q$} & \textbf{Clip max} & \textbf{Tier} \\
 \midrule
@@ -731,9 +744,10 @@ Cannon Beach  & 0.00 & 1.00 & 0.95 & 80 & Low-skill \\
 Coos Bay      & 0.00 & 1.00 & 0.97 & --- & Low-skill \\
 Newport       & 1.00 & 0.00 & 0.98 & --- & Low-skill \\
 \bottomrule
-\end{tabular}
-\vspace{0.3em}\\
-\footnotesize{Clip~$q$: predictions clipped to this quantile of training targets. ``---'' = global default ($q = 0.99$) or no hard ceiling. Clip max in \si{\microgrampeg}. All sites were assigned single-model weights ($w \in \{0,1\}$); blended weights were tested but did not improve over single-model selection (Appendix~\ref{app:weight-robustness}).}
+\end{tabularx}
+\end{adjustwidth}
+\vspace{0.3em}
+\noindent\footnotesize{Clip~$q$: predictions clipped to this quantile of training targets. ``---'' = global default ($q = 0.99$) or no hard ceiling. Clip max in \si{\microgrampeg}. All sites were assigned single-model weights ($w \in \{0,1\}$); blended weights were tested but did not improve over single-model selection (Appendix~\ref{app:weight-robustness}).}
 \end{table}
 
 \section{Classification Details}
@@ -796,8 +810,9 @@ Extreme  & 15   & 22  & 32 & 39 \\
 \begin{table}[H]
 \caption{Component ablation study showing the contribution of each DATect design choice. Each row removes one component from the full system. $\Delta R^2$ and $\Delta$MAE are relative to the baseline. Evaluated on the development set (seed = 42, $n = 1{,}177$); the held-out test set (seed = 123) was reserved for final reporting.}
 \label{tab:ablation}
-\small
-\begin{tabular}{lcccl}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{lcccX}
 \toprule
 \textbf{Configuration} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} & \textbf{Notes} \\
 \midrule
@@ -807,7 +822,8 @@ No interpolated training      & 0.385 & $-0.029$ & 6.61 & Data augmentation effe
 No observation-order lags     & 0.413 & $-0.001$ & 6.39 & Minimal standalone impact \\
 No derived features           & 0.415 & $+0.001$ & 6.38 & Negligible impact \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
+\end{adjustwidth}
 \end{table}
 
 \section{Per-Site Hyperparameter Configuration}
@@ -818,8 +834,9 @@ Table~\ref{tab:app-xgb} presents the full XGBoost hyperparameter configuration f
 \begin{table}[H]
 \caption{Per-site XGBoost hyperparameter overrides. Parameters not listed use global defaults ($n_{\text{est}} = 400$, depth $= 6$, lr $= 0.05$, subsample $= 0.85$, colsample\_bytree $= 0.85$, colsample\_bylevel $= 0.8$, $\alpha = 0.1$, $\lambda = 1.0$, $\gamma = 0.1$, min\_child\_wt $= 3$, tree\_method $=$ hist).}
 \label{tab:app-xgb}
-\small
-\begin{tabular}{lccccccccc}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{lccccccccc}
 \toprule
 \textbf{Site} & \textbf{depth} & $\boldsymbol{n_{\text{est}}}$ & \textbf{lr} & \textbf{mcw} & $\boldsymbol{\alpha}$ & $\boldsymbol{\lambda}$ & $\boldsymbol{\gamma}$ & \textbf{ss} & \textbf{cs} \\
 \midrule
@@ -834,9 +851,10 @@ Newport       & 2 & 100 & 0.02 & 15 & 2.0 & 10.0 & 2.0 & 0.6 & 0.6 \\
 Coos Bay      & 2 & 80  & 0.02 & 15 & 2.0 & 10.0 & 2.0 & 0.6 & 0.6 \\
 Gold Beach    & 2 & 100 & 0.02 & 15 & 2.0 & 10.0 & 2.0 & 0.6 & 0.6 \\
 \bottomrule
-\end{tabular}
-\vspace{0.3em}\\
-\footnotesize{mcw = min\_child\_weight; ss = subsample; cs = colsample\_bytree. Clatsop Beach uses all global defaults. All other sites override every listed parameter.}
+\end{tabularx}
+\end{adjustwidth}
+\vspace{0.3em}
+\noindent\footnotesize{mcw = min\_child\_weight; ss = subsample; cs = colsample\_bytree. Clatsop Beach uses all global defaults. All other sites override every listed parameter.}
 \end{table}
 
 Sites with low historical skill (Cannon Beach, Coos Bay, Gold Beach, Newport) use the conservative Random Forest configuration: $n_{\text{est}} = 200$, max depth $= 6$, min\_samples\_split $= 10$, min\_samples\_leaf $= 5$, max\_features $= 0.5$.
@@ -847,8 +865,9 @@ Sites with low historical skill (Cannon Beach, Coos Bay, Gold Beach, Newport) us
 \begin{table}[H]
 \caption{Feature category inclusion by site. Sites with ``All'' use the full feature set without subsetting. ``partial'' indicates a subset of the group (e.g., only \texttt{modis-sst} and \texttt{pdo} from Env.\ Core). Newport, Coos Bay, and Gold Beach use a single lag feature (\texttt{da\_raw\_prev\_obs\_1}) rather than a complete lag group; Cannon Beach uses the first two obs lags only (\texttt{obs\_1}, \texttt{obs\_2}). These sites were trimmed to $\leq$7 features to reduce overfitting given small training $N$. Features explored but removed from the pipeline are listed in Appendix~\ref{app:feature-engineering}.}
 \label{tab:app-features}
+\begin{adjustwidth}{-\extralength}{}
 \footnotesize
-\begin{tabular}{l|ccccccccc}
+\begin{tabularx}{\fulllength}{lccccccccc}
 \toprule
 \textbf{Site} & \rotatebox{70}{Persistence} & \rotatebox{70}{Full Lags} & \rotatebox{70}{Short Lags} & \rotatebox{70}{Full Rolling} & \rotatebox{70}{Short Rolling} & \rotatebox{70}{Env.\ Core} & \rotatebox{70}{Climate} & \rotatebox{70}{Discharge} & \rotatebox{70}{PN} \\
 \midrule
@@ -863,7 +882,8 @@ Newport       & $\checkmark$ & & & & & partial & & & \\
 Coos Bay      & $\checkmark$ & & & & & partial & & & \\
 Gold Beach    & $\checkmark$ & & & & & partial & & & \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
+\end{adjustwidth}
 \end{table}
 
 \section{Features Explored but Removed}
@@ -926,8 +946,9 @@ Table~\ref{tab:feature-ablation} presents a fine-grained ablation in which each 
 \begin{table}[H]
 \caption{Feature group ablation. Each row removes one feature or group from the full system. All changes fall within sampling variability ($|\Delta R^2| \leq 0.005$), confirming negligible marginal contributions. Evaluated on the development set (seed = 42) under an earlier per-site configuration (baseline $R^2 = 0.457$); the component ablation table (Table~\ref{tab:ablation}) uses the final configuration ($R^2 = 0.414$). Since all $|\Delta R^2| \leq 0.005$, this conclusion is robust to the configuration difference.}
 \label{tab:feature-ablation}
-\small
-\begin{tabular}{lcccc}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{Xcccc}
 \toprule
 \textbf{Feature(s) removed} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} & $\boldsymbol{\Delta}$\textbf{MAE} \\
 \midrule
@@ -940,9 +961,10 @@ Rolling std features (3) & 0.457 & $-0.001$ & 6.16 & $+0.00$ \\
 \addlinespace
 All low-importance combined (8 features)$^\dagger$ & 0.453 & $-0.004$ & 6.19 & $+0.04$ \\
 \bottomrule
-\end{tabular}
-\vspace{0.3em}\\
-\footnotesize{$^\dagger$Includes: K490, K490$^2$, fluorescence efficiency, Chl-$a$ anomaly, PDO--ONI phase, BEUTI relaxation, PN threshold, and Chl-$a$. Individual feature-level removals (not shown) all fall within $|\Delta R^2| \leq 0.005$. $^\ddagger$Count reflects the 4 derived features active in this configuration checkpoint; the full set of 7 derived features explored across development is documented in Appendix~\ref{app:feature-engineering}.}
+\end{tabularx}
+\end{adjustwidth}
+\vspace{0.3em}
+\noindent\footnotesize{$^\dagger$Includes: K490, K490$^2$, fluorescence efficiency, Chl-$a$ anomaly, PDO--ONI phase, BEUTI relaxation, PN threshold, and Chl-$a$. Individual feature-level removals (not shown) all fall within $|\Delta R^2| \leq 0.005$. $^\ddagger$Count reflects the 4 derived features active in this configuration checkpoint; the full set of 7 derived features explored across development is documented in Appendix~\ref{app:feature-engineering}.}
 \end{table}
 
 
@@ -989,8 +1011,9 @@ To validate that per-site design choices are not fragile artifacts of the seed-4
 \begin{table}[H]
 \caption{Perturbation sensitivity analysis. Each row modifies one design choice relative to the baseline configuration. $\Delta R^2$ is relative to baseline ($R^2 = 0.409$). \textbf{Note on baseline discrepancy:} this differs from the component ablation baseline ($R^2 = 0.414$, Table~\ref{tab:ablation}) because the perturbation study was run on an intermediate configuration checkpoint that preceded the final monotonic-constraint and Oregon feature-reduction changes; both studies use the same development set (seed = 42, $n = 1{,}177$) and the $\Delta R^2$ conclusions are unaffected.}
 \label{tab:perturbation}
-\small
-\begin{tabular}{lrrr}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{Xrrr}
 \toprule
 \textbf{Perturbation} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} \\
 \midrule
@@ -1012,7 +1035,8 @@ To validate that per-site design choices are not fragile artifacts of the seed-4
 \quad Disable clipping                                & 0.384 & $-0.026$ & 6.39 \\
 \quad Disable monotonic constraints                   & 0.410 & $+0.000$ & 6.43 \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
+\end{adjustwidth}
 \end{table}
 
 Three findings emerge. First, Random Forest hyperparameters are genuinely insensitive: across four configurations spanning depth 6--16 and 200--800 estimators, no perturbation exceeds $|\Delta R^2| = 0.001$. This validates the claim in Section~\ref{sec:results-ablation} that RF robustness to hyperparameters does not require per-site RF tuning. Second, per-site prediction clipping provides meaningful regularization: relaxing all per-site quantile thresholds from their current values (0.95--0.98) to a uniform 0.99 costs $\Delta R^2 = -0.029$; notably, disabling clipping entirely costs only $-0.026$, revealing that the harm is not from clipping itself but from replacing well-calibrated site-specific thresholds with an overly permissive uniform one. Third, feature subsets have negligible pooled impact ($+0.006$ with all features, $+0.002$ with only four persistence features), confirming that predictive skill is dominated by the DA persistence signal rather than feature engineering.
@@ -1022,8 +1046,9 @@ Multi-seed evaluation further characterizes the stability of these results. Tabl
 \begin{table}[H]
 \caption{Per-site $R^2$ across five random seeds (20\% sample, per-site configuration enabled). Sites are grouped by region.}
 \label{tab:seed-stability}
-\small
-\begin{tabular}{lrrrrrrr}
+\begin{adjustwidth}{-\extralength}{}
+\footnotesize
+\begin{tabularx}{\fulllength}{lrrrrrrr}
 \toprule
 \textbf{Site} & \textbf{Seed 42} & \textbf{123} & \textbf{456} & \textbf{789} & \textbf{1337} & \textbf{Mean} & \textbf{Std} \\
 \midrule
@@ -1043,7 +1068,8 @@ Newport       & 0.119 & $-0.163$ & $-0.950$ & $-0.113$ & $-0.226$ & $-0.267$ & 0
 \midrule
 \multicolumn{2}{l}{Pooled} & & & & & 0.265 & 0.102 \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
+\end{adjustwidth}
 \end{table}
 
 Washington sites show stable performance across seeds (mean $R^2 = 0.57$--$0.75$, std $\leq 0.08$), while Oregon sites exhibit high variance (std up to 0.36 for Newport). The regional skill divide persists across all five seeds, confirming that it reflects fundamental data quality differences rather than seed-specific tuning artifacts.

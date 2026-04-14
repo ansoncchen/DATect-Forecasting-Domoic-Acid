@@ -754,7 +754,7 @@
 			\OR \equal{\@arttype}{Monograph}}{}{%
 				\ifthenelse{\equal{\@status}{submit}}{%	
 					\hfill \href{https://www.mdpi.com}{%
-					\includegraphics[height=1cm]{Definitions/logo-mdpi.pdf}}%
+					\includegraphics[height=1cm]{Definitions/logo-mdpi.eps}}%
 					}{
 					\href{https://www.mdpi.com/journal/\@journal}{
 					\includegraphics[height=1.2cm]{Definitions/\@journal-logo.eps}}%
@@ -765,7 +765,7 @@
 						\ifthenelse{\equal{\@journal}{scipharm}}{%
 							\href{https://www.mdpi.com}{\includegraphics[height=1cm]{Definitions/logo-mdpi-scipharm.eps}}%
 							}{%
-							\href{https://www.mdpi.com}{\includegraphics[height=1cm]{Definitions/logo-mdpi.pdf}}%
+							\href{https://www.mdpi.com}{\includegraphics[height=1cm]{Definitions/logo-mdpi.eps}}%
 							}%
 						}%
 					}%

@@ -531,7 +531,7 @@ def generate_fig4_spike_summary():
     for ax, (title, values, subtitle) in zip(axes, metrics):
         bars = ax.bar(approaches, values, color=colors, edgecolor='white', linewidth=0.7)
         ax.set_ylim(0, 0.9)
-        ax.set_title(title, fontsize=10)
+        ax.set_title(title, fontsize=10, pad=18)
         ax.text(0.5, 1.02, subtitle, transform=ax.transAxes,
                 ha='center', va='bottom', fontsize=7, color='#555555')
         ax.tick_params(axis='x', labelsize=7)

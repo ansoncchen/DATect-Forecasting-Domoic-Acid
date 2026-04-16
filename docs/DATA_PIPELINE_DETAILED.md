@@ -207,3 +207,5 @@ All merges use only data available strictly before the forecast anchor:
 - 2003-2023 coverage
 - 10 sites × ~1090 weeks ≈ 10,900 records
 - ~15-20 features per record
+
+**Version control:** The repository tracks `final_output.parquet` so the dashboard and tests can run after clone. The satellite **intermediate** Parquet at `config.SATELLITE_CACHE_PATH` (default `data/intermediate/satellite_data_intermediate.parquet`) is a local cache produced by `dataset-creation.py`; it is listed in `.gitignore` and must be generated or refreshed on your machine when you rebuild the environmental stack.

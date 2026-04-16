@@ -35,7 +35,7 @@ Download and install from the links above. Check "Add Python to PATH" during ins
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/DATect-Forecasting-Domoic-Acid.git
+git clone https://github.com/ansoncchen/DATect-Forecasting-Domoic-Acid.git
 cd DATect-Forecasting-Domoic-Acid
 
 # Run (auto-installs dependencies)

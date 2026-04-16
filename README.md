@@ -60,6 +60,9 @@ DATect-Forecasting-Domoic-Acid/
 ├── precompute_cache.py             # Cache pre-computation (run on Hyak)
 ├── run_full_validation.sh          # Parallel paper / cache jobs (Hyak)
 ├── scripts/eval/                   # Paper metrics, ablation, stability, spike eval
+├── scripts/fig*.py                 # Optional paper figures (not used by the dashboard)
+├── tests/                          # Pytest (e.g. leakage audit)
+├── paper/                          # Manuscript (LaTeX + MDPI class files)
 ├── config.py                       # All configuration (sites, models, parameters)
 ├── forecasting/                    # ML forecasting engine
 │   ├── raw_forecast_engine.py      # Main engine — ensemble pipeline with per-site tuning
@@ -78,10 +81,13 @@ DATect-Forecasting-Domoic-Acid/
 │   ├── cache_manager.py            # Pre-computed cache access (file-based + Redis)
 │   └── redis_cache.py              # Optional Redis caching (set REDIS_URL to enable)
 ├── frontend/                       # React + Vite dashboard
-├── data/processed/                 # Processed dataset (final_output.parquet)
+├── data/processed/                 # Shipped: final_output.parquet (forecast features)
+├── data/intermediate/              # Local only: satellite cache from dataset-creation (not in git)
 ├── Dockerfile.production           # Production container
 └── cloudbuild.yaml                 # Google Cloud Build config
 ```
+
+`dataset-creation.py` writes `data/intermediate/satellite_data_intermediate.parquet` (see `SATELLITE_CACHE_PATH` in `config.py`) on first run or when you force reprocessing. That file is large and reproducible, so it is **not** committed; only `data/processed/final_output.parquet` is versioned for a quick start.
 
 ## Using the Dashboard
 
@@ -181,7 +187,7 @@ gcloud config set project YOUR-PROJECT-ID
 
 ## License
 
-Scientific research project. Please cite if used in publications.
+Code is released under the [MIT License](LICENSE). If you use DATect in published research, please cite the manuscript (`paper/datect_paper_mdpi.tex` / the PDF in `paper/`) and acknowledge the data providers listed above.
 
 ## Acknowledgments
 

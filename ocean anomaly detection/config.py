@@ -66,6 +66,11 @@ BATCH_SIZE = 64
 PATCHES_PER_EPOCH = 10_000
 LR = 1e-3
 
+# Patch sampling during AE training and PCA baseline fit: fraction of patch
+# cells inside the Overall coastal bbox (REGION envelope). Matches the primary
+# regional metric geography. Set to 0.0 to sample anywhere in the cube domain.
+TRAIN_COASTAL_PATCH_MIN_OVERLAP = 0.5
+
 # ---------------------------------------------------------------------------
 # PCA baseline sweep
 # ---------------------------------------------------------------------------

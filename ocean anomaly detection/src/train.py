@@ -32,6 +32,7 @@ from torch.utils.data import DataLoader, Dataset
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
 from src.model import ConvAE, masked_mse
+from src.regions import overall_coastal_mask
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +54,9 @@ class PatchDataset(Dataset):
         min_valid_fraction: float = config.MIN_VALID_FRACTION,
         patches_per_epoch: int = config.PATCHES_PER_EPOCH,
         seed: int = config.SEED,
+        coastal_mask: np.ndarray | None = None,
+        coastal_min_overlap: float = 0.0,
+        max_sampling_tries: int = 400,
     ):
         self.data = data
         self.mask = mask
@@ -62,6 +66,9 @@ class PatchDataset(Dataset):
         self.patches_per_epoch = patches_per_epoch
         self.rng = np.random.default_rng(seed)
         self.T, self.C, self.H, self.W = data.shape
+        self.coastal_mask = coastal_mask
+        self.coastal_min_overlap = coastal_min_overlap
+        self.max_sampling_tries = max_sampling_tries
 
     def __len__(self) -> int:
         return self.patches_per_epoch
@@ -71,12 +78,18 @@ class PatchDataset(Dataset):
         max_r = self.H - P
         max_c = self.W - P
 
-        for _ in range(200):  # rejection sampling with safety limit
+        for _ in range(self.max_sampling_tries):
             t = self.rng.choice(self.frame_indices)
             r = self.rng.integers(0, max(max_r, 1))
             c = self.rng.integers(0, max(max_c, 1))
             vm = self.mask[t, r:r + P, c:c + P]
             if vm.mean() < self.min_valid_fraction:
+                continue
+            if (
+                self.coastal_mask is not None
+                and self.coastal_min_overlap > 0
+                and self.coastal_mask[r:r + P, c:c + P].mean() < self.coastal_min_overlap
+            ):
                 continue
             patch = self.data[t, :, r:r + P, c:c + P].astype(np.float32)
             patch = np.nan_to_num(patch, nan=0.0)
@@ -117,12 +130,16 @@ def train(
     patches_per_epoch: int = config.PATCHES_PER_EPOCH,
     out_dir: Path = config.MODELS_DIR,
     channel_subset: list[str] | None = None,
+    coastal_patch_min_overlap: float | None = None,
 ) -> Path:
     """
     Train the ConvAE and return the path to the best checkpoint.
 
     channel_subset: if given, only these channel names are used (for ablations).
                     Must be a subset of config.CHANNEL_NAMES.
+
+    coastal_patch_min_overlap: if None, uses config.TRAIN_COASTAL_PATCH_MIN_OVERLAP;
+        if 0, patch locations are unrestricted (legacy full-domain sampling).
     """
     # Pin all seeds
     torch.manual_seed(seed)
@@ -133,12 +150,24 @@ def train(
 
     device = torch.device("cuda" if torch.cuda.is_available() else
                           "mps" if torch.backends.mps.is_available() else "cpu")
+    overlap = (
+        coastal_patch_min_overlap
+        if coastal_patch_min_overlap is not None
+        else config.TRAIN_COASTAL_PATCH_MIN_OVERLAP
+    )
     print(f"Device: {device}  latent_dim={latent_dim}  in_channels={in_channels}  seed={seed}")
+    if overlap > 0:
+        print(
+            "  Patch sampling: Overall coastal bbox, "
+            f"min fractional overlap={overlap:.2f}"
+        )
 
     # -----------------------------------------------------------------------
     # Load cube
     # -----------------------------------------------------------------------
     ds = xr.open_zarr(cube_path, consolidated=True)
+    lat = ds["data"].lat.values
+    lon = ds["data"].lon.values
     all_channels = list(ds.attrs["channels"])
     if channel_subset is not None:
         ch_indices = [all_channels.index(ch) for ch in channel_subset]
@@ -148,11 +177,28 @@ def train(
     mask = ds["mask"].values       # (T, H, W)
     ds.close()
 
+    coastal_mask = overall_coastal_mask(lat, lon) if overlap > 0 else None
+    sampling_tries = 800 if overlap > 0 else 400
+
     T = data.shape[0]
     train_idx, val_idx, _ = split_frames(T, seed)
 
-    train_ds = PatchDataset(data, mask, train_idx, patches_per_epoch=patches_per_epoch, seed=seed)
-    val_ds = PatchDataset(data, mask, val_idx, patches_per_epoch=max(500, patches_per_epoch // 10), seed=seed + 1)
+    train_ds = PatchDataset(
+        data, mask, train_idx,
+        patches_per_epoch=patches_per_epoch,
+        seed=seed,
+        coastal_mask=coastal_mask,
+        coastal_min_overlap=overlap,
+        max_sampling_tries=sampling_tries,
+    )
+    val_ds = PatchDataset(
+        data, mask, val_idx,
+        patches_per_epoch=max(500, patches_per_epoch // 10),
+        seed=seed + 1,
+        coastal_mask=coastal_mask,
+        coastal_min_overlap=overlap,
+        max_sampling_tries=sampling_tries,
+    )
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
                               num_workers=0, pin_memory=(device.type == "cuda"))

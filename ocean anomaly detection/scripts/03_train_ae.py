@@ -48,6 +48,11 @@ def main():
     parser.add_argument("--cube", default=str(config.CUBE_PATH))
     parser.add_argument("--debug", action="store_true",
                         help="5 epochs, 500 patches/epoch — fast smoke-test")
+    parser.add_argument(
+        "--full-domain-patches",
+        action="store_true",
+        help="Sample patches across the entire cube grid (disable coastal bbox overlap)",
+    )
     args = parser.parse_args()
 
     cube_path = Path(args.cube)
@@ -58,6 +63,7 @@ def main():
 
     epochs = 5 if args.debug else args.epochs
     patches = 500 if args.debug else config.PATCHES_PER_EPOCH
+    coastal_ov = 0.0 if args.full_domain_patches else None
 
     if args.sweep:
         print(f"=== Bottleneck sweep: latent_dim ∈ {config.LATENT_SWEEP} ===")
@@ -70,6 +76,7 @@ def main():
                 seed=args.seed,
                 epochs=epochs,
                 patches_per_epoch=patches,
+                coastal_patch_min_overlap=coastal_ov,
             )
 
     elif args.ablate_channels:
@@ -85,6 +92,7 @@ def main():
                 epochs=epochs,
                 patches_per_epoch=patches,
                 channel_subset=channels,
+                coastal_patch_min_overlap=coastal_ov,
             )
 
     else:
@@ -96,6 +104,7 @@ def main():
             seed=args.seed,
             epochs=epochs,
             patches_per_epoch=patches,
+            coastal_patch_min_overlap=coastal_ov,
         )
         print(f"Checkpoint: {ckpt}")
 

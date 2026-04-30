@@ -22,7 +22,7 @@ from sklearn.decomposition import IncrementalPCA
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
-from src.regions import build_region_masks, aggregate_to_regions
+from src.regions import build_region_masks, aggregate_to_regions, overall_coastal_mask
 from src.infer import reconstruct_frame
 
 
@@ -190,25 +190,48 @@ class PCAReconstruction:
         self.k = k
         self._method_name = f"B3_pca_k{k}"
 
-    def fit(self, cube: xr.Dataset, n_samples: int = 20_000) -> "PCAReconstruction":
+    def fit(
+        self,
+        cube: xr.Dataset,
+        n_samples: int = 20_000,
+        coastal_patch_min_overlap: float | None = None,
+    ) -> "PCAReconstruction":
         """
         Fit IncrementalPCA on random patches from the cube.
         n_samples: number of patches to use for fitting.
+        coastal_patch_min_overlap: defaults to config.TRAIN_COASTAL_PATCH_MIN_OVERLAP;
+            use 0 to sample the full spatial domain (legacy behaviour).
         """
         data = cube["data"].values   # (T, C, H, W)
         mask = cube["mask"].values   # (T, H, W)
+        lat = cube["data"].lat.values
+        lon = cube["data"].lon.values
         T, C, H, W = data.shape
         P = config.PATCH_SIZE
+
+        overlap = (
+            coastal_patch_min_overlap
+            if coastal_patch_min_overlap is not None
+            else config.TRAIN_COASTAL_PATCH_MIN_OVERLAP
+        )
+        coastal_mask = overall_coastal_mask(lat, lon) if overlap > 0 else None
+        max_tries = n_samples * 20 if overlap > 0 else n_samples * 10
 
         rng = np.random.default_rng(config.SEED)
         flat_patches = []
         attempts = 0
-        while len(flat_patches) < n_samples and attempts < n_samples * 10:
+        while len(flat_patches) < n_samples and attempts < max_tries:
             t = rng.integers(0, T)
             r = rng.integers(0, max(H - P, 1))
             c_off = rng.integers(0, max(W - P, 1))
             vm_patch = mask[t, r:r + P, c_off:c_off + P]
             if vm_patch.mean() < config.MIN_VALID_FRACTION:
+                attempts += 1
+                continue
+            if (
+                coastal_mask is not None
+                and coastal_mask[r:r + P, c_off:c_off + P].mean() < overlap
+            ):
                 attempts += 1
                 continue
             patch = data[t, :, r:r + P, c_off:c_off + P].reshape(-1)  # (C*P*P)

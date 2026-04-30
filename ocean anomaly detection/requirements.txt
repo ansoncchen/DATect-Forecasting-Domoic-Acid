@@ -1,0 +1,8 @@
+# Ocean Anomaly Detection — additional deps beyond parent repo
+torch>=2.2
+zarr>=2.17
+shapely>=2.0
+matplotlib>=3.8
+
+# Already present in parent requirements.txt (listed for completeness):
+# xarray, netcdf4, requests, scikit-learn, tqdm, pandas, numpy, scipy

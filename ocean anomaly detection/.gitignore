@@ -1,0 +1,8 @@
+data/
+models/
+outputs/scores/
+__pycache__/
+*.pyc
+.DS_Store
+*.nc
+*.zarr

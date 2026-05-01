@@ -699,6 +699,7 @@ class RawForecastEngine:
         n_anchors: int = 50,
         min_test_date: str = "2008-01-01",
         model_params_override: Optional[dict] = None,
+        max_test_samples: Optional[int] = None,
     ) -> Optional[pd.DataFrame]:
         """
         Run leak-free retrospective evaluation on raw DA measurements.
@@ -706,6 +707,9 @@ class RawForecastEngine:
         Returns DataFrame with columns matching the API's expected
         canonical keys: ``date``, ``site``, ``anchor_date``, ``actual_da``,
         ``predicted_da``, ``actual_category``, ``predicted_category``.
+
+        If *max_test_samples* is set, the per-site draw is subsampled to at
+        most that many rows (after concatenation), for quick smoke tests.
         """
         validate_runtime_parameters(n_anchors, min_test_date)
         logger.info("Running LEAK-FREE %s evaluation with %s", task, model_type)
@@ -777,6 +781,11 @@ class RawForecastEngine:
             return None
 
         test_samples = pd.concat(sampled_rows, ignore_index=True)
+        if max_test_samples is not None and len(test_samples) > max_test_samples:
+            test_samples = test_samples.sample(
+                n=max_test_samples,
+                random_state=self.random_seed,
+            ).reset_index(drop=True)
         logger.info("Selected %d test measurements for retrospective", len(test_samples))
 
         # XGBoost base parameters

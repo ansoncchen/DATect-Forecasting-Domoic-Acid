@@ -74,6 +74,7 @@ This document turns the agreed direction into concrete phases aligned with the c
 - Reuse `05_evaluate.py` pathways; add method string for 3D AE.
 - **Sanity checks:** cloud-heavy days (low valid %) should not dominate loss; log mean valid fraction per batch during training.
 - **Planned ablations:** 2D vs 3D; with vs without random-mask training; same `latent_dim` for fair comparison.
+- **E4 framing note:** the 3D AE's score at date `t` inherits information from `t-1 … t-T+1` by construction, so it is expected to be more forecastable than the 2D AE. The honest E4 comparison is **3D AE vs 3D PCA at matched bottleneck** (PCA fit on temporal stacks). Include this extended B3 variant in Phase B's inference run.
 
 ## File touch list (expected)
 
@@ -89,9 +90,15 @@ This document turns the agreed direction into concrete phases aligned with the c
 ## Order of work
 
 1. Phase A (temporal batches + masks)  
-2. Phase B (3D ConvAE + train/infer/eval)  
-3. Phase C (MAE-style augmentation)  
-4. Phase D (DDPM) if needed for write-up
+2. Phase B (3D ConvAE + train/infer/eval, including 3D PCA baseline for fair E4)  
+3. Phase C (MAE-style augmentation — only after Phase B E2 looks clean)  
+4. Phase D (DDPM) — **drop from scope**; adds a full U-Net + noise schedule for a result that doesn't strengthen the core AE-vs-PCA claim. PCA is already the correct linear baseline.
+
+## Implemented fixes / additions (already in code)
+
+- **Fallback counter in `PatchDataset`** (`src/train.py`): per-epoch logging of `fallback/total` patches; warns at >5% rate even on non-reporting epochs. Needed because PNW winter cloud cover can exhaust the 800-try rejection sampler, silently returning all-zero patches that depress training loss without any visibility.
+- **`OVERALL_COAST_REGION` + `overall_coastal_mask()`** (`src/regions.py`): envelope of all subregions as primary rollup metric; also used as coastal patch sampling footprint during training.
+- **`TRAIN_COASTAL_PATCH_MIN_OVERLAP = 0.5`** (`config.py`): patches must have ≥50% overlap with the coastal envelope — avoids wasting training capacity on open-Pacific states the model is never evaluated on. `--full-domain-patches` flag disables this for ablation.
 
 ## Out of scope (for now)
 

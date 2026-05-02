@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import random
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -69,6 +70,18 @@ class PatchDataset(Dataset):
         self.coastal_mask = coastal_mask
         self.coastal_min_overlap = coastal_min_overlap
         self.max_sampling_tries = max_sampling_tries
+        self._fallback_count = 0
+        self._total_requested = 0
+        self._lock = threading.Lock()
+
+    def reset_fallback_counter(self) -> None:
+        with self._lock:
+            self._fallback_count = 0
+            self._total_requested = 0
+
+    def fallback_rate(self) -> tuple[int, int]:
+        with self._lock:
+            return self._fallback_count, self._total_requested
 
     def __len__(self) -> int:
         return self.patches_per_epoch
@@ -77,6 +90,9 @@ class PatchDataset(Dataset):
         P = self.patch_size
         max_r = self.H - P
         max_c = self.W - P
+
+        with self._lock:
+            self._total_requested += 1
 
         for _ in range(self.max_sampling_tries):
             t = self.rng.choice(self.frame_indices)
@@ -96,8 +112,10 @@ class PatchDataset(Dataset):
             mask_patch = vm.astype(np.float32)[np.newaxis]  # (1, P, P)
             return torch.from_numpy(patch), torch.from_numpy(mask_patch)
 
-        # Fallback: return zeros (very rare; only if frame is almost entirely masked)
-        P = self.patch_size
+        # Fallback: all-zero patch with zero mask — happens when cloud cover is so heavy
+        # that no valid coastal patch exists after max_sampling_tries attempts.
+        with self._lock:
+            self._fallback_count += 1
         return torch.zeros(self.C, P, P), torch.zeros(1, P, P)
 
 
@@ -228,6 +246,7 @@ def train(
     for epoch in range(1, epochs + 1):
         # Train
         model.train()
+        train_ds.reset_fallback_counter()
         ep_loss = 0.0
         for patches, masks in train_loader:
             patches, masks = patches.to(device), masks.to(device)
@@ -253,8 +272,13 @@ def train(
         train_losses.append(ep_loss)
         val_losses.append(val_loss)
 
+        fallbacks, total = train_ds.fallback_rate()
+        fallback_str = f"  fallback={fallbacks}/{total}" if fallbacks > 0 else ""
         if epoch % 5 == 0 or epoch == 1:
-            print(f"  epoch {epoch:3d}/{epochs}  train={ep_loss:.5f}  val={val_loss:.5f}")
+            print(f"  epoch {epoch:3d}/{epochs}  train={ep_loss:.5f}  val={val_loss:.5f}{fallback_str}")
+        elif fallbacks > 0 and fallbacks / max(total, 1) > 0.05:
+            # Always warn if >5% fallback rate even on non-reporting epochs
+            print(f"  epoch {epoch:3d}  WARNING: high fallback rate {fallbacks}/{total} ({100*fallbacks/total:.1f}%)")
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss

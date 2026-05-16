@@ -1,7 +1,9 @@
 data/
 models/
 outputs/scores/
+outputs/scores_*/
 outputs/figures/
+outputs/download_log.csv
 __pycache__/
 *.pyc
 .DS_Store

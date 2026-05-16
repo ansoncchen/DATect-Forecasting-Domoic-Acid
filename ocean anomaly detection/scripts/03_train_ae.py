@@ -73,6 +73,15 @@ def main():
         print("Run scripts/02_build_cube.py first.")
         sys.exit(1)
 
+    # Detect channel count from the cube (handles cubes built with subsets,
+    # e.g. 2010 only has chla+sst because k490/nflh have data gaps that year).
+    import xarray as xr
+    _ds = xr.open_zarr(cube_path, consolidated=True)
+    cube_channels = list(_ds.attrs["channels"])
+    _ds.close()
+    n_cube_channels = len(cube_channels)
+    print(f"  Cube channels: {cube_channels} (in_channels = {n_cube_channels})")
+
     epochs = 5 if args.debug else args.epochs
     patches = 500 if args.debug else config.PATCHES_PER_EPOCH
     coastal_ov = 0.0 if args.full_domain_patches else None
@@ -90,7 +99,7 @@ def main():
             print(f"\n--- latent_dim={ld} ---")
             train_fn(
                 cube_path=cube_path,
-                in_channels=len(config.CHANNEL_NAMES),
+                in_channels=n_cube_channels,
                 latent_dim=ld,
                 seed=args.seed,
                 epochs=epochs,
@@ -120,7 +129,7 @@ def main():
         print(f"=== {variant_tag} single run: latent_dim={args.latent} ===")
         ckpt = train_fn(
             cube_path=cube_path,
-            in_channels=len(config.CHANNEL_NAMES),
+            in_channels=n_cube_channels,
             latent_dim=args.latent,
             seed=args.seed,
             epochs=epochs,

@@ -35,12 +35,24 @@ from src.baselines import (
 )
 
 
-def _select_device() -> torch.device:
+def _select_device(force_cpu: bool = False) -> torch.device:
+    import os
+    env_dev = os.environ.get("DATECT_DEVICE", "").lower()
+    if env_dev in ("cpu", "cuda", "mps"):
+        return torch.device(env_dev)
+    if force_cpu:
+        return torch.device("cpu")
     if torch.cuda.is_available():
         return torch.device("cuda")
     if torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
+
+
+def _select_device_for_3d() -> torch.device:
+    """MPS lacks ConvTranspose3D → fall back to CPU on Mac without CUDA."""
+    needs_cpu = (not torch.cuda.is_available() and torch.backends.mps.is_available())
+    return _select_device(force_cpu=needs_cpu)
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +108,7 @@ def run_ae3d_inference(ckpt: dict, cube: xr.Dataset, aggregation: str, ckpt_name
     if channel_subset and len(channel_subset) != len(config.CHANNEL_NAMES):
         method_name += "_" + "".join(c[:3] for c in channel_subset)
 
-    device = _select_device()
+    device = _select_device_for_3d()
     model = ConvAE3D(in_channels=in_ch, latent_dim=latent_dim, temporal_window=T).to(device)
     model.load_state_dict(ckpt["model_state"])
     reconstructor = make_ae3d_reconstructor(model, device)

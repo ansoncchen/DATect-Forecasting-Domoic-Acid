@@ -131,7 +131,19 @@ def _pin_seeds(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def _select_device() -> torch.device:
+def _select_device(force_cpu: bool = False) -> torch.device:
+    """
+    Device priority: env DATECT_DEVICE > force_cpu > CUDA > MPS > CPU.
+
+    force_cpu is used for ConvAE3D — MPS doesn't support ConvTranspose3D,
+    so 3D training on Mac must run on CPU.
+    """
+    import os
+    env_dev = os.environ.get("DATECT_DEVICE", "").lower()
+    if env_dev in ("cpu", "cuda", "mps"):
+        return torch.device(env_dev)
+    if force_cpu:
+        return torch.device("cpu")
     if torch.cuda.is_available():
         return torch.device("cuda")
     if torch.backends.mps.is_available():
@@ -241,7 +253,12 @@ def train_temporal(
 ) -> Path:
     """Train 3D ConvAE3D; returns best checkpoint path."""
     _pin_seeds(seed)
-    device = _select_device()
+    # MPS doesn't support ConvTranspose3D; force CPU on Mac without CUDA.
+    needs_cpu_fallback = (not torch.cuda.is_available()
+                          and torch.backends.mps.is_available())
+    device = _select_device(force_cpu=needs_cpu_fallback)
+    if needs_cpu_fallback:
+        print("  Note: 3D ConvAE on Mac → CPU (MPS lacks ConvTranspose3D); use Hyak CUDA for speed.")
     overlap = (coastal_patch_min_overlap if coastal_patch_min_overlap is not None
                else config.TRAIN_COASTAL_PATCH_MIN_OVERLAP)
     print(f"[3D] Device: {device}  latent_dim={latent_dim}  in_channels={in_channels}  "

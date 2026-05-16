@@ -85,9 +85,34 @@ def _get_unique_composite_dates(dataset_id: str, start: str, end: str) -> list[s
         ds = xr.open_dataset(tmp.name, engine="netcdf4")
         times = ds["time"].values
         ds.close()
-    # Deduplicate (ERDDAP can serve the same composite at multiple daily timestamps)
+    # Deduplicate (ERDDAP serves daily rolling 8-day composites)
     unique = sorted({str(pd.Timestamp(t).date()) for t in times})
     return unique
+
+
+def _filter_to_8day_anchors(dates: list[str]) -> list[str]:
+    """
+    Sub-sample a list of daily timestamps to one native 8-day composite per anchor.
+
+    MODIS 8-day products use anchors at DOY {1, 9, 17, ...} or {5, 13, 21, ...}
+    depending on the specific dataset. Rather than hardcoding the anchor offset,
+    we detect the most common DOY offset modulo 8 in the input list and keep
+    only those dates. Falls back to "every 8th file" if the input is sparse.
+    """
+    if not dates:
+        return dates
+    doys = [pd.Timestamp(d).dayofyear for d in dates]
+    if len(doys) < 8:
+        return dates  # already sparse; keep all
+    # Find the most common modulo-8 residue
+    residues = [doy % 8 for doy in doys]
+    from collections import Counter
+    common_residue = Counter(residues).most_common(1)[0][0]
+    filtered = [d for d, doy in zip(dates, doys) if doy % 8 == common_residue]
+    if not filtered:
+        # Defensive: every 8th file
+        filtered = dates[::8]
+    return filtered
 
 
 def main():
@@ -98,6 +123,9 @@ def main():
     parser.add_argument("--stride", type=int, default=config.DEFAULT_STRIDE)
     parser.add_argument("--workers", type=int, default=config.DEFAULT_WORKERS)
     parser.add_argument("--full-res", action="store_true", help="Override stride to 1")
+    parser.add_argument("--all-daily", action="store_true",
+                        help="Download all daily rolling 8-day composites (~365/yr). "
+                             "Default subsamples to standard MODIS 8-day anchors (~46/yr).")
     args = parser.parse_args()
 
     stride = 1 if args.full_res else args.stride
@@ -114,7 +142,11 @@ def main():
     for name, dataset_id, var, _ in selected:
         print(f"Fetching time axis for {name} ({dataset_id})…")
         dates = _get_unique_composite_dates(dataset_id, args.start, args.end)
-        print(f"  {len(dates)} unique composite dates")
+        print(f"  {len(dates)} unique daily timestamps")
+        if not args.all_daily:
+            dates = _filter_to_8day_anchors(dates)
+            print(f"  Subsampled to {len(dates)} native 8-day MODIS anchor dates "
+                  f"(use --all-daily to keep all daily rolling composites)")
         out_dir = config.DATA_RAW / name
         out_dir.mkdir(parents=True, exist_ok=True)
         for d in dates:

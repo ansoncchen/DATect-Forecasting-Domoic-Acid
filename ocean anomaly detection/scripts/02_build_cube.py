@@ -52,6 +52,15 @@ def _open_channel_dedup(name: str, year: int | None = None) -> xr.DataArray:
         if d in da.dims:
             da = da.squeeze(d, drop=True)
 
+    # ERDDAP NetCDFs use 'latitude'/'longitude'; normalize to 'lat'/'lon'
+    rename_map = {}
+    if "latitude" in da.dims:
+        rename_map["latitude"] = "lat"
+    if "longitude" in da.dims:
+        rename_map["longitude"] = "lon"
+    if rename_map:
+        da = da.rename(rename_map)
+
     # Deduplicate on time coordinate
     df = pd.DataFrame({"time": da["time"].values, "idx": np.arange(len(da["time"]))})
     df = df.drop_duplicates("time").sort_values("time")
@@ -125,6 +134,10 @@ def main():
         [channel_das[n] for n in channel_names], dim="channel"
     ).assign_coords(channel=channel_names).transpose("time", "channel", "lat", "lon")
 
+    # Rechunk dask arrays to match target zarr chunks (avoids partial-write errors)
+    n_t_chunk = min(46, len(stacked.time))
+    stacked = stacked.chunk({"time": n_t_chunk, "channel": -1, "lat": -1, "lon": -1})
+
     mask = ~np.isnan(stacked).any(dim="channel")
     ds_out = xr.Dataset({"data": stacked, "mask": mask})
     for name, s in stats.items():
@@ -145,7 +158,7 @@ def main():
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
         shutil.rmtree(out_path)
-    ds_out.to_zarr(out_path, encoding=encoding, consolidated=True)
+    ds_out.to_zarr(out_path, encoding=encoding, consolidated=True, zarr_format=2)
 
     print(f"\nCube written: {out_path}")
     print(f"  Shape: time={n_times}, channel={len(channel_names)}, lat={H}, lon={W}")

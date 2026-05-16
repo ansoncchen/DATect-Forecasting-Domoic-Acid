@@ -1,0 +1,54 @@
+#!/bin/bash
+#SBATCH --job-name=oad-download
+#SBATCH --partition=compute              # CPU-only — no GPU needed for downloads
+#SBATCH --account=stf
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=12:00:00                  # generous — ~24 yr × 4 ch × 364 days at ~5 s/file / 8 workers ≈ 6 hr
+#SBATCH --output=logs/oad-download-%j.out
+#SBATCH --error=logs/oad-download-%j.err
+
+# ----------------------------------------------------------------------------
+# DATect / Ocean Anomaly Detection — download driver
+#
+# Downloads all 4 MODIS channels at stride-2 (0.025°) keeping ALL daily
+# rolling 8-day composites (~364/yr/channel) for denser training signal.
+# Matches the original ocean-anomaly branch behavior.
+#
+# Submit defaults (full 2003-2024 range):  sbatch hyak/download.sbatch
+# Custom range:  sbatch --export=ALL,START=2003-01-01,END=2010-12-31 hyak/download.sbatch
+# Single year:   sbatch --export=ALL,START=2003-01-01,END=2003-12-31 hyak/download.sbatch
+# Channels:      sbatch --export=ALL,CHANNELS=chla,sst hyak/download.sbatch
+# ----------------------------------------------------------------------------
+
+OAD_ROOT="/gscratch/stf/ac283/oad"
+START="${START:-2003-01-01}"
+END="${END:-2024-12-31}"
+CHANNELS="${CHANNELS:-chla,k490,nflh,sst}"
+
+cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }
+mkdir -p logs
+
+source .venv/bin/activate 2>/dev/null || true
+
+echo "== Downloading channels=$CHANNELS  range=$START → $END =="
+echo "== Cadence: ALL daily rolling 8-day composites (use --anchor-only to subsample) =="
+echo "== Resolution: stride-2 (0.025°) =="
+echo
+
+python scripts/01_download.py \
+    --channels "$CHANNELS" \
+    --start "$START" \
+    --end "$END" \
+    --workers 8
+
+echo
+echo "== Build cube =="
+python scripts/02_build_cube.py
+
+echo
+echo "== Download + cube build complete =="
+echo "Cube location: $OAD_ROOT/data/cube.zarr"
+ls -lh data/cube.zarr 2>&1 | head -3

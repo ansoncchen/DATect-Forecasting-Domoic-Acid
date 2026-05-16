@@ -123,9 +123,10 @@ def main():
     parser.add_argument("--stride", type=int, default=config.DEFAULT_STRIDE)
     parser.add_argument("--workers", type=int, default=config.DEFAULT_WORKERS)
     parser.add_argument("--full-res", action="store_true", help="Override stride to 1")
-    parser.add_argument("--all-daily", action="store_true",
-                        help="Download all daily rolling 8-day composites (~365/yr). "
-                             "Default subsamples to standard MODIS 8-day anchors (~46/yr).")
+    parser.add_argument("--anchor-only", action="store_true",
+                        help="Subsample to standard MODIS 8-day anchor dates (~46/yr/channel). "
+                             "Default keeps all daily rolling 8-day composites (~364/yr) for "
+                             "denser training signal — match the original ocean-anomaly branch.")
     args = parser.parse_args()
 
     stride = 1 if args.full_res else args.stride
@@ -143,10 +144,11 @@ def main():
         print(f"Fetching time axis for {name} ({dataset_id})…")
         dates = _get_unique_composite_dates(dataset_id, args.start, args.end)
         print(f"  {len(dates)} unique daily timestamps")
-        if not args.all_daily:
+        if args.anchor_only:
             dates = _filter_to_8day_anchors(dates)
-            print(f"  Subsampled to {len(dates)} native 8-day MODIS anchor dates "
-                  f"(use --all-daily to keep all daily rolling composites)")
+            print(f"  --anchor-only: filtered to {len(dates)} native 8-day MODIS anchor dates")
+        else:
+            print(f"  Keeping all {len(dates)} daily rolling 8-day composites (denser signal)")
         out_dir = config.DATA_RAW / name
         out_dir.mkdir(parents=True, exist_ok=True)
         for d in dates:

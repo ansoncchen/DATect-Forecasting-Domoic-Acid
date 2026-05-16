@@ -5,11 +5,14 @@ Regions are defined as (lat_min, lat_max, lon_min, lon_max) boxes aligned to
 the study domain: four alongshore bands plus one Overall envelope (min/max lat/lon
 over those bands) used as the primary coastal metric footprint.
 """
-import numpy as np
-from typing import NamedTuple
+from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import NamedTuple
+
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
@@ -22,10 +25,10 @@ class Region(NamedTuple):
 
 
 SUBREGIONS: list[Region] = [
-    Region("Olympic Coast (WA)",   47.0, 49.0, -125.5, -123.5),
+    Region("Olympic Coast (WA)",         47.0, 49.0, -125.5, -123.5),
     Region("SW Washington / Long Beach", 45.5, 47.0, -124.5, -123.0),
-    Region("Central Oregon",       43.5, 45.5, -125.0, -123.5),
-    Region("Southern OR / N CA",   41.0, 43.5, -125.5, -123.5),
+    Region("Central Oregon",             43.5, 45.5, -125.0, -123.5),
+    Region("Southern OR / N CA",         41.0, 43.5, -125.5, -123.5),
 ]
 
 
@@ -61,10 +64,7 @@ def build_region_masks(lat: np.ndarray, lon: np.ndarray) -> dict[str, np.ndarray
     Returns {region_name: bool array shape (len(lat), len(lon))} where True = inside region.
     lat and lon are 1-D coordinate arrays.
     """
-    masks = {}
-    for r in REGIONS:
-        masks[r.name] = _mask_for_region(lat, lon, r)
-    return masks
+    return {r.name: _mask_for_region(lat, lon, r) for r in REGIONS}
 
 
 def aggregate_to_regions(
@@ -91,11 +91,11 @@ def aggregate_to_regions(
             results[name] = float("nan")
             continue
         if aggregation == "mean":
-            results[name] = float(vals.mean())
+            results[name] = float(np.nanmean(vals))
         elif aggregation == "top_decile":
-            results[name] = float(np.percentile(vals, 90))
+            results[name] = float(np.nanpercentile(vals, 90))
         elif aggregation == "max":
-            results[name] = float(vals.max())
+            results[name] = float(np.nanmax(vals))
         else:
             raise ValueError(f"Unknown aggregation: {aggregation}")
     return results

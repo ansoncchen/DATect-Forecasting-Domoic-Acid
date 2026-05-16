@@ -1,58 +1,70 @@
 """
-CLI driver for ConvAE training: bottleneck sweep and channel ablations.
+CLI driver for ConvAE training: 2D snapshot, 3D temporal, sweeps, ablations.
 
 Usage:
-    # Single run at default latent_dim=32
+    # Single 2D run (default)
     python scripts/03_train_ae.py --latent 32
 
-    # Full bottleneck sweep (5 runs)
+    # Single 3D run (Phase B)
+    python scripts/03_train_ae.py --temporal --latent 32
+
+    # 2D bottleneck sweep
     python scripts/03_train_ae.py --sweep
 
-    # Channel ablations (5 runs — drop each channel + chl-only)
+    # 3D bottleneck sweep
+    python scripts/03_train_ae.py --temporal --sweep
+
+    # Channel ablations (works for both 2D and 3D)
     python scripts/03_train_ae.py --ablate-channels
+    python scripts/03_train_ae.py --temporal --ablate-channels
 
-    # Quick smoke-test: 5 epochs, latent=32
+    # Quick smoke-test
     python scripts/03_train_ae.py --latent 32 --epochs 5 --debug
+    python scripts/03_train_ae.py --temporal --latent 32 --epochs 5 --debug
 
-Output: models/ae_l{latent}_c{in_channels}_s{seed}[_channels].pt
+Checkpoint naming:
+    models/ae_2d_l{latent}_c{nch}_s{seed}[_subset].pt
+    models/ae_3d_l{latent}_c{nch}_t{T}_s{seed}[_subset].pt
 """
+from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
-from src.train import train
+from src.train import train, train_temporal
 
 
 ABLATION_SETS: list[tuple[str, list[str]]] = [
-    ("no_chla",  [c for c in config.CHANNEL_NAMES if c != "chla"]),
-    ("no_k490",  [c for c in config.CHANNEL_NAMES if c != "k490"]),
-    ("no_nflh",  [c for c in config.CHANNEL_NAMES if c != "nflh"]),
-    ("no_sst",   [c for c in config.CHANNEL_NAMES if c != "sst"]),
+    ("no_chla",   [c for c in config.CHANNEL_NAMES if c != "chla"]),
+    ("no_k490",   [c for c in config.CHANNEL_NAMES if c != "k490"]),
+    ("no_nflh",   [c for c in config.CHANNEL_NAMES if c != "nflh"]),
+    ("no_sst",    [c for c in config.CHANNEL_NAMES if c != "sst"]),
     ("chla_only", ["chla"]),
 ]
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train ConvAE (single run, sweep, or ablation)")
+    parser = argparse.ArgumentParser(description="Train 2D or 3D ConvAE")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--sweep", action="store_true",
-                      help=f"Run bottleneck sweep: latent_dim in {config.LATENT_SWEEP}")
+                      help=f"Bottleneck sweep: latent_dim in {config.LATENT_SWEEP}")
     mode.add_argument("--ablate-channels", action="store_true",
                       help="Run 5 channel-ablation experiments")
-    parser.add_argument("--latent", type=int, default=config.LATENT_DIM,
-                        help="Latent dimension for single run")
+    parser.add_argument("--temporal", action="store_true",
+                        help="Use 3D ConvAE3D (Phase B) instead of 2D ConvAE")
+    parser.add_argument("--temporal-window", type=int, default=config.TEMPORAL_WINDOW,
+                        help="T frames stacked per sample (3D only)")
+    parser.add_argument("--latent", type=int, default=config.LATENT_DIM)
     parser.add_argument("--epochs", type=int, default=config.EPOCHS)
     parser.add_argument("--seed", type=int, default=config.SEED)
     parser.add_argument("--cube", default=str(config.CUBE_PATH))
     parser.add_argument("--debug", action="store_true",
                         help="5 epochs, 500 patches/epoch — fast smoke-test")
-    parser.add_argument(
-        "--full-domain-patches",
-        action="store_true",
-        help="Sample patches across the entire cube grid (disable coastal bbox overlap)",
-    )
+    parser.add_argument("--full-domain-patches", action="store_true",
+                        help="Sample patches across the entire cube (disable coastal bias)")
     args = parser.parse_args()
 
     cube_path = Path(args.cube)
@@ -65,11 +77,18 @@ def main():
     patches = 500 if args.debug else config.PATCHES_PER_EPOCH
     coastal_ov = 0.0 if args.full_domain_patches else None
 
+    train_fn = train_temporal if args.temporal else train
+
+    extra_kwargs = {}
+    if args.temporal:
+        extra_kwargs["temporal_window"] = args.temporal_window
+    variant_tag = f"3D[T={args.temporal_window}]" if args.temporal else "2D"
+
     if args.sweep:
-        print(f"=== Bottleneck sweep: latent_dim ∈ {config.LATENT_SWEEP} ===")
+        print(f"=== {variant_tag} bottleneck sweep ===")
         for ld in config.LATENT_SWEEP:
             print(f"\n--- latent_dim={ld} ---")
-            train(
+            train_fn(
                 cube_path=cube_path,
                 in_channels=len(config.CHANNEL_NAMES),
                 latent_dim=ld,
@@ -77,14 +96,15 @@ def main():
                 epochs=epochs,
                 patches_per_epoch=patches,
                 coastal_patch_min_overlap=coastal_ov,
+                **extra_kwargs,
             )
 
     elif args.ablate_channels:
-        print("=== Channel ablations ===")
+        print(f"=== {variant_tag} channel ablations ===")
         for label, channels in ABLATION_SETS:
             in_ch = len(channels)
             print(f"\n--- {label}: {channels} (in_channels={in_ch}) ---")
-            train(
+            train_fn(
                 cube_path=cube_path,
                 in_channels=in_ch,
                 latent_dim=config.LATENT_DIM,
@@ -93,11 +113,12 @@ def main():
                 patches_per_epoch=patches,
                 channel_subset=channels,
                 coastal_patch_min_overlap=coastal_ov,
+                **extra_kwargs,
             )
 
     else:
-        print(f"=== Single run: latent_dim={args.latent} ===")
-        ckpt = train(
+        print(f"=== {variant_tag} single run: latent_dim={args.latent} ===")
+        ckpt = train_fn(
             cube_path=cube_path,
             in_channels=len(config.CHANNEL_NAMES),
             latent_dim=args.latent,
@@ -105,6 +126,7 @@ def main():
             epochs=epochs,
             patches_per_epoch=patches,
             coastal_patch_min_overlap=coastal_ov,
+            **extra_kwargs,
         )
         print(f"Checkpoint: {ckpt}")
 

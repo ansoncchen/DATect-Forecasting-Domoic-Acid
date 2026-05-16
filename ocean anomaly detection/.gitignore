@@ -1,8 +1,10 @@
 data/
 models/
 outputs/scores/
+outputs/figures/
 __pycache__/
 *.pyc
 .DS_Store
 *.nc
 *.zarr
+.venv/

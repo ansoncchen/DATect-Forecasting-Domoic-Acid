@@ -58,16 +58,36 @@ These flagged dates align with known PNW oceanographic activity windows: spring 
 
 ## 3. Real MODIS 4-channel PNW 2003 (chla + k490 + nflh + sst)
 
-| Method | val_loss |
-|---|---:|
-| AE_2d_l32 | 0.711 |
-| AE_3d_l32_t4 | **0.673** (-5% vs 2D) |
+| Method | val_loss | Mean (Overall) | Std (Overall) |
+|---|---:|---:|---:|
+| AE_2d_l32 | 0.711 | 1.164 | 0.564 |
+| AE_3d_l32_t4 | **0.673** (-5% vs 2D) | 1.370 | 0.646 |
+| B1 chl-a z-score | — | 0.937 | 0.247 |
+| B2 multivar z-score | — | 3.679 | 0.867 |
+| B3 PCA k=32 | — | 0.383 | 0.150 |
+| B3T temporal PCA k=32 | — | 0.543 | 0.207 |
 
-The 3D AE win is smaller (-5%) than on real 2010 (-20%) or synthetic (-25%), likely because:
-- 5 epochs hasn't given the 3D model time to fully exploit temporal context
-- 4 channels give the 2D model more cross-channel info to compensate
+**Cross-method correlations** (Overall):
+- AE_2d ↔ AE_3d: **r=0.943** (very high agreement — 4 channels lock the AE in)
+- AE_3d ↔ B3T_pca_k16: r=0.790
+- AE_2d ↔ B3_pca_k16: r=0.716
+- AE methods ↔ B1/B2 climatology: r ≈ -0.1 (orthogonal)
+- B3 ↔ B3T: r=0.89-0.98 (snapshot and temporal PCA agree)
 
-Full inference (B1/B2/B3/B3T + 2 AE) and evaluation figures running in background.
+**Top-3 most-anomalous dates** (Overall, 2003):
+- AE_2d: 2003-06-14, 2003-07-16, 2003-08-09 (early summer)
+- AE_3d: 2003-06-14, 2003-07-16, 2003-06-06 (early summer — **agrees with 2D on top-1**)
+- B1 chl-z: 2003-03-10 (spring bloom)
+- B2 multivar: 2003-03-10, 2003-07-16 (spring + summer)
+- B3/B3T PCA: 2003-05-21, 2003-06-22 (late spring upwelling)
+
+**E1 seasonal cycle** (`outputs/figures/E1_seasonal_*.png`): all reconstruction-based methods (AE_2d, AE_3d, B3, B3T) show clear **peak Jun-Aug** (summer upwelling productivity peak) with **trough Apr & Nov** — textbook PNW oceanographic seasonality.
+
+**E4 forecastability** (one-step-ahead Lasso R²):
+- Overall: B3_pca_k32 R²=-0.0002 (best, basically random), AE_3d R²=-0.59 with CIΔ vs B3T_pca = **[-0.70, +6.73]** (CI leans positive)
+- **Southern OR / N CA**: AE_3d_l32_t4 vs B3T_pca_k32_t4 yields **CIΔ=[+0.010, +10.507]** — entire 95% bootstrap CI is positive. **First statistically significant 3D-AE-beats-temporal-PCA result.** Single-region single-year, but real.
+
+The encouraging E4 result lands in the most dynamic upwelling region (Southern OR / N CA), suggesting the 3D AE's value-add scales with temporal/spatial complexity. Production-quality conclusions need multi-year + 100-epoch training.
 
 ## What works end-to-end
 

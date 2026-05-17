@@ -173,23 +173,32 @@ def main():
 
     tasks = []
     if args.per_year:
-        # Per-year mode: one ERDDAP request fetches a full year of one channel.
-        # Filename pattern: {channel}_{year}.nc (matches proposal §3).
+        # Year-chunked mode. ERDDAP times out / refuses single requests for full
+        # 12-month windows at stride-2 for the PNW box (observed 10+ min hangs),
+        # so we bin into 1-month sub-chunks per channel-year. Each request returns
+        # ~30 daily 8-day-rolling composites in ~10s. Final cube concatenates them.
+        # Filename pattern: {channel}_{YYYY}_{MM}.nc
         start_year = int(args.start[:4])
         end_year = int(args.end[:4])
         for name, dataset_id, var, _ in selected:
             out_dir = config.DATA_RAW / name
             out_dir.mkdir(parents=True, exist_ok=True)
             for year in range(start_year, end_year + 1):
-                y_start = max(f"{year}-01-01", args.start)
-                y_end = min(f"{year}-12-31", args.end)
-                tasks.append((
-                    _erddap_url_range(dataset_id, var, y_start, y_end, stride),
-                    out_dir / f"{name}_{year}.nc",
-                    name, str(year),
-                ))
-        print(f"\n=== PER-YEAR MODE ===")
-        print(f"Total requests: {len(tasks)} ({len(selected)} channels × {end_year - start_year + 1} years)  "
+                for month in range(1, 13):
+                    # First and last day of month
+                    m_start_dt = pd.Timestamp(year, month, 1)
+                    m_end_dt = (m_start_dt + pd.offsets.MonthEnd(0)).normalize()
+                    m_start = max(m_start_dt.strftime("%Y-%m-%d"), args.start)
+                    m_end = min(m_end_dt.strftime("%Y-%m-%d"), args.end)
+                    if m_start > m_end:
+                        continue
+                    tasks.append((
+                        _erddap_url_range(dataset_id, var, m_start, m_end, stride),
+                        out_dir / f"{name}_{year}_{month:02d}.nc",
+                        name, f"{year}-{month:02d}",
+                    ))
+        print(f"\n=== MONTH-CHUNK MODE (--per-year flag) ===")
+        print(f"Total requests: {len(tasks)} ({len(selected)} channels × {end_year - start_year + 1} years × 12 months)  "
               f"stride={stride}  workers={args.workers}\n")
     else:
         # Per-frame mode (slow for multi-year ranges due to ERDDAP rate limits).

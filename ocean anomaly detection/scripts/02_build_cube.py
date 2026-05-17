@@ -42,9 +42,11 @@ def _open_channel_dedup(name: str, year: int | None = None) -> xr.DataArray:
         raise FileNotFoundError(f"No NetCDFs found in {ch_dir}")
     print(f"  {name}: {len(files)} files on disk")
 
+    # parallel=False — parallel=True triggers malloc_consolidate crashes
+    # with numpy 2.2 + netCDF4 1.7 + dask 2026 (Hyak env).
     ds = xr.open_mfdataset(
         files, combine="nested", concat_dim="time",
-        engine="netcdf4", decode_times=True, parallel=True,
+        engine="netcdf4", decode_times=True, parallel=False,
     )
     _, _, var_name, _ = next(c for c in config.CHANNELS if c[0] == name)
     da = ds[var_name]

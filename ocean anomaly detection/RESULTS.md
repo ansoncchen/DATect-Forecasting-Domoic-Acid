@@ -1,5 +1,37 @@
 # Real-data smoke results
 
+## 🆕 HYAK GPU run — 2003 PNW 4-channel, 5-epoch smoke (Hyak ckpt, RTX 6000, 16 min wall)
+
+First end-to-end pipeline run on Hyak GPU (`/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid`).
+
+| Method | val_loss | Mean (Overall) | Std |
+|---|---:|---:|---:|
+| AE_2d_l32 | **0.234** | 0.367 | 0.149 |
+| AE_3d_l32_t4 | 0.361 | 0.569 | 0.214 |
+| B1 chl-z | — | 0.937 | 0.247 |
+| B2 multivar | — | 3.679 | 0.867 |
+| B3 PCA k=32 | — | 0.382 | 0.149 |
+| B3T temporal PCA k=32 | — | 0.542 | 0.206 |
+
+**Cross-method correlations (Overall)**: AE_2d↔AE_3d **r=0.930**, AE_2d↔B3 **r=0.995**, AE_3d↔B3T **r=0.974**, AE↔climatology r≈-0.2 (orthogonal). All four reconstruction methods (AE_2d, AE_3d, B3, B3T) agree on top-3 most-anomalous dates: **2003-05-21, 2003-06-14, 2003-06-22** (late spring/early summer upwelling).
+
+**E1 seasonal cycle**: clear May-Aug peak across AE/PCA methods (textbook PNW summer upwelling).
+
+**E4 forecastability — first statistically significant AE win**:
+> **Southern OR / N CA**: AE_2d_l32 vs B3_pca_k32 CIΔ = **[+0.003, +0.754]** — entire 95% bootstrap CI positive.
+
+After only 5 epochs of training. Production runs at 100 epochs should give cleaner CIs across more regions.
+
+Pipeline timings on Hyak RTX 6000:
+- Cube build: ~1 min
+- 2D AE 5-epoch train: ~1 min
+- 3D AE 5-epoch train: ~1 min
+- All inference (2D PCA + 3D PCA + 2 AEs): ~13 min (was 60+ min before `PCA_K=32` knob)
+- Evaluation: ~30 sec
+- **Total: 16:04**
+
+
+
 Validation run on 2025-05-16 covering:
 
 1. **Synthetic 4-channel cube** (`data/cube_synth.zarr`, 120 frames, 160×200) — full pipeline integration test

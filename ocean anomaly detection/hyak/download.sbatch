@@ -50,10 +50,16 @@ $PYBIN scripts/01_download.py \
     --workers 8
 
 echo
-echo "== Build cube =="
-$PYBIN scripts/02_build_cube.py
-
-echo
-echo "== Download + cube build complete =="
-echo "Cube location: $OAD_ROOT/data/cube.zarr"
-ls -lh data/cube.zarr 2>&1 | head -3
+# Skip cube build if SKIP_CUBE=1 (e.g. running per-channel sibling jobs in parallel
+# to avoid racing on the same cube.zarr write). Build once manually when all 4
+# channels are done: sbatch hyak/build_cube.sbatch  OR run inline.
+if [ "${SKIP_CUBE:-0}" = "1" ]; then
+  echo "== SKIP_CUBE=1 — not building cube. Run build_cube.sbatch separately. =="
+else
+  echo "== Build cube =="
+  $PYBIN scripts/02_build_cube.py
+  echo
+  echo "== Download + cube build complete =="
+  echo "Cube location: $OAD_ROOT/data/cube.zarr"
+  ls -lh data/cube.zarr 2>&1 | head -3
+fi

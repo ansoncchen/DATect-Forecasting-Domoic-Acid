@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=oad-infer
-#SBATCH --partition=gpu-a40
+#SBATCH --partition=gpu-2080ti       # stf has 2 free GPUs here; for big runs use --export=ALL,PARTITION=ckpt
 #SBATCH --account=stf
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -14,13 +14,13 @@
 # Inference: runs all AE checkpoints + 2D baselines + 3D temporal baselines.
 # Override:  sbatch --export=ALL,FLAGS="--baselines-only" hyak/infer.sbatch
 
-OAD_ROOT="/gscratch/stf/ac283/oad"
+OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
 FLAGS="${FLAGS:---all-ae --baselines-only --baselines-3d}"
 
 cd "$OAD_ROOT" || { echo "OAD_ROOT not found"; exit 1; }
 mkdir -p logs
-module load cuda/12.4 2>/dev/null || true
-source .venv/bin/activate
+# CUDA provided by conda env
+source /gscratch/stf/ac283/envs/datect_scratch/bin/activate 2>/dev/null || conda activate /gscratch/stf/ac283/envs/datect_scratch
 
 echo "== FLAGS=$FLAGS =="
 python scripts/04_run_inference.py $FLAGS

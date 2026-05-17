@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=oad-train
-#SBATCH --partition=gpu-a40             # or gpu-rtx6k, gpu-2080ti — adjust to your allocation
+#SBATCH --partition=gpu-2080ti       # stf has 2 free GPUs here; for big runs use --export=ALL,PARTITION=ckpt
 #SBATCH --account=stf
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -21,14 +21,14 @@
 #                        snapshot_ablate, temporal_ablate, smoke}
 # ----------------------------------------------------------------------------
 
-OAD_ROOT="/gscratch/stf/ac283/oad"
+OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
 MODE="${MODE:-snapshot}"
 
 cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }
 mkdir -p logs
 
-module load cuda/12.4 2>/dev/null || true   # adjust to your cluster
-source .venv/bin/activate
+# CUDA provided by conda env
+source /gscratch/stf/ac283/envs/datect_scratch/bin/activate 2>/dev/null || conda activate /gscratch/stf/ac283/envs/datect_scratch
 
 echo "== MODE=$MODE =="
 echo "== Node: $(hostname)  GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader) =="

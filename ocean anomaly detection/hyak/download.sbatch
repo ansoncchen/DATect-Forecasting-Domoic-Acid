@@ -23,7 +23,7 @@
 # Channels:      sbatch --export=ALL,CHANNELS=chla,sst hyak/download.sbatch
 # ----------------------------------------------------------------------------
 
-OAD_ROOT="/gscratch/stf/ac283/oad"
+OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
 START="${START:-2003-01-01}"
 END="${END:-2024-12-31}"
 CHANNELS="${CHANNELS:-chla,k490,nflh,sst}"
@@ -31,7 +31,7 @@ CHANNELS="${CHANNELS:-chla,k490,nflh,sst}"
 cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }
 mkdir -p logs
 
-source .venv/bin/activate 2>/dev/null || true
+source /gscratch/stf/ac283/envs/datect_scratch/bin/activate 2>/dev/null || conda activate /gscratch/stf/ac283/envs/datect_scratch
 
 echo "== Downloading channels=$CHANNELS  range=$START → $END =="
 echo "== Cadence: ALL daily rolling 8-day composites (use --anchor-only to subsample) =="

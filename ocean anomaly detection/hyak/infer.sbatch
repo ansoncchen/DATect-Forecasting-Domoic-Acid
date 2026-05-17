@@ -11,6 +11,9 @@
 #SBATCH --output=logs/oad-infer-%j.out
 #SBATCH --error=logs/oad-infer-%j.err
 
+set -euo pipefail
+
+
 # Inference: runs all AE checkpoints + 2D baselines + 3D temporal baselines.
 # Override:  sbatch --export=ALL,FLAGS="--baselines-only" hyak/infer.sbatch
 

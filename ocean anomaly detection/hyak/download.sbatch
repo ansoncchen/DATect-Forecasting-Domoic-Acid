@@ -10,6 +10,9 @@
 #SBATCH --output=logs/oad-download-%j.out
 #SBATCH --error=logs/oad-download-%j.err
 
+set -euo pipefail
+
+
 # ----------------------------------------------------------------------------
 # DATect / Ocean Anomaly Detection — download driver
 #

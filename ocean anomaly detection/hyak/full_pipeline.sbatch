@@ -11,6 +11,9 @@
 #SBATCH --output=logs/oad-full-%j.out
 #SBATCH --error=logs/oad-full-%j.err
 
+set -euo pipefail
+
+
 # ----------------------------------------------------------------------------
 # End-to-end pipeline: download → cube → train (2D+3D sweeps) → infer → eval.
 # Assumes already-downloaded data; for fresh downloads use hyak/download.sbatch first.

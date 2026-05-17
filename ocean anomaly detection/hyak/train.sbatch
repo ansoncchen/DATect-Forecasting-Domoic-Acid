@@ -11,6 +11,9 @@
 #SBATCH --output=logs/oad-train-%j.out
 #SBATCH --error=logs/oad-train-%j.err
 
+set -euo pipefail
+
+
 # ----------------------------------------------------------------------------
 # DATect / Ocean Anomaly Detection — training driver
 #

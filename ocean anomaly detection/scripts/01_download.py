@@ -40,14 +40,26 @@ def _erddap_url(dataset_id: str, var: str, date_str: str, stride: int) -> str:
     return f"{config.ERDDAP_BASE}/{dataset_id}.nc?{var}{time_sel}{depth_sel}{lat_sel}{lon_sel}"
 
 
-def _download_frame(url: str, dest: Path, retries: int = 5, timeout: int = 300):
-    if dest.exists() and dest.stat().st_size > 1024:  # > 1KB sanity
+def _download_frame(url: str, dest: Path, retries: int = 8, timeout: int = 300):
+    """
+    Download with retry. HTTP 429 (rate limit) backs off more aggressively
+    than other transient errors. We extend retries to 8 so a brief rate-limit
+    window doesn't permanently fail the frame.
+    """
+    if dest.exists() and dest.stat().st_size > 1024:
         return str(dest), True, "exists"
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(".tmp")
     for attempt in range(retries):
         try:
             with requests.get(url, stream=True, timeout=timeout) as r:
+                if r.status_code == 429:
+                    # rate limited — long backoff (15, 30, 60, 120, ...)
+                    backoff = min(15 * (2 ** attempt), 300)
+                    if attempt < retries - 1:
+                        time.sleep(backoff)
+                        continue
+                    return str(dest), False, "HTTP 429 (rate limited; retries exhausted)"
                 r.raise_for_status()
                 with open(tmp, "wb") as f:
                     for chunk in r.iter_content(chunk_size=1 << 16):
@@ -58,7 +70,7 @@ def _download_frame(url: str, dest: Path, retries: int = 5, timeout: int = 300):
             if tmp.exists():
                 tmp.unlink()
             if attempt < retries - 1:
-                time.sleep(2 ** attempt)
+                time.sleep(min(2 ** attempt, 60))
             else:
                 return str(dest), False, str(exc)
     return str(dest), False, "exhausted retries"

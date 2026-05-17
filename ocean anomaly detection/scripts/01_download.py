@@ -32,6 +32,7 @@ import config
 
 
 def _erddap_url(dataset_id: str, var: str, date_str: str, stride: int) -> str:
+    """Single-frame URL: one date."""
     t = f"{date_str}T00:00:00Z"
     lat_sel = f"[({config.LAT_MIN}):{stride}:({config.LAT_MAX})]"
     lon_sel = f"[({config.LON_MIN}):{stride}:({config.LON_MAX})]"
@@ -40,7 +41,23 @@ def _erddap_url(dataset_id: str, var: str, date_str: str, stride: int) -> str:
     return f"{config.ERDDAP_BASE}/{dataset_id}.nc?{var}{time_sel}{depth_sel}{lat_sel}{lon_sel}"
 
 
-def _download_frame(url: str, dest: Path, retries: int = 8, timeout: int = 300):
+def _erddap_url_range(dataset_id: str, var: str, start: str, end: str, stride: int) -> str:
+    """
+    Date-range URL: pulls all 8-day composites between start and end inclusive
+    in a single ERDDAP request. Matches the original ocean-anomaly proposal's
+    "Year-chunked NetCDF requests" pattern — ~100× fewer requests than per-frame,
+    drastically reduces ERDDAP 429 rate-limiting pressure.
+    """
+    t_start = f"{start}T00:00:00Z"
+    t_end = f"{end}T00:00:00Z"
+    lat_sel = f"[({config.LAT_MIN}):{stride}:({config.LAT_MAX})]"
+    lon_sel = f"[({config.LON_MIN}):{stride}:({config.LON_MAX})]"
+    depth_sel = "[(0.0):1:(0.0)]"
+    time_sel = f"[({t_start}):1:({t_end})]"
+    return f"{config.ERDDAP_BASE}/{dataset_id}.nc?{var}{time_sel}{depth_sel}{lat_sel}{lon_sel}"
+
+
+def _download_frame(url: str, dest: Path, retries: int = 8, timeout: int = 1800):
     """
     Download with retry. HTTP 429 (rate limit) backs off more aggressively
     than other transient errors. We extend retries to 8 so a brief rate-limit
@@ -137,8 +154,11 @@ def main():
     parser.add_argument("--full-res", action="store_true", help="Override stride to 1")
     parser.add_argument("--anchor-only", action="store_true",
                         help="Subsample to standard MODIS 8-day anchor dates (~46/yr/channel). "
-                             "Default keeps all daily rolling 8-day composites (~364/yr) for "
-                             "denser training signal — match the original ocean-anomaly branch.")
+                             "Default keeps all daily rolling 8-day composites (~364/yr).")
+    parser.add_argument("--per-year", action="store_true",
+                        help="Use one ERDDAP request per (channel, year) instead of per-frame. "
+                             "Drops total request count ~365x, avoiding rate-limit hell. "
+                             "Recommended for multi-year runs. Yields one NetCDF per channel-year.")
     args = parser.parse_args()
 
     stride = 1 if args.full_res else args.stride
@@ -152,26 +172,47 @@ def main():
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     tasks = []
-    for name, dataset_id, var, _ in selected:
-        print(f"Fetching time axis for {name} ({dataset_id})…")
-        dates = _get_unique_composite_dates(dataset_id, args.start, args.end)
-        print(f"  {len(dates)} unique daily timestamps")
-        if args.anchor_only:
-            dates = _filter_to_8day_anchors(dates)
-            print(f"  --anchor-only: filtered to {len(dates)} native 8-day MODIS anchor dates")
-        else:
-            print(f"  Keeping all {len(dates)} daily rolling 8-day composites (denser signal)")
-        out_dir = config.DATA_RAW / name
-        out_dir.mkdir(parents=True, exist_ok=True)
-        for d in dates:
-            tasks.append((
-                _erddap_url(dataset_id, var, d, stride),
-                out_dir / f"{name}_{d.replace('-', '')}.nc",
-                name, d,
-            ))
+    if args.per_year:
+        # Per-year mode: one ERDDAP request fetches a full year of one channel.
+        # Filename pattern: {channel}_{year}.nc (matches proposal §3).
+        start_year = int(args.start[:4])
+        end_year = int(args.end[:4])
+        for name, dataset_id, var, _ in selected:
+            out_dir = config.DATA_RAW / name
+            out_dir.mkdir(parents=True, exist_ok=True)
+            for year in range(start_year, end_year + 1):
+                y_start = max(f"{year}-01-01", args.start)
+                y_end = min(f"{year}-12-31", args.end)
+                tasks.append((
+                    _erddap_url_range(dataset_id, var, y_start, y_end, stride),
+                    out_dir / f"{name}_{year}.nc",
+                    name, str(year),
+                ))
+        print(f"\n=== PER-YEAR MODE ===")
+        print(f"Total requests: {len(tasks)} ({len(selected)} channels × {end_year - start_year + 1} years)  "
+              f"stride={stride}  workers={args.workers}\n")
+    else:
+        # Per-frame mode (slow for multi-year ranges due to ERDDAP rate limits).
+        for name, dataset_id, var, _ in selected:
+            print(f"Fetching time axis for {name} ({dataset_id})…")
+            dates = _get_unique_composite_dates(dataset_id, args.start, args.end)
+            print(f"  {len(dates)} unique daily timestamps")
+            if args.anchor_only:
+                dates = _filter_to_8day_anchors(dates)
+                print(f"  --anchor-only: filtered to {len(dates)} native 8-day MODIS anchor dates")
+            else:
+                print(f"  Keeping all {len(dates)} daily rolling 8-day composites (denser signal)")
+            out_dir = config.DATA_RAW / name
+            out_dir.mkdir(parents=True, exist_ok=True)
+            for d in dates:
+                tasks.append((
+                    _erddap_url(dataset_id, var, d, stride),
+                    out_dir / f"{name}_{d.replace('-', '')}.nc",
+                    name, d,
+                ))
 
-    print(f"\nTotal frames: {len(tasks)} ({len(selected)} channels × dates)  "
-          f"stride={stride}  workers={args.workers}\n")
+        print(f"\nTotal frames: {len(tasks)} ({len(selected)} channels × dates)  "
+              f"stride={stride}  workers={args.workers}\n")
 
     results = []
     completed = 0

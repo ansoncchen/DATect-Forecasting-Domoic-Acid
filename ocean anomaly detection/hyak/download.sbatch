@@ -31,14 +31,16 @@ CHANNELS="${CHANNELS:-chla,k490,nflh,sst}"
 cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }
 mkdir -p logs
 
-source /gscratch/stf/ac283/envs/datect_scratch/bin/activate 2>/dev/null || conda activate /gscratch/stf/ac283/envs/datect_scratch
+# Use env's python directly (most robust)
+PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
+export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
 
 echo "== Downloading channels=$CHANNELS  range=$START → $END =="
 echo "== Cadence: ALL daily rolling 8-day composites (use --anchor-only to subsample) =="
 echo "== Resolution: stride-2 (0.025°) =="
 echo
 
-python scripts/01_download.py \
+$PYBIN scripts/01_download.py \
     --channels "$CHANNELS" \
     --start "$START" \
     --end "$END" \
@@ -46,7 +48,7 @@ python scripts/01_download.py \
 
 echo
 echo "== Build cube =="
-python scripts/02_build_cube.py
+$PYBIN scripts/02_build_cube.py
 
 echo
 echo "== Download + cube build complete =="

@@ -28,7 +28,9 @@ cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }
 mkdir -p logs
 
 # CUDA provided by conda env
-source /gscratch/stf/ac283/envs/datect_scratch/bin/activate 2>/dev/null || conda activate /gscratch/stf/ac283/envs/datect_scratch
+# Use env's python directly (most robust)
+PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
+export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
 
 echo "== MODE=$MODE =="
 echo "== Node: $(hostname)  GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader) =="
@@ -36,26 +38,26 @@ echo "== Cube: $(ls -lh data/cube.zarr 2>/dev/null | head -1) =="
 
 case "$MODE" in
   smoke)
-    python scripts/03_train_ae.py --latent 32 --epochs 5 --debug
-    python scripts/03_train_ae.py --temporal --latent 32 --epochs 5 --debug
+    $PYBIN scripts/03_train_ae.py --latent 32 --epochs 5 --debug
+    $PYBIN scripts/03_train_ae.py --temporal --latent 32 --epochs 5 --debug
     ;;
   snapshot)
-    python scripts/03_train_ae.py --latent 32
+    $PYBIN scripts/03_train_ae.py --latent 32
     ;;
   snapshot_sweep)
-    python scripts/03_train_ae.py --sweep
+    $PYBIN scripts/03_train_ae.py --sweep
     ;;
   snapshot_ablate)
-    python scripts/03_train_ae.py --ablate-channels
+    $PYBIN scripts/03_train_ae.py --ablate-channels
     ;;
   temporal)
-    python scripts/03_train_ae.py --temporal --latent 32
+    $PYBIN scripts/03_train_ae.py --temporal --latent 32
     ;;
   temporal_sweep)
-    python scripts/03_train_ae.py --temporal --sweep
+    $PYBIN scripts/03_train_ae.py --temporal --sweep
     ;;
   temporal_ablate)
-    python scripts/03_train_ae.py --temporal --ablate-channels
+    $PYBIN scripts/03_train_ae.py --temporal --ablate-channels
     ;;
   *)
     echo "Unknown MODE: $MODE"; exit 1 ;;

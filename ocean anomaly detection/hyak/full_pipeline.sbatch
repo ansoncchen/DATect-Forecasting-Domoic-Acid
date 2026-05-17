@@ -32,7 +32,9 @@ cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }
 mkdir -p logs
 
 # CUDA provided by conda env
-source /gscratch/stf/ac283/envs/datect_scratch/bin/activate 2>/dev/null || conda activate /gscratch/stf/ac283/envs/datect_scratch
+# Use env's python directly (most robust)
+PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
+export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
 
 echo "============================================================="
 echo "==  DATect / Ocean Anomaly Detection — full pipeline       =="
@@ -47,7 +49,7 @@ echo
 # ----------------------------------------------------------------------------
 if [ "$SKIP_DOWNLOAD" != "1" ]; then
   echo "=== Stage 1/5: download ==="
-  python scripts/01_download.py --channels "$CHANNELS" --start "$START" --end "$END" --workers 8
+  $PYBIN scripts/01_download.py --channels "$CHANNELS" --start "$START" --end "$END" --workers 8
   echo
 fi
 
@@ -55,7 +57,7 @@ fi
 # Stage 2: build cube
 # ----------------------------------------------------------------------------
 echo "=== Stage 2/5: build cube ==="
-python scripts/02_build_cube.py
+$PYBIN scripts/02_build_cube.py
 ls -lh data/cube.zarr 2>&1 | head -3
 echo
 
@@ -64,17 +66,17 @@ echo
 # ----------------------------------------------------------------------------
 echo "=== Stage 3/5: train 2D AE ==="
 if [ "$LATENT_SWEEP" = "1" ]; then
-  python scripts/03_train_ae.py --sweep --epochs $EPOCHS
+  $PYBIN scripts/03_train_ae.py --sweep --epochs $EPOCHS
 else
-  python scripts/03_train_ae.py --latent 32 --epochs $EPOCHS
+  $PYBIN scripts/03_train_ae.py --latent 32 --epochs $EPOCHS
 fi
 echo
 
 echo "=== Stage 3/5: train 3D ConvAE3D ==="
 if [ "$LATENT_SWEEP" = "1" ]; then
-  python scripts/03_train_ae.py --temporal --sweep --epochs $EPOCHS
+  $PYBIN scripts/03_train_ae.py --temporal --sweep --epochs $EPOCHS
 else
-  python scripts/03_train_ae.py --temporal --latent 32 --epochs $EPOCHS
+  $PYBIN scripts/03_train_ae.py --temporal --latent 32 --epochs $EPOCHS
 fi
 echo
 
@@ -82,16 +84,16 @@ echo
 # Stage 4: inference (all baselines + all checkpoints)
 # ----------------------------------------------------------------------------
 echo "=== Stage 4/5: inference (B1, B2, B3, B3T, all AE) ==="
-python scripts/04_run_inference.py --all-ae --baselines-only --baselines-3d
+$PYBIN scripts/04_run_inference.py --all-ae --baselines-only --baselines-3d
 echo
 
 # ----------------------------------------------------------------------------
 # Stage 5: evaluate
 # ----------------------------------------------------------------------------
 echo "=== Stage 5/5: evaluation figures + numeric summary ==="
-python scripts/05_evaluate.py
+$PYBIN scripts/05_evaluate.py
 echo
-python scripts/06_summarize_results.py | tee outputs/figures/RESULTS_summary.txt
+$PYBIN scripts/06_summarize_results.py | tee outputs/figures/RESULTS_summary.txt
 echo
 
 echo "============================================================="

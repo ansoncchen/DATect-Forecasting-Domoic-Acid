@@ -20,8 +20,10 @@ FLAGS="${FLAGS:---all-ae --baselines-only --baselines-3d}"
 cd "$OAD_ROOT" || { echo "OAD_ROOT not found"; exit 1; }
 mkdir -p logs
 # CUDA provided by conda env
-source /gscratch/stf/ac283/envs/datect_scratch/bin/activate 2>/dev/null || conda activate /gscratch/stf/ac283/envs/datect_scratch
+# Use env's python directly (most robust)
+PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
+export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
 
 echo "== FLAGS=$FLAGS =="
-python scripts/04_run_inference.py $FLAGS
+$PYBIN scripts/04_run_inference.py $FLAGS
 echo "== Done =="

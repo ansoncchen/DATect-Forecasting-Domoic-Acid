@@ -33,6 +33,7 @@ WORKERS="${WORKERS:-8}"                  # 8 plays well with ERDDAP rate limits;
 EPOCHS="${EPOCHS:-100}"
 LATENT_SWEEP="${LATENT_SWEEP:-1}"        # 1=sweep, 0=single run at LATENT_DIM=32
 PCA_K="${PCA_K:-32}"                     # space-separated PCA k values for B3/B3T baselines
+MASK_RATIO="${MASK_RATIO:-0}"            # Phase C MAE training: e.g. 0.30. 0 = vanilla AE
 
 cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }
 mkdir -p logs
@@ -72,19 +73,22 @@ echo
 # ----------------------------------------------------------------------------
 # Stage 3: train (2D + 3D, optionally sweep)
 # ----------------------------------------------------------------------------
-echo "=== Stage 3/5: train 2D AE ==="
+TRAIN_EXTRA=""
+[ "$(echo "$MASK_RATIO > 0" | bc -l 2>/dev/null || echo 0)" = "1" ] && TRAIN_EXTRA="$TRAIN_EXTRA --mask-ratio $MASK_RATIO"
+
+echo "=== Stage 3/5: train 2D AE  (extra: $TRAIN_EXTRA) ==="
 if [ "$LATENT_SWEEP" = "1" ]; then
-  $PYBIN scripts/03_train_ae.py --sweep --epochs $EPOCHS
+  $PYBIN scripts/03_train_ae.py --sweep --epochs $EPOCHS $TRAIN_EXTRA
 else
-  $PYBIN scripts/03_train_ae.py --latent 32 --epochs $EPOCHS
+  $PYBIN scripts/03_train_ae.py --latent 32 --epochs $EPOCHS $TRAIN_EXTRA
 fi
 echo
 
-echo "=== Stage 3/5: train 3D ConvAE3D ==="
+echo "=== Stage 3/5: train 3D ConvAE3D  (extra: $TRAIN_EXTRA) ==="
 if [ "$LATENT_SWEEP" = "1" ]; then
-  $PYBIN scripts/03_train_ae.py --temporal --sweep --epochs $EPOCHS
+  $PYBIN scripts/03_train_ae.py --temporal --sweep --epochs $EPOCHS $TRAIN_EXTRA
 else
-  $PYBIN scripts/03_train_ae.py --temporal --latent 32 --epochs $EPOCHS
+  $PYBIN scripts/03_train_ae.py --temporal --latent 32 --epochs $EPOCHS $TRAIN_EXTRA
 fi
 echo
 

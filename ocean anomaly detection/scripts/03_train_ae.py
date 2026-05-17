@@ -65,6 +65,12 @@ def main():
                         help="5 epochs, 500 patches/epoch — fast smoke-test")
     parser.add_argument("--full-domain-patches", action="store_true",
                         help="Sample patches across the entire cube (disable coastal bias)")
+    parser.add_argument("--mask-ratio", type=float, default=0.0,
+                        help="Phase C MAE-style training: probability of additionally "
+                             "hiding each valid pixel during training. Loss is computed "
+                             "ONLY on hidden+valid pixels (the model must fill in what "
+                             "it didn't see). 0 = no MAE, vanilla AE. "
+                             "Typical: 0.25-0.50. Inference is unchanged.")
     args = parser.parse_args()
 
     cube_path = Path(args.cube)
@@ -88,10 +94,12 @@ def main():
 
     train_fn = train_temporal if args.temporal else train
 
-    extra_kwargs = {}
+    extra_kwargs = {"mask_ratio": args.mask_ratio}
     if args.temporal:
         extra_kwargs["temporal_window"] = args.temporal_window
     variant_tag = f"3D[T={args.temporal_window}]" if args.temporal else "2D"
+    if args.mask_ratio > 0:
+        variant_tag += f"-MAE{args.mask_ratio:.2f}"
 
     if args.sweep:
         print(f"=== {variant_tag} bottleneck sweep ===")

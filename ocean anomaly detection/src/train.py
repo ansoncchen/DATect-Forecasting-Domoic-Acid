@@ -183,8 +183,14 @@ def train(
     out_dir: Path = config.MODELS_DIR,
     channel_subset: list[str] | None = None,
     coastal_patch_min_overlap: float | None = None,
+    mask_ratio: float = 0.0,
 ) -> Path:
-    """Train 2D ConvAE; returns best checkpoint path."""
+    """
+    Train 2D ConvAE; returns best checkpoint path.
+
+    mask_ratio > 0 enables Phase C MAE-style training (random pixel masking
+    during training; loss on hidden-valid pixels only). Inference is unchanged.
+    """
     _pin_seeds(seed)
     device = _select_device()
     overlap = (coastal_patch_min_overlap if coastal_patch_min_overlap is not None
@@ -192,6 +198,8 @@ def train(
     print(f"[2D] Device: {device}  latent_dim={latent_dim}  in_channels={in_channels}  seed={seed}")
     if overlap > 0:
         print(f"  Patch sampling: coastal bbox, min overlap={overlap:.2f}")
+    if mask_ratio > 0:
+        print(f"  MAE-style: mask_ratio={mask_ratio:.2f}")
 
     data, mask, lat, lon = _load_cube(cube_path, channel_subset)
     coastal_mask = overall_coastal_mask(lat, lon) if overlap > 0 else None
@@ -220,6 +228,9 @@ def train(
     label = f"2d_l{latent_dim}_c{in_channels}_s{seed}"
     if channel_subset:
         label += "_" + "".join(ch[:3] for ch in channel_subset)
+    if mask_ratio > 0:
+        # e.g. mae030 for ratio=0.30
+        label += f"_mae{int(round(mask_ratio*100)):03d}"
     ckpt_path = out_dir / f"ae_{label}.pt"
 
     return _run_training_loop(
@@ -227,8 +238,10 @@ def train(
         train_ds, masked_mse,
         epochs=epochs, patience=patience, device=device,
         ckpt_path=ckpt_path,
+        mask_ratio=mask_ratio,
         meta={"variant": "2d", "in_channels": in_channels, "latent_dim": latent_dim,
-              "seed": seed, "channel_subset": channel_subset},
+              "seed": seed, "channel_subset": channel_subset,
+              "mask_ratio": mask_ratio},
     )
 
 
@@ -241,6 +254,7 @@ def train_temporal(
     in_channels: int,
     latent_dim: int,
     temporal_window: int = config.TEMPORAL_WINDOW,
+    mask_ratio: float = 0.0,
     seed: int = config.SEED,
     epochs: int = config.EPOCHS,
     batch_size: int = config.BATCH_SIZE,
@@ -263,6 +277,8 @@ def train_temporal(
                else config.TRAIN_COASTAL_PATCH_MIN_OVERLAP)
     print(f"[3D] Device: {device}  latent_dim={latent_dim}  in_channels={in_channels}  "
           f"T={temporal_window}  seed={seed}")
+    if mask_ratio > 0:
+        print(f"  MAE-style: mask_ratio={mask_ratio:.2f}")
     if overlap > 0:
         print(f"  Patch sampling: coastal bbox, min overlap={overlap:.2f}")
 
@@ -302,6 +318,8 @@ def train_temporal(
     label = f"3d_l{latent_dim}_c{in_channels}_t{temporal_window}_s{seed}"
     if channel_subset:
         label += "_" + "".join(ch[:3] for ch in channel_subset)
+    if mask_ratio > 0:
+        label += f"_mae{int(round(mask_ratio*100)):03d}"
     ckpt_path = out_dir / f"ae_{label}.pt"
 
     return _run_training_loop(
@@ -309,9 +327,10 @@ def train_temporal(
         train_ds, masked_mse_3d,
         epochs=epochs, patience=patience, device=device,
         ckpt_path=ckpt_path,
+        mask_ratio=mask_ratio,
         meta={"variant": "3d", "in_channels": in_channels, "latent_dim": latent_dim,
               "temporal_window": temporal_window, "seed": seed,
-              "channel_subset": channel_subset},
+              "channel_subset": channel_subset, "mask_ratio": mask_ratio},
     )
 
 
@@ -325,10 +344,20 @@ def _run_training_loop(
     *,
     epochs: int, patience: int, device: torch.device,
     ckpt_path: Path, meta: dict,
+    mask_ratio: float = 0.0,   # Phase C: MAE-style augmentation
 ) -> Path:
+    """
+    If mask_ratio > 0, applies MAE-style training:
+      1. Random hidden mask drawn fresh each batch (same per channel; broadcasts)
+      2. Input zeroed at hidden positions (model sees corrupted patch)
+      3. Loss computed ONLY on pixels that were originally valid AND hidden —
+         model must reconstruct what it didn't get to see directly
+    Inference is unchanged; this is purely a training regularizer.
+    """
     best_val = float("inf")
     no_improve = 0
     train_losses, val_losses = [], []
+    mae_on = mask_ratio > 0.0
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -338,8 +367,19 @@ def _run_training_loop(
         for patches, masks in train_loader:
             patches, masks = patches.to(device), masks.to(device)
             optimizer.zero_grad()
-            recon = model(patches)
-            loss = loss_fn(recon, patches, masks)
+            if mae_on:
+                # hidden_mask shape matches `masks` (1 channel dim, broadcasts over C)
+                # 1 = hidden, 0 = visible
+                hidden = (torch.rand_like(masks) < mask_ratio).to(masks.dtype)
+                visible_to_model = 1.0 - hidden                 # 1 where model sees data
+                corrupted = patches * visible_to_model          # broadcasts (B,1,…) over channels
+                recon = model(corrupted)
+                # Score loss only where BOTH valid AND hidden — the model had to "fill in"
+                loss_weight = masks * hidden
+                loss = loss_fn(recon, patches, loss_weight)
+            else:
+                recon = model(patches)
+                loss = loss_fn(recon, patches, masks)
             loss.backward()
             optimizer.step()
             ep_loss += loss.item() * patches.size(0)
@@ -352,8 +392,17 @@ def _run_training_loop(
         with torch.no_grad():
             for patches, masks in val_loader:
                 patches, masks = patches.to(device), masks.to(device)
-                recon = model(patches)
-                val_loss += loss_fn(recon, patches, masks).item() * patches.size(0)
+                # Val loss: same protocol as training (apply MAE mask if mae_on),
+                # so loss values are directly comparable to train loss.
+                if mae_on:
+                    hidden = (torch.rand_like(masks) < mask_ratio).to(masks.dtype)
+                    corrupted = patches * (1.0 - hidden)
+                    recon = model(corrupted)
+                    loss_weight = masks * hidden
+                    val_loss += loss_fn(recon, patches, loss_weight).item() * patches.size(0)
+                else:
+                    recon = model(patches)
+                    val_loss += loss_fn(recon, patches, masks).item() * patches.size(0)
                 n_seen_val += patches.size(0)
         val_loss /= max(n_seen_val, 1)
 

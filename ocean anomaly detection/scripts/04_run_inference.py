@@ -63,9 +63,12 @@ def run_ae2d_inference(ckpt: dict, cube: xr.Dataset, aggregation: str, ckpt_name
     in_ch = ckpt["in_channels"]
     latent_dim = ckpt["latent_dim"]
     channel_subset = ckpt.get("channel_subset")
+    mask_ratio = ckpt.get("mask_ratio", 0.0)
     method_name = f"AE_2d_l{latent_dim}"
     if channel_subset and len(channel_subset) != len(config.CHANNEL_NAMES):
         method_name += "_" + "".join(c[:3] for c in channel_subset)
+    if mask_ratio and mask_ratio > 0:
+        method_name += f"_mae{int(round(mask_ratio*100)):03d}"
 
     device = _select_device()
     model = ConvAE(in_channels=in_ch, latent_dim=latent_dim).to(device)
@@ -104,9 +107,12 @@ def run_ae3d_inference(ckpt: dict, cube: xr.Dataset, aggregation: str, ckpt_name
     latent_dim = ckpt["latent_dim"]
     T = ckpt["temporal_window"]
     channel_subset = ckpt.get("channel_subset")
+    mask_ratio = ckpt.get("mask_ratio", 0.0)
     method_name = f"AE_3d_l{latent_dim}_t{T}"
     if channel_subset and len(channel_subset) != len(config.CHANNEL_NAMES):
         method_name += "_" + "".join(c[:3] for c in channel_subset)
+    if mask_ratio and mask_ratio > 0:
+        method_name += f"_mae{int(round(mask_ratio*100)):03d}"
 
     device = _select_device_for_3d()
     model = ConvAE3D(in_channels=in_ch, latent_dim=latent_dim, temporal_window=T).to(device)

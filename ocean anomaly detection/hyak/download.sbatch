@@ -43,11 +43,16 @@ echo "== Cadence: ALL daily rolling 8-day composites (use --anchor-only to subsa
 echo "== Resolution: stride-2 (0.025°) =="
 echo
 
+EXTRA=""
+[ "${PER_YEAR:-0}" = "1" ] && EXTRA="$EXTRA --per-year"
+[ "${ANCHOR_ONLY:-0}" = "1" ] && EXTRA="$EXTRA --anchor-only"
+
 $PYBIN scripts/01_download.py \
     --channels "$CHANNELS" \
     --start "$START" \
     --end "$END" \
-    --workers 8
+    --workers "${WORKERS:-8}" \
+    $EXTRA
 
 echo
 # Skip cube build if SKIP_CUBE=1 (e.g. running per-channel sibling jobs in parallel

@@ -29,9 +29,10 @@ END="${END:-2024-12-31}"
 CHANNELS="${CHANNELS:-chla,k490,nflh,sst}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 ANCHOR_ONLY="${ANCHOR_ONLY:-0}"          # 1 = sparser ~46/yr/ch (faster for smoke), 0 = ~364/yr/ch
-WORKERS="${WORKERS:-16}"                 # higher concurrency to combat ERDDAP per-conn latency
+WORKERS="${WORKERS:-8}"                  # 8 plays well with ERDDAP rate limits; 16 triggers 429s
 EPOCHS="${EPOCHS:-100}"
 LATENT_SWEEP="${LATENT_SWEEP:-1}"        # 1=sweep, 0=single run at LATENT_DIM=32
+PCA_K="${PCA_K:-32}"                     # space-separated PCA k values for B3/B3T baselines
 
 cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }
 mkdir -p logs
@@ -90,8 +91,8 @@ echo
 # ----------------------------------------------------------------------------
 # Stage 4: inference (all baselines + all checkpoints)
 # ----------------------------------------------------------------------------
-echo "=== Stage 4/5: inference (B1, B2, B3, B3T, all AE) ==="
-$PYBIN scripts/04_run_inference.py --all-ae --baselines-only --baselines-3d
+echo "=== Stage 4/5: inference (B1, B2, B3, B3T, all AE; pca_k=$PCA_K) ==="
+$PYBIN scripts/04_run_inference.py --all-ae --baselines-only --baselines-3d --pca-k $PCA_K
 echo
 
 # ----------------------------------------------------------------------------

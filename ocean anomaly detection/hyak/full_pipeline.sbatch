@@ -25,6 +25,8 @@ START="${START:-2003-01-01}"
 END="${END:-2024-12-31}"
 CHANNELS="${CHANNELS:-chla,k490,nflh,sst}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
+ANCHOR_ONLY="${ANCHOR_ONLY:-0}"          # 1 = sparser ~46/yr/ch (faster for smoke), 0 = ~364/yr/ch
+WORKERS="${WORKERS:-16}"                 # higher concurrency to combat ERDDAP per-conn latency
 EPOCHS="${EPOCHS:-100}"
 LATENT_SWEEP="${LATENT_SWEEP:-1}"        # 1=sweep, 0=single run at LATENT_DIM=32
 
@@ -48,8 +50,10 @@ echo
 # Stage 1: download (skippable)
 # ----------------------------------------------------------------------------
 if [ "$SKIP_DOWNLOAD" != "1" ]; then
-  echo "=== Stage 1/5: download ==="
-  $PYBIN scripts/01_download.py --channels "$CHANNELS" --start "$START" --end "$END" --workers 8
+  echo "=== Stage 1/5: download (workers=$WORKERS  anchor_only=$ANCHOR_ONLY) ==="
+  DL_FLAGS=""
+  [ "$ANCHOR_ONLY" = "1" ] && DL_FLAGS="$DL_FLAGS --anchor-only"
+  $PYBIN scripts/01_download.py --channels "$CHANNELS" --start "$START" --end "$END" --workers $WORKERS $DL_FLAGS
   echo
 fi
 

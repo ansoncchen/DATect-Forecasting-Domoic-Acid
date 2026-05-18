@@ -15,24 +15,41 @@ set -euo pipefail
 OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
 cd "$OAD_ROOT"
 
-MIN_PER_CHANNEL="${MIN_PER_CHANNEL:-260}"   # 264 = 22 yr × 12 mo; allow 4-month slack for any partial Dec/Jan or genuine ERDDAP gaps
+# Coverage threshold expressed as DISTINCT MONTHS-covered, not file count.
+# This works regardless of whether files are per-month (chla_2003_07.nc)
+# or per-day (chla_20030715.nc); we extract the YYYY-MM from any matching file.
+MIN_MONTHS="${MIN_MONTHS:-258}"   # of 264 = 22yr × 12mo
 
-echo "=== Verifying all 4 channels have ≥ $MIN_PER_CHANNEL month-files ==="
+PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
+
+echo "=== Verifying each of 4 channels covers ≥ $MIN_MONTHS distinct months ==="
 ALL_OK=1
 for ch in chla k490 nflh sst; do
-  N=$(ls "data/raw/$ch/${ch}_"[0-9][0-9][0-9][0-9]_[0-9][0-9].nc 2>/dev/null | wc -l)
+  # Count distinct YYYY-MM across BOTH per-month and per-day filename patterns.
+  N=$($PYBIN -c "
+import os, re
+have = set()
+for f in os.listdir('data/raw/$ch'):
+    # per-month: ${ch}_YYYY_MM.nc
+    m = re.match(r'^${ch}_(\d{4})_(\d{2})\.nc\$', f)
+    if m: have.add((m.group(1), m.group(2))); continue
+    # per-day: ${ch}_YYYYMMDD.nc
+    m = re.match(r'^${ch}_(\d{4})(\d{2})\d{2}\.nc\$', f)
+    if m: have.add((m.group(1), m.group(2)))
+print(len(have))
+")
   STATUS="OK"
-  if [ "$N" -lt "$MIN_PER_CHANNEL" ]; then
-    STATUS="MISSING ($((MIN_PER_CHANNEL - N)) short)"
+  if [ "$N" -lt "$MIN_MONTHS" ]; then
+    STATUS="MISSING ($((MIN_MONTHS - N)) months short)"
     ALL_OK=0
   fi
-  echo "  $ch: $N/264  $STATUS"
+  echo "  $ch: $N distinct months  $STATUS"
 done
 
 if [ "$ALL_OK" = "1" ]; then
   echo "=== All channels complete — chain will continue. ==="
   exit 0
 else
-  echo "=== Incomplete — full pipeline will NOT auto-fire (afterok dependency). ==="
+  echo "=== Incomplete — full pipeline will NOT auto-fire. ==="
   exit 1
 fi

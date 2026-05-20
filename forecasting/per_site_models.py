@@ -377,6 +377,19 @@ elif _feature_mode == "minimal":
     for _sc in SITE_SPECIFIC_CONFIGS.values():
         _sc['feature_subset'] = _MINIMAL
 
+# DATECT_OAD_ON_SMALL_N=true appends OAD_FEATURES_ALL to the 4 small-N sites'
+# feature_subsets (Coos Bay, Cannon Beach, Gold Beach, Newport). Default leaves
+# them as handcrafted minimal subsets. Used by the "with_oad_on_small_n"
+# ablation slot to test whether OAD acts as synthetic data that helps despite
+# tiny per-site sample counts (N=61-144 vs N>>140 for high-N sites).
+_oad_small_n = _os.environ.get("DATECT_OAD_ON_SMALL_N", "").lower() in ("1", "true", "yes")
+if _oad_small_n:
+    _SMALL_N_SITES = ["Coos Bay", "Cannon Beach", "Gold Beach", "Newport"]
+    for _site in _SMALL_N_SITES:
+        _cfg = SITE_SPECIFIC_CONFIGS.get(_site)
+        if _cfg and _cfg.get("feature_subset") is not None:
+            _cfg["feature_subset"] = list(_cfg["feature_subset"]) + list(OAD_FEATURES_ALL)
+
 _clip_override = _os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")
 if _clip_override == "none":
     for _sc in SITE_SPECIFIC_CONFIGS.values():

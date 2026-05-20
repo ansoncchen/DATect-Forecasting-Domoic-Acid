@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 SW_WA = {"Twin Harbors", "Long Beach", "Clatsop Beach", "Cannon Beach"}
+SMALL_N_SITES = {"Coos Bay", "Cannon Beach", "Gold Beach", "Newport"}
 
 
 def main(path: str = "paper_ablation_results.json") -> int:
@@ -80,6 +81,48 @@ def main(path: str = "paper_ablation_results.json") -> int:
         r2 = result["overall"]["r2"]
         delta = r2 - base_r2
         print(f"  {name:<35} R²={r2:.4f}  Δ={delta:+.4f}")
+
+    # Small-N follow-up: does adding OAD to Coos Bay / Cannon Beach / Gold Beach /
+    # Newport help despite their handcrafted minimal feature subsets?
+    small_n_result = data.get("with_oad_on_small_n")
+    if small_n_result is not None:
+        print()
+        print("SMALL-N OAD EXPERIMENT")
+        print("-" * 78)
+        print("Per-site R² for the 4 small-N sites: baseline (no OAD)  vs  +OAD added")
+        small_n_rows = []
+        for site in sorted(SMALL_N_SITES):
+            b = baseline["per_site"].get(site)
+            w = small_n_result["per_site"].get(site)
+            if not b or not w:
+                continue
+            small_n_rows.append({
+                "site": site,
+                "baseline_R2": b["r2"],
+                "with_oad_R2": w["r2"],
+                "delta_R2": w["r2"] - b["r2"],
+                "baseline_MAE": b["mae"],
+                "with_oad_MAE": w["mae"],
+                "delta_MAE": w["mae"] - b["mae"],
+                "N": b["n"],
+            })
+        if small_n_rows:
+            sndf = pd.DataFrame(small_n_rows)
+            print(sndf.to_string(index=False))
+            print()
+            print(f"  Mean Δ R²  across the 4 small-N sites: {sndf['delta_R2'].mean():+.4f}")
+            print(f"  Mean Δ MAE across the 4 small-N sites: {sndf['delta_MAE'].mean():+.4f}")
+            print()
+            wins = (sndf["delta_R2"] > 0).sum()
+            print(f"  Sites where OAD helped: {wins} of {len(sndf)}")
+            if wins >= 3 and sndf["delta_R2"].mean() > 0.01:
+                print("  → VERDICT: OAD as 'synthetic data' DOES seem to help small-N sites.")
+                print("    Recommendation: promote OAD inclusion to all 10 sites in per_site_models.py.")
+            elif wins <= 1 or sndf["delta_R2"].mean() < -0.01:
+                print("  → VERDICT: OAD HURTS small-N sites (likely overfitting).")
+                print("    Recommendation: keep current 5-site selective inclusion.")
+            else:
+                print("  → VERDICT: mixed / no clear signal. Keep current selective inclusion for v1.")
 
     return 0
 

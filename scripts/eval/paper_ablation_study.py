@@ -233,6 +233,19 @@ def main():
             env_overrides={"DATECT_EXTRA_DROP_FEATURES": ",".join(OAD_FEATURES)},
         )
 
+    # ── Ablation 6: With OAD ALSO on small-N sites ────────────────────────
+    # Tests whether OAD acts as "synthetic data" that helps the 4 small-N
+    # sites (Coos Bay, Cannon Beach, Gold Beach, Newport) despite their
+    # handcrafted minimal feature subsets. Per-site comparison (especially
+    # vs baseline for those 4 sites) is the diagnostic of interest.
+    abl_oad_small_n = None
+    if OAD_FEATURES:
+        abl_oad_small_n = run_ablation(
+            "With OAD also on small-N sites",
+            seed,
+            env_overrides={"DATECT_OAD_ON_SMALL_N": "true"},
+        )
+
     # ── Compile results ───────────────────────────────────────────────────
     all_results = {
         "baseline": baseline,
@@ -243,6 +256,8 @@ def main():
     }
     if abl_no_oad is not None:
         all_results["no_oad_features"] = abl_no_oad
+    if abl_oad_small_n is not None:
+        all_results["with_oad_on_small_n"] = abl_oad_small_n
 
     with open("paper_ablation_results.json", "w") as f:
         json.dump(all_results, f, indent=2)

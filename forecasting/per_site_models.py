@@ -14,6 +14,8 @@ Each site can override:
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from forecasting.oad_features import OAD_FEATURES_ALL
+
 
 # --------------------------------------------------------------------------
 # Feature group definitions (for readable subset selection)
@@ -124,6 +126,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT
             + ROLLING_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
+            + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.763 (blending tested, no improvement)
         'prediction_clip_q': 0.97,
@@ -145,6 +148,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'feature_subset': (
             PERSISTENCE_FEATURES + LAG_FEATURES_SHORT + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES + PN_FEATURES
+            + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.502 >> XGB=+0.433
         'prediction_clip_q': 0.95,
@@ -170,6 +174,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + ROLLING_FEATURES_SHORT + ['modis-sst', 'pdo']
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
+            + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.614 > XGB=+0.601
         'prediction_clip_q': 0.98,
@@ -195,6 +200,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + ROLLING_FEATURES_SHORT + ENV_FEATURES_CORE
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
+            + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.764
         'prediction_clip_q': 0.98,
@@ -224,6 +230,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + ROLLING_FEATURES_FULL + ENV_FEATURES_CORE
             + TEMPORAL_FEATURES_CORE
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
+            + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (1.00, 0.00, 0.00),  # XGB-only: XGB=+0.569 > RF=+0.555
         'prediction_clip_q': 0.98,

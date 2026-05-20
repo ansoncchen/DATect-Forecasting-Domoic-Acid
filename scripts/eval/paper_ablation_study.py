@@ -36,6 +36,18 @@ DERIVED_FEATURES = [
     "pn_log",
 ]
 
+# ── OAD regional anomaly features to disable in ablation 5 ────────────────
+# 14 score features (7 local + 7 overall envelope) + 2 cloud-fraction features.
+# See forecasting/oad_features.py for derivation. Imported lazily to avoid
+# breaking the module if oad_features.py is missing in a stale checkout.
+try:
+    from _repo import ensure_repo_root  # noqa: F401
+    ensure_repo_root()
+    from forecasting.oad_features import OAD_FEATURES_ALL as _OAD_ALL
+    OAD_FEATURES = list(_OAD_ALL)
+except Exception:
+    OAD_FEATURES = []
+
 
 def run_ablation(name, seed, env_overrides=None):
     """Run a single ablation experiment in a subprocess for clean config."""
@@ -212,6 +224,15 @@ def main():
         env_overrides={"DATECT_EXTRA_DROP_FEATURES": ",".join(DERIVED_FEATURES)},
     )
 
+    # ── Ablation 5: No OAD regional anomaly features ──────────────────────
+    abl_no_oad = None
+    if OAD_FEATURES:
+        abl_no_oad = run_ablation(
+            "No OAD regional anomaly features",
+            seed,
+            env_overrides={"DATECT_EXTRA_DROP_FEATURES": ",".join(OAD_FEATURES)},
+        )
+
     # ── Compile results ───────────────────────────────────────────────────
     all_results = {
         "baseline": baseline,
@@ -220,6 +241,8 @@ def main():
         "no_observation_order_lags": abl_no_lags,
         "no_derived_features": abl_no_derived,
     }
+    if abl_no_oad is not None:
+        all_results["no_oad_features"] = abl_no_oad
 
     with open("paper_ablation_results.json", "w") as f:
         json.dump(all_results, f, indent=2)

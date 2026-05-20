@@ -121,6 +121,8 @@ ocean anomaly detection/
 │   ├── 04_run_inference.py         # Auto-dispatches 2D/3D from ckpt
 │   ├── 05_evaluate.py              # All evaluation figures
 │   ├── 06_summarize_results.py     # Numeric summary
+│   ├── 07_cloud_confound.py        # §8 sanity: corr(score, valid_pixel_fraction)
+│   ├── 08_multistep_forecast.py    # Forecastability at lead ∈ {1,7,14,28,56} days
 │   └── make_synthetic_cube.py      # Synthetic cube for unit testing
 ├── data/                           # (gitignored) raw NetCDFs + cube.zarr
 ├── models/                         # (gitignored) AE checkpoints
@@ -182,6 +184,18 @@ modifying the pipeline.
 is the best AE method in SW Washington / Long Beach: **R²=+0.87, CIΔ vs matched-k
 PCA = [+0.92, +1.05]** — entirely positive 95% bootstrap CI. Across regions,
 the optimal mask ratio is 40–70% for 3D and 50% for 2D. See `RESULTS.md`.
+
+⚠️ **Two caveats from §8 sanity checks** — quote these alongside the headline:
+
+1. **1-day-ahead R² is inflated by 8-day composite overlap.** At lead=7 days
+   (no input overlap), R² drops to **0.10–0.26** across regions. AE still beats
+   PCA at every lead, but the magnitude is much smaller than the 0.87 headline.
+2. **Cloud-cover confound, r ≈ +0.4–0.5** with in-region valid-pixel fraction
+   (~24% of variance). AE is less confounded than PCA (+0.75) but more than
+   climatology baselines. `mae050` is the cleanest MAE-3D variant at +0.44 —
+   recommended over `mae070` for downstream integration.
+
+See "SANITY-CHECK CAVEATS" section at the top of `RESULTS.md`.
 
 ### Hyak sbatch templates
 

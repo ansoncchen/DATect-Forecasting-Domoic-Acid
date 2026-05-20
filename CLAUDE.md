@@ -167,15 +167,19 @@ The ρ² ceiling in `autocorrelation_diagnostic.py` bounds a **persistence-only*
 A parallel subproject lives at **`ocean anomaly detection/`** (branch `ocean-anomaly-v2`). It is an **unsupervised convolutional autoencoder over 4-channel MODIS Aqua imagery** (chla, Kd490, nflh, SST) that produces a per-region scalar "ocean state anomaly score" for the U.S. Pacific Northwest coast.
 
 - **Trained on**: 22-year cube (2003–2024) at stride-2 / 0.025° resolution, ~4,700 daily rolling 8-day composites × 4 channels × 321 × 409.
-- **Headline checkpoint**: `ae_3d_l32_c4_t4_s42_mae030` — 3D ConvAE3D with Phase C masked-autoencoder training (30% random pixel hiding). Statistically beats matched-k linear PCA at 95% bootstrap CI in SW Washington / Long Beach.
+- **Headline checkpoint**: `ae_3d_l32_c4_t4_s42_mae070` — 3D ConvAE3D with Phase C masked-autoencoder training (70% random pixel hiding). Statistically beats matched-k linear PCA at 95% bootstrap CI in every PNW region at 1-day-ahead lead (R²=0.87 in SW Washington). **Two caveats** (see `RESULTS.md` §SANITY-CHECK CAVEATS): (1) the 1-day-ahead R² is inflated by 8-day composite overlap — at lead=7 days R² drops to 0.10–0.26 (still beats PCA's ~0); (2) moderate cloud-cover confound (Pearson r≈+0.4–0.5 with valid-pixel fraction; ~24% variance). For DATect integration, prefer `ae_3d_l32_c4_t4_s42_mae050` — nearly identical skill, cleaner cloud signature (r≈+0.44 vs +0.49).
 - **5 regions** (1 envelope + 4 alongshore bands) — each of DATect's 10 sites maps to exactly one region (mapping documented in `ocean anomaly detection/RESULTS.md`).
 - **Score parquets**: `ocean anomaly detection/outputs/scores/*.parquet`, columns `date, region, method, aggregation, score`.
 
 ### Integration into the main DATect forecast (planned)
 
-The OAD score is a candidate new feature column for `forecasting/raw_data_processor.py`. **Critical caveat**: MODIS 8-day composites are **CENTERED** on the labeled date (`long_name="Centered Time"`), so a score at date *t* contains 3-4 days of "future" data. The leakage-safe lag is `test_date − 12` (i.e. anchor − 5), which puts the score's composite window entirely before DATect's `anchor = test_date − 7` convention.
+The OAD score is a candidate new feature column for `forecasting/raw_data_processor.py`. **Three integration constraints** (all from `RESULTS.md` §SANITY-CHECK CAVEATS):
 
-Suggested 7 new features per (site, date) row: `oad_score`, `oad_score_lag1week`, `oad_score_lag2week`, `oad_score_30day_mean`, `oad_score_30day_max`, `oad_score_30day_trend`, `oad_score_zscore_doy`. Evaluate via `scripts/eval/eval_paper_metrics.py` baseline vs +OAD on the same retrospective rows.
+1. **Centered-composite leakage**: MODIS 8-day composites are **CENTERED** on the labeled date (`long_name="Centered Time"`), so a score at date *t* contains 3–4 days of "future" data. The leakage-safe lag is `test_date − 12` (i.e. anchor − 5), which puts the score's composite window entirely before DATect's `anchor = test_date − 7` convention.
+2. **Use the lead=7+ regime**: at the trivial 1-day-ahead lead the AE's R² is inflated by 8-day composite overlap (0.87). The real, usable signal is at lead ≥ 7 days, where R² is 0.10–0.26 — modest but PCA collapses to 0 there too. The leakage lag in constraint (1) already puts us in this regime.
+3. **Cloud-fraction confound**: OAD score has Pearson r ≈ +0.4–0.5 with in-region valid-pixel fraction. Add `oad_valid_pixel_fraction` as a parallel feature so XGBoost can learn to discount cloudy weeks (preferred), or pre-regress cloud fraction out of the score before merging.
+
+Suggested 8 new features per (site, date) row: `oad_score`, `oad_score_lag1week`, `oad_score_lag2week`, `oad_score_30day_mean`, `oad_score_30day_max`, `oad_score_30day_trend`, `oad_score_zscore_doy`, **`oad_valid_pixel_fraction`** (cloud control). Evaluate via `scripts/eval/eval_paper_metrics.py` baseline vs +OAD on the same retrospective rows. Source parquet: `ocean anomaly detection/outputs/scores/ae_3d_l32_c4_t4_s42_mae050.parquet` (cleaner cloud signature than `mae070`).
 
 See `ocean anomaly detection/RESULTS.md` and `ocean anomaly detection/IMPLEMENTATION_PLAN.md` for full design + validated numbers.
 

@@ -1,5 +1,97 @@
 # Real-data smoke results
 
+## ⚠️ SANITY-CHECK CAVEATS (added after Phase C — read this before quoting numbers)
+
+Two §8 sanity checks were run after the MAE ratio sweep. Both reveal important
+qualifications to the headline R²=+0.87 number that should be reported alongside
+the win, not in place of it.
+
+### Caveat 1 — the 1-step-ahead R² was inflated by 8-day composite overlap
+
+The cube is at daily cadence but each frame is an 8-day rolling composite
+centered on its date. "1-step-ahead" therefore predicts day *t+1* from day *t*,
+where the two composites share 7 of 8 input days. The real informative horizon
+is **lead ≥ 8 days** (no input overlap).
+
+`AE_3d_l32_t4_mae070` R² decay vs lead time (`scripts/08_multistep_forecast.py`):
+
+| Lead (days) | Overall | Olympic | **SW Washington** | Central OR | Southern OR |
+|---|---:|---:|---:|---:|---:|
+| **1** | +0.89 | +0.90 | **+0.87** | +0.89 | +0.93 |
+| **7** | +0.10 | +0.19 | **+0.15** | +0.18 | +0.26 |
+| 14 | −0.13 | −0.08 | +0.05 | +0.05 | −0.02 |
+| 28 | −0.12 | −0.10 | +0.03 | 0.00 | −0.07 |
+| 56 | −0.26 | −0.15 | −0.02 | −0.09 | −0.25 |
+
+Matched PCA (`B3T_pca_*_t4` best):
+
+| Lead (days) | Overall | Olympic | SW Washington | Central OR | Southern OR |
+|---|---:|---:|---:|---:|---:|
+| 1 | +0.20 | +0.51 | −0.11 | +0.35 | +0.66 |
+| 7 | 0.00 | −0.01 | −0.11 | 0.00 | +0.22 |
+| 14+ | ≈ 0 | ≈ 0 | −0.11 | 0 | +0.08→0 |
+
+**Takeaway**: AE still beats PCA at **every lead in every region**, but the
+absolute R² at usable lead times is **0.10–0.26**, not 0.87. PCA collapses
+to noise by lead=7 except in Southern OR. The headline "AE has 0.87 R²" should
+be rephrased as **"AE has modest but real forecasting skill at 1-week-ahead
+leads (R² 0.10–0.26) where the matched linear baseline degrades to noise."**
+
+### Caveat 2 — moderate cloud-cover confound (~24% of variance)
+
+`scripts/07_cloud_confound.py` Pearson r between OAD score and in-region
+valid-pixel fraction (high |r| ⇒ score is partly tracking clouds):
+
+| Method | SW Washington r | Notes |
+|---|---:|---|
+| **AE_3d_l32_t4_mae070** (headline) | **+0.49** | borderline (just under 0.5 flag) |
+| **AE_3d_l32_t4_mae050** | **+0.44** | **cleanest MAE-3D variant** |
+| AE_3d_l32_t4 (no MAE) | +0.53 | worse than MAE variants |
+| AE_2d_l32_mae070 | +0.51 | similar |
+| B3_pca_k4 (worst PCA) | +0.75 | strongly confounded |
+| B1_chla_zscore | −0.31 | clean (slight negative) |
+| B2_multivar_zscore | −0.20 | clean |
+
+**Reading**: when SW Washington is cloudier, the AE produces a higher anomaly
+score (r ≈ +0.49 means ~24% of AE score variance is explained by cloud cover).
+This is **less confounded than PCA** (+0.75) but more confounded than climatology
+baselines (which are essentially cloud-clean). The score is partly detecting
+weather (which clouds also indicate) rather than purely ocean state.
+
+The positive sign is physically reasonable — clouds correlate with storms,
+which correlate with mixing, which correlate with chlorophyll/SST anomalies —
+but it should be disclosed.
+
+### Updated headline claim (for poster/paper)
+
+> The 3D MAE-trained autoencoder produces an ocean anomaly score that retains
+> modest forecasting skill at 1-week-ahead leads (R² = 0.10–0.26 across the 5
+> PNW regions), where the matched linear PCA baseline degrades to R² ≈ 0.
+> At the trivial 1-day-ahead lead — inflated by 8-day composite overlap —
+> R² = 0.87 in SW Washington / Long Beach, vs PCA R² ≈ 0. The AE score
+> shows partial sensitivity to cloud-cover variability (r ≈ +0.4–0.5 with
+> valid-pixel fraction); downstream applications should either condition on
+> minimum valid coverage or regress out cloud fraction before use.
+
+### Implications for DATect integration
+
+1. **Use `AE_3d_l32_t4_mae050` instead of `mae070`** as the integration default
+   — nearly identical forecasting skill, lower cloud confound.
+2. **Set integration lag ≥ 12 days** (already required by the centered-composite
+   leakage caveat; this analysis confirms lead=7+ is also where the "real" signal
+   lives).
+3. **Add `oad_valid_pixel_fraction` as a parallel feature** so the XGBoost model
+   can learn to discount cloudy weeks — easier than pre-regressing.
+4. **Don't oversell**: the expected DATect R² lift from adding OAD features is
+   probably modest, not transformative. The empirical baseline-vs-+OAD comparison
+   in `eval_paper_metrics.py` will tell the real story.
+
+Artifacts (in `outputs/figures_FINAL_v4/`):
+- `sanity_cloud_confound.parquet` + `.png` — full per-(region, method) table
+- `E4_multistep.parquet` + `.png` — R² × lead × method × region
+
+---
+
 ## 🚀 PHASE C MAE RATIO SWEEP — heavier masking dramatically helps the 3D AE
 
 After the headline run below, we trained the 3D and 2D AE at five mask ratios

@@ -1,12 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=oad-sanity
-#SBATCH --partition=compute
+#SBATCH --partition=ckpt
 #SBATCH --account=stf
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
+#SBATCH --mem=16G
 #SBATCH --time=02:00:00
+#SBATCH --requeue
 #SBATCH --output=logs/oad-sanity-%j.out
 #SBATCH --error=logs/oad-sanity-%j.err
 

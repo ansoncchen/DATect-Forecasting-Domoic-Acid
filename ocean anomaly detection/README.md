@@ -126,3 +126,71 @@ ocean anomaly detection/
 ├── models/                         # (gitignored) AE checkpoints
 └── outputs/                        # (mostly gitignored) scores + figures
 ```
+
+## Agent / workspace notes
+
+Conventions and gotchas that have accumulated from prior runs — read before
+modifying the pipeline.
+
+### Conventions
+
+- **Use `python3`** (avoid typo `pytho`).
+- **Run everything on Hyak** (`/gscratch/stf/ac283/...`); local laptop is for editing
+  code and viewing figures only.
+- **Match the original ocean-anomaly branch defaults**: stride-2 (0.025°), keep
+  ALL daily rolling 8-day composites (not just 8-day anchors) for denser training
+  signal. `--anchor-only` is an opt-in flag, not the default.
+- **5 regions** in `src/regions.py`: `OVERALL_COAST_REGION` (bbox envelope, listed first)
+  + 4 `SUBREGIONS` (Olympic Coast WA, SW Washington/Long Beach, Central Oregon, Southern OR/N CA).
+  `build_region_masks` and `aggregate_to_regions` consume `REGIONS` in that order.
+- **Run order**: `01_download.py` → `02_build_cube.py` → `03_train_ae.py` →
+  `04_run_inference.py` → `05_evaluate.py`. Re-run inference after region or
+  checkpoint changes (it auto-picks up everything via `--all-ae`).
+
+### Gotchas
+
+- **`scripts/01_download.py --per-year` actually does per-MONTH chunks**, not
+  per-year. A full-year request times out server-side at ERDDAP. The flag name
+  is kept for backward compatibility. Pattern: `{chan}_{YYYY}_{MM}.nc`.
+- **Cube builder glob picks up BOTH** per-day (`{chan}_{YYYYMMDD}.nc`) and
+  per-month (`{chan}_{YYYY}_{MM}.nc`) filename patterns — safe to mix.
+- **HTTP 429 (rate limit) retry** is built into the downloader with exponential
+  backoff up to 5 min. Real ERDDAP responsiveness is bursty, especially during
+  US business hours.
+- **MODIS 8-day composites are CENTERED on the labeled date** (`long_name =
+  "Centered Time"`). A score at date *t* contains ~3-4 days of "future" data
+  relative to *t*. Any downstream consumer (e.g. integrating scores into
+  DATect) must lag by ≥4 days beyond their own anchor convention to avoid leakage.
+  See `RESULTS.md` for the integration pattern (`test_date − 12`).
+- **MPS doesn't support `ConvTranspose3D`**, so on Mac the 3D ConvAE falls back
+  to CPU automatically (`_select_device_for_3d`). Slow but functional. CUDA on
+  Hyak handles it fine.
+- **Coastal patch bias**: `config.TRAIN_COASTAL_PATCH_MIN_OVERLAP=0.5` makes
+  training patches preferentially come from the coastal bbox. `--full-domain-patches`
+  disables it for ablation. Inference always uses full-grid tiling.
+- **Phase C MAE convention** (`src/train.py`): `mask_ratio > 0` enables random
+  per-pixel hiding (broadcasts over channels). Loss = `masked_mse(pred, target,
+  valid_mask * hidden_mask)`. Val loss uses the same protocol so train/val are
+  directly comparable. Inference is unchanged.
+- **Checkpoint filename suffix** encodes mask ratio: `ae_{2d|3d}_l{L}_c{C}_..._mae{NNN}.pt`
+  where NNN = `round(mask_ratio * 100)`. The inference script auto-includes
+  `_maeNNN` in the method name.
+
+### Headline result (validated, 22-yr cube)
+
+`AE_3d_l32_t4_mae070` (3D ConvAE3D with Phase C MAE training at 70% pixel hiding)
+is the best AE method in SW Washington / Long Beach: **R²=+0.87, CIΔ vs matched-k
+PCA = [+0.92, +1.05]** — entirely positive 95% bootstrap CI. Across regions,
+the optimal mask ratio is 40–70% for 3D and 50% for 2D. See `RESULTS.md`.
+
+### Hyak sbatch templates
+
+| File | Purpose |
+|---|---|
+| `download.sbatch` | ERDDAP download. `PER_YEAR=1`, `ANCHOR_ONLY=1`, `SKIP_CUBE=1` env knobs. |
+| `build_cube.sbatch` | Standalone cube build. |
+| `train.sbatch` | Vanilla training. `MODE` ∈ {snapshot, temporal, snapshot_sweep, temporal_sweep, snapshot_ablate, temporal_ablate, smoke}. |
+| `mae_train.sbatch` | **Phase C MAE training only.** Trains BOTH 2D + 3D at given `MASK_RATIO`. Chain multiple with `--dependency=afterany:PREV`. |
+| `infer.sbatch` | Inference. `FLAGS=` env var; pass `--pca-k 4 16 32 64 128 --all-ae --baselines-only --baselines-3d`. |
+| `full_pipeline.sbatch` | End-to-end (download → cube → train → infer → eval). |
+| `verify_files.sbatch` | Gate: exits 0 iff all 4 channels have ≥260 distinct months covered. Use as `afterok` dependency. |

@@ -38,15 +38,14 @@ DERIVED_FEATURES = [
 
 # ── OAD regional anomaly features to disable in ablation 5 ────────────────
 # 14 score features (7 local + 7 overall envelope) + 2 cloud-fraction features.
-# See forecasting/oad_features.py for derivation. Imported lazily to avoid
-# breaking the module if oad_features.py is missing in a stale checkout.
-try:
-    from _repo import ensure_repo_root  # noqa: F401
-    ensure_repo_root()
-    from forecasting.oad_features import OAD_FEATURES_ALL as _OAD_ALL
-    OAD_FEATURES = list(_OAD_ALL)
-except Exception:
-    OAD_FEATURES = []
+# Direct import: forecasting.oad_features must be importable when this module
+# is loaded. Previously used a try/except fallthrough that silently set
+# OAD_FEATURES=[] when imported as a sibling module (sys.path didn't include
+# scripts/eval/), breaking Task 14's no-OAD ablation. Direct import surfaces
+# real errors instead.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from forecasting.oad_features import OAD_FEATURES_ALL as _OAD_ALL
+OAD_FEATURES = list(_OAD_ALL)
 
 
 def run_ablation(name, seed, env_overrides=None):

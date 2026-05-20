@@ -29,7 +29,8 @@ try:
 except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from scripts.eval.paper_ablation_study import SUBPROCESS_SCRIPT, OAD_FEATURES
+from scripts.eval.paper_ablation_study import SUBPROCESS_SCRIPT
+from forecasting.oad_features import OAD_FEATURES_ALL as OAD_FEATURES
 
 
 def main() -> int:

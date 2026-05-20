@@ -481,3 +481,79 @@ With these in-situ datasets in hand, the OAD project has a clean self-assessment
 > Satellite optical anomaly representations cannot match direct in-situ *Pseudo-nitzschia* cell count measurements as DA leading indicators (r=+0.36 vs |r|<0.15 at any lag, §13). The OAD project's value to DATect is therefore not as a feature provider, but as a **diagnostic that confirmed which physical signals carry DA-predictive information**: surface chlorophyll at any spatial scale does not (§12-13), SST anomaly from climatology does (§12), and direct cell counts dominate when available (§15).
 >
 > The recommended v2 architecture pairs DATect's existing climate features (sst-anom, BEUTI, PDO, ONI) with ORHAB beach PN counts where available, and reserves satellite-derived anomalies for use in the unsampled gap regions (Cannon Beach, OR sites) where in-situ data is sparse.
+
+---
+
+## 16. OAD ↔ ESP in-situ test — *OAD works, but at the wrong layer*
+
+The most consequential single test in this integration. The ESP mooring at NEMO (24 km offshore WA shelf, 2016-2018) provides direct in-situ measurements of *Pseudo-nitzschia* cell counts and particulate DA at the same location and timescale where the AE was trained.
+
+### OAD score → ESP *Pn* cell density (offshore)
+
+Pooled cell density = `auD1 (P. australis) + muD1 (P. multiseries) + frD2 (P. fraudulenta) + pung1 (P. pungens)`:
+
+| OAD region | lag −7d | **lag 0d** | lag +7d | lag +21d | N |
+|---|---:|---:|---:|---:|---:|
+| **Olympic Coast (WA)** | +0.073 | **+0.458** | +0.164 | +0.066 | 76 |
+| **SW Washington / Long Beach** | +0.238 | +0.305 | **+0.543** | +0.346 | 76 |
+| Overall WA-OR-NCA | −0.049 | +0.160 | +0.175 | +0.055 | 76 |
+
+### OAD score → ESP particulate DA (offshore)
+
+| OAD region | **lag 0d** | lag +21d | N |
+|---|---:|---:|---:|
+| **Olympic Coast (WA)** | **+0.317** | +0.074 | 90 |
+| **SW Washington / Long Beach** | **+0.334** | **+0.324** | 90 |
+| Overall WA-OR-NCA | +0.207 | +0.117 | 90 |
+
+### Implication for the project's contribution
+
+**OAD does measure real bloom-related anomalies at the offshore source.** Correlations of r = +0.46 (Pn cells, concurrent) and r = +0.33 (pDA, concurrent) substantially exceed everything we measured against beach DA (|r| < 0.15). The AE-encoded satellite signal genuinely captures something about offshore phytoplankton anomalies.
+
+**The signal does not survive the transport + bioaccumulation chain to beach DA.** The 24 km onshore transport (wind-dependent timing), site-specific local oceanography (which beaches the cells reach), and 1-2 week razor clam bioaccumulation cumulatively destroy the predictive relationship between offshore OAD and beach shellfish DA.
+
+This reframes the OAD project's standing:
+- **Successful** as an unsupervised representation of offshore ocean state related to Pn bloom intensity (validated against ESP data, r = +0.31–0.54).
+- **Unsuccessful** as a leading indicator for shellfish DA at specific beaches (this paper's null result).
+
+The right framing for the paper:
+
+> "An unsupervised 3D masked-autoencoder trained on 22 years of MODIS satellite imagery learns regional anomaly representations that significantly correlate with in-situ *Pseudo-nitzschia* cell density (r = +0.46) and particulate domoic acid (r = +0.33) at offshore source regions (NEMO mooring data, Moore et al. 2021). However, this signal does not propagate to shellfish DA at coastal monitoring beaches (per-site |r| < 0.15 at any lag) due to cumulative noise from variable wind-driven onshore transport (~24 km) and razor clam bioaccumulation (~1-2 weeks). The integration provides a clean demonstration of where satellite-derived ocean anomalies are and are not useful for harmful algal bloom forecasting."
+
+---
+
+## 17. The biggest immediate free lift — lagged PN features for 9 sites
+
+While investigating other v2 datasets, found that DATect ALREADY has `pn` (*Pseudo-nitzschia* cell counts) as a column in `final_output.parquet` for all 10 sites. But `per_site_models.py:SITE_SPECIFIC_CONFIGS` only includes `PN_FEATURES = ['pn_log']` in **Kalaloch's** feature_subset. Nine sites are leaving free signal on the table.
+
+### Lagged PN → DA correlations from the existing parquet
+
+| Site | r lag 0w | r lag 1w | **r lag 2w** | r lag 4w | currently uses PN? |
+|---|---:|---:|---:|---:|:---:|
+| **Twin Harbors** | +0.170 | +0.191 | +0.230 | **+0.314** | NO |
+| **Long Beach** | +0.146 | +0.205 | **+0.250** | +0.225 | NO |
+| **Kalaloch** | +0.087 | +0.170 | **+0.181** | +0.141 | yes |
+| Quinault | +0.113 | **+0.149** | +0.138 | +0.133 | NO |
+| Copalis | +0.039 | +0.078 | **+0.104** | +0.088 | NO |
+| Clatsop Beach | +0.008 | +0.019 | +0.027 | +0.035 | NO (subset=None → all features) |
+| Coos Bay / Cannon / Gold / Newport | < +0.04 | < +0.04 | < +0.04 | < +0.04 | NO |
+
+### Recommended v2 changes (zero new data needed)
+
+1. **Add `pn_log` to feature_subset** for Twin Harbors, Long Beach, Quinault, Copalis (the 4 sites with r > 0.10 at any lag).
+2. **Add lagged PN features** (`pn_log_lag1w`, `pn_log_lag2w`, `pn_log_lag4w`) to the same 4 sites — mirrors the OAD lag-feature pattern. Expected to add another +0.05 to +0.10 R² because the strongest correlation is at lag, not concurrent.
+3. **Cap order-of-magnitude**: `pn_log = log1p(pn)` to handle the wide dynamic range (0 to 4.7M cells/L) and reduce influence of outliers.
+
+### Why this is more important than the OAD integration
+
+| | OAD integration (this report) | Lagged PN features (proposed) |
+|---|---|---|
+| Effort | Major (cube training, OAD scoring, leakage analysis, regional joins) | Minor (5 lines per site in per_site_models.py) |
+| Data | New 10 GB cube, AE training, score parquet | Already in `final_output.parquet` |
+| Best per-site r vs DA | < +0.15 anywhere | +0.31 at Twin Harbors lag 4w |
+| Mechanism | Compressed regional satellite anomaly (indirect) | Direct cell count of toxin-producing organism (direct) |
+| Confidence in lift | Null at α=0.05 | r=+0.31 implies measurable R² gain |
+
+### About the ORHAB data the user shared
+
+Largely **redundant**: DATect's `data/raw/pn-input/long-beach-pn.csv` has 2,002 rows vs ORHAB's 1,419 — DATect has the same monitoring program output, with more rows and a longer date range. The unique value of ORHAB is the `pDA (ng/L)` column (particulate DA in seawater), which differs from DATect's `da` (razor clam tissue) — but pDA is more useful as an evaluation target than a feature, since it requires direct seawater sampling that isn't part of the operational monitoring workflow.

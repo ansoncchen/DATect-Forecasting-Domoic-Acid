@@ -1,12 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=oad-ablation
-#SBATCH --partition=compute
-#SBATCH --account=stf
+#SBATCH --partition=ckpt
+#SBATCH --account=stf-ckpt
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=64G
-#SBATCH --time=12:00:00
+#SBATCH --mem=32G
+#SBATCH --time=08:00:00
+#SBATCH --requeue
 #SBATCH --output=logs/oad-ablation-%j.out
 #SBATCH --error=logs/oad-ablation-%j.err
 

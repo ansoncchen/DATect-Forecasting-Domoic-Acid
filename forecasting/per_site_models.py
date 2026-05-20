@@ -266,6 +266,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'feature_subset': (
             PERSISTENCE_FEATURES + ['da_raw_prev_obs_1']
             + ['month', 'modis-sst', 'pdo']
+            + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.337 > XGB=+0.310
         'prediction_clip_q': 0.97,
@@ -293,6 +294,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'feature_subset': (
             PERSISTENCE_FEATURES + ['da_raw_prev_obs_1', 'da_raw_prev_obs_2']
             + ['month', 'modis-sst', 'pdo']
+            + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: both near-zero skill, N=61
         'prediction_clip_q': 0.95,
@@ -317,6 +319,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'feature_subset': (
             PERSISTENCE_FEATURES + ['da_raw_prev_obs_1']
             + ['month', 'modis-sst', 'pdo']
+            + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (1.00, 0.00, 0.00),  # XGB-only: XGB=+0.156 > RF=+0.140
         'prediction_clip_q': 0.95,
@@ -341,6 +344,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'feature_subset': (
             PERSISTENCE_FEATURES + ['da_raw_prev_obs_1']
             + ['month', 'modis-sst', 'pdo']
+            + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (1.00, 0.00, 0.00),  # XGB-only: XGB=-0.409 > RF=-0.550
         'prediction_clip_q': 0.98,

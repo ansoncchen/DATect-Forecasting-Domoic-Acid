@@ -362,3 +362,47 @@ For reference, the same lag-16w analysis for `sst-anom` produced pooled r = **+0
 **Interpretation:** chlorophyll concentration alone, regardless of spatial averaging or absolute magnitude, is a poor predictor of DA at these specific shellfish beaches. The OAD null result was inevitable given its raw-chla training input. The strongly negative correlation at Coos Bay (regional chla mean r = −0.20) is consistent with the "wrong species" interpretation — high chla often reflects non-Pseudo-nitzschia phytoplankton communities that don't produce domoic acid.
 
 **Conclusion: regional aggregation didn't rescue the chla signal.** The OAD design needs to target a different physical quantity (e.g., SST anomaly from climatology) rather than raw optical fields, to be useful for DA forecasting.
+
+---
+
+## 14. Synthesis with Moore et al. 2021 ESP observations
+
+[Moore et al. 2021](https://www.mdpi.com/2077-1312/9/3/336) deployed an Environmental Sample Processor (ESP) at the NEMO mooring (NW Washington shelf, ~24 km W/NW of La Push) for 2016-2018, directly measuring *Pseudo-nitzschia* cell counts and particulate DA in seawater alongside collocated wind, current, nitrate, and chlorophyll sensors. Their findings directly inform why OAD (and chla generally) fail as DA forecasting features.
+
+### Key finding from the ESP record
+
+**Chlorophyll LAGS the bloom signal by ~2 days.** Their Section 3.2 documents the May 2017 bloom: "Total *Pn* quantified (and particulate DA) began to increase around 7 May, about 2 days *before* chlorophyll-a began to appreciably increase." Figure 7b shows the temporal sequence explicitly. Visual chla maps document blooms that are already producing toxin — they cannot be a leading indicator at the 12+ day horizon DATect operates on.
+
+### The actual bloom mechanism (from Moore et al. §3.2-3.3)
+
+1. **5+ days of northerly upwelling-favorable winds** → shoaling of nutrient-rich deep water.
+2. **Wind reversal or coastal-trapped internal wave event** (period ~1 week) → pulses nutrients into the euphotic zone (20-50 m depth).
+3. **Pn population rises** in response to nutrients.
+4. **DA produced** ~1-2 days into the bloom.
+5. **Chlorophyll detectable** in satellite imagery ~2 days after Pn.
+
+The driving variables are wind, internal wave activity, and subsurface stratification — NOT surface chlorophyll. This explains both our correlation diagnostic (§12-13) and the OAD A/B null result (§3).
+
+### Concrete v2 features grounded in Moore et al.
+
+**Tier 1 — derivable from data DATect can already access** (NDBC buoys + BEUTI + existing satellite):
+
+1. **Cumulative upwelling-favorable wind stress** over past 5, 14, 30 days from NDBC buoy 46041 (Cape Elizabeth) — captures the multi-day northerly-wind precursor.
+2. **Wind reversal events** — count of N→S wind transitions in past 14/30 days; each transition is a potential nutrient-pulse trigger.
+3. **BEUTI 14-day delta** and **BEUTI climatology anomaly** — derivatives of the existing `beuti` feature capture upwelling pulses better than raw value.
+4. **SST tendency** (dT/dt over past 7-14 days) — large negative dT/dt = active upwelling.
+5. **Sea-level pressure variance** over past 14 days — proxy for storm activity that triggers coastal-trapped internal waves.
+
+**Tier 2 — needs new data sources**:
+
+6. **Subsurface temperature profile** at the shelf (20-50 m depth) from NEMO/Cha Ba moorings. Shoaling rate of the 8°C isotherm into the 20-50 m band is the actual nutrient-injection signal per Figure 7c.
+7. **Along-shelf velocity oscillations** (~1-week period) from moored ADCPs — direct measure of coastal-trapped internal wave activity.
+8. **Pn cell-count time series** from ESP deployments where available (this paper's 2016-2018 data, plus continuing NANOOS HABs program).
+
+**Tier 3 — redesign the OAD autoencoder**:
+
+9. Train a new AE where inputs are **wind + BEUTI + SST anomaly + subsurface T profile + along-shelf velocity** (the physical drivers), not raw chla/Kd490/nflh/SST. The "anomaly score" of this model would measure "how unusual is today's upwelling-regime state" — a true leading indicator.
+
+### Single highest-value change recommended
+
+If only one feature were added to DATect v2: **cumulative northerly wind stress over past 14 days** from NDBC Cape Elizabeth (46041). NDBC data is free and daily, the feature is computationally trivial, and it is the leading indicator that Moore et al. identified directly. DATect's existing `beuti` partially captures this but as a single instantaneous value; the cumulative + delta versions add the temporal context the paper shows matters most.

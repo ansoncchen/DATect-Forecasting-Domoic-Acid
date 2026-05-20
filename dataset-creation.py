@@ -26,6 +26,8 @@ import shutil
 import config
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from forecasting.oad_features import add_oad_features, OAD_FEATURES_ALL
+
 # High-performance libraries
 try:
     import polars as pl
@@ -1199,6 +1201,25 @@ def main():
             base_final_data, satellite_parquet_file_path
         )
 
+    # Add OAD regional anomaly features (joined on Date+Site with leak-safe
+    # R-5 day lag for centered MODIS 8-day composite). Cloud-fraction parquet
+    # is optional — if missing, the 2 cloud columns are left as NaN.
+    oad_parquet = os.path.join("data", "processed", "oad_scores.parquet")
+    cloud_parquet = os.path.join("data", "processed", "oad_cloud_fractions.parquet")
+    if os.path.exists(oad_parquet):
+        cloud_arg = cloud_parquet if os.path.exists(cloud_parquet) else None
+        print(f"\n--- Adding OAD regional anomaly features from {oad_parquet} ---")
+        if cloud_arg:
+            print(f"    + cloud fractions from {cloud_arg}")
+        else:
+            print("    cloud-fraction parquet not found -> 2 cloud cols left NaN (model imputes)")
+        final_data = add_oad_features(
+            final_data, oad_parquet, cloud_parquet_path=cloud_arg
+        )
+        print(f"  Added up to {len(OAD_FEATURES_ALL)} OAD columns")
+    else:
+        print(f"\n--- Skipping OAD features (parquet not found at {oad_parquet}) ---")
+
     # Final processing and save
     print("\n--- Final Checks and Saving Output ---")
 
@@ -1218,10 +1239,11 @@ def main():
     sat_cols = sorted(
         [col for col in final_data.columns if col.startswith("sat_")]
     )
+    oad_cols = [c for c in OAD_FEATURES_ALL if c in final_data.columns]
 
     final_cols = [
         col for col in final_core_cols if col in final_data.columns
-    ] + sat_cols
+    ] + sat_cols + oad_cols
     final_data = final_data[final_cols]
 
     # Convert Date to string format

@@ -329,3 +329,36 @@ Per-site comparison (lag=0):
 | Newport | +0.016 | −0.026 | **+0.110** |
 
 `sst-anom` consistently outperforms chla and OAD at every site except Cannon Beach (where Δ is small and N is smallest).
+
+---
+
+## 13. Regional chla diagnostic — answering "would regional vs per-pixel chla help?"
+
+A natural hypothesis was that per-site `modis-chla` (single-pixel near each beach) might miss broader regional bloom patterns, and that regional-mean chla (averaged over the OAD polygon) would correlate better with DA. Tested by deriving per-(date, region) `chla_mean`, `chla_max`, `chla_p95` from the cube and correlating with site DA via `SITE_TO_REGION`.
+
+**Result: regional and single-pixel chla are equivalently weak.** Per-site Pearson r:
+
+| Site | Region | regional chla_mean → DA | regional chla_p95 → DA | per-pixel modis-chla → DA |
+|---|---|---:|---:|---:|
+| Kalaloch | Olympic Coast WA | +0.093 | +0.095 | +0.090 |
+| Quinault | Olympic Coast WA | +0.055 | +0.024 | −0.007 |
+| Copalis | Olympic Coast WA | +0.024 | −0.012 | +0.008 |
+| Twin Harbors | SW Washington | −0.045 | −0.056 | −0.008 |
+| Long Beach | SW Washington | −0.071 | −0.088 | −0.050 |
+| Clatsop Beach | SW Washington | −0.046 | −0.102 | −0.083 |
+| Cannon Beach | SW Washington | +0.138 | +0.157 | +0.225 |
+| Newport | Central Oregon | −0.002 | +0.007 | −0.045 |
+| **Coos Bay** | Central Oregon | **−0.200** | **−0.190** | −0.114 |
+| Gold Beach | Southern OR/N CA | −0.036 | −0.030 | −0.053 |
+
+**Pooled lagged correlation (regional chla_mean → DA at lag k):**
+
+| lag | 0w | 4w | 8w | 12w | 16w |
+|---|---:|---:|---:|---:|---:|
+| pooled r | −0.009 | −0.004 | −0.007 | +0.037 | +0.053 |
+
+For reference, the same lag-16w analysis for `sst-anom` produced pooled r = **+0.203** — 4× stronger.
+
+**Interpretation:** chlorophyll concentration alone, regardless of spatial averaging or absolute magnitude, is a poor predictor of DA at these specific shellfish beaches. The OAD null result was inevitable given its raw-chla training input. The strongly negative correlation at Coos Bay (regional chla mean r = −0.20) is consistent with the "wrong species" interpretation — high chla often reflects non-Pseudo-nitzschia phytoplankton communities that don't produce domoic acid.
+
+**Conclusion: regional aggregation didn't rescue the chla signal.** The OAD design needs to target a different physical quantity (e.g., SST anomaly from climatology) rather than raw optical fields, to be useful for DA forecasting.

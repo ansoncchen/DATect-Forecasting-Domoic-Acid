@@ -98,12 +98,14 @@ print(json.dumps({"f2": f2, "recall": recall, "precision": precision, "n_spikes"
 
 
 def evaluate_trial(params: dict, timeout: int = 2700) -> dict:
+    """Skip per-anchor inner tuning for the SAME reason as Task 12 (8 hr/trial)."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(params, f)
         json_path = f.name
     try:
         env = os.environ.copy()
         env["DATECT_SPIKE_CLASSIFIER_JSON"] = json_path
+        env["DATECT_MIN_TRAINING_FOR_TUNING"] = "99999"  # skip inner tuning
         result = subprocess.run(
             [sys.executable, "-c", SUBPROCESS_SCRIPT],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

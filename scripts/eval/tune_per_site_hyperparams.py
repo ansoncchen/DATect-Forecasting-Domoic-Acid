@@ -100,7 +100,13 @@ def slug(site: str) -> str:
 
 
 def evaluate_trial(site: str, params: dict, timeout: int = 2700) -> dict:
-    """Write params to JSON, run subprocess, return {r2, mae, n}."""
+    """Write params to JSON, run subprocess, return {r2, mae, n}.
+
+    Disables per-anchor inner tuning (DATECT_MIN_TRAINING_FOR_TUNING=99999) so
+    the trial's proposed hyperparameters are used directly without nested
+    optimization. Per-anchor tuning at 1-3 min/anchor × ~500 anchors = ~8 hr
+    per trial, well over any sane timeout.
+    """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump({site: params}, f)
         json_path = f.name
@@ -108,6 +114,7 @@ def evaluate_trial(site: str, params: dict, timeout: int = 2700) -> dict:
         env = os.environ.copy()
         env["DATECT_HPARAM_OVERRIDE_JSON"] = json_path
         env["TUNE_SITE"] = site
+        env["DATECT_MIN_TRAINING_FOR_TUNING"] = "99999"  # skip inner tuning
         result = subprocess.run(
             [sys.executable, "-c", SUBPROCESS_SCRIPT],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

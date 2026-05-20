@@ -61,10 +61,11 @@ from forecasting.raw_forecast_engine import RawForecastEngine
 val_start = pd.Timestamp(os.environ.get("TUNE_VAL_START", "2019-01-01"))
 val_end   = pd.Timestamp(os.environ.get("TUNE_VAL_END",   "2022-01-01"))
 engine = RawForecastEngine(validate_on_init=False)
+# Restrict to val window only (~60% speedup vs 2008-01-01 default)
 results_df = engine.run_retrospective_evaluation(
     task="regression", model_type="ensemble",
     n_anchors=getattr(config, "N_RANDOM_ANCHORS", 500),
-    min_test_date="2008-01-01",
+    min_test_date=val_start.strftime("%Y-%m-%d"),
 )
 if results_df is None or results_df.empty:
     print(json.dumps({"f2": -1.0, "recall": 0.0, "precision": 0.0, "n_spikes": 0}))
@@ -96,7 +97,7 @@ print(json.dumps({"f2": f2, "recall": recall, "precision": precision, "n_spikes"
 '''
 
 
-def evaluate_trial(params: dict, timeout: int = 1800) -> dict:
+def evaluate_trial(params: dict, timeout: int = 2700) -> dict:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(params, f)
         json_path = f.name

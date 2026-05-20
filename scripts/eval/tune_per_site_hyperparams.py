@@ -67,10 +67,13 @@ site = os.environ["TUNE_SITE"]
 val_start = pd.Timestamp(os.environ.get("TUNE_VAL_START", "2019-01-01"))
 val_end   = pd.Timestamp(os.environ.get("TUNE_VAL_END",   "2022-01-01"))
 engine = RawForecastEngine(validate_on_init=False)
+# Restrict min_test_date to val_start so engine only computes forecasts in
+# the validation window (we discard everything outside it anyway). Saves
+# ~60% of compute per trial vs the default 2008-01-01.
 results_df = engine.run_retrospective_evaluation(
     task="regression", model_type="ensemble",
     n_anchors=getattr(config, "N_RANDOM_ANCHORS", 500),
-    min_test_date="2008-01-01",
+    min_test_date=val_start.strftime("%Y-%m-%d"),
 )
 if results_df is None or results_df.empty:
     print(json.dumps({"r2": -999.0, "mae": 999.0, "n": 0}))
@@ -96,7 +99,7 @@ def slug(site: str) -> str:
     return site.lower().replace(" ", "_")
 
 
-def evaluate_trial(site: str, params: dict, timeout: int = 1200) -> dict:
+def evaluate_trial(site: str, params: dict, timeout: int = 2700) -> dict:
     """Write params to JSON, run subprocess, return {r2, mae, n}."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump({site: params}, f)

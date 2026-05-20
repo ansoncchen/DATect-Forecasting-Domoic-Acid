@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=24G
-#SBATCH --time=08:00:00
+#SBATCH --time=12:00:00
 #SBATCH --requeue
 #SBATCH --output=logs/oad-tune-%A_%a.out
 #SBATCH --error=logs/oad-tune-%A_%a.err

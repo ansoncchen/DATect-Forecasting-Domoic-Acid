@@ -41,6 +41,18 @@ cd frontend && npm run lint     # ESLint validation
 - Local development is for code editing, review, lightweight testing, and running the dashboard with pre-computed cache.
 - See `docs/HYAK_SETUP.md` for cluster workflow.
 
+## Mechanical Gotchas
+
+- **Local Python**: use `.venv/bin/python` (pandas, optuna, xgboost installed there; system `python3` does not have project deps).
+- **Hyak Python**: `/gscratch/stf/ac283/envs/datect_scratch/bin/python` (conda env with torch + xarray + zarr).
+- **Hyak Slurm**: prefer `--partition=ckpt --account=stf-ckpt --requeue` for batch eval/tuning. The `compute` partition often hits `QOSGrpMemLimit` from group memory pressure even at modest requests (32G+). ckpt is preemptible but free; use sqlite-backed studies for resumability.
+- **Hyak log files**: under sbatch, Python `print()` is line-buffered to `.out` (often appears empty for long stretches); `tqdm` writes to `.err`. To check ablation/tuning progress, `tail -1 logs/*.err | tr "\r" "\n" | tail -3`.
+- **Adding columns in `dataset-creation.py`**: the `final_core_cols` block (~line 1206) is a hardcoded allow-list — any new column **silently dropped** unless added there. Pattern: insert the join after `add_satellite_data()` (~line 1200), then append `extra_cols = [c for c in NEW_COLS if c in final_data.columns]` to `final_cols`. Note: the streamflow merge at line 955 is inside a helper function, not the main flow.
+- **`final_output.parquet` date column** is stored as object string `"MM/DD/YYYY"`, NOT a Timestamp. Always `pd.to_datetime(df["date"])` before joins/comparisons; convert back via `.dt.strftime("%m/%d/%Y")` before writing.
+- **Single forecast**: `engine.generate_single_forecast(data_path, forecast_date, site, task, model_type)` — all 5 positional. Heavy locally (per-anchor XGB tuning takes 1-3 min per forecast); for end-to-end smoke tests use the retrospective eval on a small subset instead.
+- **Env-var ablation hooks in `config.py` / `per_site_models.py`**: `DATECT_EXTRA_DROP_FEATURES` (CSV append to `ZERO_IMPORTANCE_FEATURES`), `DATECT_USE_INTERPOLATED_TRAINING`, `DATECT_USE_PER_SITE_MODELS`, `DATECT_LAG_FEATURES`, `DATECT_USE_MONOTONIC_CONSTRAINTS`, `DATECT_CLIP_Q_OVERRIDE`, `DATECT_RF_PARAMS_JSON`, `DATECT_FEATURE_SUBSET_MODE`, `DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_SPIKE_CLASSIFIER_JSON`, `DATECT_OAD_ON_SMALL_N`. Prefer these over new flags — `paper_ablation_study.py` already runs subprocess + env-var pattern.
+- **Hyperparameter tuning protocol** (added in `oad-integration` branch): use the **3-window chronological split** — training = pre-anchor data (engine-enforced); validation = retrospective points in `[2019-01-01, 2022-01-01)` via `TUNE_VAL_START`/`TUNE_VAL_END` env vars (Optuna objective); holdout = `[2022-01-01, 2024-12-31]` (final unbiased report only). Random-seed sampling (existing `paper_ablation_study.py`) is fine for **model-vs-model comparison** but NOT for hyperparameter selection — it has temporal autocorrelation between sampled "train" and "test" anchors. Use `scripts/eval/validate_tuned_on_holdout.py --compare baseline tuned` for the REAL / OVERFITTING / NEUTRAL / NULL verdict.
+
 ## System Architecture
 
 DATect is a machine learning system for forecasting harmful algal bloom toxin concentrations (domoic acid) along the Pacific Coast. It uses a **two-model ML ensemble** (XGBoost + Random Forest), with naïve persistence as an external standalone baseline, with per-site hyperparameter tuning and leak-free validation on raw DA measurements.

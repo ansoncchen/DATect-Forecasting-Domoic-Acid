@@ -267,3 +267,28 @@ Baseline (full DATect + OAD)    & {{ABL_BASE_R2}} & ---              & {{ABL_BAS
 1. **Holdout per-site bar chart** — `baseline R²` and `+OAD R²` side-by-side for all 10 sites, colored by region, highlighting SW WA.
 2. **Validation vs holdout scatter** — one dot per Task 12 trial, x = val R², y = holdout R². Slope < 1 shows the overfitting gap; should be near 1 if tuning generalises.
 3. **OAD score vs DA time series for one SW WA site** (e.g., Twin Harbors 2014-2024) — overlay the daily OAD `oad_score` with the weekly DA measurements and the model's spike alerts. Demonstrates the lead-lag relationship visually.
+
+---
+
+## 11. Post-Task-10 diagnostic: OAD ↔ DA correlation
+
+A null A/B result for OAD (Δ R² = −0.0015 pooled) prompted a direct correlation check between the raw `oad_score` and DA measurements. All per-site |Pearson r| < 0.12; pooled r = −0.046. Among spike events (DA > 20 µg/g), mean OAD is *lower* than during non-spikes (2.91 vs 3.27).
+
+**Lagged correlation reveals signal at ~12 weeks:**
+
+| Site | r at lag=0w | r at lag=4w | r at lag=12w |
+|---|---:|---:|---:|
+| Cannon Beach | +0.093 | +0.105 | **+0.183** |
+| Kalaloch | +0.042 | +0.066 | **+0.155** |
+| Twin Harbors | −0.041 | +0.002 | **+0.144** |
+| Long Beach | −0.049 | −0.016 | +0.106 |
+| Quinault | +0.026 | +0.017 | +0.089 |
+| Copalis | −0.017 | +0.020 | +0.085 |
+| Clatsop Beach | −0.008 | −0.019 | +0.084 |
+| Coos Bay | −0.124 | −0.130 | −0.068 |
+| Newport | −0.026 | −0.046 | −0.046 |
+| Gold Beach | −0.111 | −0.100 | −0.111 |
+
+**Interpretation:** the v1 integration uses OAD at 1-3 week lags (R−5 to R−19), capturing essentially none of the 12-week WA-site signal. Oregon sites (Coos Bay, Newport, Gold Beach) stay negatively correlated at all lags, consistent with their established autocorrelation-ceiling R² ≈ 0.
+
+**v2 design hint:** add `oad_score_90day_mean`, `oad_score_180day_max` with the same R−5 leak shift to capture the longer-timescale upwelling-priming signal. Not changing v1 — this experiment was a clean test of the short-lag formulation.

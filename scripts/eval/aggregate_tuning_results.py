@@ -58,6 +58,8 @@ def main() -> int:
             "elapsed_min": round(rec["elapsed_seconds"] / 60, 1),
         })
         p = rec["best_params"]
+        clip_max_raw = p.get("clip_max", "none")
+        clip_max = None if clip_max_raw == "none" else float(clip_max_raw)
         overrides[site] = {
             "xgb_params": {
                 "max_depth": p["xgb_max_depth"],
@@ -69,6 +71,7 @@ def main() -> int:
                 "gamma": p["xgb_gamma"],
                 "subsample": p["xgb_subsample"],
                 "colsample_bytree": p["xgb_colsample"],
+                "colsample_bylevel": p.get("xgb_colsample_bylevel", 0.8),
             },
             "rf_params": {
                 "n_estimators": p["rf_n_estimators"],
@@ -85,6 +88,7 @@ def main() -> int:
             }],
             "ensemble_weights": [p["w_xgb"], 1.0 - p["w_xgb"], 0.0],
             "prediction_clip_q": p["clip_q"],
+            "prediction_clip_max": clip_max,
         }
 
     df = pd.DataFrame(rows)

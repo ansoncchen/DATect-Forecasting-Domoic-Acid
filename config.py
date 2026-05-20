@@ -270,6 +270,18 @@ SPIKE_CLASSIFIER_PARAMS = {
     "min_child_weight": 3,
     "eval_metric": "logloss",
 }
+# DATECT_SPIKE_CLASSIFIER_JSON: path to a JSON file with SPIKE_CLASSIFIER_PARAMS
+# overrides (Task 13 tuning). May also include _spike_alert_prob_threshold which
+# overrides SPIKE_ALERT_PROB_THRESHOLD. Loaded at import time.
+_spike_path = os.environ.get("DATECT_SPIKE_CLASSIFIER_JSON", "")
+if _spike_path and os.path.exists(_spike_path):
+    import json as _json
+    with open(_spike_path) as _f:
+        _spike_over = _json.load(_f)
+    _alert_over = _spike_over.pop("_spike_alert_prob_threshold", None)
+    SPIKE_CLASSIFIER_PARAMS = {**SPIKE_CLASSIFIER_PARAMS, **_spike_over}
+    if _alert_over is not None:
+        SPIKE_ALERT_PROB_THRESHOLD = float(_alert_over)
 
 
 # Bootstrap subsample fraction for uncertainty estimation

@@ -125,6 +125,7 @@ def make_objective(site: str):
             "gamma": trial.suggest_float("xgb_gamma", 0.1, 3.0, log=True),
             "subsample": trial.suggest_float("xgb_subsample", 0.5, 1.0),
             "colsample_bytree": trial.suggest_float("xgb_colsample", 0.5, 1.0),
+            "colsample_bylevel": trial.suggest_float("xgb_colsample_bylevel", 0.5, 1.0),
         }
         rf_params = {
             "n_estimators": trial.suggest_int("rf_n_estimators", 100, 500, step=100),
@@ -135,6 +136,10 @@ def make_objective(site: str):
         }
         w_xgb = trial.suggest_float("w_xgb", 0.0, 1.0)
         clip_q = trial.suggest_float("clip_q", 0.90, 0.99)
+        # clip_max: hard ceiling — None or 60–120 µg/g (sites Kalaloch & Cannon Beach
+        # currently use 80.0). Treat as categorical so Optuna can pick "no ceiling".
+        clip_max_choice = trial.suggest_categorical("clip_max", ["none", 60.0, 80.0, 100.0, 120.0])
+        clip_max = None if clip_max_choice == "none" else float(clip_max_choice)
 
         # Single-grid override (skip nested per-anchor tuning during search)
         param_grid = [{
@@ -150,6 +155,7 @@ def make_objective(site: str):
             "param_grid": param_grid,
             "ensemble_weights": [w_xgb, 1.0 - w_xgb, 0.0],
             "prediction_clip_q": clip_q,
+            "prediction_clip_max": clip_max,
         }
         result = evaluate_trial(site, params)
         trial.set_user_attr("mae", result["mae"])

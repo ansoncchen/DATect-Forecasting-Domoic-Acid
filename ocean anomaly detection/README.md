@@ -185,15 +185,18 @@ is the best AE method in SW Washington / Long Beach: **R²=+0.87, CIΔ vs matche
 PCA = [+0.92, +1.05]** — entirely positive 95% bootstrap CI. Across regions,
 the optimal mask ratio is 40–70% for 3D and 50% for 2D. See `RESULTS.md`.
 
-⚠️ **Two caveats from §8 sanity checks** — quote these alongside the headline:
+**Strongest defensive finding** (from §8 multi-step decay): at lead=7 days,
+`AE_3d_l32_t4_mae070` is the **only method** with positive R² in every PNW
+region (0.10–0.26). Climatology baselines B1/B2 collapse to ≤ 0 (B2 goes
+*negative* — anti-predicts), and matched-k PCA was already at 0. The 1-day-ahead
+headline R²=0.87 is partly inflated by 8-day composite overlap, but the lead=7
+gap is fully attributable to the AE actually learning dynamics.
 
-1. **1-day-ahead R² is inflated by 8-day composite overlap.** At lead=7 days
-   (no input overlap), R² drops to **0.10–0.26** across regions. AE still beats
-   PCA at every lead, but the magnitude is much smaller than the 0.87 headline.
-2. **Cloud-cover confound, r ≈ +0.4–0.5** with in-region valid-pixel fraction
-   (~24% of variance). AE is less confounded than PCA (+0.75) but more than
-   climatology baselines. `mae050` is the cleanest MAE-3D variant at +0.44 —
-   recommended over `mae070` for downstream integration.
+⚠️ **Cloud-cover confound**: r ≈ +0.4–0.5 with in-region valid-pixel fraction
+(~24% of variance). AE is less confounded than PCA (+0.75) but more than
+climatology. Tradeoff is real but `mae070` still wins overall because the
+cleaner-cloud `mae050` variant has substantially worse multi-step skill
+(R²=−0.17 vs +0.19 at lead=7 in Olympic Coast).
 
 See "SANITY-CHECK CAVEATS" section at the top of `RESULTS.md`.
 

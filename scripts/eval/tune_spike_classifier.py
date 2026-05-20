@@ -55,9 +55,11 @@ from sklearn.metrics import precision_score, recall_score, f1_score, fbeta_score
 import config
 from forecasting.raw_forecast_engine import RawForecastEngine
 
-# Validation cutoff: tune only on pre-2019 spikes. 2019+ is reserved for
-# final holdout reporting.
-val_cutoff = pd.Timestamp(os.environ.get("TUNE_VAL_CUTOFF", "2019-01-01"))
+# Three-window split (see Task 12 for protocol details):
+#   VAL window for tuning: [2019-01-01, 2022-01-01)
+#   HOLDOUT (untouched):   [2022-01-01, ...]
+val_start = pd.Timestamp(os.environ.get("TUNE_VAL_START", "2019-01-01"))
+val_end   = pd.Timestamp(os.environ.get("TUNE_VAL_END",   "2022-01-01"))
 engine = RawForecastEngine(validate_on_init=False)
 results_df = engine.run_retrospective_evaluation(
     task="regression", model_type="ensemble",
@@ -68,9 +70,9 @@ if results_df is None or results_df.empty:
     print(json.dumps({"f2": -1.0, "recall": 0.0, "precision": 0.0, "n_spikes": 0}))
     sys.exit(0)
 
-# Filter to tuning window
+# Filter to validation window
 results_df["date"] = pd.to_datetime(results_df["date"])
-results_df = results_df[results_df["date"] < val_cutoff]
+results_df = results_df[(results_df["date"] >= val_start) & (results_df["date"] < val_end)]
 
 # Spike label = actual DA > SPIKE_THRESHOLD; prediction = spike_alert column
 spike_thresh = config.SPIKE_THRESHOLD

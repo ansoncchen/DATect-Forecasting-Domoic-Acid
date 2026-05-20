@@ -38,7 +38,8 @@ try:
 except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-VAL_CUTOFF = pd.Timestamp("2019-01-01")
+VAL_START = pd.Timestamp("2019-01-01")
+VAL_END   = pd.Timestamp("2022-01-01")  # holdout starts here
 
 
 def run_eval(label: str, output_dir: str = "holdout_validation") -> str:
@@ -67,8 +68,9 @@ def metrics_table(predictions_path: str) -> dict:
 
     out = {"per_site": {}, "overall": {}, "windows": {}}
     for window_name, mask in [
-        ("tuning_pre2019", df["date"] < VAL_CUTOFF),
-        ("holdout_2019plus", df["date"] >= VAL_CUTOFF),
+        ("pretrain_pre2019",  df["date"] < VAL_START),
+        ("validation_2019_2022", (df["date"] >= VAL_START) & (df["date"] < VAL_END)),
+        ("holdout_2022plus",  df["date"] >= VAL_END),
         ("all", pd.Series([True] * len(df), index=df.index)),
     ]:
         sub = df[mask]
@@ -99,45 +101,45 @@ def compare(baseline_path: str, tuned_path: str) -> int:
     print("=" * 78)
     print("WINDOW-LEVEL COMPARISON (baseline → tuned)")
     print("=" * 78)
-    print(f"{'Window':<22} {'baseline R²':>12} {'tuned R²':>12} {'Δ R²':>10} {'N':>6}")
+    print(f"{'Window':<26} {'baseline R²':>12} {'tuned R²':>12} {'Δ R²':>10} {'N':>6}")
     print("-" * 78)
-    for w in ("tuning_pre2019", "holdout_2019plus", "all"):
+    for w in ("pretrain_pre2019", "validation_2019_2022", "holdout_2022plus", "all"):
         bw = b["windows"].get(w, {})
         tw = t["windows"].get(w, {})
         if not bw or not tw:
             continue
         d = tw["r2"] - bw["r2"]
-        print(f"{w:<22} {bw['r2']:>12.4f} {tw['r2']:>12.4f} {d:>+10.4f} {bw['n']:>6d}")
+        print(f"{w:<26} {bw['r2']:>12.4f} {tw['r2']:>12.4f} {d:>+10.4f} {bw['n']:>6d}")
 
     print()
-    print("VERDICT")
+    print("VERDICT (verdict uses validation 2019-2022 vs holdout 2022-2024)")
     print("-" * 78)
-    bt = b["windows"].get("tuning_pre2019", {})
-    tt = t["windows"].get("tuning_pre2019", {})
-    bh = b["windows"].get("holdout_2019plus", {})
-    th = t["windows"].get("holdout_2019plus", {})
+    bt = b["windows"].get("validation_2019_2022", {})
+    tt = t["windows"].get("validation_2019_2022", {})
+    bh = b["windows"].get("holdout_2022plus", {})
+    th = t["windows"].get("holdout_2022plus", {})
     tune_delta = tt.get("r2", 0) - bt.get("r2", 0)
     hold_delta = th.get("r2", 0) - bh.get("r2", 0)
 
     if tune_delta > 0.005 and hold_delta > 0.005:
-        print("  ✅ TUNED CONFIG IS REAL: improves on tuning AND holdout.")
+        print("  ✅ TUNED CONFIG IS REAL: improves on validation AND holdout.")
         print("     Recommend: merge proposed_overrides.json into per_site_models.py.")
     elif tune_delta > 0.005 and hold_delta < -0.005:
-        print("  ❌ OVERFITTING: tuning improved but holdout degraded.")
+        print("  ❌ OVERFITTING: validation improved but holdout degraded.")
         print("     Discard tuned config. The tuning loop fit noise.")
     elif tune_delta > 0.005 and abs(hold_delta) <= 0.005:
-        print("  🟡 NEUTRAL ON HOLDOUT: tuning improved, holdout unchanged.")
+        print("  🟡 NEUTRAL ON HOLDOUT: validation improved, holdout unchanged.")
         print("     Marginal value; review per-site detail before merging.")
     else:
         print("  ⚪ NO MEANINGFUL CHANGE on either window. Tuning didn't help.")
 
     print()
-    print("PER-SITE DETAIL (holdout window only — the unbiased number)")
+    print("PER-SITE DETAIL (holdout 2022-2024 only — the unbiased number)")
     print("-" * 78)
     rows = []
     for site in sorted(b["per_site"].keys()):
-        bh_site = b["per_site"].get(site, {}).get("holdout_2019plus")
-        th_site = t["per_site"].get(site, {}).get("holdout_2019plus")
+        bh_site = b["per_site"].get(site, {}).get("holdout_2022plus")
+        th_site = t["per_site"].get(site, {}).get("holdout_2022plus")
         if not bh_site or not th_site:
             continue
         rows.append({

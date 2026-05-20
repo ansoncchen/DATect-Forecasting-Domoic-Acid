@@ -60,9 +60,12 @@ import config
 from forecasting.raw_forecast_engine import RawForecastEngine
 
 site = os.environ["TUNE_SITE"]
-# VALIDATION CUTOFF: tune only on pre-2019 test points. 2019+ is reserved as
-# untouched temporal holdout for final unbiased reporting (Step 7 of Task 12).
-val_cutoff = pd.Timestamp(os.environ.get("TUNE_VAL_CUTOFF", "2019-01-01"))
+# THREE-WINDOW SPLIT:
+#   TRAIN:    pre-anchor data (engine-enforced, anchor = test_date - 7)
+#   VAL:      [TUNE_VAL_START, TUNE_VAL_END)  ← Optuna's objective
+#   HOLDOUT:  [TUNE_VAL_END, ...]             ← reserved, never seen by tuning
+val_start = pd.Timestamp(os.environ.get("TUNE_VAL_START", "2019-01-01"))
+val_end   = pd.Timestamp(os.environ.get("TUNE_VAL_END",   "2022-01-01"))
 engine = RawForecastEngine(validate_on_init=False)
 results_df = engine.run_retrospective_evaluation(
     task="regression", model_type="ensemble",
@@ -72,9 +75,11 @@ results_df = engine.run_retrospective_evaluation(
 if results_df is None or results_df.empty:
     print(json.dumps({"r2": -999.0, "mae": 999.0, "n": 0}))
     sys.exit(0)
-# Filter to TUNING SET: this site, pre-cutoff dates only
+# Filter to VALIDATION WINDOW: this site, [val_start, val_end)
 results_df["date"] = pd.to_datetime(results_df["date"])
-sub = results_df[(results_df["site"] == site) & (results_df["date"] < val_cutoff)]
+sub = results_df[(results_df["site"] == site)
+                 & (results_df["date"] >= val_start)
+                 & (results_df["date"] <  val_end)]
 if len(sub) < 10:
     print(json.dumps({"r2": -999.0, "mae": 999.0, "n": len(sub)}))
     sys.exit(0)
@@ -82,7 +87,7 @@ print(json.dumps({
     "r2": float(r2_score(sub["actual_da"], sub["predicted_da"])),
     "mae": float(mean_absolute_error(sub["actual_da"], sub["predicted_da"])),
     "n": int(len(sub)),
-    "cutoff": val_cutoff.strftime("%Y-%m-%d"),
+    "val_window": [val_start.strftime("%Y-%m-%d"), val_end.strftime("%Y-%m-%d")],
 }))
 '''
 

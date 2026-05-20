@@ -406,3 +406,78 @@ The driving variables are wind, internal wave activity, and subsurface stratific
 ### Single highest-value change recommended
 
 If only one feature were added to DATect v2: **cumulative northerly wind stress over past 14 days** from NDBC Cape Elizabeth (46041). NDBC data is free and daily, the feature is computationally trivial, and it is the leading indicator that Moore et al. identified directly. DATect's existing `beuti` partially captures this but as a single instantaneous value; the cumulative + delta versions add the temporal context the paper shows matters most.
+
+---
+
+## 15. Available in-situ datasets — game-changing v2 features
+
+User shared additional datasets after the OAD null result was confirmed. Quick inventory + correlation tests reveal that **direct measurement of *Pseudo-nitzschia* cell counts at the beach is far more informative than any satellite signal we tested**.
+
+### Dataset inventory
+
+| File | Sites | Years | Key variables |
+|---|---|---|---|
+| `ORHAB_KAL-COP-TH-LB_upto_060815.xlsx` | Kalaloch, Copalis, Twin Harbors, Long Beach | 2000-2016 | **PN count (cells/L), pDA (ng/L)** at the beach, ~weekly |
+| `ChaBa ESP database.xlsx` | NEMO mooring (offshore WA shelf) | 2016-2018 | Pn species probes + pDA, daily-to-weekly |
+| `Summary NWFSC 2021_2023 data` | NEMO mooring | 2021-2023 | pDA only, extends ESP series |
+| `WQM_*.csv/.DAT` | NEMO mooring | 2023 (months) | Subsurface T, salinity, DO, chla, turbidity |
+| `pCO2105_ALLdata*.txt` | NEMO mooring | 2023 | pCO2 + fluorometric chla |
+
+### ORHAB PN count → DATect shellfish DA (the key result)
+
+For the 4 WA sites that have ORHAB data, lagged Pearson correlation of weekly PN count at week (t−k) with DATect's shellfish DA at week t:
+
+| Site | r at lag 0w | lag 1w | **lag 2w** | lag 4w | lag 8w | N |
+|---|---:|---:|---:|---:|---:|---:|
+| **Twin Harbors** | +0.21 | +0.25 | **+0.36** | +0.30 | +0.19 | 615 |
+| **Long Beach** | +0.24 | +0.32 | **+0.34** | +0.20 | +0.13 | 621 |
+| Copalis | +0.11 | +0.14 | +0.13 | +0.10 | +0.10 | 596 |
+| Kalaloch | +0.13 | +0.14 | +0.13 | +0.07 | +0.07 | 582 |
+
+**Best lag is 2 weeks** for Twin Harbors and Long Beach — biologically sensible: PN cells produce particulate DA → razor clams filter water for ~1-2 weeks → DA peaks in clam tissue 1-2 weeks later.
+
+For comparison, the strongest satellite feature `sst-anom` peaked at **r = +0.20 at lag 16 weeks** (§12). The ORHAB PN feature is **~1.8× stronger AND at 8× shorter lag**, with direct biological mechanism.
+
+### ORHAB PN count → ORHAB particulate DA (sanity check, concurrent)
+
+Confirms direct mechanism: at the same time and place, PN count correlates strongly with measured particulate DA in seawater:
+
+| Site | N | r(PN, pDA) |
+|---|---:|---:|
+| **Kalaloch** | 712 | **+0.71** |
+| Long Beach | 751 | +0.43 |
+| Twin Harbors | 744 | +0.41 |
+| Copalis | 726 | +0.39 |
+
+Kalaloch r=+0.71 is the strongest pDA-driver correlation we've seen anywhere in this analysis.
+
+### Concrete v2 path — ranked by impact-per-effort
+
+**1. Add ORHAB PN count as a per-site feature (HIGHEST PRIORITY)**
+- Coverage: 4 sites × 16 years (2000-2016)
+- For each weekly anchor row at Kalaloch/Copalis/Twin Harbors/Long Beach, add `orhab_pn_count_lag1w`, `orhab_pn_count_lag2w`, `orhab_pn_count_lag4w`, `orhab_pn_count_30day_mean`
+- Implementation: ~50 lines, mirrors `add_oad_features` pattern from this integration. Use 5-day leakage shift to match the existing 12-day forecast horizon.
+- Expected lift: at Twin Harbors/Long Beach, plugging an r=+0.36 feature into the ensemble should produce visible R² improvement (not the null effect OAD gave). The other 2 sites get a weaker but still real signal.
+- Caveat: no coverage 2016+. The other 6 sites (Newport, Coos Bay, Gold Beach, Cannon Beach, Clatsop Beach, Quinault) have no ORHAB data.
+
+**2. Add ChaBa ESP offshore pDA as a regional feature**
+- Coverage: 2016-2018 + 2021-2023 (NEMO mooring, offshore WA shelf, source region for Olympic Coast + SW WA sites)
+- Apply to all 7 WA sites in our SITE_TO_REGION map (Kalaloch, Quinault, Copalis, Twin Harbors, Long Beach, Clatsop Beach, Cannon Beach)
+- Implementation: same pattern as ORHAB, but `region` is "WA shelf" (single source)
+- Expected lift: smaller than ORHAB PN (offshore lags onshore + has spatial gap to shore), but still real because the cells eventually transport to beach
+
+**3. Add WQM subsurface T/nitrate/DO** when available
+- Coverage: 2023 (intermittent) — too sparse for direct training
+- Use as **validation set only** for v2 mechanism checks; not yet a model feature
+
+**4. Redesign OAD inputs (deferred)**
+- Replace AE's raw chla/Kd490/nflh/SST with wind + BEUTI + sst-anom + subsurface T
+- Now needed only if we want a general-purpose anomaly index; the direct PN features above are more efficient if you only need DA forecasting
+
+### Reframing the OAD project's contribution
+
+With these in-situ datasets in hand, the OAD project has a clean self-assessment:
+
+> Satellite optical anomaly representations cannot match direct in-situ *Pseudo-nitzschia* cell count measurements as DA leading indicators (r=+0.36 vs |r|<0.15 at any lag, §13). The OAD project's value to DATect is therefore not as a feature provider, but as a **diagnostic that confirmed which physical signals carry DA-predictive information**: surface chlorophyll at any spatial scale does not (§12-13), SST anomaly from climatology does (§12), and direct cell counts dominate when available (§15).
+>
+> The recommended v2 architecture pairs DATect's existing climate features (sst-anom, BEUTI, PDO, ONI) with ORHAB beach PN counts where available, and reserves satellite-derived anomalies for use in the unsampled gap regions (Cannon Beach, OR sites) where in-situ data is sparse.

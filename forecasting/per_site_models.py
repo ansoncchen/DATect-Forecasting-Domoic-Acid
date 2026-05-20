@@ -390,6 +390,25 @@ if _oad_small_n:
         if _cfg and _cfg.get("feature_subset") is not None:
             _cfg["feature_subset"] = list(_cfg["feature_subset"]) + list(OAD_FEATURES_ALL)
 
+# DATECT_HPARAM_OVERRIDE_JSON: path to a JSON file with structure
+# {"<site>": {"xgb_params": {...}, "rf_params": {...},
+#             "ensemble_weights": [w_xgb, w_rf, 0.0], ...}, ...}
+# Merges onto SITE_SPECIFIC_CONFIGS at import time. Used by the per-site
+# hyperparameter tuning loop (Task 12) to swap in candidate configurations
+# without modifying source. Missing keys fall back to existing values.
+_hparam_path = _os.environ.get("DATECT_HPARAM_OVERRIDE_JSON", "")
+if _hparam_path and _os.path.exists(_hparam_path):
+    import json as _json
+    with open(_hparam_path) as _f:
+        _override = _json.load(_f)
+    for _site, _cfg_over in _override.items():
+        if _site not in SITE_SPECIFIC_CONFIGS:
+            SITE_SPECIFIC_CONFIGS[_site] = dict(DEFAULT_SITE_CONFIG)
+        for _k, _v in _cfg_over.items():
+            if _k == "ensemble_weights" and _v is not None:
+                _v = tuple(_v)
+            SITE_SPECIFIC_CONFIGS[_site][_k] = _v
+
 _clip_override = _os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")
 if _clip_override == "none":
     for _sc in SITE_SPECIFIC_CONFIGS.values():

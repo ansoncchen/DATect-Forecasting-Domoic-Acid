@@ -292,3 +292,40 @@ A null A/B result for OAD (Δ R² = −0.0015 pooled) prompted a direct correlat
 **Interpretation:** the v1 integration uses OAD at 1-3 week lags (R−5 to R−19), capturing essentially none of the 12-week WA-site signal. Oregon sites (Coos Bay, Newport, Gold Beach) stay negatively correlated at all lags, consistent with their established autocorrelation-ceiling R² ≈ 0.
 
 **v2 design hint:** add `oad_score_90day_mean`, `oad_score_180day_max` with the same R−5 leak shift to capture the longer-timescale upwelling-priming signal. Not changing v1 — this experiment was a clean test of the short-lag formulation.
+
+---
+
+## 12. Why OAD didn't help — feature-level diagnostic
+
+Direct comparison of candidate DA predictors against actual DA, pooled across all 10 sites, at various time lags:
+
+| Feature | lag=0w | lag=4w | lag=8w | lag=12w | lag=16w |
+|---|---:|---:|---:|---:|---:|
+| `modis-chla` (raw) | −0.002 | −0.007 | −0.005 | +0.021 | +0.020 |
+| `oad_score` (AE anomaly) | −0.022 | −0.010 | +0.002 | +0.062 | +0.050 |
+| `modis-sst` (raw) | +0.032 | +0.036 | +0.040 | +0.045 | +0.045 |
+| `beuti` (upwelling index) | +0.044 | +0.034 | +0.026 | +0.037 | +0.035 |
+| **`sst-anom`** (SST climatology anomaly) | **+0.143** | **+0.170** | **+0.172** | **+0.171** | **+0.203** |
+
+**Key finding:** RAW chlorophyll is essentially uncorrelated with DA (lag-0 r ≈ 0), regardless of how compelling bloom periods look in chla imagery. The OAD anomaly score inherits this weakness because the AE was trained on raw chla/Kd490/nflh/sst inputs — it learns to reconstruct typical seasonal patterns including high-chla bloom periods, so blooms aren't anomalous to it.
+
+The real DA-predictive signal lives in **`sst-anom`** (SST minus climatology), which DATect already includes as a per-site feature. Its correlation with DA is **3-10× stronger than any other satellite feature** at lags up to 16 weeks.
+
+**Implications for v2:**
+1. Retrain the AE on climatology-normalized inputs (subtract per-pixel per-DOY mean before training) so its "anomaly" matches what `sst-anom` already shows.
+2. OR add a learned SST-anomaly representation as a separate channel alongside the raw fields.
+3. The 16-week lag pattern suggests a multi-month upwelling-priming process for DA blooms — feature engineering should target this timescale, not the 1-3 week short lags v1 uses.
+
+Per-site comparison (lag=0):
+
+| Site | chla→DA | OAD→DA | sst-anom→DA |
+|---|---:|---:|---:|
+| Cannon Beach | +0.151 | +0.093 | +0.084 |
+| Coos Bay | −0.063 | −0.124 | **+0.202** |
+| Copalis | −0.024 | −0.017 | **+0.214** |
+| Kalaloch | +0.051 | +0.042 | **+0.192** |
+| Long Beach | −0.045 | −0.049 | **+0.149** |
+| Twin Harbors | −0.030 | −0.041 | **+0.212** |
+| Newport | +0.016 | −0.026 | **+0.110** |
+
+`sst-anom` consistently outperforms chla and OAD at every site except Cannon Beach (where Δ is small and N is smallest).

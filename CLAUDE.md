@@ -185,3 +185,46 @@ See `ocean anomaly detection/RESULTS.md` and `ocean anomaly detection/IMPLEMENTA
 - `ocean anomaly detection/IMPLEMENTATION_PLAN.md` — design + completion status of Phases A/B/C
 - `ocean anomaly detection/RESULTS.md` — validated numbers (per-region E4 forecastability tables, MAE ratio comparison, annual cycle plots)
 - `ocean anomaly detection/AGENTS.md` — workspace facts for agents continuing OAD work
+
+## Agent / development guidance
+
+These are conventions that have accumulated from prior conversations. They are
+project-wide rules, not optional preferences — follow them by default unless the
+user explicitly opts out.
+
+### Process rules
+
+1. **Keep gap-fill (synthetic training targets) separate from forecast model choice.**
+   They are two independent design dimensions (what data fills sparse DA between
+   real samples vs which model — XGB, RF, MLP — predicts on that data). Mixing
+   them up in experiments leads to incorrect attribution of improvements.
+2. **Leak-free, past-only training rules are non-negotiable.** Any alternative
+   to causal exponential decay gap-fill (e.g. bidirectional imputers) needs an
+   explicit story for why it does not leak future information into training rows.
+   "It looks like it works on the panel" is not enough.
+3. **Judge improvements on the leak-free raw retrospective**, not on dense ISO-week
+   panel imputation quality. The weekly panel has gap-filled `da`; only the raw
+   shore measurements are the actual prediction targets the system should be
+   evaluated against.
+4. **Prefer simple plain-English explanations** when the conversation moves
+   between synthetic-data design and prediction-model ablations. Those two
+   threads are easy to conflate.
+5. **Run all heavy compute on Hyak** (`/gscratch/stf/ac283/...`). Local laptop
+   is for editing code and reviewing figures. Cluster workflow in `docs/HYAK_SETUP.md`.
+6. **Memory hygiene**: before pasting a file path from a learned-fact note into
+   a prompt or instruction, verify it exists with `ls`. Past agents have
+   hallucinated filenames like `quick_raw_retrospective_compare.py`; the real
+   entry points are listed in "Hyak Workflow" above.
+
+### Useful workspace facts
+
+- Raw DA volume is in the **thousands** of shore rows and **thousands** of
+  site-weeks with real measurements. The weekly panel is dense with gap-filled
+  `da`, but evaluation for forecasting skill should always track raw measurements.
+- Quick retrospective comparisons and small **MLP / sklearn-style baselines**
+  at modest sample fractions are **CPU-viable on Hyak**; a GPU is not required
+  for that evaluation tier (reserve GPU partitions for the autoencoder training
+  in the OAD subproject).
+- SSH ControlMaster for Hyak is set up as `klone-login`. It expires periodically
+  (2FA timeout); user re-auths from their terminal with `ssh klone-login 'whoami'`
+  when needed.

@@ -557,3 +557,51 @@ While investigating other v2 datasets, found that DATect ALREADY has `pn` (*Pseu
 ### About the ORHAB data the user shared
 
 Largely **redundant**: DATect's `data/raw/pn-input/long-beach-pn.csv` has 2,002 rows vs ORHAB's 1,419 — DATect has the same monitoring program output, with more rows and a longer date range. The unique value of ORHAB is the `pDA (ng/L)` column (particulate DA in seawater), which differs from DATect's `da` (razor clam tissue) — but pDA is more useful as an evaluation target than a feature, since it requires direct seawater sampling that isn't part of the operational monitoring workflow.
+
+---
+
+## 18. Hyperparameter tuning result — TUNING FAILED (Tasks 12+13)
+
+After tuning 9 sites with Optuna TPE (30+ trials each, 18 hyperparameters per site) using the 3-window chronological split (train pre-2019 / validate 2019-2022 / holdout 2022-2024), the holdout comparison decisively rejected the tuned configurations.
+
+### Window-level comparison (baseline current per_site_models.py vs tuned)
+
+| Window | Baseline R² | Tuned R² | Δ R² | N |
+|---|---:|---:|---:|---:|
+| Pretrain (pre-2019, not scored) | 0.428 | 0.312 | −0.115 | 797 |
+| Validation (2019-2022) | 0.346 | 0.418 | **+0.072** | 216 |
+| **Holdout (2022-2024, untouched)** | **0.495** | **0.338** | **−0.157** | 164 |
+
+**Verdict from `validate_tuned_on_holdout.py`: OVERFITTING.** Tuning improved validation but degraded holdout — the classic noise-fitting signature.
+
+### Per-site detail (holdout window only — the honest numbers)
+
+| Site | Baseline R² | Tuned R² | Δ R² | N | Outcome |
+|---|---:|---:|---:|---:|---|
+| Gold Beach | −8.46 | −8.14 | +0.32 | 17 | "less broken" not "fixed" — baseline R²=−8 is fundamental |
+| Quinault | 0.348 | 0.462 | +0.11 | 24 | Only meaningful per-site improvement |
+| Twin Harbors | 0.570 | 0.577 | +0.01 | 18 | Tie |
+| Copalis | 0.682 | 0.683 | 0.00 | 30 | Tie |
+| Kalaloch | 0.674 | 0.660 | −0.01 | 11 | Tiny loss |
+| Clatsop Beach | 0.444 | 0.407 | −0.04 | 13 | Small loss |
+| Long Beach | 0.810 | 0.735 | −0.08 | 19 | Loss |
+| **Coos Bay** | 0.738 | 0.562 | **−0.18** | 12 | Big loss — Optuna found a val-window winner (+0.57) that collapsed on holdout |
+| **Newport** | 0.375 | 0.134 | **−0.24** | 20 | Big loss — same pattern |
+
+**Decision: do NOT apply `proposed_overrides.json`.** Original hand-tuned values in `per_site_models.py` stay. This empirically confirms the existing stability study's finding (|ΔR²| < 0.001 for RF perturbations) — the hand-tuned values were already in a flat region of the loss landscape, so Optuna's broader search just fit noise on the validation window.
+
+### Spike classifier tuning (Task 13)
+
+| Window | Baseline F2 | Tuned F2 | Δ | N spikes |
+|---|---:|---:|---:|---:|
+| Validation (2019-2022) | (not yet computed) | 0.732 | — | 32 |
+| Holdout (2022-2024) | (not yet computed) | (pending) | — | — |
+
+Spike classifier holdout test pending. The tuned threshold is 0.227 (vs current 0.10), giving recall 0.91 / precision 0.41 on validation. Need to confirm on holdout before adopting.
+
+### Lessons
+
+1. **The 3-window protocol works as designed.** Without the chronological holdout, we'd have published "tuning improved R² by 0.07" — and been wrong.
+2. **Optuna can overfit even with strong regularization in the search space.** 18-dimensional search × 30 trials × 9 sites = 4860 hyperparameter combinations evaluated. With val-window N=216 pooled (and per-site N=10-32), there's plenty of room for spurious wins.
+3. **The asymmetric verdict (REAL requires BOTH windows positive) caught the failure.** A naive "improve on val → adopt" rule would have shipped these regressions.
+4. **DATect's existing per-site customization is robust.** The stability study, the Task 10 OAD null, and now this tuning result all point to the same conclusion: the model is sensitive to FEATURES that carry signal (lagged PN, sst-anom, wind dynamics — see §17, §14), not to hyperparameter perturbations of the existing feature set.

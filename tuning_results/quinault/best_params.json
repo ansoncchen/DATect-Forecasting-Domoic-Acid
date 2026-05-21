@@ -1,0 +1,28 @@
+{
+  "site": "Quinault",
+  "best_value_r2": 0.5359740136190221,
+  "best_mae": 2.7893188410951666,
+  "n_test_points": 24,
+  "n_trials_completed": 59,
+  "best_params": {
+    "xgb_max_depth": 2,
+    "xgb_n_estimators": 50,
+    "xgb_lr": 0.09948235659778373,
+    "xgb_mcw": 9,
+    "xgb_alpha": 2.0623898075436693,
+    "xgb_lambda": 3.1955121054145845,
+    "xgb_gamma": 0.12919440791464082,
+    "xgb_subsample": 0.5819031767597516,
+    "xgb_colsample": 0.6195926266768351,
+    "xgb_colsample_bylevel": 0.6569091172281336,
+    "rf_n_estimators": 300,
+    "rf_max_depth": 9,
+    "rf_min_split": 13,
+    "rf_min_leaf": 8,
+    "rf_max_features": 0.682817998357891,
+    "w_xgb": 0.8466044209290138,
+    "clip_q": 0.9101952638637129,
+    "clip_max": 80.0
+  },
+  "elapsed_seconds": 13456.924515724182
+}

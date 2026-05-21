@@ -1,0 +1,28 @@
+{
+  "site": "Kalaloch",
+  "best_value_r2": 0.27687788239669886,
+  "best_mae": 3.627595103706363,
+  "n_test_points": 17,
+  "n_trials_completed": 57,
+  "best_params": {
+    "xgb_max_depth": 3,
+    "xgb_n_estimators": 300,
+    "xgb_lr": 0.09913462872002565,
+    "xgb_mcw": 14,
+    "xgb_alpha": 2.9830752028053342,
+    "xgb_lambda": 8.83512546204891,
+    "xgb_gamma": 0.5799183521948098,
+    "xgb_subsample": 0.8549006710833023,
+    "xgb_colsample": 0.8848301292643604,
+    "xgb_colsample_bylevel": 0.544440717171466,
+    "rf_n_estimators": 200,
+    "rf_max_depth": 8,
+    "rf_min_split": 10,
+    "rf_min_leaf": 10,
+    "rf_max_features": 0.5738030451847299,
+    "w_xgb": 0.007166368581098932,
+    "clip_q": 0.9084926838379135,
+    "clip_max": "none"
+  },
+  "elapsed_seconds": 13500.085524320602
+}

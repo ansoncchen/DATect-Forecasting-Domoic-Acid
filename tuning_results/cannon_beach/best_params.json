@@ -1,0 +1,28 @@
+{
+  "site": "Cannon Beach",
+  "best_value_r2": -999.0,
+  "best_mae": 999.0,
+  "n_test_points": 4,
+  "n_trials_completed": 83,
+  "best_params": {
+    "xgb_max_depth": 3,
+    "xgb_n_estimators": 300,
+    "xgb_lr": 0.05395030966670229,
+    "xgb_mcw": 14,
+    "xgb_alpha": 0.17000372989211016,
+    "xgb_lambda": 1.525681189806849,
+    "xgb_gamma": 0.12184186502221767,
+    "xgb_subsample": 0.9330880728874675,
+    "xgb_colsample": 0.8005575058716043,
+    "xgb_colsample_bylevel": 0.8540362888980227,
+    "rf_n_estimators": 100,
+    "rf_max_depth": 12,
+    "rf_min_split": 17,
+    "rf_min_leaf": 3,
+    "rf_max_features": 0.42727747704497043,
+    "w_xgb": 0.18340450985343382,
+    "clip_q": 0.9273818018663584,
+    "clip_max": 100.0
+  },
+  "elapsed_seconds": 14842.950728178024
+}

@@ -1,0 +1,28 @@
+{
+  "site": "Clatsop Beach",
+  "best_value_r2": 0.3830976263111949,
+  "best_mae": 15.66469781070847,
+  "n_test_points": 32,
+  "n_trials_completed": 30,
+  "best_params": {
+    "xgb_max_depth": 3,
+    "xgb_n_estimators": 300,
+    "xgb_lr": 0.010323696843550889,
+    "xgb_mcw": 14,
+    "xgb_alpha": 0.4469750944545159,
+    "xgb_lambda": 1.0408008113963632,
+    "xgb_gamma": 0.9349452345386222,
+    "xgb_subsample": 0.9508442933893493,
+    "xgb_colsample": 0.6470866673657888,
+    "xgb_colsample_bylevel": 0.8764488559768624,
+    "rf_n_estimators": 300,
+    "rf_max_depth": 5,
+    "rf_min_split": 14,
+    "rf_min_leaf": 10,
+    "rf_max_features": 0.8214909714147947,
+    "w_xgb": 0.7323731663517568,
+    "clip_q": 0.9814591475121224,
+    "clip_max": 60.0
+  },
+  "elapsed_seconds": 13184.575549602509
+}

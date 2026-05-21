@@ -1,0 +1,28 @@
+{
+  "site": "Copalis",
+  "best_value_r2": 0.7756482115219743,
+  "best_mae": 3.9220415404319744,
+  "n_test_points": 30,
+  "n_trials_completed": 58,
+  "best_params": {
+    "xgb_max_depth": 2,
+    "xgb_n_estimators": 250,
+    "xgb_lr": 0.021760202928000662,
+    "xgb_mcw": 13,
+    "xgb_alpha": 0.2839449231835498,
+    "xgb_lambda": 2.5790767116872098,
+    "xgb_gamma": 0.4275573570763567,
+    "xgb_subsample": 0.5361526656671791,
+    "xgb_colsample": 0.5053120701961294,
+    "xgb_colsample_bylevel": 0.9869618111006299,
+    "rf_n_estimators": 300,
+    "rf_max_depth": 5,
+    "rf_min_split": 11,
+    "rf_min_leaf": 6,
+    "rf_max_features": 0.3264500452886237,
+    "w_xgb": 0.4726868406531528,
+    "clip_q": 0.9619517852748499,
+    "clip_max": 60.0
+  },
+  "elapsed_seconds": 13465.077190160751
+}

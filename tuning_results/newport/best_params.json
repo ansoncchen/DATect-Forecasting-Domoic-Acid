@@ -1,0 +1,28 @@
+{
+  "site": "Newport",
+  "best_value_r2": -0.09250650263047722,
+  "best_mae": 6.3862472087173,
+  "n_test_points": 31,
+  "n_trials_completed": 30,
+  "best_params": {
+    "xgb_max_depth": 4,
+    "xgb_n_estimators": 50,
+    "xgb_lr": 0.03599668880714148,
+    "xgb_mcw": 8,
+    "xgb_alpha": 0.33540255123139606,
+    "xgb_lambda": 5.793233678848152,
+    "xgb_gamma": 1.7700234155945482,
+    "xgb_subsample": 0.5501196261654685,
+    "xgb_colsample": 0.5219445786989944,
+    "xgb_colsample_bylevel": 0.6313079356644735,
+    "rf_n_estimators": 200,
+    "rf_max_depth": 8,
+    "rf_min_split": 14,
+    "rf_min_leaf": 6,
+    "rf_max_features": 0.7940824292048946,
+    "w_xgb": 0.9984966875494206,
+    "clip_q": 0.9109696572934934,
+    "clip_max": 80.0
+  },
+  "elapsed_seconds": 14072.550461292267
+}

@@ -1286,9 +1286,9 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Site filtering controls - Simple dropdown that filters existing results */}
+        {/* Site filtering controls + per-site quality badges + coverage warning */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <label className="text-sm font-medium text-gray-700">
               <MapPin className="w-4 h-4 inline mr-1" />
               Filter by Site:
@@ -1299,14 +1299,66 @@ const Dashboard = () => {
               className="px-3 py-2 border border-gray-300 rounded-md text-sm"
             >
               <option value="all">All Sites</option>
-              {sites.map(site => (
-                <option key={site} value={site}>{site}</option>
-              ))}
+              {sites.map(site => {
+                // Quality tier from 5-seed bootstrap (committed in
+                // multi_seed_results). Hardcoded summary so the dropdown doesn't
+                // need to wait on an API call. Tiers based on holdout R² CI.
+                const qualityTier = {
+                  'Coos Bay':       '🟢',   // R² 0.70 [0.56, 0.82]
+                  'Quinault':       '🟢',
+                  'Long Beach':     '🟢',
+                  'Twin Harbors':   '🟢',
+                  'Copalis':        '🟢',
+                  'Clatsop Beach':  '🟢',
+                  'Kalaloch':       '🟢',   // R² 0.42 — borderline but robust enough
+                  'Newport':        '🔴',   // R² -1.06 [-4.40, +0.38] — broken
+                  'Gold Beach':     '🔴',   // R² -2.14 [-8.46, -0.08] — broken
+                  'Cannon Beach':   '⚪',   // No spike events in holdout window
+                }[site] || ''
+                return (
+                  <option key={site} value={site}>
+                    {qualityTier} {site}
+                  </option>
+                )
+              })}
             </select>
             <span className="text-sm text-gray-600">
               Showing {filteredResults?.results?.length || 0} forecasts
             </span>
+            <span className="text-xs text-gray-500 italic">
+              🟢 robust · 🔴 unreliable · ⚪ insufficient holdout data
+            </span>
           </div>
+
+          {/* Data-coverage warning banner — appears when filtered site has few recent samples */}
+          {(() => {
+            if (selectedSiteFilter === 'all' || !filteredResults?.results?.length) return null
+            const recent = filteredResults.results.filter(r => new Date(r.date) >= new Date('2022-01-01'))
+            const recentSpikes = recent.filter(r => r.actual_da >= 20).length
+            if (recent.length < 10) {
+              return (
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                  <AlertTriangle className="w-4 h-4 inline mr-1.5 text-amber-600" />
+                  <strong>Limited 2022-2024 holdout data for {selectedSiteFilter}:</strong>{' '}
+                  only {recent.length} test points, {recentSpikes} spike events.
+                  {recent.length === 0
+                    ? ' This evaluation samples no recent data — metrics reflect historical periods only.'
+                    : ' Small holdout makes single-seed metrics unreliable; treat per-site numbers as indicative, not authoritative.'}
+                </div>
+              )
+            }
+            if (recentSpikes === 0 && recent.length >= 10) {
+              return (
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                  <AlertTriangle className="w-4 h-4 inline mr-1.5 text-amber-600" />
+                  <strong>{selectedSiteFilter}: no spike events in 2022-2024 holdout</strong> (across {recent.length} samples).
+                  Spike-detection metrics cannot be evaluated here. Site may still have historical spikes
+                  visible in the time series below.
+                </div>
+              )
+            }
+            return null
+          })()}
         </div>
 
         {/* Summary statistics */}
@@ -1470,14 +1522,111 @@ const Dashboard = () => {
                 <h4 className="font-medium mb-3">Interpretation Guide</h4>
                 <ul className="text-sm space-y-2 text-gray-700">
                   <li>• Points closer to the diagonal line indicate better predictions</li>
-                  <li>• Scattered points suggest higher prediction uncertainty</li>
-                  <li>• Color represents different monitoring sites</li>
-                  <li>• R² closer to 1.0 indicates better model performance</li>
+                  <li>• Color represents time window (gray=pre-2019 training context, amber=2019-22 validation, green=2022-24 untouched holdout)</li>
+                  <li>• Red dotted vertical = spike threshold (actual &gt;20 µg/g)</li>
+                  <li>• Orange dotted horizontal = alert threshold (predicted &gt;12 µg/g)</li>
+                  <li>• Quadrants: top-right = caught spikes, bottom-right = MISSED spikes, top-left = false alarms</li>
                 </ul>
               </div>
             </div>
           </div>
         )}
+
+        {/* Per-site small-multiples scatter — only when viewing All Sites */}
+        {config.forecast_task === 'regression' && selectedSiteFilter === 'all' && filteredResults?.results?.length > 0 && (() => {
+          // Build per-site mini-data
+          const bySite = {}
+          filteredResults.results.forEach(r => {
+            if (r.actual_da == null || r.predicted_da == null) return
+            if (!bySite[r.site]) bySite[r.site] = []
+            bySite[r.site].push(r)
+          })
+          // Sort by N descending so dense sites appear first
+          const orderedSites = Object.keys(bySite).sort((a, b) => bySite[b].length - bySite[a].length)
+          if (orderedSites.length === 0) return null
+
+          // Compute per-site R² so we can show it in each subtitle
+          const r2 = (data) => {
+            if (data.length < 3) return null
+            const a = data.map(d => d.actual_da)
+            const p = data.map(d => d.predicted_da)
+            const aBar = a.reduce((s, v) => s + v, 0) / a.length
+            const ssRes = a.reduce((s, v, i) => s + (v - p[i]) ** 2, 0)
+            const ssTot = a.reduce((s, v) => s + (v - aBar) ** 2, 0)
+            return ssTot > 0 ? 1 - ssRes / ssTot : null
+          }
+          const tierColor = (r) => r == null ? '#94a3b8' : r > 0.4 ? '#10b981' : r > 0 ? '#fbbf24' : '#ef4444'
+
+          // Window-color logic shared with main scatter
+          const windowColor = (date) => {
+            const d = new Date(date)
+            if (d < new Date('2019-01-01')) return '#94a3b8'
+            if (d < new Date('2022-01-01')) return '#fbbf24'
+            return '#10b981'
+          }
+
+          return (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold mb-2">Per-Site Performance (small multiples)</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Each beach gets its own scatter so you can see per-site performance instead of one pooled chart.
+                Color = time window. Diagonal = perfect prediction. Subtitle shows in-sample R².
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                {orderedSites.map(site => {
+                  const data = bySite[site]
+                  const siteR2 = r2(data)
+                  const r2Text = siteR2 == null ? 'N/A (too few)' : `R² = ${siteR2.toFixed(2)}`
+                  const maxVal = Math.max(
+                    ...data.map(d => Math.max(d.actual_da, d.predicted_da)), 5
+                  )
+                  return (
+                    <div
+                      key={site}
+                      className="border rounded p-2"
+                      style={{ borderColor: tierColor(siteR2), borderWidth: '2px' }}
+                    >
+                      <Plot
+                        data={[
+                          { x: [0, maxVal], y: [0, maxVal], mode: 'lines',
+                            line: { color: '#d1d5db', width: 1, dash: 'dash' },
+                            showlegend: false, hoverinfo: 'skip' },
+                          { x: [20, 20], y: [0, maxVal], mode: 'lines',
+                            line: { color: '#ef4444', width: 0.7, dash: 'dot' },
+                            showlegend: false, hoverinfo: 'skip' },
+                          { x: [0, maxVal], y: [12, 12], mode: 'lines',
+                            line: { color: '#f59e0b', width: 0.7, dash: 'dot' },
+                            showlegend: false, hoverinfo: 'skip' },
+                          { x: data.map(d => d.actual_da),
+                            y: data.map(d => d.predicted_da),
+                            mode: 'markers', type: 'scatter',
+                            marker: {
+                              color: data.map(d => windowColor(d.date)),
+                              size: 5, opacity: 0.7,
+                            },
+                            text: data.map(d => `${d.site}<br>${d.date}`),
+                            hovertemplate: '%{text}<br>actual %{x:.1f}, pred %{y:.1f}<extra></extra>',
+                            showlegend: false,
+                          },
+                        ]}
+                        layout={{
+                          title: { text: `${site}<br><sub>N=${data.length} · ${r2Text}</sub>`, font: { size: 11 } },
+                          xaxis: { title: '', range: [0, maxVal], showticklabels: maxVal >= 10 },
+                          yaxis: { title: '', range: [0, maxVal], showticklabels: maxVal >= 10 },
+                          margin: { l: 30, r: 10, t: 35, b: 25 },
+                          height: 200,
+                          showlegend: false,
+                        }}
+                        config={{ displayModeBar: false, responsive: true }}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
       </div>
     )
   }

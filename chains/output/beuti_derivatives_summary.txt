@@ -1,0 +1,21 @@
+Chain: beuti_derivatives
+New features: 7 (['beuti_lag1w', 'beuti_lag2w', 'beuti_lag4w', 'beuti_14day_delta', 'beuti_30day_mean', 'beuti_30day_anom', 'beuti_30day_max'])
+Target sites: None
+
+Pooled (N=1202):
+  baseline R² = +0.2034, MAE = 6.616
+  +chain   R² = +0.2023, MAE = 6.614
+  Δ R²        = -0.0012
+  Δ MAE       = -0.002
+
+Per-site (sorted by Δ R² desc):
+  * Coos Bay           baseline=-0.0050  +chain=+0.0046  Δ=+0.0096  N=61
+  * Clatsop Beach      baseline=+0.2945  +chain=+0.3016  Δ=+0.0070  N=197
+  * Long Beach         baseline=+0.5235  +chain=+0.5302  Δ=+0.0067  N=119
+  * Kalaloch           baseline=+0.6271  +chain=+0.6310  Δ=+0.0039  N=128
+  * Quinault           baseline=+0.5817  +chain=+0.5834  Δ=+0.0017  N=97
+  * Twin Harbors       baseline=+0.5606  +chain=+0.5610  Δ=+0.0004  N=127
+  * Cannon Beach       baseline=-0.0705  +chain=-0.0705  Δ=-0.0000  N=58
+  * Copalis            baseline=+0.7646  +chain=+0.7629  Δ=-0.0018  N=154
+  * Gold Beach         baseline=+0.0681  +chain=+0.0635  Δ=-0.0046  N=137
+  * Newport            baseline=-0.0499  +chain=-0.0644  Δ=-0.0145  N=124

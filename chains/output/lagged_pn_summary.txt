@@ -1,0 +1,21 @@
+Chain: lagged_pn
+New features: 7 (['pn_log', 'pn_log_lag1w', 'pn_log_lag2w', 'pn_log_lag4w', 'pn_log_30day_mean', 'pn_log_30day_max', 'weeks_since_pn_spike'])
+Target sites: ['Twin Harbors', 'Long Beach', 'Quinault', 'Copalis', 'Kalaloch']
+
+Pooled (N=1202):
+  baseline R² = +0.2040, MAE = 6.615
+  +chain   R² = +0.2044, MAE = 6.608
+  Δ R²        = +0.0003
+  Δ MAE       = -0.006
+
+Per-site (sorted by Δ R² desc):
+  * Long Beach         baseline=+0.5235  +chain=+0.5301  Δ=+0.0065  N=119
+  * Twin Harbors       baseline=+0.5606  +chain=+0.5623  Δ=+0.0017  N=127
+  * Quinault           baseline=+0.5817  +chain=+0.5829  Δ=+0.0012  N=97
+    Clatsop Beach      baseline=+0.3006  +chain=+0.3013  Δ=+0.0007  N=197
+    Cannon Beach       baseline=-0.0705  +chain=-0.0705  Δ=+0.0000  N=58
+    Coos Bay           baseline=-0.0050  +chain=-0.0050  Δ=+0.0000  N=61
+    Gold Beach         baseline=+0.0681  +chain=+0.0681  Δ=+0.0000  N=137
+    Newport            baseline=-0.0499  +chain=-0.0499  Δ=+0.0000  N=124
+  * Copalis            baseline=+0.7646  +chain=+0.7639  Δ=-0.0007  N=154
+  * Kalaloch           baseline=+0.6278  +chain=+0.6233  Δ=-0.0045  N=128

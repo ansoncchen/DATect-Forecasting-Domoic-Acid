@@ -1282,11 +1282,21 @@ const Dashboard = () => {
                 <div className="text-sm text-gray-600">MAE (μg/g)</div>
               </div>
             )}
-            {config.forecast_task === 'regression' && filteredResults?.summary?.f1_score !== undefined && (
+            {config.forecast_task === 'regression' && filteredResults?.summary?.spike_recall !== undefined && (
               <div className="bg-orange-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-orange-600">{filteredResults.summary.f1_score.toFixed(3)}</div>
-                <div className="text-sm text-gray-600">F1 Score</div>
-                <div className="text-xs text-gray-500 mt-1">Spike Detection (&gt;20 μg/g)</div>
+                <div className="text-2xl font-bold text-orange-600">
+                  {(filteredResults.summary.spike_recall * 100).toFixed(0)}%
+                </div>
+                <div className="text-sm text-gray-600">Spike Recall</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {filteredResults.summary.n_spike_events ?? '?'} spike events,
+                  {' '}precision {((filteredResults.summary.spike_precision ?? 0) * 100).toFixed(0)}%,
+                  {' '}F2 {(filteredResults.summary.spike_f2 ?? 0).toFixed(2)}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  Regression-only: predicted &gt;{filteredResults.summary.spike_threshold_predicted ?? 12} →
+                  actual &gt;{filteredResults.summary.spike_threshold_actual ?? 20} µg/g
+                </div>
               </div>
             )}
             {config.forecast_task === 'regression' && (() => {
@@ -1302,9 +1312,12 @@ const Dashboard = () => {
                   <div className={`text-2xl font-bold ${alertCount > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                     {recall != null ? `${recall.toFixed(0)}%` : 'N/A'}
                   </div>
-                  <div className="text-sm text-gray-600">Spike Recall</div>
+                  <div className="text-sm text-gray-600">Hybrid Alert Recall</div>
                   <div className="text-xs text-gray-500 mt-1">
                     {truePositives} of {actualSpikes} spikes caught · {alertCount} alerts raised
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Uses combined classifier probability + regression threshold
                   </div>
                 </div>
               )

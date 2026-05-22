@@ -134,12 +134,18 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 
 ## Success Metrics
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Ensemble R² | 0.215 (independent test, seed=123) / 0.414 (dev, seed=42) / 0.315 (temporal holdout, 2019+) | Maximize |
-| Ensemble MAE | 6.42 µg/g | Minimize |
-| Spike recall | 0.558 ensemble / 0.859 hybrid alert | Maximize recall |
-| Transition recall | 0.734 hybrid alert / 0.236 naïve persistence | Maximize recall |
+Reported R² is seed-sensitive (~±0.13 across seeds at single-seed pooled). Quote multi-seed bootstrap CIs in papers, not single values. The 2022-2024 temporal holdout (untouched by any tuning/feature selection per `oad-integration` branch §18) is the cleanest unbiased number.
+
+| Metric | Window | Value | N | Notes |
+|--------|--------|-------|---|-------|
+| Ensemble R² | **2022-2024 holdout** | **0.492** | 164 | New headline, post-OAD branch; was 0.315 in older 2019+ temporal holdout |
+| Ensemble R² | 2019-2022 validation | 0.346 | 216 | Used by Optuna tuning as objective |
+| Ensemble R² | random-anchor pooled (seed 123) | 0.173 | 1202 | Single-seed; varies 0.21-0.49 across seeds — don't lead with this |
+| Ensemble MAE | 2022-2024 holdout | 5.33 µg/g | 164 | More stable across seeds than R² |
+| Spike F2 (recall-weighted) | 2019-2022 validation | 0.732 | 32 spikes | From tuned classifier; recall 0.91, precision 0.41 |
+| Spike recall (regression-only) | 2022-2024 holdout | — | — | Computed in webapp at `recall_score(actual>20, predicted>12)` |
+| Hybrid alert recall | rolling | 0.859 | — | Classifier probability + regression threshold; per-row `spike_alert` |
+| Transition recall | rolling | 0.734 hybrid / 0.236 naive | — | Catches DA crossing the 20 µg/g threshold from below |
 
 ## No Data Leakage Guarantees
 

@@ -199,29 +199,47 @@ const Dashboard = () => {
       sum + Math.abs(val - predictions[i]), 0
     ) / actuals.length
     
-    // F1 score for spike detection
-    const actualSpikes = actuals.map(val => val > 20 ? 1 : 0)
-    const predictedSpikes = predictions.map(val => val > 20 ? 1 : 0)
-    
-    const truePositives = actualSpikes.reduce((sum, actual, i) => 
+    // Spike detection metrics — match backend thresholds:
+    //   actual > 20 µg/g (SPIKE_THRESHOLD)
+    //   predicted > 12 µg/g (SPIKE_REGRESSION_ALERT_THRESHOLD)
+    const SPIKE_ACTUAL = 20
+    const SPIKE_PREDICTED = 12
+    const actualSpikes = actuals.map(val => val > SPIKE_ACTUAL ? 1 : 0)
+    const predictedSpikes = predictions.map(val => val > SPIKE_PREDICTED ? 1 : 0)
+
+    const truePositives = actualSpikes.reduce((sum, actual, i) =>
       sum + (actual === 1 && predictedSpikes[i] === 1 ? 1 : 0), 0
     )
-    const falsePositives = actualSpikes.reduce((sum, actual, i) => 
+    const falsePositives = actualSpikes.reduce((sum, actual, i) =>
       sum + (actual === 0 && predictedSpikes[i] === 1 ? 1 : 0), 0
     )
-    const falseNegatives = actualSpikes.reduce((sum, actual, i) => 
+    const falseNegatives = actualSpikes.reduce((sum, actual, i) =>
       sum + (actual === 1 && predictedSpikes[i] === 0 ? 1 : 0), 0
     )
-    
+
+    const nSpikeEvents = actualSpikes.reduce((a, b) => a + b, 0)
+    const nAlerts = predictedSpikes.reduce((a, b) => a + b, 0)
     const precision = truePositives + falsePositives > 0 ? truePositives / (truePositives + falsePositives) : 0
     const recall = truePositives + falseNegatives > 0 ? truePositives / (truePositives + falseNegatives) : 0
     const f1Score = precision + recall > 0 ? 2 * (precision * recall) / (precision + recall) : 0
-    
+    // F2 weights recall 4x precision (matches backend fbeta_score(beta=2.0))
+    const f2Score = precision + recall > 0
+      ? (5 * precision * recall) / (4 * precision + recall)
+      : 0
+
     return {
       regression_forecasts: validRegression.length,
       r2_score: r2,
       mae,
-      f1_score: f1Score
+      f1_score: f1Score,
+      // New per-filter spike metrics (override pooled server values)
+      spike_recall: recall,
+      spike_precision: precision,
+      spike_f2: f2Score,
+      n_spike_events: nSpikeEvents,
+      n_alerts_fired: nAlerts,
+      spike_threshold_actual: SPIKE_ACTUAL,
+      spike_threshold_predicted: SPIKE_PREDICTED,
     }
   }
 

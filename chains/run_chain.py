@@ -47,7 +47,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.eval.paper_ablation_study import SUBPROCESS_SCRIPT
 from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
 
-CHAINS = ["lagged_pn", "beuti_derivatives", "nemo_mooring", "esp_offshore_pda"]
+CHAINS = ["lagged_pn", "beuti_derivatives", "nemo_mooring", "esp_offshore_pda", "ndbc_wind"]
 
 
 def run_eval(env_overrides: dict, timeout: int = 5400) -> dict:
@@ -101,6 +101,7 @@ def run_one_chain(name: str, out_dir: Path):
                                     else f"chains.c2_beuti_derivatives" if name == "beuti_derivatives"
                                     else f"chains.c3_nemo_mooring" if name == "nemo_mooring"
                                     else f"chains.c4_esp_offshore_pda" if name == "esp_offshore_pda"
+                                    else f"chains.c6_ndbc_wind" if name == "ndbc_wind"
                                     else None)
     if chain is None:
         print(f"  unknown chain: {name}")

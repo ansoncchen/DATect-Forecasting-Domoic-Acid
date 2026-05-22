@@ -70,28 +70,29 @@ def run_eval(env_overrides: dict, timeout: int = 5400) -> dict:
     return {"error": "no_json"}
 
 
-def patch_per_site_models_for_chain(chain_module, target_sites: list[str] | None):
-    """Temporarily extend feature_subset for target sites with the chain's new features.
-    Returns a list of (site, original_subset) for restore.
+def build_hparam_override_for_chain(chain_module, target_sites: list[str] | None,
+                                    out_path: Path) -> Path:
+    """Write a JSON that DATECT_HPARAM_OVERRIDE_JSON will pick up in subprocesses.
+    Extends feature_subset for target sites with the chain's new features.
+
+    CRITICAL: the previous in-memory patch was useless because the subprocess
+    re-imports per_site_models fresh and never saw the mutation. This writes
+    a sidecar JSON that the per_site_models env hook reads at import time.
     """
     new_features = chain_module.NEW_FEATURES
     sites = target_sites if target_sites is not None else list(SITE_SPECIFIC_CONFIGS.keys())
-    original = []
+    overrides = {}
     for site in sites:
         cfg = SITE_SPECIFIC_CONFIGS.get(site)
         if cfg is None:
             continue
         fs = cfg.get("feature_subset")
-        original.append((site, fs))
-        if fs is not None:
-            cfg["feature_subset"] = list(fs) + new_features
-        # if fs is None ("use all features") the new columns are already included
-    return original
-
-
-def restore_per_site_models(original):
-    for site, fs in original:
-        SITE_SPECIFIC_CONFIGS[site]["feature_subset"] = fs
+        if fs is None:
+            # subset=None means "use all"; new columns auto-included, no override needed
+            continue
+        overrides[site] = {"feature_subset": list(fs) + new_features}
+    out_path.write_text(json.dumps(overrides, indent=2))
+    return out_path
 
 
 def run_one_chain(name: str, out_dir: Path):
@@ -127,11 +128,14 @@ def run_one_chain(name: str, out_dir: Path):
     df_aug.to_parquet(base_parquet, index=False)
     df_aug.to_parquet(aug_parquet, index=False)
 
-    try:
-        # Patch per_site_models in-memory
-        original = patch_per_site_models_for_chain(chain, chain.TARGET_SITES)
+    # Write per-site feature_subset override JSON (read by subprocess via env hook).
+    # This is what makes the +chain run actually USE the new features.
+    override_path = out_dir / f"{name}_hparam_override.json"
+    build_hparam_override_for_chain(chain, chain.TARGET_SITES, override_path)
+    print(f"  Wrote hparam override JSON: {override_path}", flush=True)
 
-        # Run baseline: drop new features
+    try:
+        # Run baseline: drop new features (effectively means subprocess doesn't see them)
         drop_csv = ",".join(chain.NEW_FEATURES)
         print(f"\n  --- BASELINE (drop {len(chain.NEW_FEATURES)} new features) ---", flush=True)
         baseline = run_eval({"DATECT_EXTRA_DROP_FEATURES": drop_csv})
@@ -139,9 +143,9 @@ def run_one_chain(name: str, out_dir: Path):
         if "overall" in baseline:
             print(f"  baseline R²={baseline['overall']['r2']:.4f} MAE={baseline['overall']['mae']:.2f}", flush=True)
 
-        # Run +chain: keep new features
+        # Run +chain: keep new features AND apply the per_site_models patch
         print(f"\n  --- WITH +{name} features ---", flush=True)
-        with_chain = run_eval({})  # nothing dropped
+        with_chain = run_eval({"DATECT_HPARAM_OVERRIDE_JSON": str(override_path.resolve())})
         (out_dir / f"{name}_with.json").write_text(json.dumps(with_chain, indent=2))
         if "overall" in with_chain:
             print(f"  +chain  R²={with_chain['overall']['r2']:.4f} MAE={with_chain['overall']['mae']:.2f}", flush=True)
@@ -175,9 +179,8 @@ def run_one_chain(name: str, out_dir: Path):
             (out_dir / f"{name}_summary.txt").write_text("\n".join(summary))
             print("\n" + "\n".join(summary))
     finally:
-        # Restore original parquet and per_site_models
+        # Restore original parquet (per_site_models is no longer in-memory-patched)
         shutil.copy(backup, base_parquet)
-        restore_per_site_models(original)
         print(f"\n  Restored original {base_parquet}", flush=True)
 
 

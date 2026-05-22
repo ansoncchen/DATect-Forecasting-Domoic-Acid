@@ -2,7 +2,9 @@
 #SBATCH --job-name=oad-chain
 #SBATCH --partition=ckpt
 #SBATCH --account=stf-ckpt
-#SBATCH --array=0-3
+#SBATCH --array=0-3%1
+# %1 = at most 1 concurrent task. Sequential because each chain mutates the
+# shared data/processed/final_output.parquet — parallel writes corrupt it.
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12

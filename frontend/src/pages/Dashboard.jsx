@@ -595,13 +595,25 @@ const Dashboard = () => {
       const maxVal = Math.max(...allValues)
       const range = [Math.max(0, minVal - 0.1), maxVal + 0.1]
 
-      // Group data by site for different colors
-      const siteGroups = {}
+      // Group by TIME WINDOW (not site) so users see which dots are the
+      // unbiased 2022-2024 holdout vs training-period predictions.
+      // Site stays in hover text.
+      const windowOf = (dateStr) => {
+        const d = new Date(dateStr)
+        if (d < new Date('2019-01-01')) return 'pre-2019 (training context)'
+        if (d < new Date('2022-01-01')) return 'val 2019-2022 (tuning)'
+        return 'holdout 2022-2024 (untouched)'
+      }
+      const windowColor = {
+        'pre-2019 (training context)':  '#94a3b8',  // gray
+        'val 2019-2022 (tuning)':       '#fbbf24',  // amber
+        'holdout 2022-2024 (untouched)':'#10b981',  // green
+      }
+      const windowGroups = {}
       validData.forEach(d => {
-        if (!siteGroups[d.site]) {
-          siteGroups[d.site] = []
-        }
-        siteGroups[d.site].push(d)
+        const w = windowOf(d.date)
+        if (!windowGroups[w]) windowGroups[w] = []
+        windowGroups[w].push(d)
       })
 
       const traces = []
@@ -615,19 +627,36 @@ const Dashboard = () => {
         name: 'Perfect Prediction',
         hovertemplate: 'Perfect prediction line<extra></extra>'
       })
+      // Add regulatory + alert threshold lines (operational reference)
+      traces.push({
+        x: [20, 20], y: range, mode: 'lines',
+        line: { color: '#ef4444', width: 1, dash: 'dot' },
+        name: 'Spike threshold (actual >20)',
+        hoverinfo: 'skip'
+      })
+      traces.push({
+        x: range, y: [12, 12], mode: 'lines',
+        line: { color: '#f59e0b', width: 1, dash: 'dot' },
+        name: 'Alert threshold (predicted >12)',
+        hoverinfo: 'skip'
+      })
 
-      // Add scatter points for each site
-      Object.entries(siteGroups).forEach(([site, data], index) => {
+      // Add scatter points colored by time window (preserves site in hover)
+      const orderedWindows = ['pre-2019 (training context)', 'val 2019-2022 (tuning)', 'holdout 2022-2024 (untouched)']
+      orderedWindows.forEach(window => {
+        const data = windowGroups[window]
+        if (!data || data.length === 0) return
         traces.push({
           x: data.map(d => d.actual_da),
           y: data.map(d => d.predicted_da),
           mode: 'markers',
           type: 'scatter',
-          name: site,
-          marker: { 
-            color: getSiteColor(index),
+          name: `${window} (n=${data.length})`,
+          marker: {
+            color: windowColor[window],
             size: 8,
-            opacity: 0.7
+            opacity: window.startsWith('holdout') ? 0.85 : 0.45,
+            line: window.startsWith('holdout') ? { color: '#047857', width: 1 } : undefined,
           },
           text: data.map(d => `${d.site}<br>${d.date}`),
           hovertemplate: '%{text}<br>Actual: %{x:.2f} μg/g<br>Predicted: %{y:.2f} μg/g<extra></extra>'

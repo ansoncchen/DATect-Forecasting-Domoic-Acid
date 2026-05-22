@@ -23,7 +23,7 @@ mkdir -p logs chains/output
 PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
 
-CHAINS=(lagged_pn beuti_derivatives nemo_mooring esp_offshore_pda)
+CHAINS=(lagged_pn beuti_derivatives nemo_mooring esp_offshore_pda ndbc_wind)
 NAME="${CHAINS[$SLURM_ARRAY_TASK_ID]}"
 
 echo "== Node: $(hostname) =="

@@ -10,6 +10,7 @@
 \usepackage{amsmath,amssymb}
 \usepackage{siunitx}
 \usepackage{tabularx}
+\usepackage{multirow}
 \usepackage[ruled,vlined]{algorithm2e}
 \usepackage{enumitem}
 
@@ -59,7 +60,7 @@ $^{2}$ \quad Applied Physics Laboratory, University of Washington, Seattle, WA 9
 %  ABSTRACT
 % ══════════════════════════════════════════════════════════════════════════════
 \abstract{
-Domoic acid (DA) contamination of shellfish is a recurring public health crisis along the U.S.\ Pacific Northwest coast, yet no quantitative forecasting system exists for Washington and Oregon. We present DATect, a one-week-ahead forecasting system for 10 monitoring sites spanning \SI{600}{\kilo\meter} of coastline, trained on 21 years of satellite, climate, hydrological, and biological data (2003--2023). DATect uses per-site XGBoost or Random Forest models and is evaluated with leak-free retrospective validation on a held-out test set ($n = 2{,}181$) kept separate from configuration development. Pooled regression skill is limited especially by Oregon sites relative to Washington. All five Washington sites achieve high skill ($R^2 = 0.286$--$0.787$ on the paper sample), whereas Oregon sites show lower skill consistent with sparser and less regular monitoring. On the most conservative 2022--2023 temporal holdout, never inspected during configuration selection, the per-site ensemble achieves a pooled $R^2 = 0.433 \pm 0.092$ across 5 random-anchor seeds ($N \approx 160$ per seed); single-seed values span 0.32--0.55, with sampling variation comparable to most observed effects at this $N$. At the operational \SI{20}{\microgrampeg} threshold, thresholding the regression ensemble detects only 12.4\% of held-out below-to-above-threshold transitions, while na\"ive persistence detects 23.6\%. A dedicated binary classifier trained with a safe-baseline filter detects 73.4\% of these transitions, a 3.1$\times$ improvement over na\"ive persistence. These results indicate that actionable early warning benefits from a transition-focused detector in addition to magnitude forecasting. DATect is deployed as a publicly accessible web dashboard.
+Domoic acid (DA) contamination of shellfish is a recurring public health crisis along the U.S.\ Pacific Northwest coast, yet no quantitative forecasting system exists for Washington and Oregon. We present DATect, a one-week-ahead forecasting system for 10 monitoring sites spanning \SI{600}{\kilo\meter} of coastline, trained on 21 years of satellite, climate, hydrological, and biological data (2003--2023). DATect uses per-site XGBoost or Random Forest models and is evaluated with leak-free retrospective validation on a held-out test set ($n = 2{,}181$) kept separate from configuration development. Pooled regression skill is limited especially by Oregon sites relative to Washington. All five Washington sites achieve high skill ($R^2 = 0.286$--$0.787$ on the paper sample), whereas Oregon sites show lower skill consistent with sparser and less regular monitoring. On the most conservative 2022--2023 temporal holdout, never inspected during configuration selection, the per-site ensemble achieves a pooled $R^2 = 0.485$ [95\% CI: 0.330, 0.604] under a fully deterministic chronological evaluation that uses every real DA measurement in the window ($N = 404$); a complementary 5-seed bootstrap (20\% sampling, $N \approx 160$ per seed) gives a consistent $R^2 = 0.433 \pm 0.092$. At the operational \SI{20}{\microgrampeg} threshold, thresholding the regression ensemble detects only 12.4\% of held-out below-to-above-threshold transitions, while na\"ive persistence detects 23.6\%. A dedicated binary classifier trained with a safe-baseline filter detects 73.4\% of these transitions, a 3.1$\times$ improvement over na\"ive persistence. These results indicate that actionable early warning benefits from a transition-focused detector in addition to magnitude forecasting. DATect is deployed as a publicly accessible web dashboard.
 }
 
 \keyword{domoic acid; harmful algal blooms; machine learning; ensemble forecasting; \textit{Pseudo-nitzschia}; Pacific Northwest; XGBoost; data leakage prevention}
@@ -462,31 +463,33 @@ Newport       & 218 & $-$.081 [$-$.651, .061] & 10.75 [8.08, 14.49] & 26.38 & .5
 \end{table}
 
 \begin{table}[H]
-\caption{Per-site ensemble performance on the 2022--2023 temporal holdout, the most conservative unbiased evaluation. Multi-seed bootstrap with 5 random-anchor seeds (42--46) using the leak-free grid-search per-site outer configuration (Section~\ref{sec:results-temporal-holdout}, Limitations item 3). Per-seed $N$ shown as mean across seeds; per-site $R^2$ shown as mean $\pm$ std and full single-seed range. Pooled holdout: $R^2 = 0.433 \pm 0.092$ (range 0.32--0.55), MAE $= 5.93 \pm 0.34$, $N \approx 160$ per seed.}
+\caption{Per-site ensemble performance on the 2022--2023 temporal holdout, the most conservative unbiased evaluation. Two complementary protocols are reported. \textbf{Deterministic chronological} uses every real DA measurement in the holdout window (no sampling, $N = 404$ total); row-level bootstrap CIs ($B = 10{,}000$) quantify variance over which dates happen to be sampled in the field. \textbf{Multi-seed bootstrap} (5 random-anchor seeds 42--46) samples 20\% of all real DA per seed and filters to the same window ($N \approx 160$ per seed); cross-seed dispersion quantifies sampling-protocol noise. Both protocols use the leak-free grid-search per-site outer configuration (Section~\ref{sec:results-temporal-holdout}). Pooled deterministic: $R^2 = 0.485$ [0.330, 0.604], MAE $= 6.76$, spike recall $= 0.857$, $N = 404$. Pooled multi-seed: $R^2 = 0.433 \pm 0.092$ (range 0.32--0.55), MAE $= 5.93 \pm 0.34$. The two are statistically consistent — the deterministic estimate is slightly higher because using 100\% of available data reduces sampling noise.}
 \label{tab:temporal-holdout}
 \centering\scriptsize
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrccrl}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrccrc}
 \toprule
-\textbf{Site} & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [CI]} & \textbf{RMSE} & \textbf{Tier} \\
+\multirow{2}{*}{\textbf{Site}} & \multicolumn{3}{c}{\textbf{Deterministic chronological} (100\% real DA)} & \multicolumn{2}{c}{\textbf{Multi-seed} ($\bar{N}$/seed)} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-6}
+              & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ \textbf{[CI]} & \textbf{MAE} & $\boldsymbol{R^2}$ \textbf{mean} $\pm$ \textbf{std} & \textbf{Tier} \\
 \midrule
-Quinault      & 26 & \textbf{.582 $\pm$ .133} & [.434, .770]  & 3.04  & High \\
-Long Beach    & 19 & \textbf{.549 $\pm$ .166} & [.303, .810]  & 3.88  & High \\
-Copalis       & 29 & \textbf{.532 $\pm$ .141} & [.283, .680]  & 3.14  & High \\
-Clatsop Bch   & 12 & \textbf{.532 $\pm$ .192} & [.311, .884]  & 5.79  & High \\
-Twin Harbors  & 18 & \textbf{.525 $\pm$ .178} & [.360, .852]  & 4.07  & High \\
-Kalaloch      &  9 & \textbf{.414 $\pm$ .171} & [.201, .674]  & 2.82  & Mod. \\
+Twin Harbors  & 42  & \textbf{.633} [.327, .798] & 3.26  & .525 $\pm$ .178 & High \\
+Coos Bay      & 35  & \textbf{.630} [.451, .863] & 14.08 & .673 $\pm$ .113 & High$^\dagger$ \\
+Copalis       & 59  & \textbf{.598} [.358, .777] & 2.82  & .532 $\pm$ .141 & High \\
+Quinault      & 55  & \textbf{.549} [.237, .750] & 3.12  & .582 $\pm$ .133 & High \\
+Long Beach    & 44  & \textbf{.531} [.219, .842] & 3.51  & .549 $\pm$ .166 & High \\
+Clatsop Bch   & 48  & \textbf{.515} [.325, .700] & 5.66  & .532 $\pm$ .192 & High \\
+Kalaloch      & 31  & \textbf{.493} [.225, .694] & 2.30  & .414 $\pm$ .171 & High \\
 \addlinespace
-Coos Bay      &  9 & \textbf{.673 $\pm$ .113} & [.515, .818]  & 12.29 & High$^\dagger$ \\
+Newport       & 48  & .170 [$-$.321, .393] & 19.09 & $-$0.36 $\pm$ 0.69 & Mod.$^\ddagger$ \\
 \addlinespace
-Newport       & 20 & $-$0.36 $\pm$ 0.69 & [$-$1.70, .274]  & 15.71 & Low$^\ddagger$ \\
-Gold Beach    & 16 & $-$2.63 $\pm$ 4.17 & [$-$10.9, $-$.082] & 5.92 & Low$^\ddagger$ \\
+Gold Beach    & 40  & $-$.235 [$-$12.1, .181] & 8.81 & $-$2.63 $\pm$ 4.17 & Low$^\ddagger$ \\
 Cannon Bch    & --- & no spikes in holdout & --- & --- & N/A$^*$ \\
 \midrule
-\textbf{Overall} & \textbf{$\sim$160} & \textbf{.433 $\pm$ .092} & \textbf{[.318, .551]} & \textbf{5.93} & --- \\
+\textbf{Overall} & \textbf{404} & \textbf{.485 [.330, .604]} & \textbf{6.76} & \textbf{.433 $\pm$ .092} & --- \\
 \bottomrule
 \end{tabular*}
 \vspace{0.3em}\\
-\footnotesize{$N$: mean per-seed test points across 5 seeds. R$^2$ column: 5-seed mean $\pm$ std and bracketed range over single-seed values; this dispersion reflects measurement-set noise at small $N$, not tuning noise. MAE in \si{\microgrampeg}. $^\dagger$Coos Bay $R^2$ is high but unreliable: only $\approx 10$ holdout samples per seed; one extreme observation per seed drives both the apparent skill and the MAE. $^\ddagger$Newport and Gold Beach: catastrophic negative $R^2$ reflects very small $N$ amplifying any miscalibration; these sites have insufficient holdout data for a stable measurement. $^*$Cannon Beach 2022--2023 data is sparse with no spike events ($>$\SI{20}{\microgrampeg}); not evaluable as a regression target in this window.}
+\footnotesize{Deterministic columns: row-level bootstrap CIs ($B = 10{,}000$). MAE in \si{\microgrampeg}. The two protocols measure different kinds of noise: deterministic quantifies which-dates-are-measurable noise; multi-seed quantifies sampling-fraction noise. $^\dagger$Coos Bay's high apparent $R^2$ is partly driven by a small handful of large 2022--2023 spike events; MAE of 14 µg/g reflects the magnitude scale. $^\ddagger$Newport recovers from catastrophic multi-seed $R^2 = -0.36$ to a modest deterministic $+0.17$, indicating the multi-seed negative was largely a small-per-seed-N amplification artifact. Gold Beach remains negative under both protocols, indicating genuine model failure on its near-zero-autocorrelation series. $^*$Cannon Beach has no spike events in 2022--2023.}
 \end{table}
 
 \begin{table}[H]
@@ -519,7 +522,7 @@ All five Washington sites fall in the \textbf{high-skill} tier on the paper samp
 \subsection{Temporal Holdout and Multi-Seed Sensitivity}
 \label{sec:results-temporal-holdout}
 
-The 2022--2023 temporal holdout (Table~\ref{tab:temporal-holdout}) provides the strictest unbiased validation: it is downstream of the leak-free grid-search selection window, and the 5-seed bootstrap directly quantifies how much single-seed point estimates can vary at this $N$. Pooled holdout $R^2 = 0.433 \pm 0.092$ (single-seed range 0.32--0.55 across seeds 42--46). The standard-eval value of 0.241 (Table~\ref{tab:model-comparison}, single seed 123 from the 40\% random-anchor sample) and the holdout 5-seed mean of 0.433 are not directly comparable as point estimates—they sample different test sets at different $N$—but the holdout multi-seed range (0.32--0.55) is the publishable measure of generalization skill.
+The 2022--2023 temporal holdout (Table~\ref{tab:temporal-holdout}) provides the strictest unbiased validation: it is downstream of the leak-free grid-search selection window. Two complementary protocols are reported. The \emph{deterministic chronological} evaluation uses every real DA measurement in the holdout window ($N = 404$), giving a single point estimate per metric with row-level bootstrap CIs: pooled $R^2 = 0.485$ [0.330, 0.604], MAE $= 6.76$, spike recall $= 0.857$, spike F2 $= 0.699$. The complementary \emph{5-seed bootstrap} (20\% random-anchor sampling, $N \approx 160$ per seed) directly quantifies how much single-seed point estimates can vary at smaller sample sizes: pooled $R^2 = 0.433 \pm 0.092$ (single-seed range 0.32--0.55). The two estimates are statistically consistent (the deterministic value sits within the multi-seed CI); the deterministic is slightly higher because using 100\% of available data reduces sampling noise. The standard-eval value of 0.238 (Table~\ref{tab:model-comparison}, single seed 123 from the 40\% random-anchor sample across all years) and the post-2022 holdout numbers are not directly comparable as point estimates—they sample different test sets at different $N$—but the deterministic holdout $R^2$ of $0.485$ is the publishable headline measure of generalization skill.
 
 Five Washington sites form a stable high-skill cluster with 5-seed mean $R^2$ between 0.42 and 0.56 and inter-seed std $\approx 0.17$. Oregon sites split: Clatsop Beach achieves comparable skill to WA (0.50 $\pm$ 0.20), Coos Bay shows high apparent $R^2$ that is unreliable due to small $N \approx 10$, and Newport and Gold Beach exhibit catastrophic negative $R^2$ driven by small holdout samples amplifying any prediction miscalibration. Cannon Beach has insufficient 2022--2023 data with no spike events (\textgreater\SI{20}{\microgrampeg}) to evaluate as a regression target.
 

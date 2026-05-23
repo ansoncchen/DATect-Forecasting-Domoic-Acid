@@ -978,6 +978,54 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
             summary["n_alerts_fired"] = n_alerts
             summary["spike_threshold_actual"] = spike_threshold
             summary["spike_threshold_predicted"] = pred_alert_threshold
+
+            # MAE stratified by whether the actual was a spike. Separates
+            # "typical-day accuracy" from "extreme-event accuracy" — pooled MAE
+            # mashes them together, but they're operationally different.
+            non_spike_pairs = [(a, p) for a, p in zip(actual_vals, pred_vals) if a <= spike_threshold]
+            spike_pairs     = [(a, p) for a, p in zip(actual_vals, pred_vals) if a >  spike_threshold]
+            if non_spike_pairs:
+                summary["mae_nonspike"] = float(
+                    mean_absolute_error([a for a, _ in non_spike_pairs],
+                                        [p for _, p in non_spike_pairs])
+                )
+                summary["n_nonspike"] = len(non_spike_pairs)
+            if spike_pairs:
+                summary["mae_spike"] = float(
+                    mean_absolute_error([a for a, _ in spike_pairs],
+                                        [p for _, p in spike_pairs])
+                )
+                summary["n_spike"] = len(spike_pairs)
+        except Exception:
+            pass
+
+        # Per-region rollup: WA vs OR. Aggregates over coastal physiography
+        # since pooling all 10 sites mixes ~0.6 R² WA with ~-0.5 R² OR.
+        try:
+            WA_SITES = {"Kalaloch","Quinault","Copalis","Twin Harbors","Long Beach","Clatsop Beach","Cannon Beach"}
+            OR_SITES = {"Newport","Coos Bay","Gold Beach"}
+            region_groups = {"WA": [], "OR": []}
+            for r in results_json:
+                if r.get("site") in WA_SITES:
+                    region_groups["WA"].append(r)
+                elif r.get("site") in OR_SITES:
+                    region_groups["OR"].append(r)
+            region_metrics = {}
+            for reg, rs in region_groups.items():
+                pairs = [(x.get("actual_da"), x.get("predicted_da")) for x in rs
+                         if x.get("actual_da") is not None and x.get("predicted_da") is not None]
+                if len(pairs) < 5:
+                    continue
+                av = [a for a, _ in pairs]; pv = [p for _, p in pairs]
+                from sklearn.metrics import r2_score as _r2, mean_absolute_error as _mae
+                region_metrics[reg] = {
+                    "r2": float(_r2(av, pv)),
+                    "mae": float(_mae(av, pv)),
+                    "n": len(pairs),
+                    "n_sites": len({x["site"] for x in rs}),
+                }
+            if region_metrics:
+                summary["per_region"] = region_metrics
         except Exception:
             pass
 

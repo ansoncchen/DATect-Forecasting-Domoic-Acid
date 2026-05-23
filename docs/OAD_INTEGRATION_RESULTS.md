@@ -605,3 +605,44 @@ Spike classifier holdout test pending. The tuned threshold is 0.227 (vs current 
 2. **Optuna can overfit even with strong regularization in the search space.** 18-dimensional search × 30 trials × 9 sites = 4860 hyperparameter combinations evaluated. With val-window N=216 pooled (and per-site N=10-32), there's plenty of room for spurious wins.
 3. **The asymmetric verdict (REAL requires BOTH windows positive) caught the failure.** A naive "improve on val → adopt" rule would have shipped these regressions.
 4. **DATect's existing per-site customization is robust.** The stability study, the Task 10 OAD null, and now this tuning result all point to the same conclusion: the model is sensitive to FEATURES that carry signal (lagged PN, sst-anom, wind dynamics — see §17, §14), not to hyperparameter perturbations of the existing feature set.
+
+
+---
+
+## 19. Feature extension chains — all null (added 2026-05-22)
+
+To stress-test whether DATect's feature set is near its ceiling, ran 5 single-purpose "chain" experiments. Each adds one focused set of upstream features and re-runs the same retrospective A/B (`chains/run_chain.py`, serialized via `--array=0-4%1` to avoid parquet race conditions).
+
+| Chain | New features | base R² | +chain R² | ΔR² | base MAE | +chain MAE |
+|---|---|---:|---:|---:|---:|---:|
+| `lagged_pn` | 3 lagged PN means | +0.2040 | +0.2044 | **+0.0003** | 6.615 | 6.608 |
+| `beuti_derivatives` | 7-/14-/30-day rolling + slope of BEUTI | +0.2034 | +0.2023 | **−0.0012** | 6.616 | 6.614 |
+| `nemo_mooring` | NeMo eddy-edge SST/chla anomalies | +0.2038 | +0.2034 | **−0.0004** | 6.612 | 6.619 |
+| `esp_offshore_pda` | ESP particulate-DA at JdF mooring | +0.2046 | +0.2045 | **−0.0002** | 6.609 | 6.604 |
+| `ndbc_wind` | NDBC 46041 v-wind + reversal counts | +0.2046 | +0.2021 | **−0.0025** | 6.609 | 6.621 |
+
+**All 5 chains are statistically null** (|ΔR²| < 0.003, within the multi-seed bootstrap noise floor of ±0.13). This is consistent with:
+- The OAD A/B (§3) which was also null at the beach DA level
+- The hyperparameter tuning failure (§18) — flat loss landscape around current config
+- The autocorrelation diagnostic — many sites are near their ρ² ceiling already
+
+The **only chain that even moved MAE in the right direction** was `lagged_pn` (−0.006 µg/g). The lagged-PN diagnostic in §17 still suggests this is the right direction for v2, just not via the specific 3-feature implementation tested here. A site-specific lagged PN treatment (with site × lag interactions) is the next thing to try.
+
+## 20. Grid search over (w_xgb × clip_q × clip_max) — not adopted
+
+After §18's full-Optuna disaster, ran a constrained 3-dim grid (`scripts/eval/grid_search_weights_clip.py`) with chronological 3-fold CV to look for safe, low-dim tuning wins. Per-site results in `grid_search_results/*_summary.json`.
+
+| Site | Winner cfg | Winner mean R² | Verdict |
+|---|---|---:|---|
+| Copalis | w_xgb=1.0, q=0.97 | +0.44 | CANDIDATE — needs holdout test |
+| Coos Bay | w_xgb=0.0, q=0.95 | +0.31 | CANDIDATE — needs holdout test |
+| Quinault | w_xgb=1.0, q=0.95 | +0.27 | NEUTRAL |
+| Clatsop Beach | w_xgb=1.0, q=0.95 | +0.04 | NEUTRAL |
+| Long Beach | w_xgb=1.0, q=0.95 | +0.02 | NEUTRAL |
+| Cannon Beach | w_xgb=0.0, q=0.95 | NaN | SKIP (N too small) |
+| Gold Beach | w_xgb=1.0, q=0.97 | −0.58 | SKIP (winner R²<0) |
+| Kalaloch | w_xgb=0.0, q=0.95 | −0.49 | SKIP |
+| Newport | w_xgb=1.0, q=0.95 | −0.67 | SKIP |
+| Twin Harbors | w_xgb=0.25, q=0.97 | −0.58 | SKIP |
+
+**Applied edits to `per_site_models.py`: NONE.** Even the two "candidates" (Copalis, Coos Bay) lack the 2022-2024 holdout verification that §18 proved is non-negotiable. Same trap, slightly smaller search space. Conclusion: ship current per-site config; revisit tuning only after a meaningful new feature changes the loss landscape.

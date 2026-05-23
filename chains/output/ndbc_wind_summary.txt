@@ -1,0 +1,21 @@
+Chain: ndbc_wind
+New features: 7 (['wind_v_7day_cum_neg', 'wind_v_14day_cum_neg', 'wind_v_30day_cum_neg', 'wind_v_14day_mean', 'wind_reversal_count_30d', 'wind_speed_30day_mean', 'wind_speed_30day_max'])
+Target sites: None
+
+Pooled (N=1202):
+  baseline R² = +0.2046, MAE = 6.609
+  +chain   R² = +0.2021, MAE = 6.621
+  Δ R²        = -0.0025
+  Δ MAE       = +0.011
+
+Per-site (sorted by Δ R² desc):
+  * Coos Bay           baseline=-0.0050  +chain=+0.0048  Δ=+0.0097  N=61
+  * Long Beach         baseline=+0.5235  +chain=+0.5297  Δ=+0.0061  N=119
+  * Twin Harbors       baseline=+0.5606  +chain=+0.5639  Δ=+0.0033  N=127
+  * Cannon Beach       baseline=-0.0705  +chain=-0.0686  Δ=+0.0018  N=58
+  * Quinault           baseline=+0.5817  +chain=+0.5828  Δ=+0.0011  N=97
+  * Kalaloch           baseline=+0.6271  +chain=+0.6275  Δ=+0.0004  N=128
+  * Copalis            baseline=+0.7646  +chain=+0.7641  Δ=-0.0006  N=154
+  * Gold Beach         baseline=+0.0681  +chain=+0.0615  Δ=-0.0066  N=137
+  * Clatsop Beach      baseline=+0.3072  +chain=+0.2971  Δ=-0.0100  N=197
+  * Newport            baseline=-0.0499  +chain=-0.0625  Δ=-0.0126  N=124

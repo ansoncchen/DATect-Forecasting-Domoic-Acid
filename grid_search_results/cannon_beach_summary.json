@@ -1,0 +1,117 @@
+{
+  "site": "Cannon Beach",
+  "n_configs_evaluated": 75,
+  "winner_config": "w_xgb=0.0|clip_q=0.95|clip_max=None",
+  "winner_stats": {
+    "fold_r2": [
+      -999.0,
+      -999.0,
+      -999.0
+    ],
+    "fold_n": [
+      0,
+      0,
+      4
+    ],
+    "mean_r2": NaN,
+    "std_r2": NaN,
+    "robust_score": NaN
+  },
+  "top_5": [
+    {
+      "config": "w_xgb=0.0|clip_q=0.95|clip_max=None",
+      "fold_r2": [
+        -999.0,
+        -999.0,
+        -999.0
+      ],
+      "fold_n": [
+        0,
+        0,
+        4
+      ],
+      "mean_r2": NaN,
+      "std_r2": NaN,
+      "robust_score": NaN
+    },
+    {
+      "config": "w_xgb=0.0|clip_q=0.95|clip_max=60.0",
+      "fold_r2": [
+        -999.0,
+        -999.0,
+        -999.0
+      ],
+      "fold_n": [
+        0,
+        0,
+        4
+      ],
+      "mean_r2": NaN,
+      "std_r2": NaN,
+      "robust_score": NaN
+    },
+    {
+      "config": "w_xgb=0.0|clip_q=0.95|clip_max=80.0",
+      "fold_r2": [
+        -999.0,
+        -999.0,
+        -999.0
+      ],
+      "fold_n": [
+        0,
+        0,
+        4
+      ],
+      "mean_r2": NaN,
+      "std_r2": NaN,
+      "robust_score": NaN
+    },
+    {
+      "config": "w_xgb=0.0|clip_q=0.95|clip_max=100.0",
+      "fold_r2": [
+        -999.0,
+        -999.0,
+        -999.0
+      ],
+      "fold_n": [
+        0,
+        0,
+        4
+      ],
+      "mean_r2": NaN,
+      "std_r2": NaN,
+      "robust_score": NaN
+    },
+    {
+      "config": "w_xgb=0.0|clip_q=0.95|clip_max=120.0",
+      "fold_r2": [
+        -999.0,
+        -999.0,
+        -999.0
+      ],
+      "fold_n": [
+        0,
+        0,
+        4
+      ],
+      "mean_r2": NaN,
+      "std_r2": NaN,
+      "robust_score": NaN
+    }
+  ],
+  "elapsed_seconds": 432.69528317451477,
+  "fold_definitions": [
+    {
+      "start": "2019-01-01",
+      "end": "2020-01-01"
+    },
+    {
+      "start": "2020-01-01",
+      "end": "2021-01-01"
+    },
+    {
+      "start": "2021-01-01",
+      "end": "2022-01-01"
+    }
+  ]
+}

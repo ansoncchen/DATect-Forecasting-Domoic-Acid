@@ -1,0 +1,21 @@
+Chain: esp_offshore_pda
+New features: 5 (['esp_pda', 'esp_pda_lag1w', 'esp_pda_lag2w', 'esp_pda_30day_max', 'esp_pda_available'])
+Target sites: ['Kalaloch', 'Quinault', 'Copalis', 'Twin Harbors', 'Long Beach', 'Clatsop Beach', 'Cannon Beach']
+
+Pooled (N=1202):
+  baseline R² = +0.2046, MAE = 6.609
+  +chain   R² = +0.2045, MAE = 6.604
+  Δ R²        = -0.0002
+  Δ MAE       = -0.006
+
+Per-site (sorted by Δ R² desc):
+  * Long Beach         baseline=+0.5235  +chain=+0.5288  Δ=+0.0053  N=119
+  * Copalis            baseline=+0.7646  +chain=+0.7674  Δ=+0.0027  N=154
+  * Twin Harbors       baseline=+0.5606  +chain=+0.5626  Δ=+0.0020  N=127
+  * Quinault           baseline=+0.5817  +chain=+0.5823  Δ=+0.0007  N=97
+    Coos Bay           baseline=-0.0050  +chain=-0.0050  Δ=+0.0000  N=61
+    Gold Beach         baseline=+0.0681  +chain=+0.0681  Δ=+0.0000  N=137
+    Newport            baseline=-0.0499  +chain=-0.0499  Δ=+0.0000  N=124
+  * Cannon Beach       baseline=-0.0705  +chain=-0.0707  Δ=-0.0002  N=58
+  * Kalaloch           baseline=+0.6271  +chain=+0.6266  Δ=-0.0004  N=128
+  * Clatsop Beach      baseline=+0.3072  +chain=+0.3006  Δ=-0.0065  N=197

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, MapPin, Cpu, AlertTriangle, Settings, Play, BarChart3, TrendingUp, Clock } from 'lucide-react'
+import { Calendar, MapPin, Cpu, AlertTriangle, Settings, Play, BarChart3, TrendingUp, Clock, Download, Info } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import Select from 'react-select'
 import Plot from 'react-plotly.js'
@@ -35,6 +35,29 @@ const Dashboard = () => {
   const [selectedSiteFilter, setSelectedSiteFilter] = useState('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  const exportResultsCSV = (filtered, siteFilter, task) => {
+    if (!filtered?.results?.length) return
+    const rows = filtered.results
+    // Build union of all keys we want, in a stable order
+    const baseCols = ['date', 'site', 'predicted_da', 'actual_da', 'predicted_category',
+                      'actual_category', 'spike_alert', 'spike_probability',
+                      'forecast_window']
+    const cols = baseCols.filter(c => rows.some(r => r[c] !== undefined))
+    const esc = v => v === null || v === undefined ? ''
+      : (typeof v === 'string' && (v.includes(',') || v.includes('"')))
+        ? `"${v.replace(/"/g, '""')}"`
+        : String(v)
+    const csv = [cols.join(','), ...rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const ts = new Date().toISOString().slice(0, 10)
+    a.href = url
+    a.download = `datect_${task || 'results'}_${siteFilter || 'all'}_${ts}.csv`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   const parsePlotlyJson = (plotJson) => {
     if (!plotJson) return null
@@ -1328,6 +1351,14 @@ const Dashboard = () => {
             <span className="text-xs text-gray-500 italic">
               🟢 robust · 🔴 unreliable · ⚪ insufficient holdout data
             </span>
+            <button
+              onClick={() => exportResultsCSV(filteredResults, selectedSiteFilter, config.forecast_task)}
+              disabled={!filteredResults?.results?.length}
+              className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 disabled:opacity-40 rounded-md transition-colors"
+              title="Download filtered results as CSV"
+            >
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
           </div>
 
           {/* Data-coverage warning banner — appears when filtered site has few recent samples */}
@@ -1370,9 +1401,23 @@ const Dashboard = () => {
               <div className="text-sm text-gray-600">Total Forecasts</div>
             </div>
             {config.forecast_task === 'regression' && filteredResults?.summary?.r2_score !== undefined && (
-              <div className="bg-green-50 p-4 rounded-lg text-center">
+              <div className="bg-green-50 p-4 rounded-lg text-center relative group">
                 <div className="text-2xl font-bold text-green-600">{filteredResults.summary.r2_score.toFixed(3)}</div>
-                <div className="text-sm text-gray-600">R² Score</div>
+                <div className="text-sm text-gray-600 inline-flex items-center justify-center gap-1">
+                  R² Score
+                  <Info className="w-3 h-3 text-gray-400 cursor-help" />
+                </div>
+                <div className="absolute z-10 hidden group-hover:block w-72 left-1/2 -translate-x-1/2 mt-2 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg text-left">
+                  <div className="font-semibold mb-1">3-window evaluation split</div>
+                  <div className="space-y-1">
+                    <div><span className="text-blue-300">Training:</span> pre-anchor data only (per-anchor)</div>
+                    <div><span className="text-yellow-300">Validation:</span> 2019–2022 (used by tuning)</div>
+                    <div><span className="text-green-300">Holdout:</span> 2022–2024 (never seen by tuning)</div>
+                  </div>
+                  <div className="mt-2 text-gray-300 italic">
+                    Pooled R² shown here mixes all windows. Filter by year/site for holdout-only view.
+                  </div>
+                </div>
               </div>
             )}
             {config.forecast_task === 'regression' && filteredResults?.summary?.mae !== undefined && (

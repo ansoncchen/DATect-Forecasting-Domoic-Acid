@@ -128,7 +128,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
             + OAD_FEATURES_ALL
         ),
-        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.763 (blending tested, no improvement)
+        'ensemble_weights': (1.00, 0.00, 0.00),  # XGB-only (grid winner: pre-2022 CV, was RF-only)
         'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
     },
@@ -152,7 +152,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.502 >> XGB=+0.433
         'prediction_clip_q': 0.95,
-        'prediction_clip_max': 80.0,
+        'prediction_clip_max': None,  # Grid winner (pre-2022 CV) dropped the 80.0 ceiling
     },
 
     'Twin Harbors': {
@@ -176,8 +176,8 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
             + OAD_FEATURES_ALL
         ),
-        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.614 > XGB=+0.601
-        'prediction_clip_q': 0.98,
+        'ensemble_weights': (0.25, 0.75, 0.00),  # Grid winner (pre-2022 CV): mostly RF + small XGB blend
+        'prediction_clip_q': 0.97,
         'prediction_clip_max': None,
     },
 
@@ -202,8 +202,8 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + CLIMATE_FEATURES_CORE + DISCHARGE_FEATURES
             + OAD_FEATURES_ALL
         ),
-        'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.771 > XGB=+0.764
-        'prediction_clip_q': 0.98,
+        'ensemble_weights': (1.00, 0.00, 0.00),  # XGB-only (grid winner: pre-2022 CV, was RF-only)
+        'prediction_clip_q': 0.95,
         'prediction_clip_max': None,
     },
 
@@ -233,7 +233,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (1.00, 0.00, 0.00),  # XGB-only: XGB=+0.569 > RF=+0.555
-        'prediction_clip_q': 0.98,
+        'prediction_clip_q': 0.95,  # Grid winner (pre-2022 CV): was 0.98
         'prediction_clip_max': None,
     },
 
@@ -244,7 +244,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         'param_grid': None,
         'feature_subset': None,
         'ensemble_weights': (1.00, 0.00, 0.00),  # XGB-only: XGB=+0.476 >> RF=+0.398
-        'prediction_clip_q': None,
+        'prediction_clip_q': 0.95,  # Grid winner (pre-2022 CV): was None
         'prediction_clip_max': None,
     },
 
@@ -269,7 +269,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: RF=+0.337 > XGB=+0.310
-        'prediction_clip_q': 0.97,
+        'prediction_clip_q': 0.95,  # Grid winner (pre-2022 CV): was 0.97
         'prediction_clip_max': None,
     },
 
@@ -298,7 +298,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
         ),
         'ensemble_weights': (0.00, 1.00, 0.00),  # RF-only: both near-zero skill, N=61
         'prediction_clip_q': 0.95,
-        'prediction_clip_max': 80.0,
+        'prediction_clip_max': None,  # Grid winner (pre-2022 CV): dropped the 80.0 ceiling
     },
 
     'Gold Beach': {
@@ -322,7 +322,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (1.00, 0.00, 0.00),  # XGB-only: XGB=+0.156 > RF=+0.140
-        'prediction_clip_q': 0.95,
+        'prediction_clip_q': 0.97,  # Grid winner (pre-2022 CV): was 0.95
         'prediction_clip_max': None,
     },
 
@@ -347,7 +347,7 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
             + OAD_FEATURES_ALL
         ),
         'ensemble_weights': (1.00, 0.00, 0.00),  # XGB-only: XGB=-0.409 > RF=-0.550
-        'prediction_clip_q': 0.98,
+        'prediction_clip_q': 0.95,  # Grid winner (pre-2022 CV): was 0.98 — biggest per-site win (Newport −1.06 → −0.36 on 5-seed holdout)
         'prediction_clip_max': None,
     },
 }

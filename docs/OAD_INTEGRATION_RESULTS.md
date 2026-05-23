@@ -576,9 +576,25 @@ Largely **redundant**: DATect's `data/raw/pn-input/long-beach-pn.csv` has 2,002 
 
 ---
 
-## 18. Hyperparameter tuning result — TUNING FAILED (Tasks 12+13)
+## 18. Hyperparameter tuning result — NUANCED VERDICT (revised 2026-05-23)
 
-**⚠ Re-audited 2026-05-23: this verdict was made on single-seed numbers (seed 123).** Multi-seed analysis (`docs/CORRECTED_NUMBERS.md`) shows holdout R² has std ≈ 0.15 across seeds 42-46 — comparable in magnitude to the −0.157 holdout drop reported below. The "OVERFITTING" verdict is *consistent* with the data but not as strong as originally framed. A re-run with leak-free grid-winner overrides on multi-seed bootstrap is queued (Hyak job 35510066) to give a definitive answer. **Until that finishes, treat this section as suggestive, not conclusive.**
+**Final verdict after multi-seed leak test (Hyak job 35510066):**
+
+| Configuration | Pre-2019 R² | Val R² | **Holdout R²** | All-anchor R² |
+|---|---:|---:|---:|---:|
+| Hand-tuned `per_site_models.py` | 0.273 ± 0.10 | 0.377 ± 0.16 | **0.386 ± 0.15** | 0.316 ± 0.08 |
+| 3-dim grid winners (leak-free) | 0.273 ± 0.10 | **0.315 ± 0.12** | **0.434 ± 0.12** | 0.307 ± 0.08 |
+| Δ (grid − hand), 5-seed | ±0.00 ± 0.03 | **−0.06 ± 0.07** | **+0.05 ± 0.07** | −0.01 ± 0.02 |
+
+**Two findings:**
+1. **Hand-tuning DID leak validation** — `per_site_models.py` was selected on the seed-42 dev set which sampled 20% of all years 2003-2024, giving it implicit access to ~20% of val data. The leak-free grid scores 0.06 R² LOWER on val (where hand had the leak advantage).
+2. **Hand-tuning did NOT inflate the holdout** — on the genuinely unbiased 2022-2024 window, the leak-free grid actually beats hand-tuned by +0.05 R² (within seed noise σ=0.07 but consistently positive direction across seeds).
+
+**This contradicts the original "tuning FAILED" framing** below, which was based on single-seed (123) 18-dim full Optuna runs. The 3-dim constrained grid (`scripts/eval/grid_search_weights_clip.py`) is a much smaller, more robust search space — it found genuinely better configurations at 3 sites (Copalis, Quinault, Twin Harbors flip from RF to XGB) that hold up on the untouched 2022-2024 holdout.
+
+**Decision:** the +0.05 R² gain is within seed noise (1σ ≈ 0.07), so promoting grid-winners is not unambiguously justified. We document the finding but leave `per_site_models.py` unchanged; the cleanest framing is "constrained 3-dim grid search and hand-tuned per-site values give statistically indistinguishable holdout performance — the model is feature-limited, not hyperparameter-limited."
+
+**The 18-dim Optuna comparison below (single-seed 123) was real** — 18 dims × 30 trials per site is overfit even with the proper protocol. Keep that as a cautionary result:
 
 After tuning 9 sites with Optuna TPE (30+ trials each, 18 hyperparameters per site) using the 3-window chronological split (train pre-2019 / validate 2019-2022 / holdout 2022-2024), the holdout comparison rejected the tuned configurations on single-seed evidence:
 

@@ -53,14 +53,46 @@ The current `paper/datect_paper_mdpi.tex` (line 62 abstract, line 406 Table 1, l
 5. **Transition recall section (line 550)**: re-verify the 12.4% regression / 23.6% naive / 73.4% classifier numbers. My local re-computation with the current `spike_alert` definition gives different values (0.84 / 0.84 / 0.81), suggesting either a definitional change since the paper or that the paper used a stricter "transition" definition (e.g. previous DA < 5, not just < 20). Need to read the paper's exact event-definition code.
 6. **New paragraph in Methods / Limitations**: explicitly call out single-seed-to-multi-seed sensitivity. The paper currently mentions a "five-seed perturbation study" (line 377) but doesn't quote its dispersion.
 
-## Hyak jobs still running (will refine, not change structure)
+## Final Hyak job results (completed 2026-05-23)
 
-| Job ID | Purpose | ETA |
-|---|---|---|
-| 35510015 | holdout validation (baseline vs tuned, current code) | ~2 hr |
-| 35510031 | paper-metrics rebuild at 40% sample fraction (matches paper N≈2181) | ~4 hr after start |
+### Job 35510043 — paper-metrics N=2181 (40% sample, seed 123)
+From `eval_results/paper_metrics/`:
 
-When these finish, regenerate Table 1 / Table 2 in the paper from the new artifacts.
+| Model | R² [95% CI] | MAE [95% CI] | RMSE |
+|---|---|---|---|
+| **Ensemble** | **0.241 [0.125, 0.364]** | **6.51 [5.89, 7.22]** | 17.50 |
+| XGBoost | 0.276 [0.185, 0.379] | 6.58 [5.90, 7.25] | 17.08 |
+| Random Forest | 0.195 [0.060, 0.324] | 6.46 [5.79, 7.23] | 18.02 |
+| Linear/Ridge | 0.203 [0.072, 0.326] | 6.61 [5.93, 7.39] | 17.93 |
+| Naïve persistence | −0.426 [−0.951, −0.034] | 7.73 [6.84, 8.76] | 23.98 |
+
+Per-site (paper Table 2 format):
+
+| Site | N | R² [95% CI] | MAE [95% CI] | RMSE | 4-cat acc |
+|---|---:|---|---|---:|---:|
+| Copalis | 277 | 0.789 [0.706, 0.843] | 2.82 [2.31, 3.39] | 5.28 | 0.83 |
+| Long Beach | 209 | 0.629 [0.551, 0.713] | 4.44 [3.47, 5.48] | 8.67 | 0.73 |
+| Twin Harbors | 225 | 0.591 [0.469, 0.759] | 4.67 [3.35, 6.21] | 12.25 | 0.81 |
+| Quinault | 181 | 0.580 [0.495, 0.733] | 4.16 [2.97, 5.62] | 10.18 | 0.76 |
+| Kalaloch | 235 | 0.480 [0.348, 0.641] | 3.77 [2.72, 5.08] | 10.14 | 0.81 |
+| Clatsop Beach | 354 | 0.305 [−0.183, 0.558] | 6.12 [4.83, 7.52] | 13.91 | 0.71 |
+| Gold Beach | 257 | 0.079 [−0.071, 0.231] | 8.24 [5.83, 11.09] | 23.04 | 0.77 |
+| Cannon Beach | 116 | −0.044 [−0.090, −0.009] | 3.91 [1.40, 6.97] | 16.14 | 0.92 |
+| Coos Bay | 109 | −0.024 [−0.654, 0.313] | 24.35 [18.55, 30.33] | 39.84 | 0.49 |
+| Newport | 218 | −0.135 [−0.986, 0.056] | 11.07 [8.29, 14.79] | 27.03 | 0.54 |
+
+### Job 35510066 — leak test (5 seeds × grid-winner overrides)
+
+| Window | Hand-tuned (current) | Grid-winners (leak-free) | Δ |
+|---|---|---|---|
+| Pre-2019 (sanity) | 0.273 ± 0.10 | 0.273 ± 0.10 | ±0.00 ± 0.03 ✓ |
+| Val 2019-2022 | 0.377 ± 0.16 | 0.315 ± 0.12 | −0.06 ± 0.07 (hand leak) |
+| **Holdout 2022-2024** | **0.386 ± 0.15** | **0.434 ± 0.12** | **+0.05 ± 0.07** |
+| All anchors | 0.316 ± 0.08 | 0.307 ± 0.08 | −0.01 ± 0.02 |
+
+**Verdict**: Hand-tuning leaked ~0.06 R² on val but NOT on holdout. Grid winners give equivalent or slightly better unbiased performance. Both configurations are statistically indistinguishable on the holdout (Δ within 1σ). Per-site, grid flips 3 sites from RF to XGB (Copalis, Quinault, Twin Harbors).
+
+**Promotion decision**: do NOT promote grid winners. The +0.05 holdout gain is within seed noise; the val degradation is a wash; the change adds complexity for no clean win. Document the leak finding instead — paper should report the unbiased holdout number (0.39 ± 0.15) and acknowledge that the per-site config was tuned with implicit val-window access.
 
 ## Files to update after Hyak finishes
 

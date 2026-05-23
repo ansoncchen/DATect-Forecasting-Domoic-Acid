@@ -143,7 +143,7 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 
 ## Success Metrics
 
-**All values below are 5-seed (42-46) mean ± std on current `per_site_models.py` (audited 2026-05-23, see `docs/CORRECTED_NUMBERS.md`).** Single-seed numbers — especially the previous "0.492 holdout R²" — were lucky seeds; the real distribution is much wider.
+**All values below are 5-seed (42-46) mean ± std on current `per_site_models.py` (audited 2026-05-23, see `docs/CORRECTED_NUMBERS.md`).** Single-seed numbers — especially the previous "0.492 holdout R²" — were lucky seeds; the real distribution is much wider. Leak-test (hand-tuned vs leak-free 3-dim grid-winners on same 5 seeds) showed hand-tuning leaks ~0.06 R² on val (where it had implicit access) but NOT on holdout (grid actually +0.05 on holdout, within noise). Numbers below are hand-tuned; grid-winners give roughly equivalent or slightly better holdout R².
 
 | Metric | Window | **Multi-seed mean ± std** | Single-seed range | N (per seed) | Notes |
 |--------|--------|------|------|---|-------|

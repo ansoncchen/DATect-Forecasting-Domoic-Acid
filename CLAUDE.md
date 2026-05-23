@@ -58,6 +58,9 @@ cd frontend && npm run lint     # ESLint validation
 - **Parallel sbatch tasks must not write to shared files**: 4 chains writing to `data/processed/final_output.parquet` concurrently corrupted it (`OSError: Couldn't deserialize thrift` from pyarrow). Use `--array=N-M%1` to serialize array tasks that share mutable state, OR write per-task output files. See `chains/run_chain.sbatch`.
 - **R² is highly seed-sensitive at N~1200**: random anchor sampling spans R² = 0.17-0.49 across seeds 42-123. Single-seed metrics are misleading. Always quote multi-seed bootstrap CIs (`scripts/eval/multi_seed_baseline.py` runs 5 seeds in parallel via sbatch). Single-seed point estimates are not paper-publishable claims about model performance.
 - **Hyak SSH login-node IP blocks**: a fail2ban-style system blocks your client IP after ~50-100 failed SSH attempts in an hour. Symptom: `Connection refused` on `ssh klone-login` from all terminals (even though jobs keep running on compute nodes). Cause is usually a long-running polling loop that keeps hammering the login node when Hyak briefly went down. Fix: kill the polls, wait 15-30 min for the block to expire — DO NOT reboot. For long-running polls, use exponential backoff (5min → 30min → 1hr) or a single shared poll, not multiple polls each opening their own connection.
+- **`SITE_SPECIFIC_CONFIGS[site]['ensemble_weights']` is a tuple `(w_xgb, w_rf, w_linear)`, NOT a dict.** Other keys in the same site dict use string-keyed sub-dicts (`xgb_params`, `param_grid`), so it's easy to write `.get('xgb')` and crash. Index by position.
+- **`final_output.parquet` uses lowercase `site` and `date` columns** (not `Site`/`Date`). Test fixtures in `tests/test_oad_features.py` use the capitalized form because `add_oad_features` takes a `site_col` arg, but the parquet itself is lowercase. Check column case before joins.
+- **Per-site fold-CV at N < 50/fold is unreliable** — the constrained grid search (`scripts/eval/grid_search_weights_clip.py`) produced negative winner R² for 4 of 10 sites because each fold had only 6-20 test points. Either pool sites or use leave-one-year-out before trusting per-site fold-CV means.
 
 ## System Architecture
 
@@ -140,18 +143,29 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 
 ## Success Metrics
 
-Reported R² is seed-sensitive (~±0.13 across seeds at single-seed pooled). Quote multi-seed bootstrap CIs in papers, not single values. The 2022-2024 temporal holdout (untouched by any tuning/feature selection per `oad-integration` branch §18) is the cleanest unbiased number.
+**All values below are 5-seed (42-46) mean ± std on current `per_site_models.py` (audited 2026-05-23, see `docs/CORRECTED_NUMBERS.md`).** Single-seed numbers — especially the previous "0.492 holdout R²" — were lucky seeds; the real distribution is much wider.
 
-| Metric | Window | Value | N | Notes |
-|--------|--------|-------|---|-------|
-| Ensemble R² | **2022-2024 holdout** | **0.492** | 164 | New headline, post-OAD branch; was 0.315 in older 2019+ temporal holdout |
-| Ensemble R² | 2019-2022 validation | 0.346 | 216 | Used by Optuna tuning as objective |
-| Ensemble R² | random-anchor pooled (seed 123) | 0.173 | 1202 | Single-seed; varies 0.21-0.49 across seeds — don't lead with this |
-| Ensemble MAE | 2022-2024 holdout | 5.33 µg/g | 164 | More stable across seeds than R² |
-| Spike F2 (recall-weighted) | 2019-2022 validation | 0.732 | 32 spikes | From tuned classifier; recall 0.91, precision 0.41 |
-| Spike recall (regression-only) | 2022-2024 holdout | — | — | Computed in webapp at `recall_score(actual>20, predicted>12)` |
-| Hybrid alert recall | rolling | 0.859 | — | Classifier probability + regression threshold; per-row `spike_alert` |
-| Transition recall | rolling | 0.734 hybrid / 0.236 naive | — | Catches DA crossing the 20 µg/g threshold from below |
+| Metric | Window | **Multi-seed mean ± std** | Single-seed range | N (per seed) | Notes |
+|--------|--------|------|------|---|-------|
+| Ensemble R² | 2022-2024 holdout | **0.386 ± 0.145** | 0.19 to 0.60 | ~160 | Headline. Was misleadingly quoted as 0.49 (top seed). |
+| Ensemble R² | 2019-2022 validation | **0.377 ± 0.164** | 0.08 to 0.56 | ~220 | Optuna tuning objective window |
+| Ensemble R² | all years pooled | **0.316 ± 0.079** | 0.22 to 0.42 | ~1190 | Was misleadingly quoted as 0.17 (seed 123 only) |
+| Ensemble MAE | 2022-2024 holdout | **6.03 ± 0.63 µg/g** | 5.25 to 6.79 | ~160 | More stable than R² across seeds |
+| Spike F2 (regression-only) | 2022-2024 holdout | **0.648 ± 0.044** | 0.60 to 0.72 | ~160 | spike alert: predicted > 12 → actual > 20 |
+| Spike recall (regression-only) | 2022-2024 holdout | **0.848 ± 0.044** | 0.79 to 0.92 | ~160 | The most stable headline number |
+| Spike F2 | 2019-2022 validation | **0.738 ± 0.024** | 0.70 to 0.77 | ~220 | F2 is much more stable than R² |
+| Hybrid alert recall | rolling pooled (seed 123) | 0.876 | — | 1177 | spike_alert column = classifier OR regression union |
+| Transition recall | rolling (paper-defined event) | 0.734 classifier / 0.236 naive | — | 89 events seed 123 | Paper definition uses below-20 → at-or-above-20 between consecutive observations. With current `spike_alert` definition, both go to ~0.81 — definition mismatch worth re-verifying before quoting. |
+
+**Per-site holdout R² (5-seed mean, see `docs/CORRECTED_NUMBERS.md` for full std + range):**
+
+| WA | R² mean ± std | OR | R² mean ± std |
+|---|---|---|---|
+| Quinault | +0.56 ± 0.18 | Clatsop Beach | +0.50 ± 0.20 |
+| Long Beach | +0.55 ± 0.17 | Coos Bay | +0.70 ± 0.09 (N≈10, small) |
+| Twin Harbors | +0.53 ± 0.17 | Newport | **−1.06 ± 1.70** |
+| Copalis | +0.52 ± 0.16 | Gold Beach | **−2.14 ± 3.21** |
+| Kalaloch | +0.42 ± 0.17 | Cannon Beach | no spikes in holdout |
 
 ## No Data Leakage Guarantees
 
@@ -194,6 +208,7 @@ A parallel subproject lives at **`ocean anomaly detection/`** (branch `ocean-ano
 - **Headline checkpoint**: `ae_3d_l32_c4_t4_s42_mae070` — 3D ConvAE3D with Phase C masked-autoencoder training (70% random pixel hiding). **Strongest defensive finding**: at lead=7 days (the informative-horizon test that the 1-day-ahead headline number does not pass cleanly), AE_3d_mae070 is the **only method** with positive R² in every PNW region (0.10–0.26), while climatology baselines B1/B2 collapse to ≤ 0 (B2 goes *negative* — anti-predicts) and PCA was already at 0. The 1-day-ahead R²=0.87 in SW Washington is real but inflated by 8-day composite overlap. Moderate cloud-cover confound: Pearson r ≈ +0.4–0.5 with valid-pixel fraction (~24% variance). For DATect integration, **use this same mae070 checkpoint** — the cleaner-cloud variant mae050 collapses faster at long leads (R²=−0.17 vs +0.19 at lead=7 in Olympic Coast), so the cloud tradeoff isn't worth the multi-step penalty.
 - **5 regions** (1 envelope + 4 alongshore bands) — each of DATect's 10 sites maps to exactly one region (mapping documented in `ocean anomaly detection/RESULTS.md`).
 - **Score parquets**: `ocean anomaly detection/outputs/scores/*.parquet`, columns `date, region, method, aggregation, score`.
+- **`ocean anomaly detection/data/cube.zarr` schema** (Hyak-only): two variables — `data` shape `(channel=4, time≈4700, lat=321, lon=409)` with channel order `[chla, Kd490, nFLH, SST]`, and `mask` shape `(lat, lon)` bool (True=ocean). NaNs in `data` mark cloud-flagged pixels; the 2D `mask` is the static ocean/land mask. Open via the conda env (`/gscratch/stf/ac283/envs/datect_scratch/bin/python`), not the system `.venv` (no xarray/zarr there).
 
 ### Integration into the main DATect forecast (planned)
 

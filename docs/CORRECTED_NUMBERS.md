@@ -7,7 +7,7 @@ Re-verified on current `oad-integration` HEAD (`188e05a6`) using `multi_seed_res
 | Metric | CLAUDE.md / paper (stale, single-seed) | **Authoritative (multi-seed, current code)** |
 |---|---|---|
 | Pooled all-years R² | 0.173 / 0.215 | **0.316 ± 0.079** (range 0.220 – 0.415) |
-| Holdout 2022-2024 R² | **0.492** ← lucky seed | **0.386 ± 0.145** (range 0.188 – 0.599) |
+| Holdout 2022-2023 R² | **0.492** ← lucky seed | **0.386 ± 0.145** (range 0.188 – 0.599) |
 | Holdout MAE (µg/g) | 5.33 | **6.03 ± 0.63** |
 | Holdout spike recall | 0.85 (referenced) | **0.848 ± 0.044** ✓ |
 | Holdout spike F2 | — | **0.648 ± 0.044** |
@@ -18,7 +18,7 @@ Re-verified on current `oad-integration` HEAD (`188e05a6`) using `multi_seed_res
 
 **The "0.492 holdout R²" that's been a quoted headline was the highest seed of five.** Honest paper number is **R² ≈ 0.39 with 5-seed range 0.19–0.60.**
 
-## Per-site holdout 2022-2024 (5-seed mean)
+## Per-site holdout 2022-2023 (5-seed mean)
 
 | Site | R² mean ± std | R² range | MAE mean | N (mean per seed) |
 |---|---|---|---|---|
@@ -87,7 +87,7 @@ Per-site (paper Table 2 format):
 |---|---|---|---|
 | Pre-2019 (sanity) | 0.273 ± 0.10 | 0.273 ± 0.10 | ±0.00 ± 0.03 ✓ |
 | Val 2019-2022 | 0.377 ± 0.16 | 0.315 ± 0.12 | −0.06 ± 0.07 (hand leak) |
-| **Holdout 2022-2024** | **0.386 ± 0.15** | **0.434 ± 0.12** | **+0.05 ± 0.07** |
+| **Holdout 2022-2023** | **0.386 ± 0.15** | **0.434 ± 0.12** | **+0.05 ± 0.07** |
 | All anchors | 0.316 ± 0.08 | 0.307 ± 0.08 | −0.01 ± 0.02 |
 
 **Verdict**: Hand-tuning leaked ~0.06 R² on val but NOT on holdout. Grid winners give equivalent or slightly better unbiased performance. Both configurations are statistically indistinguishable on the holdout (Δ within 1σ). Per-site, grid flips 3 sites from RF to XGB (Copalis, Quinault, Twin Harbors).

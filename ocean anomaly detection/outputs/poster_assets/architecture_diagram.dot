@@ -1,0 +1,74 @@
+digraph G {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    pad="0.28",
+    nodesep="0.34",
+    ranksep="0.42",
+    splines=true,
+    outputorder=edgesfirst,
+    fontname="Helvetica",
+    labelloc="t",
+    label=<
+      <FONT POINT-SIZE="30"><B>3D Masked Autoencoder Anomaly-Detection Pipeline</B></FONT><BR/>
+      <FONT POINT-SIZE="15" COLOR="#475569">Train on masked MODIS structure, then aggregate reconstruction error into regional anomaly scores.</FONT>
+    >
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    color="#334155",
+    penwidth=1.6,
+    fontname="Helvetica",
+    fontsize=16,
+    margin="0.15,0.09"
+  ];
+  edge [
+    color="#475569",
+    penwidth=1.8,
+    arrowsize=0.8,
+    fontname="Helvetica",
+    fontsize=12
+  ];
+
+  input [fillcolor="#dbeafe", label=< <B>MODIS input window</B><BR/>4 dates x 4 channels<BR/><FONT POINT-SIZE="12">chl-a, Kd490, fluorescence, SST</FONT> >];
+  valid [fillcolor="#f8fafc", label=< <B>Validity mask</B><BR/>cloud / land / gaps ignored >];
+  hide [fillcolor="#fee2e2", label=< <B>Masked-autoencoder training</B><BR/>70% of valid pixels hidden<BR/><FONT POINT-SIZE="12">loss only on hidden valid pixels</FONT> >];
+
+  subgraph cluster_encoder {
+    label="Encoder";
+    color="#86efac";
+    penwidth=1.2;
+    style="rounded";
+    fontname="Helvetica-Bold";
+    fontsize=18;
+    enc1 [fillcolor="#dcfce7", label=< <B>Conv3D 1</B><BR/>T 4 to 2<BR/>HW 64 to 32<BR/>C 4 to 32 >];
+    enc2 [fillcolor="#bbf7d0", label=< <B>Conv3D 2</B><BR/>T 2 to 1<BR/>HW 32 to 16<BR/>C 32 to 64 >];
+    enc3 [fillcolor="#86efac", label=< <B>Conv3D 3</B><BR/>T stays 1<BR/>HW 16 to 8<BR/>C 64 to 128 >];
+  }
+
+  latent [fillcolor="#fef3c7", label=< <B>Latent bottleneck</B><BR/>128 x 1 x 8 x 8 to z<BR/>latent dim = 32 >];
+
+  subgraph cluster_decoder {
+    label="Scoring path";
+    color="#fdba74";
+    penwidth=1.2;
+    style="rounded";
+    fontname="Helvetica-Bold";
+    fontsize=18;
+    decode [fillcolor="#ffedd5", label=< <B>Decoder</B><BR/>dense expand + transpose Conv3D<BR/>reconstruct 4-frame window >];
+    score [fillcolor="#e9d5ff", label=< <B>Anchor-frame error</B><BR/>score final frame only<BR/>sum channel MSE >];
+    region [fillcolor="#ddd6fe", label=< <B>Regional anomaly score</B><BR/>mean error over 5 coastal polygons >];
+  }
+
+  baseline [fillcolor="#eef2ff", label=< <B>Baselines</B><BR/>matched-k PCA<BR/>chl-a z-score<BR/>multivariate climatology >];
+  eval [fillcolor="#f1f5f9", label=< <B>Label-free evaluation</B><BR/>seasonal cycle | event response | forecastability<BR/>channel ablations | cloud and sensor checks >];
+
+  { rank=same; input; valid; }
+  { rank=same; baseline; eval; }
+
+  input -> hide;
+  valid -> hide;
+  hide -> enc1 -> enc2 -> enc3 -> latent -> decode -> score -> region -> eval;
+  baseline -> eval;
+}

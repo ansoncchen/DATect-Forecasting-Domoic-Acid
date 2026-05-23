@@ -147,12 +147,12 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 
 | Metric | Window | **Multi-seed mean ± std** | Single-seed range | N (per seed) | Notes |
 |--------|--------|------|------|---|-------|
-| Ensemble R² | 2022-2024 holdout | **0.386 ± 0.145** | 0.19 to 0.60 | ~160 | Headline. Was misleadingly quoted as 0.49 (top seed). |
+| Ensemble R² | 2022-2023 holdout | **0.386 ± 0.145** | 0.19 to 0.60 | ~160 | Headline. Was misleadingly quoted as 0.49 (top seed). |
 | Ensemble R² | 2019-2022 validation | **0.377 ± 0.164** | 0.08 to 0.56 | ~220 | Optuna tuning objective window |
 | Ensemble R² | all years pooled | **0.316 ± 0.079** | 0.22 to 0.42 | ~1190 | Was misleadingly quoted as 0.17 (seed 123 only) |
-| Ensemble MAE | 2022-2024 holdout | **6.03 ± 0.63 µg/g** | 5.25 to 6.79 | ~160 | More stable than R² across seeds |
-| Spike F2 (regression-only) | 2022-2024 holdout | **0.648 ± 0.044** | 0.60 to 0.72 | ~160 | spike alert: predicted > 12 → actual > 20 |
-| Spike recall (regression-only) | 2022-2024 holdout | **0.848 ± 0.044** | 0.79 to 0.92 | ~160 | The most stable headline number |
+| Ensemble MAE | 2022-2023 holdout | **6.03 ± 0.63 µg/g** | 5.25 to 6.79 | ~160 | More stable than R² across seeds |
+| Spike F2 (regression-only) | 2022-2023 holdout | **0.648 ± 0.044** | 0.60 to 0.72 | ~160 | spike alert: predicted > 12 → actual > 20 |
+| Spike recall (regression-only) | 2022-2023 holdout | **0.848 ± 0.044** | 0.79 to 0.92 | ~160 | The most stable headline number |
 | Spike F2 | 2019-2022 validation | **0.738 ± 0.024** | 0.70 to 0.77 | ~220 | F2 is much more stable than R² |
 | Hybrid alert recall | rolling pooled (seed 123) | 0.876 | — | 1177 | spike_alert column = classifier OR regression union |
 | Transition recall | rolling (paper-defined event) | 0.734 classifier / 0.236 naive | — | 89 events seed 123 | Paper definition uses below-20 → at-or-above-20 between consecutive observations. With current `spike_alert` definition, both go to ~0.81 — definition mismatch worth re-verifying before quoting. |
@@ -192,7 +192,7 @@ Multi-seed (5 seeds) and perturbation (13 experiments) validation confirms curre
 | Monotonic constraints | ΔR² = +0.0003 | Negligible effect |
 | Per-site config overall | ΔR² = −0.103 without it | Biggest lever — validates per-site customization |
 
-**Regional stability (re-audited 2026-05-23 on 2022-2024 holdout, 5 seeds):**
+**Regional stability (re-audited 2026-05-23 on 2022-2023 holdout, 5 seeds):**
 - WA sites are stable: 5-site mean R² ≈ 0.50 (range 0.42-0.56), per-site std 0.16-0.18 across seeds.
 - OR sites split: Clatsop +0.50, Coos Bay +0.70 (small N=10), Newport −1.06 ± 1.70, Gold Beach −2.14 ± 3.21. The two OR catastrophes are data-scarcity / oceanographic issues, not a tuning problem.
 

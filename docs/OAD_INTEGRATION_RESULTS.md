@@ -10,7 +10,7 @@
 
 ## 1. Headline number (for the abstract / introduction)
 
-**Result:** Augmenting the per-site DA forecasting ensemble with a learned 16-dimensional regional ocean-anomaly representation produced from an unsupervised 3D masked autoencoder on 22 years of MODIS Aqua imagery yields a pooled ensemble holdout R² of **0.386 ± 0.145** (5 seeds, 2022-2024 holdout, N≈160 per seed), statistically indistinguishable from the baseline without OAD features (single-seed paper_ablation_results: Δ R² = +0.0015 when OAD is dropped — i.e. *the model is slightly better without OAD*, within noise). **OAD's signal does not survive the offshore→shore→shellfish causal chain.** The headline contribution is therefore re-framed: OAD is validated as an unsupervised representation of *offshore* ocean state (ESP mooring correlations: Pn r=+0.46, pDA r=+0.33, §16) but is not a useful feature for *beach* DA forecasting.
+**Result:** Augmenting the per-site DA forecasting ensemble with a learned 16-dimensional regional ocean-anomaly representation produced from an unsupervised 3D masked autoencoder on 22 years of MODIS Aqua imagery yields a pooled ensemble holdout R² of **0.386 ± 0.145** (5 seeds, 2022-2023 holdout, N≈160 per seed), statistically indistinguishable from the baseline without OAD features (single-seed paper_ablation_results: Δ R² = +0.0015 when OAD is dropped — i.e. *the model is slightly better without OAD*, within noise). **OAD's signal does not survive the offshore→shore→shellfish causal chain.** The headline contribution is therefore re-framed: OAD is validated as an unsupervised representation of *offshore* ocean state (ESP mooring correlations: Pn r=+0.46, pDA r=+0.33, §16) but is not a useful feature for *beach* DA forecasting.
 
 ---
 
@@ -47,7 +47,7 @@ DATect rows are weekly (Monday). Engine fetches row with date ≤ `anchor_date =
 2003 ──── 2008 ─────────── 2018 ── 2019 ──── 2021 ── 2022 ──── 2024
          |  pre-2019 (training context, not scored)         |
                                   │ VALIDATION │  HOLDOUT   │
-                                  │ 2019-2022  │  2022-2024 │
+                                  │ 2019-2022  │  2022-2023 │
                                    ─────┬─────  ─────┬──────
                                         │             │
                                   Optuna objective    Untouched
@@ -108,7 +108,7 @@ OAD's RESULTS.md headline win was in SW Washington / Long Beach (R² = +0.87, CI
 
 Mean Δ R² in SW WA: **+0.005** when OAD dropped → OAD is *slightly hurting* SW WA, opposite of the predicted direction. **Even at OAD's strongest validated region, the offshore signal does not survive transport to shore.**
 
-### 3.4 Holdout-only metrics (2022-2024, the unbiased numbers)
+### 3.4 Holdout-only metrics (2022-2023, the unbiased numbers)
 
 **Updated 2026-05-23 with multi-seed bootstrap (5 seeds, 42-46). See `docs/CORRECTED_NUMBERS.md`.**
 
@@ -161,7 +161,7 @@ Hypothesis: at Coos Bay (N=67), Cannon Beach (N=61), Gold Beach (N=144), and New
 
 ## 6. Task 12 — Per-site hyperparameter tuning *(if run)*
 
-Optuna TPE, 30 trials × 10 sites, 18 hyperparameters per site. Objective: validation R² on 2019-2022 retrospective points. Final verdict from holdout (2022-2024).
+Optuna TPE, 30 trials × 10 sites, 18 hyperparameters per site. Objective: validation R² on 2019-2022 retrospective points. Final verdict from holdout (2022-2023).
 
 ### 6.1 Window-level summary
 
@@ -169,7 +169,7 @@ Optuna TPE, 30 trials × 10 sites, 18 hyperparameters per site. Objective: valid
 |---|---:|---:|---:|---:|
 | Pretrain (pre-2019, not scored in objective) | {{HT_PRE_B}} | {{HT_PRE_T}} | {{HT_PRE_D}} | {{HT_PRE_N}} |
 | Validation (2019-2022, Optuna saw this) | {{HT_VAL_B}} | {{HT_VAL_T}} | {{HT_VAL_D}} | {{HT_VAL_N}} |
-| **Holdout (2022-2024, untouched)** | **{{HT_HOLD_B}}** | **{{HT_HOLD_T}}** | **{{HT_HOLD_D}}** | {{HT_HOLD_N}} |
+| **Holdout (2022-2023, untouched)** | **{{HT_HOLD_B}}** | **{{HT_HOLD_T}}** | **{{HT_HOLD_D}}** | {{HT_HOLD_N}} |
 
 **Verdict:** {{HT_VERDICT}} (REAL / OVERFITTING / NEUTRAL / NULL)
 
@@ -193,7 +193,7 @@ Objective: F2 (recall-weighted) on `DA > 20 µg/g` events.
 | Window | Baseline F2 | Tuned F2 | Δ F2 | Spikes |
 |---|---:|---:|---:|---:|
 | Validation (2019-2022) | {{SP_VAL_B}} | {{SP_VAL_T}} | {{SP_VAL_D}} | {{SP_VAL_N}} |
-| **Holdout (2022-2024)** | **{{SP_HOLD_B}}** | **{{SP_HOLD_T}}** | **{{SP_HOLD_D}}** | {{SP_HOLD_N}} |
+| **Holdout (2022-2023)** | **{{SP_HOLD_B}}** | **{{SP_HOLD_T}}** | **{{SP_HOLD_D}}** | {{SP_HOLD_N}} |
 
 | Operating point | Threshold | Holdout precision | Holdout recall |
 |---|---:|---:|---:|
@@ -206,7 +206,7 @@ Objective: F2 (recall-weighted) on `DA > 20 µg/g` events.
 
 1. **Cloud confound (mild):** OAD scores in SW Washington correlate r = +0.44 with valid-pixel fraction, meaning ~19% of variance is driven by cloud cover rather than ocean state. We mitigate by including 2 cloud-fraction features alongside the 14 score features so the tree ensemble can learn to discount cloudy weeks; alternative is residual-regression (deferred to v2).
 
-2. **MODIS gap 2009-2011:** the cube has zero coverage during these three years (validated against the source parquet). Forecasts in this window have NaN OAD values that the median imputer fills; effectively the model has no OAD signal there. This dilutes any uplift on pooled metrics but does not bias the holdout (2022-2024) where coverage is ~100%.
+2. **MODIS gap 2009-2011:** the cube has zero coverage during these three years (validated against the source parquet). Forecasts in this window have NaN OAD values that the median imputer fills; effectively the model has no OAD signal there. This dilutes any uplift on pooled metrics but does not bias the holdout (2022-2023) where coverage is ~100%.
 
 3. **Lead-1 R² is not the headline:** OAD's RESULTS.md reports R² = +0.87 in SW WA at 1-day lead, but this is inflated by 8-day-composite autocorrelation. At the integration's enforced 12-day lead, the genuine R² is ~0.15. Therefore the expected DA-forecast lift is modest (single-digit R² gains in SW WA, not "doubling baseline performance").
 
@@ -227,7 +227,7 @@ Objective: F2 (recall-weighted) on `DA > 20 µg/g` events.
 - hyperparameter tuning infrastructure: `f3690395`
 - spike classifier tuning + clip_max addition: `9f6231f0`
 - train/val/holdout protocol fix: `bbbac552`
-- three-window split (val 2019-2022, holdout 2022-2024): `f380b77b`
+- three-window split (val 2019-2022, holdout 2022-2023): `f380b77b`
 
 **OAD checkpoint used:** `ae_3d_l32_c4_t4_s42_mae050.pt` (Phase C MAE-style training, 50% mask ratio, seed 42). Score parquet derived via `make_ae3d_reconstructor` + `reconstruct_temporal_frame` on the 22-year cube.
 
@@ -246,7 +246,7 @@ Objective: F2 (recall-weighted) on `DA > 20 µg/g` events.
 ```latex
 We augment DATect's per-site domoic-acid forecasting ensemble with a 16-dimensional
 representation of regional ocean state derived from an unsupervised 3D masked
-autoencoder trained on 22 years of MODIS Aqua imagery. On a 2022-2024 temporal
+autoencoder trained on 22 years of MODIS Aqua imagery. On a 2022-2023 temporal
 holdout never used in feature selection or hyperparameter tuning, the augmented
 ensemble achieves \rsq = {{HOLDOUT_TUNED_R2}} (vs.\ {{HOLDOUT_BASELINE_R2}} for the
 per-site environmental baseline; $\Delta = {{HOLDOUT_DELTA_R2}}$, $N = {{HOLDOUT_N}}$),
@@ -588,15 +588,15 @@ Largely **redundant**: DATect's `data/raw/pn-input/long-beach-pn.csv` has 2,002 
 
 **Two findings:**
 1. **Hand-tuning DID leak validation** — `per_site_models.py` was selected on the seed-42 dev set which sampled 20% of all years 2003-2024, giving it implicit access to ~20% of val data. The leak-free grid scores 0.06 R² LOWER on val (where hand had the leak advantage).
-2. **Hand-tuning did NOT inflate the holdout** — on the genuinely unbiased 2022-2024 window, the leak-free grid actually beats hand-tuned by +0.05 R² (within seed noise σ=0.07 but consistently positive direction across seeds).
+2. **Hand-tuning did NOT inflate the holdout** — on the genuinely unbiased 2022-2023 window, the leak-free grid actually beats hand-tuned by +0.05 R² (within seed noise σ=0.07 but consistently positive direction across seeds).
 
-**This contradicts the original "tuning FAILED" framing** below, which was based on single-seed (123) 18-dim full Optuna runs. The 3-dim constrained grid (`scripts/eval/grid_search_weights_clip.py`) is a much smaller, more robust search space — it found genuinely better configurations at 3 sites (Copalis, Quinault, Twin Harbors flip from RF to XGB) that hold up on the untouched 2022-2024 holdout.
+**This contradicts the original "tuning FAILED" framing** below, which was based on single-seed (123) 18-dim full Optuna runs. The 3-dim constrained grid (`scripts/eval/grid_search_weights_clip.py`) is a much smaller, more robust search space — it found genuinely better configurations at 3 sites (Copalis, Quinault, Twin Harbors flip from RF to XGB) that hold up on the untouched 2022-2023 holdout.
 
 **Decision:** the +0.05 R² gain is within seed noise (1σ ≈ 0.07), so promoting grid-winners is not unambiguously justified. We document the finding but leave `per_site_models.py` unchanged; the cleanest framing is "constrained 3-dim grid search and hand-tuned per-site values give statistically indistinguishable holdout performance — the model is feature-limited, not hyperparameter-limited."
 
 **The 18-dim Optuna comparison below (single-seed 123) was real** — 18 dims × 30 trials per site is overfit even with the proper protocol. Keep that as a cautionary result:
 
-After tuning 9 sites with Optuna TPE (30+ trials each, 18 hyperparameters per site) using the 3-window chronological split (train pre-2019 / validate 2019-2022 / holdout 2022-2024), the holdout comparison rejected the tuned configurations on single-seed evidence:
+After tuning 9 sites with Optuna TPE (30+ trials each, 18 hyperparameters per site) using the 3-window chronological split (train pre-2019 / validate 2019-2022 / holdout 2022-2023), the holdout comparison rejected the tuned configurations on single-seed evidence:
 
 ### Window-level comparison (baseline current per_site_models.py vs tuned)
 
@@ -604,7 +604,7 @@ After tuning 9 sites with Optuna TPE (30+ trials each, 18 hyperparameters per si
 |---|---:|---:|---:|---:|
 | Pretrain (pre-2019, not scored) | 0.428 | 0.312 | −0.115 | 797 |
 | Validation (2019-2022) | 0.346 | 0.418 | **+0.072** | 216 |
-| **Holdout (2022-2024, untouched)** | **0.495** | **0.338** | **−0.157** | 164 |
+| **Holdout (2022-2023, untouched)** | **0.495** | **0.338** | **−0.157** | 164 |
 
 **Verdict from `validate_tuned_on_holdout.py`: OVERFITTING.** Tuning improved validation but degraded holdout — the classic noise-fitting signature.
 
@@ -629,7 +629,7 @@ After tuning 9 sites with Optuna TPE (30+ trials each, 18 hyperparameters per si
 | Window | Baseline F2 | Tuned F2 | Δ | N spikes |
 |---|---:|---:|---:|---:|
 | Validation (2019-2022) | (not yet computed) | 0.732 | — | 32 |
-| Holdout (2022-2024) | (not yet computed) | (pending) | — | — |
+| Holdout (2022-2023) | (not yet computed) | (pending) | — | — |
 
 Spike classifier holdout test pending. The tuned threshold is 0.227 (vs current 0.10), giving recall 0.91 / precision 0.41 on validation. Need to confirm on holdout before adopting.
 
@@ -679,4 +679,4 @@ After §18's full-Optuna disaster, ran a constrained 3-dim grid (`scripts/eval/g
 | Newport | w_xgb=1.0, q=0.95 | −0.67 | SKIP |
 | Twin Harbors | w_xgb=0.25, q=0.97 | −0.58 | SKIP |
 
-**Applied edits to `per_site_models.py`: NONE.** Even the two "candidates" (Copalis, Coos Bay) lack the 2022-2024 holdout verification that §18 proved is non-negotiable. Same trap, slightly smaller search space. Conclusion: ship current per-site config; revisit tuning only after a meaningful new feature changes the loss landscape.
+**Applied edits to `per_site_models.py`: NONE.** Even the two "candidates" (Copalis, Coos Bay) lack the 2022-2023 holdout verification that §18 proved is non-negotiable. Same trap, slightly smaller search space. Conclusion: ship current per-site config; revisit tuning only after a meaningful new feature changes the loss landscape.

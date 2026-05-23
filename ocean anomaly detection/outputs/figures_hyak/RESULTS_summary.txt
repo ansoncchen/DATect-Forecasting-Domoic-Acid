@@ -1,0 +1,229 @@
+
+Loaded 328575 rows  |  methods: ['AE_2d_l128', 'AE_2d_l16', 'AE_2d_l32', 'AE_2d_l4', 'AE_2d_l64', 'AE_3d_l128_t4', 'AE_3d_l16_t4', 'AE_3d_l32_t4', 'AE_3d_l4_t4', 'AE_3d_l64_t4', 'B1_chla_zscore', 'B2_multivar_zscore', 'B3T_pca_k32_t4', 'B3_pca_k32', 'B3_pca_k4']  |  regions: 5
+
+============================================================================================
+Method                                   Region                                  Mean      Std
+--------------------------------------------------------------------------------------------
+AE_2d_l128                               Overall (WA–OR–N. CA coastal)          0.216    0.135
+AE_2d_l16                                Overall (WA–OR–N. CA coastal)          0.305    0.176
+AE_2d_l32                                Overall (WA–OR–N. CA coastal)          0.269    0.160
+AE_2d_l4                                 Overall (WA–OR–N. CA coastal)          0.439    0.247
+AE_2d_l64                                Overall (WA–OR–N. CA coastal)          0.231    0.144
+AE_3d_l128_t4                            Overall (WA–OR–N. CA coastal)          0.243    0.154
+AE_3d_l16_t4                             Overall (WA–OR–N. CA coastal)          0.364    0.230
+AE_3d_l32_t4                             Overall (WA–OR–N. CA coastal)          0.303    0.186
+AE_3d_l4_t4                              Overall (WA–OR–N. CA coastal)          0.493    0.289
+AE_3d_l64_t4                             Overall (WA–OR–N. CA coastal)          0.271    0.169
+B1_chla_zscore                           Overall (WA–OR–N. CA coastal)          0.940    0.502
+B2_multivar_zscore                       Overall (WA–OR–N. CA coastal)          3.765    1.805
+B3T_pca_k32_t4                           Overall (WA–OR–N. CA coastal)          0.367    0.210
+B3_pca_k32                               Overall (WA–OR–N. CA coastal)          0.309    0.171
+B3_pca_k4                                Overall (WA–OR–N. CA coastal)          0.716    0.316
+
+AE_2d_l128                               Olympic Coast (WA)                     0.200    0.162
+AE_2d_l16                                Olympic Coast (WA)                     0.290    0.225
+AE_2d_l32                                Olympic Coast (WA)                     0.252    0.199
+AE_2d_l4                                 Olympic Coast (WA)                     0.396    0.303
+AE_2d_l64                                Olympic Coast (WA)                     0.216    0.174
+AE_3d_l128_t4                            Olympic Coast (WA)                     0.223    0.183
+AE_3d_l16_t4                             Olympic Coast (WA)                     0.342    0.289
+AE_3d_l32_t4                             Olympic Coast (WA)                     0.279    0.226
+AE_3d_l4_t4                              Olympic Coast (WA)                     0.449    0.359
+AE_3d_l64_t4                             Olympic Coast (WA)                     0.249    0.203
+B1_chla_zscore                           Olympic Coast (WA)                     0.984    0.695
+B2_multivar_zscore                       Olympic Coast (WA)                     3.858    2.024
+B3T_pca_k32_t4                           Olympic Coast (WA)                     0.362    0.280
+B3_pca_k32                               Olympic Coast (WA)                     0.307    0.230
+B3_pca_k4                                Olympic Coast (WA)                     0.788    0.481
+
+AE_2d_l128                               SW Washington / Long Beach             0.117    0.090
+AE_2d_l16                                SW Washington / Long Beach             0.169    0.122
+AE_2d_l32                                SW Washington / Long Beach             0.145    0.109
+AE_2d_l4                                 SW Washington / Long Beach             0.234    0.160
+AE_2d_l64                                SW Washington / Long Beach             0.127    0.096
+AE_3d_l128_t4                            SW Washington / Long Beach             0.130    0.103
+AE_3d_l16_t4                             SW Washington / Long Beach             0.200    0.169
+AE_3d_l32_t4                             SW Washington / Long Beach             0.164    0.130
+AE_3d_l4_t4                              SW Washington / Long Beach             0.269    0.204
+AE_3d_l64_t4                             SW Washington / Long Beach             0.146    0.116
+B1_chla_zscore                           SW Washington / Long Beach             1.019    0.833
+B2_multivar_zscore                       SW Washington / Long Beach             3.905    2.203
+B3T_pca_k32_t4                           SW Washington / Long Beach             0.300    0.208
+B3_pca_k32                               SW Washington / Long Beach             0.265    0.178
+B3_pca_k4                                SW Washington / Long Beach             0.495    0.218
+
+AE_2d_l128                               Central Oregon                         0.195    0.169
+AE_2d_l16                                Central Oregon                         0.269    0.213
+AE_2d_l32                                Central Oregon                         0.239    0.197
+AE_2d_l4                                 Central Oregon                         0.392    0.292
+AE_2d_l64                                Central Oregon                         0.209    0.179
+AE_3d_l128_t4                            Central Oregon                         0.218    0.188
+AE_3d_l16_t4                             Central Oregon                         0.324    0.280
+AE_3d_l32_t4                             Central Oregon                         0.269    0.224
+AE_3d_l4_t4                              Central Oregon                         0.444    0.350
+AE_3d_l64_t4                             Central Oregon                         0.242    0.205
+B1_chla_zscore                           Central Oregon                         0.976    0.747
+B2_multivar_zscore                       Central Oregon                         3.843    2.260
+B3T_pca_k32_t4                           Central Oregon                         0.325    0.251
+B3_pca_k32                               Central Oregon                         0.275    0.206
+B3_pca_k4                                Central Oregon                         0.602    0.303
+
+AE_2d_l128                               Southern OR / N CA                     0.212    0.171
+AE_2d_l16                                Southern OR / N CA                     0.313    0.238
+AE_2d_l32                                Southern OR / N CA                     0.271    0.209
+AE_2d_l4                                 Southern OR / N CA                     0.470    0.360
+AE_2d_l64                                Southern OR / N CA                     0.230    0.184
+AE_3d_l128_t4                            Southern OR / N CA                     0.241    0.195
+AE_3d_l16_t4                             Southern OR / N CA                     0.371    0.303
+AE_3d_l32_t4                             Southern OR / N CA                     0.309    0.246
+AE_3d_l4_t4                              Southern OR / N CA                     0.519    0.402
+AE_3d_l64_t4                             Southern OR / N CA                     0.272    0.217
+B1_chla_zscore                           Southern OR / N CA                     0.973    0.751
+B2_multivar_zscore                       Southern OR / N CA                     3.894    2.255
+B3T_pca_k32_t4                           Southern OR / N CA                     0.367    0.275
+B3_pca_k32                               Southern OR / N CA                     0.310    0.226
+B3_pca_k4                                Southern OR / N CA                     0.733    0.501
+
+============================================================================================
+Pearson correlation matrix (Overall region only)
+method              AE_2d_l128  AE_2d_l16  AE_2d_l32  AE_2d_l4  AE_2d_l64  AE_3d_l128_t4  AE_3d_l16_t4  AE_3d_l32_t4  AE_3d_l4_t4  AE_3d_l64_t4  B1_chla_zscore  B2_multivar_zscore  B3T_pca_k32_t4  \
+method                                                                                                                                                                                                
+AE_2d_l128               1.000      0.977      0.992     0.872      0.998          0.950         0.861         0.927        0.825         0.939           0.345               0.338           0.886   
+AE_2d_l16                0.977      1.000      0.994     0.944      0.984          0.937         0.886         0.938        0.893         0.937           0.378               0.365           0.916   
+AE_2d_l32                0.992      0.994      1.000     0.913      0.995          0.947         0.878         0.938        0.864         0.942           0.365               0.355           0.906   
+AE_2d_l4                 0.872      0.944      0.913     1.000      0.888          0.847         0.846         0.876        0.942         0.861           0.389               0.361           0.885   
+AE_2d_l64                0.998      0.984      0.995     0.888      1.000          0.950         0.867         0.932        0.840         0.942           0.348               0.339           0.894   
+AE_3d_l128_t4            0.950      0.937      0.947     0.847      0.950          1.000         0.945         0.988        0.877         0.995           0.356               0.387           0.955   
+AE_3d_l16_t4             0.861      0.886      0.878     0.846      0.867          0.945         1.000         0.970        0.944         0.959           0.401               0.418           0.970   
+AE_3d_l32_t4             0.927      0.938      0.938     0.876      0.932          0.988         0.970         1.000        0.918         0.995           0.380               0.406           0.975   
+AE_3d_l4_t4              0.825      0.893      0.864     0.942      0.840          0.877         0.944         0.918        1.000         0.898           0.417               0.402           0.940   
+AE_3d_l64_t4             0.939      0.937      0.942     0.861      0.942          0.995         0.959         0.995        0.898         1.000           0.364               0.393           0.968   
+B1_chla_zscore           0.345      0.378      0.365     0.389      0.348          0.356         0.401         0.380        0.417         0.364           1.000               0.749           0.369   
+B2_multivar_zscore       0.338      0.365      0.355     0.361      0.339          0.387         0.418         0.406        0.402         0.393           0.749               1.000           0.404   
+B3T_pca_k32_t4           0.886      0.916      0.906     0.885      0.894          0.955         0.970         0.975        0.940         0.968           0.369               0.404           1.000   
+B3_pca_k32               0.972      0.992      0.987     0.942      0.979          0.928         0.875         0.927        0.887         0.928           0.353               0.351           0.919   
+B3_pca_k4                0.686      0.832      0.770     0.948      0.707          0.884         0.821         0.880        0.858         0.880           0.441               0.400           0.851   
+
+method              B3_pca_k32  B3_pca_k4  
+method                                     
+AE_2d_l128               0.972      0.686  
+AE_2d_l16                0.992      0.832  
+AE_2d_l32                0.987      0.770  
+AE_2d_l4                 0.942      0.948  
+AE_2d_l64                0.979      0.707  
+AE_3d_l128_t4            0.928      0.884  
+AE_3d_l16_t4             0.875      0.821  
+AE_3d_l32_t4             0.927      0.880  
+AE_3d_l4_t4              0.887      0.858  
+AE_3d_l64_t4             0.928      0.880  
+B1_chla_zscore           0.353      0.441  
+B2_multivar_zscore       0.351      0.400  
+B3T_pca_k32_t4           0.919      0.851  
+B3_pca_k32               1.000      0.796  
+B3_pca_k4                0.796      1.000  
+
+============================================================================================
+Top-3 most-anomalous dates per method (Overall region)
+  AE_2d_l128                               2014-11-27(1.31), 2014-12-04(1.31), 2014-12-03(1.19)
+  AE_2d_l16                                2014-12-04(1.47), 2014-11-27(1.40), 2014-12-03(1.36)
+  AE_2d_l32                                2014-12-04(1.42), 2014-11-27(1.38), 2014-12-03(1.31)
+  AE_2d_l4                                 2014-12-04(1.70), 2015-03-08(1.54), 2014-11-27(1.52)
+  AE_2d_l64                                2014-12-04(1.34), 2014-11-27(1.32), 2014-12-03(1.23)
+  AE_3d_l128_t4                            2014-11-27(1.52), 2014-12-04(1.32), 2014-12-03(1.22)
+  AE_3d_l16_t4                             2012-05-09(2.78), 2014-11-27(1.89), 2015-02-12(1.88)
+  AE_3d_l32_t4                             2014-11-27(1.61), 2014-12-04(1.43), 2014-12-03(1.32)
+  AE_3d_l4_t4                              2012-05-09(3.12), 2015-06-11(2.34), 2015-06-10(2.22)
+  AE_3d_l64_t4                             2014-11-27(1.59), 2014-12-04(1.36), 2014-12-03(1.25)
+  B1_chla_zscore                           2012-01-19(6.03), 2012-01-18(5.72), 2008-07-15(5.63)
+  B2_multivar_zscore                       2008-07-15(18.71), 2014-12-06(13.39), 2012-05-10(12.13)
+  B3T_pca_k32_t4                           2012-05-09(2.14), 2015-02-12(1.71), 2014-11-27(1.64)
+  B3_pca_k32                               2014-12-04(1.44), 2014-11-27(1.37), 2014-12-03(1.35)
+  B3_pca_k4                                2003-06-14(1.42), 2003-05-21(1.38), 2003-07-08(1.36)
+
+============================================================================================
+E4: One-step-ahead forecastability (R², CI of AE Δ vs matched PCA)
+
+  Overall (WA–OR–N. CA coastal):
+    B2_multivar_zscore                       R²=+0.7678
+    B1_chla_zscore                           R²=+0.5563
+    AE_3d_l16_t4                             R²=-0.0003  CIΔ=[-0.007, +0.011] vs B3T_pca_k32_t4
+    AE_3d_l64_t4                             R²=-0.0005  CIΔ=[-0.002, +0.006] vs B3T_pca_k32_t4
+    AE_3d_l32_t4                             R²=-0.0006  CIΔ=[-0.001, +0.005] vs B3T_pca_k32_t4
+    AE_3d_l128_t4                            R²=-0.0008  CIΔ=[-0.001, +0.006] vs B3T_pca_k32_t4
+    AE_3d_l4_t4                              R²=-0.0010  CIΔ=[-0.001, +0.005] vs B3T_pca_k32_t4
+    B3T_pca_k32_t4                           R²=-0.0024
+    AE_2d_l64                                R²=-0.0146  CIΔ=[+0.011, +0.031] vs B3_pca_k32
+    AE_2d_l128                               R²=-0.0159  CIΔ=[+0.010, +0.028] vs B3_pca_k32
+    AE_2d_l4                                 R²=-0.0192  CIΔ=[+0.007, +0.023] vs B3_pca_k32
+    AE_2d_l16                                R²=-0.0224  CIΔ=[+0.007, +0.017] vs B3_pca_k32
+    AE_2d_l32                                R²=-0.0261  CIΔ=[+0.003, +0.014] vs B3_pca_k32
+    B3_pca_k32                               R²=-0.0337
+    B3_pca_k4                                R²=-3.6060
+
+  Olympic Coast (WA):
+    B2_multivar_zscore                       R²=+0.6897
+    B1_chla_zscore                           R²=+0.6068
+    AE_3d_l4_t4                              R²=+0.0337  CIΔ=[+0.043, +0.056] vs B3T_pca_k32_t4
+    AE_3d_l16_t4                             R²=-0.0006  CIΔ=[+0.002, +0.028] vs B3T_pca_k32_t4
+    AE_3d_l128_t4                            R²=-0.0014  CIΔ=[+0.002, +0.025] vs B3T_pca_k32_t4
+    AE_3d_l64_t4                             R²=-0.0021  CIΔ=[+0.003, +0.024] vs B3T_pca_k32_t4
+    AE_3d_l32_t4                             R²=-0.0042  CIΔ=[+0.003, +0.020] vs B3T_pca_k32_t4
+    AE_2d_l128                               R²=-0.0106  CIΔ=[+0.016, +0.047] vs B3_pca_k32
+    AE_2d_l64                                R²=-0.0133  CIΔ=[+0.015, +0.040] vs B3_pca_k32
+    B3T_pca_k32_t4                           R²=-0.0149
+    AE_2d_l16                                R²=-0.0231  CIΔ=[+0.011, +0.028] vs B3_pca_k32
+    AE_2d_l32                                R²=-0.0277  CIΔ=[+0.006, +0.022] vs B3_pca_k32
+    AE_2d_l4                                 R²=-0.0285  CIΔ=[+0.006, +0.021] vs B3_pca_k32
+    B3_pca_k32                               R²=-0.0408
+    B3_pca_k4                                R²=-1.9009
+
+  SW Washington / Long Beach:
+    B2_multivar_zscore                       R²=+0.7135
+    B1_chla_zscore                           R²=+0.6508
+    AE_3d_l16_t4                             R²=-0.0276  CIΔ=[+0.071, +0.142] vs B3T_pca_k32_t4
+    AE_3d_l64_t4                             R²=-0.0291  CIΔ=[+0.072, +0.138] vs B3T_pca_k32_t4
+    AE_3d_l128_t4                            R²=-0.0330  CIΔ=[+0.071, +0.134] vs B3T_pca_k32_t4
+    AE_3d_l32_t4                             R²=-0.0358  CIΔ=[+0.066, +0.133] vs B3T_pca_k32_t4
+    AE_3d_l4_t4                              R²=-0.0524  CIΔ=[+0.057, +0.106] vs B3T_pca_k32_t4
+    AE_2d_l128                               R²=-0.0646  CIΔ=[+0.107, +0.189] vs B3_pca_k32
+    AE_2d_l64                                R²=-0.0729  CIΔ=[+0.099, +0.180] vs B3_pca_k32
+    AE_2d_l16                                R²=-0.0843  CIΔ=[+0.094, +0.162] vs B3_pca_k32
+    AE_2d_l32                                R²=-0.0874  CIΔ=[+0.091, +0.159] vs B3_pca_k32
+    AE_2d_l4                                 R²=-0.1161  CIΔ=[+0.065, +0.127] vs B3_pca_k32
+    B3T_pca_k32_t4                           R²=-0.1309
+    B3_pca_k32                               R²=-0.2099
+    B3_pca_k4                                R²=-0.4283
+
+  Central Oregon:
+    B2_multivar_zscore                       R²=+0.5760
+    B1_chla_zscore                           R²=+0.5458
+    AE_3d_l16_t4                             R²=-0.0000  CIΔ=[-0.004, +0.003] vs B3T_pca_k32_t4
+    AE_3d_l64_t4                             R²=-0.0001  CIΔ=[-0.001, +0.001] vs B3T_pca_k32_t4
+    AE_3d_l128_t4                            R²=-0.0001  CIΔ=[-0.001, +0.002] vs B3T_pca_k32_t4
+    B3T_pca_k32_t4                           R²=-0.0002
+    AE_3d_l32_t4                             R²=-0.0004  CIΔ=[-0.001, +0.001] vs B3T_pca_k32_t4
+    AE_3d_l4_t4                              R²=-0.0010  CIΔ=[-0.004, +0.002] vs B3T_pca_k32_t4
+    AE_2d_l128                               R²=-0.0040  CIΔ=[+0.001, +0.010] vs B3_pca_k32
+    AE_2d_l64                                R²=-0.0045  CIΔ=[+0.001, +0.009] vs B3_pca_k32
+    AE_2d_l16                                R²=-0.0085  CIΔ=[-0.001, +0.002] vs B3_pca_k32
+    B3_pca_k32                               R²=-0.0090
+    AE_2d_l32                                R²=-0.0090  CIΔ=[-0.002, +0.002] vs B3_pca_k32
+    AE_2d_l4                                 R²=-0.0105  CIΔ=[-0.008, +0.004] vs B3_pca_k32
+    B3_pca_k4                                R²=-0.1394
+
+  Southern OR / N CA:
+    B2_multivar_zscore                       R²=+0.7460
+    B1_chla_zscore                           R²=+0.6323
+    AE_3d_l4_t4                              R²=+0.4006  CIΔ=[+0.380, +0.431] vs B3T_pca_k32_t4
+    AE_2d_l4                                 R²=+0.2547  CIΔ=[+0.262, +0.297] vs B3_pca_k32
+    AE_3d_l16_t4                             R²=-0.0001  CIΔ=[-0.004, +0.008] vs B3T_pca_k32_t4
+    AE_3d_l32_t4                             R²=-0.0023  CIΔ=[-0.001, +0.003] vs B3T_pca_k32_t4
+    B3T_pca_k32_t4                           R²=-0.0029
+    AE_3d_l64_t4                             R²=-0.0038  CIΔ=[-0.003, +0.001] vs B3T_pca_k32_t4
+    AE_3d_l128_t4                            R²=-0.0045  CIΔ=[-0.005, +0.001] vs B3T_pca_k32_t4
+    AE_2d_l16                                R²=-0.0168  CIΔ=[+0.004, +0.012] vs B3_pca_k32
+    AE_2d_l64                                R²=-0.0200  CIΔ=[+0.000, +0.010] vs B3_pca_k32
+    AE_2d_l128                               R²=-0.0215  CIΔ=[-0.001, +0.009] vs B3_pca_k32
+    AE_2d_l32                                R²=-0.0226  CIΔ=[-0.001, +0.006] vs B3_pca_k32
+    B3_pca_k32                               R²=-0.0248
+    B3_pca_k4                                R²=-0.7376

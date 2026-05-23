@@ -1,18 +1,16 @@
 # OAD Integration — Results & Paper-Ready Writeup
 
-> Status: **template** — populate the `{{...}}` placeholders from `paper_ablation_results.json` and the holdout-validation outputs after each Hyak run finishes. The structure here mirrors what should go into the paper; each section has a markdown table that's directly portable to LaTeX `\begin{tabular}` via `pandoc` or manual conversion.
+> **Status (2026-05-23):** numbers audited via 5-seed bootstrap. The headline OAD result is **null at the beach DA level** (Δ R² = +0.0015 when OAD dropped — within seed noise). The scientifically interesting result is **§16 — OAD validates at the offshore source** (ESP mooring: Pn r=+0.46, pDA r=+0.33). See `docs/CORRECTED_NUMBERS.md` for full multi-seed numbers.
 
 **Branch:** [`oad-integration`](https://github.com/ansoncchen/DATect-Forecasting-Domoic-Acid/tree/oad-integration)
-**Last updated:** {{DATE}}
+**Last updated:** 2026-05-23
 **Reporting model:** `AE_3d_l32_c4_t4_s42_mae050` (3D masked-autoencoder, mask ratio 0.50)
 
 ---
 
 ## 1. Headline number (for the abstract / introduction)
 
-> *Add to abstract once filled:*
->
-> "Augmenting the per-site DA forecasting ensemble with a learned 16-dimensional regional ocean-anomaly representation produced from an unsupervised 3D masked autoencoder on 22 years of MODIS Aqua imagery yields a pooled ensemble R² of {{R2_WITH_OAD}} on the temporal holdout (2022-2024), compared to {{R2_BASELINE}} for the per-site environmental baseline (Δ R² = {{DELTA_R2_POOLED}}; Δ MAE = {{DELTA_MAE_POOLED}} µg/g; N = {{N_HOLDOUT}} test points)."
+**Result:** Augmenting the per-site DA forecasting ensemble with a learned 16-dimensional regional ocean-anomaly representation produced from an unsupervised 3D masked autoencoder on 22 years of MODIS Aqua imagery yields a pooled ensemble holdout R² of **0.386 ± 0.145** (5 seeds, 2022-2024 holdout, N≈160 per seed), statistically indistinguishable from the baseline without OAD features (single-seed paper_ablation_results: Δ R² = +0.0015 when OAD is dropped — i.e. *the model is slightly better without OAD*, within noise). **OAD's signal does not survive the offshore→shore→shellfish causal chain.** The headline contribution is therefore re-framed: OAD is validated as an unsupervised representation of *offshore* ocean state (ESP mooring correlations: Pn r=+0.46, pDA r=+0.33, §16) but is not a useful feature for *beach* DA forecasting.
 
 ---
 
@@ -68,58 +66,76 @@ Pre-2019 retrospective points are NOT scored — they cover the 2014-16 marine h
 
 ### 3.1 Pooled metrics (random-anchor sampling, all sites, all years 2008-2024)
 
-Source: `paper_ablation_results.json` (Hyak job 35390792).
+Source: `paper_ablation_results.json` (single-seed 123). **Single-seed Δ is the right unit here** (multi-seed bootstrap would dominate the +0.002 effect). For absolute R² numbers, multi-seed in §3.4.
 
-| Configuration | R² | MAE (µg/g) | RMSE | N |
+| Configuration | R² (seed 123) | MAE (µg/g) | N |
+|---|---:|---:|---:|
+| Baseline (DATect + per-site customization + OAD on) | +0.173 | 6.53 | 1202 |
+| With OAD features dropped | +0.175 | 6.52 | 1202 |
+| **Δ (drop OAD − keep OAD)** | **+0.0015** | **−0.01** | — |
+
+OAD's net effect: essentially zero, slightly negative (within noise floor of ±0.003 from chain experiments).
+
+### 3.2 Per-site R² (all years, single seed 123, from `paper_ablation_results.json`)
+
+Per-site Δ R² when dropping OAD (positive = OAD was hurting, negative = OAD was helping):
+
+| Site | Baseline R² | No-OAD R² | Δ (no_OAD − baseline) | N |
 |---|---:|---:|---:|---:|
-| Baseline (DATect + per-site customization + OAD off) | {{BASELINE_POOLED_R2}} | {{BASELINE_POOLED_MAE}} | {{BASELINE_POOLED_RMSE}} | {{BASELINE_POOLED_N}} |
-| **+ OAD (16 features)** | {{TUNED_POOLED_R2}} | {{TUNED_POOLED_MAE}} | {{TUNED_POOLED_RMSE}} | {{TUNED_POOLED_N}} |
-| **Δ (+OAD − baseline)** | **{{DELTA_R2_POOLED}}** | **{{DELTA_MAE_POOLED}}** | {{DELTA_RMSE_POOLED}} | — |
+| Cannon Beach | −0.071 | −0.071 | +0.0000 | 58 |
+| Clatsop Beach | +0.296 | +0.304 | +0.0084 | 197 |
+| Coos Bay | −0.003 | −0.003 | +0.0000 | 61 |
+| Copalis | +0.765 | +0.764 | −0.0006 | 154 |
+| Gold Beach | +0.035 | +0.035 | +0.0000 | 137 |
+| Kalaloch | +0.627 | +0.627 | +0.0003 | 128 |
+| Long Beach | +0.520 | +0.526 | +0.0056 | 119 |
+| Newport | −0.163 | −0.163 | +0.0000 | 124 |
+| Quinault | +0.582 | +0.584 | +0.0027 | 97 |
+| Twin Harbors | +0.561 | +0.566 | +0.0056 | 127 |
 
-### 3.2 Per-site R² (ensemble, all years)
-
-| Site | Region | Baseline R² | +OAD R² | Δ R² | N |
-|---|---|---:|---:|---:|---:|
-| {{Site1}} | {{Region1}} | {{B1}} | {{W1}} | {{D1}} | {{N1}} |
-| ... | ... | ... | ... | ... | ... |
-
-(Per-site table will be auto-populated from `paper_ablation_results.json["per_site"]` after the analyzer runs.)
+All |Δ| ≤ 0.009 — well within chain-experiment noise floor (±0.003 pooled, ±0.01 per-site at typical N). No site benefits meaningfully from OAD; the biggest "hurt" is Long Beach (−0.006) and Twin Harbors (−0.006), both still inside noise.
 
 ### 3.3 SW Washington subset (OAD's headline region)
 
-OAD's RESULTS.md headline win was in SW Washington / Long Beach (R² = +0.87, CIΔ vs PCA = [+0.92, +1.05] at lead=1). At the integration-relevant 12-day lead, the AE retains R² ≈ 0.15 in SW WA (mae050 variant). The expected pattern is gain concentrated in:
+OAD's RESULTS.md headline win was in SW Washington / Long Beach (R² = +0.87, CIΔ vs PCA = [+0.92, +1.05] at lead=1). At the integration-relevant 12-day lead, the AE retains R² ≈ 0.15 in SW WA (mae050 variant). The integration result for SW WA:
 
-| SW WA site | Baseline R² | +OAD R² | Δ R² |
-|---|---:|---:|---:|
-| Twin Harbors | {{TH_B}} | {{TH_W}} | {{TH_D}} |
-| Long Beach | {{LB_B}} | {{LB_W}} | {{LB_D}} |
-| Clatsop Beach | {{CB_B}} | {{CB_W}} | {{CB_D}} |
-| Cannon Beach | {{CnB_B}} | {{CnB_W}} | {{CnB_D}} |
+| SW WA site | Baseline R² | No-OAD R² | Δ | N |
+|---|---:|---:|---:|---:|
+| Twin Harbors | +0.561 | +0.566 | +0.0056 | 127 |
+| Long Beach | +0.520 | +0.526 | +0.0056 | 119 |
+| Clatsop Beach | +0.296 | +0.304 | +0.0084 | 197 |
+| Cannon Beach | −0.071 | −0.071 | +0.0000 | 58 |
 
-Mean Δ R² in SW WA: **{{SW_WA_MEAN_DELTA}}**.
+Mean Δ R² in SW WA: **+0.005** when OAD dropped → OAD is *slightly hurting* SW WA, opposite of the predicted direction. **Even at OAD's strongest validated region, the offshore signal does not survive transport to shore.**
 
 ### 3.4 Holdout-only metrics (2022-2024, the unbiased numbers)
 
-| Configuration | R² (holdout) | MAE (holdout) | N |
+**Updated 2026-05-23 with multi-seed bootstrap (5 seeds, 42-46). See `docs/CORRECTED_NUMBERS.md`.**
+
+| Configuration | R² (holdout, 5-seed mean ± std) | MAE (holdout) | N (per seed) |
 |---|---:|---:|---:|
-| Baseline (no OAD) | {{HOLDOUT_BASELINE_R2}} | {{HOLDOUT_BASELINE_MAE}} | {{HOLDOUT_N}} |
-| **+ OAD** | {{HOLDOUT_TUNED_R2}} | {{HOLDOUT_TUNED_MAE}} | {{HOLDOUT_N}} |
-| **Δ** | **{{HOLDOUT_DELTA_R2}}** | **{{HOLDOUT_DELTA_MAE}}** | — |
+| Baseline (current per_site_models.py, OAD features kept) | **0.386 ± 0.145** | 6.03 ± 0.63 | ~160 |
+| No OAD features (single-seed 123, `paper_ablation_results.json`) | 0.495 (holdout single-seed) — Δ vs same-seed baseline = +0.0015 R² | comparable | 164 |
+
+**Verdict unchanged**: OAD is null at the beach. Dropping OAD slightly *helps* (+0.0015 R²) — well within seed noise. The previously-quoted "0.495 holdout R²" was the seed-123 single-seed; multi-seed mean is 0.39 ± 0.15.
 
 ---
 
 ## 4. Ablation context (Task 10 full table)
 
-These rows come from the same `paper_ablation_results.json`. Useful as a calibration: how does the +OAD effect size compare to other architectural choices DATect makes?
+From `paper_ablation_results.json` — single-seed (123) random-anchor sample, N=1202. Useful for *relative* comparison (Δ R² vs same-seed baseline), NOT for absolute R² claims (multi-seed range is ±0.13, see §3.4).
 
-| Configuration | R² | Δ R² vs baseline | MAE | N |
-|---|---:|---:|---:|---:|
-| Baseline (full DATect + OAD) | {{ABL_BASE_R2}} | — | {{ABL_BASE_MAE}} | {{ABL_BASE_N}} |
-| No interpolated training | {{ABL_NI_R2}} | {{ABL_NI_DELTA}} | {{ABL_NI_MAE}} | {{ABL_NI_N}} |
-| No per-site customization | {{ABL_NP_R2}} | {{ABL_NP_DELTA}} | {{ABL_NP_MAE}} | {{ABL_NP_N}} |
-| No observation-order lags | {{ABL_NL_R2}} | {{ABL_NL_DELTA}} | {{ABL_NL_MAE}} | {{ABL_NL_N}} |
-| No derived features (pn_log) | {{ABL_ND_R2}} | {{ABL_ND_DELTA}} | {{ABL_ND_MAE}} | {{ABL_ND_N}} |
-| **No OAD features (A/B for §3)** | {{ABL_NO_R2}} | {{ABL_NO_DELTA}} | {{ABL_NO_MAE}} | {{ABL_NO_N}} |
+| Configuration | R² (seed 123) | Δ R² vs baseline | MAE |
+|---|---:|---:|---:|
+| Baseline (full DATect + OAD) | +0.173 | — | 6.53 |
+| No interpolated training | +0.193 | **+0.020** | 6.65 |
+| No per-site customization | +0.021 | **−0.153** | 6.72 ← biggest lever |
+| No observation-order lags | +0.184 | +0.010 | 6.52 |
+| No derived features (pn_log) | +0.174 | +0.000 | 6.53 |
+| No OAD features (A/B for §3) | +0.175 | **+0.0015** | 6.52 ← OAD null |
+| With OAD on small-N sites | +0.173 | 0 | 6.53 |
+
+All N=1202 (single-seed). Per-site customization is the only lever where Δ exceeds the seed-noise floor.
 
 ---
 
@@ -562,7 +578,9 @@ Largely **redundant**: DATect's `data/raw/pn-input/long-beach-pn.csv` has 2,002 
 
 ## 18. Hyperparameter tuning result — TUNING FAILED (Tasks 12+13)
 
-After tuning 9 sites with Optuna TPE (30+ trials each, 18 hyperparameters per site) using the 3-window chronological split (train pre-2019 / validate 2019-2022 / holdout 2022-2024), the holdout comparison decisively rejected the tuned configurations.
+**⚠ Re-audited 2026-05-23: this verdict was made on single-seed numbers (seed 123).** Multi-seed analysis (`docs/CORRECTED_NUMBERS.md`) shows holdout R² has std ≈ 0.15 across seeds 42-46 — comparable in magnitude to the −0.157 holdout drop reported below. The "OVERFITTING" verdict is *consistent* with the data but not as strong as originally framed. A re-run with leak-free grid-winner overrides on multi-seed bootstrap is queued (Hyak job 35510066) to give a definitive answer. **Until that finishes, treat this section as suggestive, not conclusive.**
+
+After tuning 9 sites with Optuna TPE (30+ trials each, 18 hyperparameters per site) using the 3-window chronological split (train pre-2019 / validate 2019-2022 / holdout 2022-2024), the holdout comparison rejected the tuned configurations on single-seed evidence:
 
 ### Window-level comparison (baseline current per_site_models.py vs tuned)
 

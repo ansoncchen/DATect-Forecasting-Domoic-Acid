@@ -38,8 +38,11 @@ try:
 except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-VAL_START = pd.Timestamp("2019-01-01")
-VAL_END   = pd.Timestamp("2022-01-01")  # holdout starts here
+# Canonical split loaded from config/tuned_hyperparameters.json
+from forecasting.tuned_config import get_eval_windows as _get_eval_windows
+_w = _get_eval_windows()
+VAL_START = pd.Timestamp(_w["validation_start"])
+VAL_END   = pd.Timestamp(_w["validation_end"])  # holdout starts here
 
 
 def run_eval(label: str, output_dir: str = "holdout_validation") -> str:

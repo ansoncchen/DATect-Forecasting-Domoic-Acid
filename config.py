@@ -381,19 +381,10 @@ TEST_SAMPLE_FRACTION = 0.20
 # History requirement: anchor must have >= this fraction of site's total history
 HISTORY_REQUIREMENT_FRACTION = 0.33
 
-# Features to drop before model training.
-# Includes columns from the parquet that have negligible importance,
-# plus rolling-mean variants that are computed but not useful.
-# Many previously-listed derived features (mhw_flag, beuti_squared, etc.)
-# are no longer computed at all — see paper_feature_ablation_results.json.
-ZERO_IMPORTANCE_FEATURES = [
-    # Parquet columns with negligible importance
-    'lat', 'lon',
-    'modis-par',
-    'modis-k490',       # ΔR² = +0.001 (removing improves performance)
-    'chla-anom',        # ΔR² = -0.001
-    'modis-chla',       # ΔR² = -0.004
-]
+# Features to drop before model training — loaded from tuned_hyperparameters.json.
+# This is a tuning decision (per-feature ablation showed each has |ΔR²| < 0.005;
+# removing all simultaneously costs ΔR² = -0.004). See provenance in the JSON.
+ZERO_IMPORTANCE_FEATURES = list(_tuned["zero_importance_features"])
 # Env override: append extra features to drop (comma-separated)
 _extra_drop = os.environ.get("DATECT_EXTRA_DROP_FEATURES", "")
 if _extra_drop:

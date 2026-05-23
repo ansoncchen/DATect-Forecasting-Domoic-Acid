@@ -161,9 +161,14 @@ def run_chronological(window_start: str, window_end: str, task: str, model_type:
 
 
 def main() -> int:
+    # Load canonical window defaults from tuned_hyperparameters.json
+    from forecasting.tuned_config import get_eval_windows
+    w = get_eval_windows()
+    default_window = f"{w['holdout_start']}:{w['holdout_end']}"
+
     p = argparse.ArgumentParser()
-    p.add_argument("--window", default="2022-01-01:2024-01-01",
-                   help="Date range as 'YYYY-MM-DD:YYYY-MM-DD' (default: post-2022 holdout)")
+    p.add_argument("--window", default=default_window,
+                   help=f"Date range as 'YYYY-MM-DD:YYYY-MM-DD' (default holdout: {default_window})")
     p.add_argument("--task", default="regression", choices=["regression", "classification"])
     p.add_argument("--model", default="ensemble")
     p.add_argument("--out-dir", default="eval_outputs/chronological")

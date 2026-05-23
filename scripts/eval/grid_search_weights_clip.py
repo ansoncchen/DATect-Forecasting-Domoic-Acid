@@ -63,13 +63,17 @@ W_XGB_GRID = [0.0, 0.25, 0.5, 0.75, 1.0]
 CLIP_Q_GRID = [0.95, 0.97, 0.99]
 CLIP_MAX_GRID = [None, 60.0, 80.0, 100.0, 120.0]
 
-# Chronological CV folds — only touch 2019-2021 (val period from §18). Holdout
-# 2022-2024 stays untouched.
-FOLDS = [
-    ("2019-01-01", "2020-01-01"),  # Fold A: test 2019
-    ("2020-01-01", "2021-01-01"),  # Fold B: test 2020
-    ("2021-01-01", "2022-01-01"),  # Fold C: test 2021
-]
+# Chronological CV folds. Derived from config/tuned_hyperparameters.json
+# eval_windows.validation_start..validation_end (default: [2019, 2022)),
+# split into yearly sub-folds. Holdout window stays untouched by construction.
+def _build_folds():
+    from forecasting.tuned_config import get_eval_windows
+    w = get_eval_windows()
+    start_year = int(w["validation_start"].split("-")[0])
+    end_year   = int(w["validation_end"].split("-")[0])
+    return [(f"{y}-01-01", f"{y+1}-01-01") for y in range(start_year, end_year)]
+
+FOLDS = _build_folds()
 
 
 SUBPROCESS_SCRIPT = '''

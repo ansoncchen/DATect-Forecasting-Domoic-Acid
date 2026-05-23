@@ -409,7 +409,7 @@ async def get_config():
         "forecast_model": getattr(config, 'FORECAST_MODEL', 'ensemble'),
         "forecast_horizon_weeks": getattr(config, 'FORECAST_HORIZON_WEEKS', 1),
         "forecast_horizon_days": getattr(config, 'FORECAST_HORIZON_DAYS', 7),
-        "spike_threshold": getattr(config, 'SPIKE_THRESHOLD', 20.0),
+        "spike_threshold": config.SPIKE_THRESHOLD,
     }
 
 @app.post("/api/config")
@@ -950,10 +950,8 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
             # Spike detection: actual DA > SPIKE_THRESHOLD vs predicted DA >
             # SPIKE_REGRESSION_ALERT_THRESHOLD. Use config constants so the
             # webapp stays coordinated with the spike-alert system.
-            spike_threshold = getattr(config, "SPIKE_THRESHOLD", 20.0)
-            pred_alert_threshold = getattr(
-                config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0
-            )
+            spike_threshold = config.SPIKE_THRESHOLD
+            pred_alert_threshold = config.SPIKE_REGRESSION_ALERT_THRESHOLD
             actual_binary = [1 if val > spike_threshold else 0 for val in actual_vals]
             pred_binary = [
                 1 if val > pred_alert_threshold else 0 for val in pred_vals

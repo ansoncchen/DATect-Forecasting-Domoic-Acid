@@ -397,7 +397,11 @@ MIN_TEST_DATE = "2003-01-01"
 # When scripts/eval/eval_paper_metrics.py --temporal-holdout is used, only dates >= TEMPORAL_HOLDOUT_CUTOFF
 # are used as test points. Training still uses all data before each anchor date.
 # Provides an uncontaminated generalization estimate separate from hyperparameter tuning.
-TEMPORAL_HOLDOUT_CUTOFF = os.environ.get("DATECT_TEMPORAL_HOLDOUT_CUTOFF", "2019-01-01")
+from forecasting.tuned_config import get_eval_windows as _get_eval_windows
+TEMPORAL_HOLDOUT_CUTOFF = os.environ.get(
+    "DATECT_TEMPORAL_HOLDOUT_CUTOFF",
+    _get_eval_windows()["validation_start"],
+)
 TEMPORAL_HOLDOUT_FRACTION = float(os.environ.get("DATECT_TEMPORAL_HOLDOUT_FRACTION", "1.0"))
 
 # Parallelization backend (used by joblib in retrospective evaluation)

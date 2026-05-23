@@ -146,7 +146,7 @@ class ClassificationAdapter:
         self,
         X_train: pd.DataFrame,
         y_da_raw: pd.Series,
-        spike_threshold: float = 20.0,
+        spike_threshold: Optional[float] = None,  # default → config.SPIKE_THRESHOLD
         site: Optional[str] = None,
     ) -> Optional[dict]:
         """
@@ -164,6 +164,10 @@ class ClassificationAdapter:
         -------
         dict with keys ``model``, ``columns`` (features used), or None.
         """
+        # Resolve threshold default from config (single source of truth)
+        if spike_threshold is None:
+            spike_threshold = float(config.SPIKE_THRESHOLD)
+
         # Binary target from raw DA values
         y_spike = (y_da_raw >= spike_threshold).astype(int)
 
@@ -212,7 +216,7 @@ class ClassificationAdapter:
         # Use spike-specific params (shallower trees, tuned for small
         # safe-baseline datasets in per-test-point training)
         from xgboost import XGBClassifier
-        spike_params = getattr(config, "SPIKE_CLASSIFIER_PARAMS", {})
+        spike_params = dict(config.SPIKE_CLASSIFIER_PARAMS)
         model = XGBClassifier(
             **spike_params,
             random_state=config.RANDOM_SEED,

@@ -487,7 +487,7 @@ class RawForecastEngine:
             )
 
         # --- Spike binary classifier (pooled cross-site training) ---
-        if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
+        if config.SPIKE_CLASSIFIER_ENABLED:
             try:
                 X_pooled, y_pooled = self._build_pooled_spike_data(
                     feature_frame, anchor_date,
@@ -508,19 +508,15 @@ class RawForecastEngine:
                             )
                         )
                         result["spike_probability"] = spike_prob
-                        classifier_fires = spike_prob >= getattr(
-                            config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
-                        )
-                        regression_fires = primary_prediction >= getattr(
-                            config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0
-                        )
+                        classifier_fires = spike_prob >= config.SPIKE_ALERT_PROB_THRESHOLD
+                        regression_fires = primary_prediction >= config.SPIKE_REGRESSION_ALERT_THRESHOLD
                         result["spike_alert"] = classifier_fires or regression_fires
             except Exception as exc:
                 logger.debug("Spike classifier failed: %s", exc)
 
         # Regression-only fallback when classifier is unavailable
         if "spike_alert" not in result:
-            if primary_prediction >= getattr(config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0):
+            if primary_prediction >= config.SPIKE_REGRESSION_ALERT_THRESHOLD:
                 result["spike_alert"] = True
 
         return result
@@ -1186,7 +1182,7 @@ class RawForecastEngine:
         # Spike binary classifier (pooled cross-site training)
         spike_prob = None
         spike_alert = None
-        if getattr(config, "SPIKE_CLASSIFIER_ENABLED", False):
+        if config.SPIKE_CLASSIFIER_ENABLED:
             try:
                 X_pooled, y_pooled = self._build_pooled_spike_data(
                     feature_frame, anchor_date,
@@ -1206,15 +1202,11 @@ class RawForecastEngine:
                                 spike_result, X_test_processed,
                             )
                         )
-                        classifier_fires = spike_prob >= getattr(
-                            config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10
-                        )
+                        classifier_fires = spike_prob >= config.SPIKE_ALERT_PROB_THRESHOLD
                         w_xgb, w_rf, _ = get_site_ensemble_weights(site)
                         rf_val = rf_prediction if rf_prediction is not None else prediction
                         ensemble_pred = w_xgb * prediction + w_rf * rf_val
-                        regression_fires = ensemble_pred >= getattr(
-                            config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0
-                        )
+                        regression_fires = ensemble_pred >= config.SPIKE_REGRESSION_ALERT_THRESHOLD
                         spike_alert = classifier_fires or regression_fires
             except Exception as exc:
                 logger.debug("Spike classifier failed in validation: %s", exc)
@@ -1224,7 +1216,7 @@ class RawForecastEngine:
             w_xgb, w_rf, _ = get_site_ensemble_weights(site)
             rf_val = rf_prediction if rf_prediction is not None else prediction
             ensemble_pred = w_xgb * prediction + w_rf * rf_val
-            if ensemble_pred >= getattr(config, "SPIKE_REGRESSION_ALERT_THRESHOLD", 12.0):
+            if ensemble_pred >= config.SPIKE_REGRESSION_ALERT_THRESHOLD:
                 spike_alert = True
 
         result = {

@@ -338,8 +338,8 @@ def compute_classification_table(actual: np.ndarray, predicted: np.ndarray) -> p
 
 def compute_spike_tables(
     df: pd.DataFrame,
-    spike_threshold: float = 20.0,
-    reg_alert_threshold: float = 12.0,
+    spike_threshold: float | None = None,
+    reg_alert_threshold: float | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Compute spike-detection metrics from a retrospective results DataFrame.
@@ -361,6 +361,14 @@ def compute_spike_tables(
         spike_threshold: DA value above which an event is a spike (default 20 µg/g).
         reg_alert_threshold: DA value at which regression alone fires an alert (12 µg/g).
     """
+    # Defaults loaded from config (which itself loads from tuned_hyperparameters.json)
+    if spike_threshold is None:
+        import config
+        spike_threshold = float(config.SPIKE_THRESHOLD)
+    if reg_alert_threshold is None:
+        import config
+        reg_alert_threshold = float(config.SPIKE_REGRESSION_ALERT_THRESHOLD)
+
     df = df.copy()
 
     # Normalise actual column

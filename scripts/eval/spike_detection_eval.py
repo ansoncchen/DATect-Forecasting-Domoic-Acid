@@ -536,7 +536,7 @@ def main():
     # Evaluate integrated spike binary classifier (if present in results)
     if "spike_probability" in results.columns and results["spike_probability"].notna().sum() > 0:
         print("\n  Evaluating integrated spike classifier...")
-        prob_threshold = getattr(config, "SPIKE_ALERT_PROB_THRESHOLD", 0.10)
+        prob_threshold = config.SPIKE_ALERT_PROB_THRESHOLD
         valid_spike = results[results["spike_probability"].notna()].copy()
         # Convert probability to binary prediction
         spike_pred_binary = (valid_spike["spike_probability"] >= prob_threshold).astype(int)

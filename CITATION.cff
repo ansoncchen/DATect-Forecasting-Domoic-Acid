@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+title: "DATect: Domoic Acid Forecasting System for the U.S. Pacific Northwest"
+message: "If you use this software in your research, please cite the accompanying paper."
+type: software
+authors:
+  - family-names: Chen
+    given-names: Anson
+    email: ac283@uw.edu
+    affiliation: "University of Washington"
+repository-code: "https://github.com/ansoncchen/DATect-Forecasting-Domoic-Acid"
+license: MIT
+version: "1.0.0"
+date-released: 2026-05-23
+keywords:
+  - domoic acid
+  - harmful algal blooms
+  - Pseudo-nitzschia
+  - machine learning
+  - ensemble forecasting
+  - XGBoost
+  - Random Forest
+  - Pacific Northwest
+  - shellfish toxicity
+  - environmental monitoring
+  - data leakage prevention
+abstract: >-
+  DATect is a one-week-ahead quantitative forecasting system for domoic acid (DA)
+  contamination of shellfish at 10 monitoring sites along the U.S. Pacific Northwest
+  coast. It combines an XGBoost + Random Forest ensemble with per-site hyperparameter
+  customization, observation-order lag features for sparse/irregular DA measurements,
+  and a dedicated transition-focused binary classifier for early-warning alerts.
+  The system enforces leak-free retrospective validation throughout and reports
+  honest multi-seed bootstrap confidence intervals on a chronological 2022-2023
+  holdout window that was never inspected during configuration selection.
+preferred-citation:
+  type: article
+  title: "DATect: A leak-free quantitative forecasting system for domoic acid contamination of shellfish along the U.S. Pacific Northwest coast"
+  authors:
+    - family-names: Chen
+      given-names: Anson
+      affiliation: "University of Washington"
+  journal: "(submitted)"
+  year: 2026
+  status: in-preparation

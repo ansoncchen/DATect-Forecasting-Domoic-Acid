@@ -12,10 +12,18 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 **Key features:**
 - 10 monitoring sites from Oregon to Washington
 - 21 years of integrated data (2003–2023)
-- Two-model ML ensemble (XGBoost + Random Forest) with per-site hyperparameter tuning
+- Two-model ML ensemble (XGBoost + Random Forest) with per-site hyperparameter customization
 - Observation-order lag features for sparse/irregular measurement data
-- No-data-leakage guarantees — `_verify_no_data_leakage()` runs on every prediction (see `forecasting/raw_forecast_engine.py`)
+- No-data-leakage guarantees — `_verify_no_data_leakage()` runs on every prediction
+- Three-window chronological evaluation protocol (pre-2019 / 2019–2022 validation / 2022–2023 holdout)
+- Multi-seed bootstrap (seeds 42–46) for honest noise estimates on the holdout
 - Quantile regression + bootstrap confidence intervals
+- **Single source of truth for all tunable hyperparameters** in `config/tuned_hyperparameters.json` with per-key provenance, enabling fully reproducible re-tuning
+
+**Headline performance** (2022–2023 temporal holdout, 5-seed bootstrap):
+- R² = 0.433 ± 0.092
+- MAE = 5.93 ± 0.34 µg/g
+- Spike recall = 0.848 ± 0.044
 
 ## Quick Start
 
@@ -63,12 +71,16 @@ DATect-Forecasting-Domoic-Acid/
 ├── scripts/fig*.py                 # Optional paper figures (not used by the dashboard)
 ├── tests/                          # Pytest (e.g. leakage audit)
 ├── paper/                          # Manuscript (LaTeX + MDPI class files)
-├── config.py                       # All configuration (sites, models, parameters)
+├── config.py                       # Operational configuration (sites, URLs, structural constants)
+├── config/
+│   └── tuned_hyperparameters.json  # **All tunable values + provenance** (single source of truth)
 ├── forecasting/                    # ML forecasting engine
-│   ├── raw_forecast_engine.py      # Main engine — ensemble pipeline with per-site tuning
+│   ├── raw_forecast_engine.py      # Main engine — ensemble pipeline with per-site dispatch
 │   ├── raw_data_forecaster.py      # Raw DA loading, feature frame building, leak-free test rows
 │   ├── raw_data_processor.py       # Observation-order lag features (not grid-shift)
-│   ├── per_site_models.py          # Per-site hyperparams, feature subsets, ensemble weights
+│   ├── per_site_models.py          # Per-site config loader (reads from tuned_hyperparameters.json)
+│   ├── tuned_config.py             # JSON loader + accessors (get_per_site, get_global, get_eval_windows)
+│   ├── oad_features.py             # Optional OAD ocean-anomaly features (16 per row, leak-safe)
 │   ├── ensemble_model_factory.py   # Class-based wrapper matching API's ModelFactory interface
 │   ├── raw_model_factory.py        # Standalone model builders (XGB, RF, classifier)
 │   ├── classification_adapter.py   # Threshold + dedicated XGBoost classifier for 4 DA categories
@@ -83,9 +95,33 @@ DATect-Forecasting-Domoic-Acid/
 ├── frontend/                       # React + Vite dashboard
 ├── data/processed/                 # Shipped: final_output.parquet (forecast features)
 ├── data/intermediate/              # Local only: satellite cache from dataset-creation (not in git)
+├── eval_outputs/                   # All retrospective eval results (multi-seed, sweeps, chronological)
+├── docs/                           # Methodology deep-dives, audit notes, paper-update plans
+├── paper/                          # Manuscript (LaTeX + MDPI class files + figure generation)
+├── CITATION.cff                    # Citation metadata (GitHub auto-renders as citation widget)
 ├── Dockerfile.production           # Production container
 └── cloudbuild.yaml                 # Google Cloud Build config
 ```
+
+## Re-tuning hyperparameters
+
+All tunable values live in `config/tuned_hyperparameters.json` with per-key provenance documenting how each value was selected. To re-tune:
+
+```bash
+# Re-run the grid search on Hyak (~3 hr, 3-fold chronological CV on pre-2022 data)
+sbatch scripts/eval/grid_search_weights_clip.sbatch
+
+# Re-run multi-seed bootstrap on the resulting config (~2 hr, 5 array tasks parallel)
+sbatch scripts/eval/multi_seed_baseline.sbatch
+
+# Deterministic chronological eval on the unbiased holdout (~2 hr)
+sbatch scripts/eval/run_chronological.sbatch
+
+# Aggregate the JSON updates from sweep winners — manual review step
+# (no auto-orchestrator yet; see docs/EXPERIMENT_SUMMARY.md for the workflow)
+```
+
+Env-var overlays (`DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_SPIKE_CLASSIFIER_JSON`, etc.) still apply on top of the JSON for ad-hoc experiments without modifying source files.
 
 `dataset-creation.py` writes `data/intermediate/satellite_data_intermediate.parquet` (see `SATELLITE_CACHE_PATH` in `config.py`) on first run or when you force reprocessing. That file is large and reproducible, so it is **not** committed; only `data/processed/final_output.parquet` is versioned for a quick start.
 

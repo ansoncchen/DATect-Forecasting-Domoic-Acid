@@ -1,0 +1,340 @@
+{
+  "Cannon Beach": {
+    "N_pre2022": 64,
+    "K": 23,
+    "overlap": 9,
+    "top_missing": [
+      "oni",
+      "pn",
+      "raw_obs_roll_mean_4",
+      "da_raw_prev_obs_3_weeks_ago",
+      "raw_obs_roll_max_4",
+      "pn_log",
+      "raw_obs_roll_std_8",
+      "da_raw_prev_obs_4",
+      "da_raw_prev_obs_2_weeks_ago",
+      "raw_obs_roll_std_12",
+      "raw_obs_roll_std_4",
+      "raw_obs_roll_max_12",
+      "raw_obs_roll_max_8",
+      "da_raw_prev_obs_3"
+    ],
+    "cur_low_imp_zero_gain": [
+      "modis-sst",
+      "month",
+      "oad_overall_score",
+      "oad_overall_score_30day_mean",
+      "oad_overall_score_lag1week",
+      "oad_overall_score_lag2week",
+      "oad_score",
+      "oad_score_30day_max",
+      "oad_score_30day_mean",
+      "oad_score_30day_trend",
+      "oad_score_lag1week",
+      "oad_score_lag2week",
+      "oad_score_zscore_doy",
+      "pdo"
+    ],
+    "top_5_overall": {
+      "last_observed_da_raw": 0.996999979019165,
+      "oni": 0.0020000000949949026,
+      "pn": 0.0010000000474974513,
+      "raw_obs_roll_std_8": 0.0,
+      "oad_overall_score_zscore_doy": 0.0
+    }
+  },
+  "Copalis": {
+    "N_pre2022": 186,
+    "K": 29,
+    "overlap": 14,
+    "top_missing": [
+      "pn",
+      "pdo",
+      "beuti",
+      "modis-par",
+      "modis-sst",
+      "da_raw_prev_obs_3_weeks_ago",
+      "da_raw_prev_obs_4",
+      "raw_obs_roll_std_8",
+      "pn_log",
+      "da_raw_prev_obs_2_weeks_ago",
+      "raw_obs_roll_std_12",
+      "raw_obs_roll_std_4",
+      "raw_obs_roll_max_12",
+      "raw_obs_roll_max_8",
+      "da_raw_prev_obs_3"
+    ],
+    "cur_low_imp_zero_gain": [
+      "cos_day_of_year",
+      "da_raw_prev_obs_diff_1_2",
+      "discharge",
+      "month",
+      "oad_overall_score_30day_max",
+      "oad_overall_score_30day_trend",
+      "oad_overall_score_lag1week",
+      "oad_overall_score_zscore_doy",
+      "oad_score_30day_max",
+      "oad_score_30day_mean",
+      "oad_score_lag1week",
+      "oad_score_zscore_doy",
+      "oad_valid_frac",
+      "sin_day_of_year",
+      "sst-anom"
+    ],
+    "top_5_overall": {
+      "last_observed_da_raw": 0.6050000190734863,
+      "oad_overall_score_lag2week": 0.32199999690055847,
+      "oad_score_30day_trend": 0.04800000041723251,
+      "pn": 0.017000000923871994,
+      "pdo": 0.007000000216066837
+    }
+  },
+  "Gold Beach": {
+    "N_pre2022": 92,
+    "K": 22,
+    "overlap": 8,
+    "top_missing": [
+      "oni",
+      "discharge",
+      "chla-anom",
+      "beuti",
+      "modis-flr",
+      "raw_obs_roll_mean_4",
+      "raw_obs_roll_max_4",
+      "raw_obs_roll_std_8",
+      "da_raw_prev_obs_2_weeks_ago",
+      "raw_obs_roll_std_12",
+      "raw_obs_roll_std_4",
+      "raw_obs_roll_max_12",
+      "da_raw_prev_obs_2",
+      "raw_obs_roll_max_8"
+    ],
+    "cur_low_imp_zero_gain": [
+      "month",
+      "oad_overall_score",
+      "oad_overall_score_30day_max",
+      "oad_overall_score_30day_mean",
+      "oad_overall_score_30day_trend",
+      "oad_overall_score_lag1week",
+      "oad_overall_score_lag2week",
+      "oad_overall_score_zscore_doy",
+      "oad_score_30day_max",
+      "oad_score_30day_mean",
+      "oad_score_30day_trend",
+      "oad_score_lag1week",
+      "oad_score_zscore_doy",
+      "oad_valid_frac"
+    ],
+    "top_5_overall": {
+      "last_observed_da_raw": 0.9380000233650208,
+      "oni": 0.0430000014603138,
+      "pdo": 0.017000000923871994,
+      "discharge": 0.0010000000474974513,
+      "chla-anom": 0.0010000000474974513
+    }
+  },
+  "Kalaloch": {
+    "N_pre2022": 146,
+    "K": 28,
+    "overlap": 14,
+    "top_missing": [
+      "pdo",
+      "beuti",
+      "raw_obs_roll_mean_4",
+      "da_raw_prev_obs_3_weeks_ago",
+      "raw_obs_roll_max_4",
+      "da_raw_prev_obs_4",
+      "raw_obs_roll_std_8",
+      "da_raw_prev_obs_2_weeks_ago",
+      "raw_obs_roll_std_12",
+      "raw_obs_roll_std_4",
+      "raw_obs_roll_max_12",
+      "pn",
+      "raw_obs_roll_max_8",
+      "da_raw_prev_obs_3"
+    ],
+    "cur_low_imp_zero_gain": [
+      "cos_day_of_year",
+      "da_raw_prev_obs_diff_1_2",
+      "month",
+      "oad_overall_score_lag1week",
+      "oad_overall_score_lag2week",
+      "oad_score",
+      "oad_score_30day_max",
+      "oad_score_30day_mean",
+      "oad_score_30day_trend",
+      "oad_score_lag1week",
+      "oad_score_lag2week",
+      "oad_score_zscore_doy",
+      "sin_day_of_year",
+      "sst-anom"
+    ],
+    "top_5_overall": {
+      "last_observed_da_raw": 0.7170000076293945,
+      "discharge": 0.2750000059604645,
+      "pdo": 0.00800000037997961,
+      "oad_overall_score": 0.0,
+      "oni": 0.0
+    }
+  },
+  "Long Beach": {
+    "N_pre2022": 183,
+    "K": 41,
+    "overlap": 34,
+    "top_missing": [
+      "modis-chla",
+      "chla-anom",
+      "modis-k490",
+      "modis-flr",
+      "pn_log",
+      "modis-par",
+      "pn"
+    ],
+    "cur_low_imp_zero_gain": [
+      "cos_day_of_year",
+      "da_raw_prev_obs_diff_1_2",
+      "month",
+      "oad_overall_score_30day_max",
+      "oad_overall_score_lag2week",
+      "pdo",
+      "sin_day_of_year"
+    ],
+    "top_5_overall": {
+      "last_observed_da_raw": 0.6769999861717224,
+      "oad_overall_score": 0.23199999332427979,
+      "modis-chla": 0.057999998331069946,
+      "discharge": 0.01899999938905239,
+      "sst-anom": 0.006000000052154064
+    }
+  },
+  "Newport": {
+    "N_pre2022": 101,
+    "K": 22,
+    "overlap": 6,
+    "top_missing": [
+      "discharge",
+      "sst-anom",
+      "chla-anom",
+      "oni",
+      "raw_obs_roll_mean_4",
+      "da_raw_prev_obs_3_weeks_ago",
+      "raw_obs_roll_max_4",
+      "pn_log",
+      "da_raw_prev_obs_4",
+      "raw_obs_roll_std_8",
+      "raw_obs_roll_std_12",
+      "raw_obs_roll_std_4",
+      "da_raw_prev_obs_2_weeks_ago",
+      "raw_obs_roll_max_12",
+      "da_raw_prev_obs_2",
+      "raw_obs_roll_max_8"
+    ],
+    "cur_low_imp_zero_gain": [
+      "da_raw_prev_obs_1",
+      "month",
+      "oad_overall_score",
+      "oad_overall_score_30day_max",
+      "oad_overall_score_30day_mean",
+      "oad_overall_score_30day_trend",
+      "oad_overall_score_lag1week",
+      "oad_overall_score_lag2week",
+      "oad_overall_score_zscore_doy",
+      "oad_overall_valid_frac",
+      "oad_score_30day_max",
+      "oad_score_30day_mean",
+      "oad_score_30day_trend",
+      "oad_score_lag1week",
+      "oad_score_lag2week",
+      "oad_score_zscore_doy"
+    ],
+    "top_5_overall": {
+      "oad_score": 0.492000013589859,
+      "last_observed_da_raw": 0.42100000381469727,
+      "discharge": 0.06300000101327896,
+      "sst-anom": 0.010999999940395355,
+      "chla-anom": 0.009999999776482582
+    }
+  },
+  "Quinault": {
+    "N_pre2022": 123,
+    "K": 36,
+    "overlap": 24,
+    "top_missing": [
+      "chla-anom",
+      "modis-chla",
+      "modis-k490",
+      "modis-flr",
+      "pn_log",
+      "raw_obs_roll_std_8",
+      "raw_obs_roll_std_12",
+      "raw_obs_roll_std_4",
+      "raw_obs_roll_max_12",
+      "modis-par",
+      "pn",
+      "raw_obs_roll_max_8"
+    ],
+    "cur_low_imp_zero_gain": [
+      "cos_day_of_year",
+      "da_raw_prev_obs_diff_1_2",
+      "month",
+      "oad_overall_score",
+      "oad_overall_score_lag1week",
+      "oad_overall_score_lag2week",
+      "oad_score_30day_max",
+      "oad_score_30day_mean",
+      "oad_score_lag2week",
+      "oad_score_zscore_doy",
+      "pdo",
+      "sin_day_of_year"
+    ],
+    "top_5_overall": {
+      "last_observed_da_raw": 0.9819999933242798,
+      "discharge": 0.013000000268220901,
+      "oad_score_30day_trend": 0.003000000026077032,
+      "beuti": 0.0010000000474974513,
+      "oni": 0.0010000000474974513
+    }
+  },
+  "Twin Harbors": {
+    "N_pre2022": 190,
+    "K": 35,
+    "overlap": 22,
+    "top_missing": [
+      "modis-chla",
+      "modis-k490",
+      "modis-flr",
+      "pn_log",
+      "raw_obs_roll_std_8",
+      "chla-anom",
+      "beuti",
+      "raw_obs_roll_std_12",
+      "raw_obs_roll_std_4",
+      "raw_obs_roll_max_12",
+      "modis-par",
+      "pn",
+      "raw_obs_roll_max_8"
+    ],
+    "cur_low_imp_zero_gain": [
+      "cos_day_of_year",
+      "da_raw_prev_obs_diff_1_2",
+      "month",
+      "oad_overall_score",
+      "oad_overall_score_lag1week",
+      "oad_overall_score_lag2week",
+      "oad_score_30day_max",
+      "oad_score_30day_mean",
+      "oad_score_30day_trend",
+      "oad_score_lag1week",
+      "oad_score_lag2week",
+      "oad_score_zscore_doy",
+      "sin_day_of_year"
+    ],
+    "top_5_overall": {
+      "last_observed_da_raw": 0.6010000109672546,
+      "modis-chla": 0.36899998784065247,
+      "pdo": 0.027000000700354576,
+      "oad_valid_frac": 0.0020000000949949026,
+      "oni": 0.0010000000474974513
+    }
+  }
+}

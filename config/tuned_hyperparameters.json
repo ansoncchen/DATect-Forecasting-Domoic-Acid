@@ -88,7 +88,7 @@
     "spike_regression_alert_threshold": 12.0,
     "spike_threshold_actual": 20.0,
     "linear_regression_alpha": 1.0,
-    "prediction_clip_q_default": 0.95
+    "prediction_clip_q_default": 0.99
   },
   "per_site": {
     "Copalis": {

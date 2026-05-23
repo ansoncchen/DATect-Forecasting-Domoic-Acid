@@ -251,28 +251,21 @@ DA_CATEGORY_BINS = [-float("inf"), 5, 20, 40, float("inf")]
 DA_CATEGORY_LABELS = [0, 1, 2, 3]
 
 # Spike Detection Configuration
-SPIKE_THRESHOLD = 20.0  # DA > 20 μg/g considered a spike event
-SPIKE_ALERT_PROB_THRESHOLD = 0.10  # Fixed operating point (recall-oriented); paper metrics use this constant as-is on held-out rows (no grid search on seed-123)
-SPIKE_CLASSIFIER_ENABLED = True    # Toggle spike binary classifier on/off
-SPIKE_REGRESSION_ALERT_THRESHOLD = 12.0  # Fire spike_alert when ensemble prediction >= this (µg/g)
+# Tuned values loaded from config/tuned_hyperparameters.json (single source of truth).
+# Env-var overlays (DATECT_SPIKE_CLASSIFIER_JSON) still apply on top.
+from forecasting.tuned_config import get_global as _get_tuned_global
+_tuned = _get_tuned_global()
 
-# Spike binary classifier hyperparameters (tuned for per-test-point training
-# with small safe-baseline datasets — shallower/simpler than 4-category classifier)
-SPIKE_CLASSIFIER_PARAMS = {
-    "n_estimators": 300,
-    "max_depth": 4,
-    "learning_rate": 0.05,
-    "subsample": 0.85,
-    "colsample_bytree": 0.85,
-    "reg_alpha": 0.5,
-    "reg_lambda": 1.0,
-    "gamma": 0.1,
-    "min_child_weight": 3,
-    "eval_metric": "logloss",
-}
-# DATECT_SPIKE_CLASSIFIER_JSON: path to a JSON file with SPIKE_CLASSIFIER_PARAMS
-# overrides (Task 13 tuning). May also include _spike_alert_prob_threshold which
-# overrides SPIKE_ALERT_PROB_THRESHOLD. Loaded at import time.
+SPIKE_THRESHOLD = float(_tuned["spike_threshold_actual"])  # DA > 20 μg/g considered a spike event
+SPIKE_ALERT_PROB_THRESHOLD = float(_tuned["spike_alert_prob_threshold"])  # classifier operating point
+SPIKE_CLASSIFIER_ENABLED = True
+SPIKE_REGRESSION_ALERT_THRESHOLD = float(_tuned["spike_regression_alert_threshold"])
+
+SPIKE_CLASSIFIER_PARAMS = dict(_tuned["spike_classifier_params"])
+# Provide eval_metric default (not in JSON since it's a structural param, not a tunable)
+SPIKE_CLASSIFIER_PARAMS.setdefault("eval_metric", "logloss")
+
+# DATECT_SPIKE_CLASSIFIER_JSON env-var still overlays on top for ad-hoc experiments.
 _spike_path = os.environ.get("DATECT_SPIKE_CLASSIFIER_JSON", "")
 if _spike_path and os.path.exists(_spike_path):
     import json as _json
@@ -290,7 +283,7 @@ BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
 # Scientific Methodology Configuration
 
 # Ridge (linear competitor) regularization
-LINEAR_REGRESSION_ALPHA = 1.0
+LINEAR_REGRESSION_ALPHA = float(_tuned["linear_regression_alpha"])
 
 # Linear/logistic models use the full feature set (no whitelist)
 
@@ -322,16 +315,10 @@ PN_DECAY_RATE = 0.3   # Per week decay rate (half-life ~2.3 weeks)
 # Parameters for the raw-data ensemble forecasting pipeline.
 # =============================================================================
 
-# Random Forest Regression parameters
-# RF uses the same feature pipeline as XGBoost. No per-anchor tuning (RF is robust to hyperparams).
-RF_REGRESSION_PARAMS = {
-    "n_estimators": 400,
-    "max_depth": 12,
-    "min_samples_split": 5,
-    "min_samples_leaf": 3,
-    "max_features": 0.85,
-}
-# Allow stability study to override RF params via env var (loky workers re-import this)
+# Random Forest Regression parameters — loaded from tuned_hyperparameters.json.
+# Per-site rf_params overrides live in per_site_models.py / SITE_SPECIFIC_CONFIGS.
+RF_REGRESSION_PARAMS = dict(_tuned["rf_base_params"])
+# DATECT_RF_PARAMS_JSON env-var still overlays for stability study perturbations.
 _rf_params_json = os.environ.get("DATECT_RF_PARAMS_JSON", "")
 if _rf_params_json:
     import json as _json
@@ -354,12 +341,17 @@ MONOTONIC_FEATURE_CONSTRAINTS: dict = {
 }
 
 # Minimum training rows required before per-anchor XGB tuning is attempted.
-# Oregon sites with ~50-80 rows lose 30% of training data to tuning between
-# nearly-identical param sets. Skip tuning below this threshold.
-MIN_TRAINING_FOR_TUNING = int(os.environ.get("DATECT_MIN_TRAINING_FOR_TUNING", "80"))
+# Tuned value from JSON; env var still overrides. Sweep (2026-05-23) showed
+# this parameter has zero effect at the current configuration — kept for
+# future-proofing if param_grids ever grow.
+MIN_TRAINING_FOR_TUNING = int(os.environ.get(
+    "DATECT_MIN_TRAINING_FOR_TUNING",
+    str(_tuned["min_training_for_tuning"]),
+))
 
-# Prediction clipping
-PREDICTION_CLIP_Q = 0.99         # Clip predictions to this quantile of training targets
+# Prediction clipping — default applies when a site has no prediction_clip_q.
+# Per-site overrides live in SITE_SPECIFIC_CONFIGS via per_site_models.py.
+PREDICTION_CLIP_Q = float(_tuned["prediction_clip_q_default"])
 _clip_override = os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")
 if _clip_override == "none":
     PREDICTION_CLIP_Q = None
@@ -370,16 +362,15 @@ elif _clip_override:
 ENABLE_PARALLEL = True
 N_JOBS = -1                      # Use all cores (-1)
 
-# Per-anchor tuning / calibration
-CALIBRATION_FRACTION = 0.3       # Fraction of pre-anchor history used for tuning
-MAX_CALIBRATION_ROWS = 20        # Hard cap on calibration rows per anchor
-MIN_TUNING_SAMPLES = 10          # Skip tuning if fewer calibration rows available
+# Per-anchor tuning / calibration — loaded from tuned_hyperparameters.json
+CALIBRATION_FRACTION = float(_tuned["calibration_fraction"])
+MAX_CALIBRATION_ROWS = int(_tuned["max_calibration_rows"])
+MIN_TUNING_SAMPLES = int(_tuned["min_tuning_samples"])
 
-# Default XGB search grid (used when site has no custom param_grid)
-PARAM_GRID = [
-    {"max_depth": 4, "n_estimators": 500, "learning_rate": 0.05, "min_child_weight": 5},
-    {"max_depth": 6, "n_estimators": 400, "learning_rate": 0.05, "min_child_weight": 3},
-]
+# Default XGB search grid (used when site has no custom param_grid).
+# Verified inert via pgrid-sweep (2026-05-23): site-level grids override at
+# all 10 sites in current config, so this fallback rarely fires.
+PARAM_GRID = list(_tuned["param_grid"])
 
 # Quantile prediction intervals
 ENABLE_QUANTILE_INTERVALS = True

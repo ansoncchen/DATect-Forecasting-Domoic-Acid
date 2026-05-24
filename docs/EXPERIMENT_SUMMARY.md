@@ -6,19 +6,26 @@ its result and the final disposition. Cross-references the deep-dive in
 
 ## Baselines (the numbers to compare against)
 
-**Audited 2026-05-23. All values below are 5-seed (42-46) mean ± std on current `per_site_models.py`. See `docs/CORRECTED_NUMBERS.md`.**
+**Audited 2026-05-23. Headline values are from the deterministic chronological eval on the 2022-2023 holdout (every real DA, N=404, no random sampling). 5-seed bootstrap confirms within CI.**
 
-| Metric | Value | Window | N (per seed) | Notes |
-|---|---:|---|---:|---|
-| Ensemble R² | **0.386 ± 0.145** | 2022-2023 holdout | ~160 | single-seed range 0.19–0.60 |
-| Ensemble R² | 0.377 ± 0.164 | 2019-2022 validation | ~220 | Optuna tuning window |
-| Ensemble R² | 0.316 ± 0.079 | all-years pooled | ~1190 | tighter spread, more samples |
-| MAE | 6.03 ± 0.63 µg/g | 2022-2023 holdout | ~160 | more stable than R² |
-| Spike F2 (regression-only) | 0.738 ± 0.024 | 2019-2022 validation | ~220 | most stable spike metric |
-| Spike recall (regression-only) | 0.848 ± 0.044 | 2022-2023 holdout | ~160 | most defensible operational number |
-| Hybrid alert recall | 0.876 | pooled (seed 123) | 1177 | classifier OR regression union |
+| Metric | Window | **Deterministic [CI]** | Multi-seed mean ± std | N |
+|---|---|---:|---:|---:|
+| **Ensemble R²** | **2022-2023 holdout** | **0.485 [0.330, 0.604]** | 0.433 ± 0.092 | 404 / ~160 |
+| Ensemble R² | 2019-2022 validation | 0.384 [0.263, 0.496] | 0.377 ± 0.164 | 632 / ~220 |
+| Ensemble R² | all-years pooled (paper Table 1) | 0.238 [0.150, 0.340] | 0.316 ± 0.079 | 2181 / ~1190 |
+| MAE | 2022-2023 holdout | **6.76 µg/g [5.48, 8.20]** | 6.03 ± 0.63 µg/g | 404 / ~160 |
+| Spike recall (regression-only) | 2022-2023 holdout | **0.857** | 0.848 ± 0.044 | 404 / ~160 |
+| Spike F2 (regression-only) | 2022-2023 holdout | **0.699** | 0.648 ± 0.044 | 404 / ~160 |
+| Spike F2 | 2019-2022 validation | 0.754 | 0.738 ± 0.024 | 632 / ~220 |
+| Hybrid alert recall | rolling (seed 123) | 0.876 | — | 1177 |
 
-**The previously-quoted "R² = 0.492 holdout" was a lucky seed (top of five). Honest paper number is 0.39 ± 0.15.** Sources: `multi_seed_results/baseline_seed{42..46}_predictions.parquet`, generated via `scripts/eval/multi_seed_baseline.py`.
+**Journey of the headline number:**
+- Original CLAUDE.md (single seed 42): R² = 0.492 holdout — lucky seed inflation
+- Multi-seed correction (seeds 42-46): R² = 0.386 ± 0.145 — honest noise estimate
+- Grid-winner pivot (leak-free per-site config): R² = 0.433 ± 0.092
+- Deterministic chronological (100% of holdout, N=404): **R² = 0.485 [0.330, 0.604]** ← current headline
+
+Sources: `eval_outputs/chronological/chronological_regression_ensemble_20220101_20240101.json` (deterministic), `eval_outputs/multi_seed_results/baseline_seed{42..46}_predictions.parquet` (multi-seed). Reproducible via `scripts/eval/chronological_eval.py` and `scripts/eval/multi_seed_baseline.py`.
 
 ## Experiments — all null or marginal
 

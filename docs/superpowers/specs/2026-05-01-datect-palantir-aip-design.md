@@ -64,7 +64,7 @@ Audit trail: Foundry Ontology write is timestamped and attributed to operator
 0:30–1:30 — Live demo: Workshop map, ask agent "Which beaches should I close this week?", show agent reasoning  
 1:30–2:30 — Click a beach → show forecast detail, spike probability, 19-year backtest track record  
 2:30–3:30 — Click "Issue Closure Order" → fill form → HarvestClosure created, map turns red  
-3:30–4:00 — Why DATect? R²=0.315 on temporal holdout, 21 years of data, 10 sites, MAE 6.4 µg/g
+3:30–4:00 — Why DATect? R²=0.485 [0.330, 0.604] on 2022-2023 holdout (deterministic, N=404), 21 years of data, 10 sites, MAE 6.76 µg/g, spike recall 0.86
 
 ## Files
 

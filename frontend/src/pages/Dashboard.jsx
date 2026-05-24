@@ -619,18 +619,18 @@ const Dashboard = () => {
       const range = [Math.max(0, minVal - 0.1), maxVal + 0.1]
 
       // Group by TIME WINDOW (not site) so users see which dots are the
-      // unbiased 2022-2024 holdout vs training-period predictions.
+      // unbiased 2022-2023 holdout vs training-period predictions.
       // Site stays in hover text.
       const windowOf = (dateStr) => {
         const d = new Date(dateStr)
         if (d < new Date('2019-01-01')) return 'pre-2019 (training context)'
         if (d < new Date('2022-01-01')) return 'val 2019-2022 (tuning)'
-        return 'holdout 2022-2024 (untouched)'
+        return 'holdout 2022-2023 (untouched)'
       }
       const windowColor = {
         'pre-2019 (training context)':  '#94a3b8',  // gray
         'val 2019-2022 (tuning)':       '#fbbf24',  // amber
-        'holdout 2022-2024 (untouched)':'#10b981',  // green
+        'holdout 2022-2023 (untouched)':'#10b981',  // green
       }
       const windowGroups = {}
       validData.forEach(d => {
@@ -665,7 +665,7 @@ const Dashboard = () => {
       })
 
       // Add scatter points colored by time window (preserves site in hover)
-      const orderedWindows = ['pre-2019 (training context)', 'val 2019-2022 (tuning)', 'holdout 2022-2024 (untouched)']
+      const orderedWindows = ['pre-2019 (training context)', 'val 2019-2022 (tuning)', 'holdout 2022-2023 (untouched)']
       orderedWindows.forEach(window => {
         const data = windowGroups[window]
         if (!data || data.length === 0) return
@@ -1323,19 +1323,19 @@ const Dashboard = () => {
             >
               <option value="all">All Sites</option>
               {sites.map(site => {
-                // Quality tier from 5-seed bootstrap (committed in
-                // multi_seed_results). Hardcoded summary so the dropdown doesn't
-                // need to wait on an API call. Tiers based on holdout R² CI.
+                // Quality tier from deterministic 2022-2023 holdout
+                // (eval_outputs/chronological_regression_ensemble_*.json).
+                // Per-site R² uses N≈40 per site (all real DA, no sampling).
                 const qualityTier = {
-                  'Coos Bay':       '🟢',   // R² 0.70 [0.56, 0.82]
-                  'Quinault':       '🟢',
-                  'Long Beach':     '🟢',
-                  'Twin Harbors':   '🟢',
-                  'Copalis':        '🟢',
-                  'Clatsop Beach':  '🟢',
-                  'Kalaloch':       '🟢',   // R² 0.42 — borderline but robust enough
-                  'Newport':        '🔴',   // R² -1.06 [-4.40, +0.38] — broken
-                  'Gold Beach':     '🔴',   // R² -2.14 [-8.46, -0.08] — broken
+                  'Twin Harbors':   '🟢',   // R² 0.633 [0.327, 0.798]
+                  'Coos Bay':       '🟢',   // R² 0.630 [0.451, 0.863]
+                  'Copalis':        '🟢',   // R² 0.598 [0.358, 0.777]
+                  'Quinault':       '🟢',   // R² 0.549 [0.237, 0.750]
+                  'Long Beach':     '🟢',   // R² 0.531 [0.219, 0.842]
+                  'Clatsop Beach':  '🟢',   // R² 0.515 [0.325, 0.700]
+                  'Kalaloch':       '🟢',   // R² 0.493 [0.225, 0.694]
+                  'Newport':        '🟡',   // R² 0.170 [-0.321, 0.393] — modest
+                  'Gold Beach':     '🔴',   // R² -0.235 [-12.1, 0.181] — genuine failure
                   'Cannon Beach':   '⚪',   // No spike events in holdout window
                 }[site] || ''
                 return (
@@ -1349,7 +1349,7 @@ const Dashboard = () => {
               Showing {filteredResults?.results?.length || 0} forecasts
             </span>
             <span className="text-xs text-gray-500 italic">
-              🟢 robust · 🔴 unreliable · ⚪ insufficient holdout data
+              🟢 R² &gt; 0.4 · 🟡 R² 0–0.4 · 🔴 R² &lt; 0 · ⚪ insufficient holdout data
             </span>
             <button
               onClick={() => exportResultsCSV(filteredResults, selectedSiteFilter, config.forecast_task)}
@@ -1370,7 +1370,7 @@ const Dashboard = () => {
               return (
                 <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
                   <AlertTriangle className="w-4 h-4 inline mr-1.5 text-amber-600" />
-                  <strong>Limited 2022-2024 holdout data for {selectedSiteFilter}:</strong>{' '}
+                  <strong>Limited 2022-2023 holdout data for {selectedSiteFilter}:</strong>{' '}
                   only {recent.length} test points, {recentSpikes} spike events.
                   {recent.length === 0
                     ? ' This evaluation samples no recent data — metrics reflect historical periods only.'
@@ -1382,7 +1382,7 @@ const Dashboard = () => {
               return (
                 <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
                   <AlertTriangle className="w-4 h-4 inline mr-1.5 text-amber-600" />
-                  <strong>{selectedSiteFilter}: no spike events in 2022-2024 holdout</strong> (across {recent.length} samples).
+                  <strong>{selectedSiteFilter}: no spike events in 2022-2023 holdout</strong> (across {recent.length} samples).
                   Spike-detection metrics cannot be evaluated here. Site may still have historical spikes
                   visible in the time series below.
                 </div>
@@ -1407,15 +1407,15 @@ const Dashboard = () => {
                   R² Score
                   <Info className="w-3 h-3 text-gray-400 cursor-help" />
                 </div>
-                <div className="absolute z-10 hidden group-hover:block w-72 left-1/2 -translate-x-1/2 mt-2 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg text-left">
+                <div className="absolute z-10 hidden group-hover:block w-80 left-1/2 -translate-x-1/2 mt-2 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg text-left">
                   <div className="font-semibold mb-1">3-window evaluation split</div>
                   <div className="space-y-1">
                     <div><span className="text-blue-300">Training:</span> pre-anchor data only (per-anchor)</div>
                     <div><span className="text-yellow-300">Validation:</span> 2019–2022 (used by tuning)</div>
-                    <div><span className="text-green-300">Holdout:</span> 2022–2024 (never seen by tuning)</div>
+                    <div><span className="text-green-300">Holdout:</span> 2022–2023 (never seen by tuning)</div>
                   </div>
                   <div className="mt-2 text-gray-300 italic">
-                    Pooled R² shown here mixes all windows. Filter by year/site for holdout-only view.
+                    Headline holdout R² = <span className="text-green-300 font-semibold">0.485</span> [0.330, 0.604] (deterministic, all real DA, N=404); 5-seed bootstrap confirmation 0.433 ± 0.092. Pooled R² shown above mixes all windows. Filter by year/site for holdout-only view.
                   </div>
                 </div>
               </div>

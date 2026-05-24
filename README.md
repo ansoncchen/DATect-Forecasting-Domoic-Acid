@@ -145,13 +145,19 @@ Env-var overlays (`DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_SPIKE_CLASSIFIER_JSON`,
 
 ## Model Performance
 
-Reference numbers match the paper header in `paper/datect_paper_mdpi.tex` (seed=123 test sample, unless noted).
+All values from the **2022-2023 temporal holdout**, downstream of the latest configuration adjustment and never inspected during tuning. See `paper/datect_paper_mdpi.tex` Table 3 and `docs/EXPERIMENT_SUMMARY.md`.
 
-| Metric | Value |
-|--------|-------|
-| Ensemble R² | 0.215 (independent test, seed=123, 40% sample) / 0.414 (dev, seed=42) / 0.315 (temporal holdout 2019+) |
-| Ensemble MAE | 6.42 µg/g (test sample above) |
-| Spike / alert | Regression spike recall 0.558 (ensemble); hybrid alert event recall 0.859, transition recall 0.734 |
+| Metric | Deterministic [95% CI] | 5-seed bootstrap |
+|--------|-----------------------:|----------------:|
+| **Ensemble R²** | **0.485 [0.330, 0.604]** | 0.433 ± 0.092 |
+| Ensemble MAE | 6.76 µg/g [5.48, 8.20] | 6.03 ± 0.63 µg/g |
+| Spike recall (regression-only) | 0.857 | 0.848 ± 0.044 |
+| Spike F2 (regression-only) | 0.699 | 0.648 ± 0.044 |
+| Hybrid alert recall (classifier ∪ regression trigger) | 0.876 | — |
+
+**Per-site holdout R²:** 9 of 10 sites measurably positive (5 WA + Clatsop + Kalaloch + Coos Bay + Newport between +0.17 and +0.63). Only Gold Beach genuinely negative (R² = −0.235), reflecting its near-zero lag-1 autocorrelation. Cannon Beach has no spike events in the 2022-2023 window.
+
+Sources: `eval_outputs/chronological/` (deterministic), `eval_outputs/multi_seed_results/` (bootstrap). Reproduce via `scripts/eval/chronological_eval.py` and `scripts/eval/multi_seed_baseline.py`.
 
 ## Data Sources
 

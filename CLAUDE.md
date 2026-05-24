@@ -143,29 +143,38 @@ DATect is a machine learning system for forecasting harmful algal bloom toxin co
 
 ## Success Metrics
 
-**All values below are 5-seed (42-46) mean ± std on current `per_site_models.py` (audited 2026-05-23, see `docs/CORRECTED_NUMBERS.md`).** Single-seed numbers — especially the previous "0.492 holdout R²" — were lucky seeds; the real distribution is much wider. Leak-test (hand-tuned vs leak-free 3-dim grid-winners on same 5 seeds) showed hand-tuning leaks ~0.06 R² on val (where it had implicit access) but NOT on holdout (grid actually +0.05 on holdout, within noise). Numbers below are hand-tuned; grid-winners give roughly equivalent or slightly better holdout R².
+**Headline values are from the deterministic chronological eval on the 2022-2023 holdout (every real DA measurement, N=404, no random sampling) using current `per_site_models.py` with leak-free grid-winner per-site config.** A complementary 5-seed bootstrap (20% sampling × seeds 42-46) is reported as confirmation. See `docs/CORRECTED_NUMBERS.md` for the historical audit trail (lucky-seed 0.492 → multi-seed 0.386 ± 0.145 → deterministic 0.485 [0.330, 0.604]).
 
-| Metric | Window | **Multi-seed mean ± std** | Single-seed range | N (per seed) | Notes |
+| Metric | Window | **Deterministic [95% CI]** | Multi-seed mean ± std | N (det / per-seed) | Notes |
 |--------|--------|------|------|---|-------|
-| Ensemble R² | 2022-2023 holdout | **0.386 ± 0.145** | 0.19 to 0.60 | ~160 | Headline. Was misleadingly quoted as 0.49 (top seed). |
-| Ensemble R² | 2019-2022 validation | **0.377 ± 0.164** | 0.08 to 0.56 | ~220 | Optuna tuning objective window |
-| Ensemble R² | all years pooled | **0.316 ± 0.079** | 0.22 to 0.42 | ~1190 | Was misleadingly quoted as 0.17 (seed 123 only) |
-| Ensemble MAE | 2022-2023 holdout | **6.03 ± 0.63 µg/g** | 5.25 to 6.79 | ~160 | More stable than R² across seeds |
-| Spike F2 (regression-only) | 2022-2023 holdout | **0.648 ± 0.044** | 0.60 to 0.72 | ~160 | spike alert: predicted > 12 → actual > 20 |
-| Spike recall (regression-only) | 2022-2023 holdout | **0.848 ± 0.044** | 0.79 to 0.92 | ~160 | The most stable headline number |
-| Spike F2 | 2019-2022 validation | **0.738 ± 0.024** | 0.70 to 0.77 | ~220 | F2 is much more stable than R² |
-| Hybrid alert recall | rolling pooled (seed 123) | 0.876 | — | 1177 | spike_alert column = classifier OR regression union |
-| Transition recall | rolling (paper-defined event) | 0.734 classifier / 0.236 naive | — | 89 events seed 123 | Paper definition uses below-20 → at-or-above-20 between consecutive observations. With current `spike_alert` definition, both go to ~0.81 — definition mismatch worth re-verifying before quoting. |
+| **Ensemble R²** | **2022-2023 holdout** | **0.485 [0.330, 0.604]** | 0.433 ± 0.092 | 404 / ~160 | **Headline.** Consistent across both protocols. |
+| Ensemble R² | 2019-2022 validation | 0.384 [0.263, 0.496] | 0.377 ± 0.164 | 632 / ~220 | Tuning objective window |
+| Ensemble R² | all years pooled (paper Table 1) | 0.238 [0.150, 0.340] | 0.316 ± 0.079 | 2181 / ~1190 | Single-seed paper sample at seed 123 |
+| Ensemble MAE | 2022-2023 holdout | **6.76 [5.48, 8.20] µg/g** | 6.03 ± 0.63 µg/g | 404 / ~160 | |
+| Spike recall (regression-only) | 2022-2023 holdout | **0.857** | 0.848 ± 0.044 | 404 / ~160 | Most stable operational metric |
+| Spike F2 (regression-only) | 2022-2023 holdout | **0.699** | 0.648 ± 0.044 | 404 / ~160 | Deterministic tighter (no sampling noise) |
+| Spike precision (regression-only) | 2022-2023 holdout | 0.403 | — | 404 | |
+| Spike recall (val) | 2019-2022 validation | 0.839 | — | 632 | |
+| Spike F2 (val) | 2019-2022 validation | 0.754 | 0.738 ± 0.024 | 632 / ~220 | |
+| Hybrid alert recall | rolling (seed 123, paper-sample) | 0.876 | — | 1177 | spike_alert = classifier OR regression union |
+| Transition recall | rolling (paper-defined event) | 0.734 classifier / 0.236 naive | — | 89 events seed 123 | Spike-classifier eval, not re-run this session |
 
-**Per-site holdout R² (5-seed mean, see `docs/CORRECTED_NUMBERS.md` for full std + range):**
+**Per-site holdout R² (deterministic chronological, 2022-2023, N≈40 per site):**
 
-| WA | R² mean ± std | OR | R² mean ± std |
+| WA / OR | Site | **Deterministic R² [CI]** | Multi-seed R² mean ± std |
 |---|---|---|---|
-| Quinault | +0.56 ± 0.18 | Clatsop Beach | +0.50 ± 0.20 |
-| Long Beach | +0.55 ± 0.17 | Coos Bay | +0.70 ± 0.09 (N≈10, small) |
-| Twin Harbors | +0.53 ± 0.17 | Newport | **−1.06 ± 1.70** |
-| Copalis | +0.52 ± 0.16 | Gold Beach | **−2.14 ± 3.21** |
-| Kalaloch | +0.42 ± 0.17 | Cannon Beach | no spikes in holdout |
+| WA | Twin Harbors | **+0.633** [0.327, 0.798] | +0.53 ± 0.18 |
+| OR | Coos Bay | **+0.630** [0.451, 0.863] | +0.67 ± 0.11 |
+| WA | Copalis | **+0.598** [0.358, 0.777] | +0.53 ± 0.14 |
+| WA | Quinault | **+0.549** [0.237, 0.750] | +0.58 ± 0.13 |
+| WA | Long Beach | **+0.531** [0.219, 0.842] | +0.55 ± 0.17 |
+| OR | Clatsop Beach | **+0.515** [0.325, 0.700] | +0.53 ± 0.19 |
+| WA | Kalaloch | **+0.493** [0.225, 0.694] | +0.41 ± 0.17 |
+| OR | Newport | +0.170 [−0.321, 0.393] | −1.06 ± 1.70 ← multi-seed N=20/site artifact |
+| OR | Gold Beach | −0.235 [−12.1, 0.181] | −2.14 ± 3.21 ← multi-seed N=17/site artifact |
+| OR | Cannon Beach | no spikes in holdout | — |
+
+9 of 10 sites positive on the deterministic eval. Catastrophic multi-seed numbers at Newport / Gold Beach were largely small-per-seed-N sampling artifacts; deterministic uses all available data per site.
 
 ## No Data Leakage Guarantees
 

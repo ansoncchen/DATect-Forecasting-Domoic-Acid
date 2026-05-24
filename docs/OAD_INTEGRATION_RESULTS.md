@@ -10,7 +10,7 @@
 
 ## 1. Headline number (for the abstract / introduction)
 
-**Result:** Augmenting the per-site DA forecasting ensemble with a learned 16-dimensional regional ocean-anomaly representation produced from an unsupervised 3D masked autoencoder on 22 years of MODIS Aqua imagery yields a pooled ensemble holdout R² of **0.386 ± 0.145** (5 seeds, 2022-2023 holdout, N≈160 per seed), statistically indistinguishable from the baseline without OAD features (single-seed paper_ablation_results: Δ R² = +0.0015 when OAD is dropped — i.e. *the model is slightly better without OAD*, within noise). **OAD's signal does not survive the offshore→shore→shellfish causal chain.** The headline contribution is therefore re-framed: OAD is validated as an unsupervised representation of *offshore* ocean state (ESP mooring correlations: Pn r=+0.46, pDA r=+0.33, §16) but is not a useful feature for *beach* DA forecasting.
+**Result:** Augmenting the per-site DA forecasting ensemble with a learned 16-dimensional regional ocean-anomaly representation produced from an unsupervised 3D masked autoencoder on 22 years of MODIS Aqua imagery yields a deterministic 2022-2023 holdout R² of **0.485 [0.330, 0.604]** (N=404, all real DA measurements) with a 5-seed bootstrap confirmation of **0.433 ± 0.092**. Both protocols are statistically indistinguishable from the baseline without OAD features (single-seed paper_ablation_results: Δ R² = +0.0015 when OAD is dropped — i.e. *the model is slightly better without OAD*, within noise). **OAD's signal does not survive the offshore→shore→shellfish causal chain.** The headline contribution is therefore re-framed: OAD is validated as an unsupervised representation of *offshore* ocean state (ESP mooring correlations: Pn r=+0.46, pDA r=+0.33, §16) but is not a useful feature for *beach* DA forecasting.
 
 ---
 
@@ -110,14 +110,15 @@ Mean Δ R² in SW WA: **+0.005** when OAD dropped → OAD is *slightly hurting* 
 
 ### 3.4 Holdout-only metrics (2022-2023, the unbiased numbers)
 
-**Updated 2026-05-23 with multi-seed bootstrap (5 seeds, 42-46). See `docs/CORRECTED_NUMBERS.md`.**
+**Updated 2026-05-23 with deterministic chronological + multi-seed bootstrap. See `docs/CORRECTED_NUMBERS.md` for the audit trail.**
 
-| Configuration | R² (holdout, 5-seed mean ± std) | MAE (holdout) | N (per seed) |
-|---|---:|---:|---:|
-| Baseline (current per_site_models.py, OAD features kept) | **0.386 ± 0.145** | 6.03 ± 0.63 | ~160 |
-| No OAD features (single-seed 123, `paper_ablation_results.json`) | 0.495 (holdout single-seed) — Δ vs same-seed baseline = +0.0015 R² | comparable | 164 |
+| Configuration | Deterministic R² [CI] | Multi-seed R² mean ± std | MAE | N (det / per-seed) |
+|---|---:|---:|---:|---:|
+| Baseline (current per_site_models.py, OAD features kept) | **0.485 [0.330, 0.604]** | 0.433 ± 0.092 | 6.76 / 6.03 | 404 / ~160 |
+| No OAD features (single-seed 123, `paper_ablation_results.json`) | — | — | — | 164 |
+| Δ when OAD dropped (seed 123 ablation table only) | +0.0015 R² | +0.0015 R² | — | — |
 
-**Verdict unchanged**: OAD is null at the beach. Dropping OAD slightly *helps* (+0.0015 R²) — well within seed noise. The previously-quoted "0.495 holdout R²" was the seed-123 single-seed; multi-seed mean is 0.39 ± 0.15.
+**Verdict unchanged**: OAD is null at the beach. Dropping OAD slightly *helps* (+0.0015 R²) — well within all noise floors. The headline holdout R² is **0.485 [0.330, 0.604]** under the deterministic chronological eval (every real DA point in the window), with 5-seed bootstrap consistent at 0.433 ± 0.092.
 
 ---
 

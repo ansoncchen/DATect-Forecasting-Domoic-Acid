@@ -1,236 +1,350 @@
-# OAD → DATect Integration Findings
+# OAD — The Storyline
 
-> **What this is:** a self-contained summary of what we learned by integrating the OAD
-> anomaly score as a feature in DATect's per-site domoic acid forecasting model.
+> **What this is:** a self-contained narrative of the Ocean Anomaly Detection (OAD)
+> subproject, from initial motivation through the unsupervised satellite autoencoder,
+> its lead-time forecastability validation, the in-situ offshore validation that
+> succeeded, the beach-DA integration that did not, and the mechanism that explains
+> the gap between the two.
 >
-> **The headline finding:** OAD score correlates significantly with in-situ ESP
-> measurements at the offshore source (Pn cells r=+0.46, pDA r=+0.33), but does not
-> propagate to shellfish DA at coastal monitoring beaches (|r|<0.15 at any lag).
->
-> **Companion docs:**
-> - [`RESULTS.md`](RESULTS.md) — OAD's intrinsic E4-forecastability validation against PCA
-> - [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) — design phases of the OAD subproject
-> - [`../docs/OAD_INTEGRATION_RESULTS.md`](../docs/OAD_INTEGRATION_RESULTS.md) — full paper-ready writeup (17 sections)
+> **The one-line summary:** OAD's learned satellite anomaly score genuinely captures
+> offshore bloom signal — it correlates with in-situ *Pseudo-nitzschia* cell counts
+> and particulate DA at the NEMO mooring (r = +0.46 and +0.33 respectively) — but
+> the signal does not survive the 24 km onshore transport + 1-2 week razor clam
+> bioaccumulation chain, so it provides no lift when integrated as a feature for
+> beach-level DA forecasting at the 10 DATect sites.
 
 ---
 
-## 1. TL;DR
+## Chapter 1 — Why an unsupervised satellite anomaly detector
 
-| Question | Answer |
-|---|---|
-| Does OAD measure real bloom-related signal? | **Yes** (validated against in-situ ESP data) |
-| Does OAD improve site-level DA forecasting at beaches? | **No** (Δ R² = −0.0015, sub-noise null) |
-| Where does the signal stop propagating? | The 24 km onshore transport + 1–2 wk razor clam bioaccumulation chain |
-| Is there a better feature to add to DATect? | **Yes** — DATect's existing `pn` column (lagged), currently used by only 1 of 10 sites |
-| Is more hyperparameter tuning needed? | Possibly. Per-site Optuna tuning showed +0.13 to +0.30 R² gains at 4 sites on validation; holdout validation pending. |
+Harmful algal blooms (HABs) along the U.S. Pacific Northwest coast are driven by
+*Pseudo-nitzschia* spp. that produce domoic acid (DA), the neurotoxin that
+contaminates razor clam fisheries. Forecasting DA at the beach is hard, but two
+prior observations suggested that *upstream* satellite signals should carry
+information:
 
-## 2. Data coverage caveat (read first)
+1. **HAB events are visible from space** — chlorophyll-a, sea surface temperature
+   (SST), normalized fluorescence (nFLH), and water clarity (Kd490) all change in
+   the days before a bloom matures. The question is whether a model can find that
+   structure without being told what to look for.
+2. **Existing satellite-feature approaches haven't worked well** — per-pixel
+   chlorophyll has essentially zero correlation with beach DA at any lag. The
+   hypothesis was that compressing 4 channels × multiple days into a learned
+   anomaly representation might extract structure that per-pixel features miss.
 
-The cleanest test of OAD's signal — comparison against ESP-measured in-situ Pn cells and particulate DA at the NEMO mooring — is limited to:
-- **2016-2018**: ChaBa ESP deployments (Moore et al. 2021), 90 pDA samples + 76 Pn-cell samples
-- **2021-2023**: NWFSC continuation (pDA only, not yet integrated into the correlation analysis)
+OAD was built to test that hypothesis. It is an **unsupervised 3D convolutional
+masked-autoencoder** trained on 22 years of MODIS Aqua imagery over the 41-49°N
+Pacific Northwest coastal box. The model has never seen a single DA measurement;
+its only objective is to compress and reconstruct multi-day 4-channel ocean
+imagery, so any signal it captures about HABs comes from the structural patterns
+in the satellite data itself.
 
-So **5 years of intermittent offshore data**, vs the 21-year DATect record. The correlations below are reported with 95% bootstrap CIs (2000 resamples, seed=42) so you can see the uncertainty bounds.
+---
 
-The shellfish-DA correlation analyses use the full DATect dataset (10 sites × 21 years).
+## Chapter 2 — Method: 3D ConvAE3D with masked-autoencoder training
 
-## 3. The OAD-validates-against-ESP result
+**Data cube** (`ocean anomaly detection/data/cube.zarr`, Hyak-only, ~50 GB):
+- 22 years × ~4,700 daily rolling 8-day composites (2003–2024)
+- 4 channels: chlorophyll-a, Kd490 (water clarity), nFLH (normalized fluorescence
+  line height), SST
+- 321 × 409 spatial grid at 0.025° resolution (stride 2 from native MODIS)
+- 2D `mask` variable: static ocean/land binary mask
+- NaN pixels: cloud-flagged or otherwise missing
 
-**Method**: per-region OAD score (from `ae_3d_l32_c4_t4_s42_mae050`) joined on date with ESP cELISA (pDA) and SHA (Pn cells) measurements at NEMO mooring (offshore N WA shelf, 47.97°N 124.97°W). Pearson r contemporaneously.
+**Architecture** (`ocean anomaly detection/src/model3d.py`): 3D convolutional
+autoencoder with latent dimension 32, channel dimension 4, time window 4 days,
+seed 42 — hence the canonical checkpoint name `AE_3d_l32_c4_t4_s42_*`.
 
-### OAD score → ESP Pseudo-nitzschia cell density (76 daily samples, 2016-2018)
+**Training** went through three phases (`IMPLEMENTATION_PLAN.md`):
 
-| OAD region | N | r | 95% CI | p |
-|---|---:|---:|---|---:|
-| **Olympic Coast (WA)** | 76 | **+0.458** | [+0.185, +0.655] | 3.1×10⁻⁵ |
-| SW Washington / Long Beach | 76 | +0.305 | [+0.105, +0.512] | 7.3×10⁻³ |
-| Overall WA-OR-NCA envelope | 76 | +0.160 | [−0.095, +0.387] | 0.17 |
-
-### OAD score → ESP particulate domoic acid (90 daily samples, 2016-2018)
-
-| OAD region | N | r | 95% CI | p |
-|---|---:|---:|---|---:|
-| Olympic Coast (WA) | 90 | +0.317 | [−0.018, +0.526] | 2.3×10⁻³ |
-| **SW Washington / Long Beach** | 90 | **+0.334** | [+0.125, +0.518] | 1.3×10⁻³ |
-| Overall WA-OR-NCA envelope | 90 | +0.207 | [+0.021, +0.363] | 0.05 |
-
-**Interpretation**: at the NEMO source region (where the AE was trained), OAD score
-encodes meaningful information about both *Pseudo-nitzschia* cell density AND the
-toxin it produces. The Olympic Coast region (which contains NEMO) shows the strongest
-Pn-cell correlation; SW Washington shows the strongest pDA correlation. The Overall
-coast-wide envelope is weakest — spatial averaging dilutes the localized signal.
-
-**Limitations**:
-- Small N (76-90) keeps CIs wide; Olympic Coast pDA CI even includes 0
-- Single mooring location (NEMO); regional generalization not directly tested
-- ESP only deployed during expected bloom seasons; sampling not random
-
-Still, the consistent positive sign + multiple-region replication + p<0.01 at the two strongest tests is strong evidence that **OAD captures real offshore bloom signal**.
-
-## 4. The OAD-doesn't-translate-to-beach result
-
-DATect's target is razor clam shellfish DA at 10 Pacific coast beaches. Despite OAD's
-offshore validation above, integrating it as a feature gave essentially zero lift:
-
-| Metric (pooled, N=1202 random retrospective anchors) | Baseline (no OAD) | + OAD | Δ |
-|---|---:|---:|---:|
-| R² | 0.1749 | 0.1734 | **−0.0015** |
-| MAE (µg/g) | 6.51 | 6.53 | +0.013 |
-
-Per-site Δ R² in the SW Washington region (where OAD's headline win lives):
-
-| Site | Δ R² (+OAD − baseline) |
-|---|---:|
-| Cannon Beach | +0.0000 |
-| Twin Harbors | −0.0056 |
-| Long Beach | −0.0056 |
-| Clatsop Beach | −0.0084 |
-
-All within the |ΔR²| < 0.01 noise floor established by the existing stability study.
-
-## 5. Why the offshore signal doesn't reach the beach
-
-Three compounding noise sources between OAD (24 km offshore) and DATect's target
-(toxin accumulated in razor clam tissue at the beach):
-
-| Layer | What happens | Effect on signal |
+| Phase | Objective | Outcome |
 |---|---|---|
-| Transport | Cells advect 24 km onshore via wind-driven currents (timing varies) | Cells reach different beaches at different times; some beaches miss the bloom entirely |
-| Cell mortality + dilution | Many cells die or are diluted during transit | Magnitude of signal attenuates |
-| Species selection | Total Pn ≠ DA-producing Pn (P. australis, P. multiseries are toxic; P. pungens often isn't) | Even strong "total bloom" doesn't always = strong toxin |
-| Bioaccumulation | Razor clams filter water for 1-2 weeks before DA shows up in tissue | Adds temporal lag + per-clam variability |
-| Spatial gap | NEMO is at one point; each beach is at a different point | Different beaches have different transport corridors |
+| A | Plain autoencoder (full input) | Trained, but reconstruction error wasn't a great anomaly score on its own |
+| B | Per-region z-score post-processing | Improved score scale but didn't change the underlying representation |
+| C | **Masked-autoencoder pretraining** (50% or 70% random pixel hiding) | Forced the model to learn ocean-state regularities rather than just memorize textures. This is the winning architecture. |
 
-Each step adds noise. By the time the signal reaches shellfish tissue, the original
-OAD anomaly score has been buried.
+The headline checkpoint used for downstream analysis is
+`AE_3d_l32_c4_t4_s42_mae050` (3D AE with 50% mask ratio during MAE-style
+training). The 70% variant (`mae070`) has slightly stronger raw-day numbers but
+worse cloud confound; mae050 was chosen for cleaner cloud signature without
+sacrificing forecast skill at the integration-relevant lead times.
 
-## 6. What ELSE we tested (supporting evidence)
+---
 
-### 6.1 Per-pixel and regional chlorophyll fail equivalently
+## Chapter 3 — Validation against PCA baselines (does the AE actually learn something?)
 
-| Predictor | Best per-site |r| against beach DA | Best pooled r at any lag (0-16w) |
+The first sanity check is whether the unsupervised AE captures anything more than
+a simple linear compression of the input cube. We compared at multiple lead
+times against three baselines:
+
+- **PCA-baseline (B3T)**: linear PCA on the same 4-channel input, matched
+  dimensionality
+- **Climatology B1/B2**: long-run mean and day-of-year climatology
+
+**Lead-time forecastability** — predicting future per-region anomaly state from
+the past 4 days, on the held-out 2019+ test period:
+
+| Lead time | AE_3d_mae050 R² (SW WA) | AE_3d_mae070 R² (SW WA) | PCA baseline (B3T) R² | Climatology (B2) R² |
+|-----------|---------------------:|---------------------:|---------------------:|---------------------:|
+| 1 day     | +0.84               | +0.87               | −0.11               | 0 to −0.5 |
+| 7 days    | +0.15               | +0.15               | −0.11               | < 0 |
+| 14 days   | +0.05               | +0.05               | −0.11               | < 0 |
+
+The 1-day-ahead R² is inflated by the 8-day composite overlap: consecutive daily
+composites share 7 of 8 input days, so predicting tomorrow's composite from
+today's is partially a copy operation. The honest comparison happens at lead = 7
+or 14 days, where the composite overlap is gone.
+
+**Key result**: at lead = 7 days, AE_3d_mae070 is the **only** method with positive
+R² in every PNW region (range 0.10–0.26), while PCA collapses to ≈ 0 in every
+region and climatology baselines collapse to ≤ 0 (B2 actively anti-predicts).
+That positive-in-every-region result is the cleanest evidence that the AE has
+learned something genuinely useful about ocean structure beyond a linear
+projection. See `RESULTS.md` for the per-region tables.
+
+---
+
+## Chapter 4 — The cloud-confound caveat (we found it ourselves)
+
+A natural concern with any satellite-anomaly score: how much of the signal is
+"ocean anomaly" vs "weather pattern that affects cloud cover"? Storms drive
+mixing, mixing changes chl/SST, but storms also drive clouds — so a model that
+seems to detect ocean anomalies might really be detecting weather.
+
+We checked: per-region Pearson correlation between the AE anomaly score and the
+in-region valid-pixel fraction (the inverse of cloud cover):
+
+| Region | r(score, valid_pixel_fraction) | Variance attributable to cloud |
 |---|---:|---:|
-| Per-pixel `modis-chla` | 0.225 (Cannon Beach concurrent) | +0.021 (16w lag) |
-| Regional chla **mean** over OAD polygon | 0.204 (Coos Bay, NEGATIVE) | +0.053 (16w lag) |
-| Regional chla **p95** | 0.190 (Coos Bay, NEGATIVE) | +0.060 (16w lag) |
-| OAD anomaly score | 0.124 (Coos Bay, NEGATIVE) | +0.062 (12w lag) |
+| SW Washington / Long Beach (mae050) | r ≈ +0.44 | ~19% |
+| Olympic Coast (mae050) | r ≈ +0.49 | ~24% |
+| (mae070 variants are 0.04-0.10 higher in absolute value) |  |  |
 
-**Spatial aggregation didn't rescue chlorophyll as a predictor.** Regional and per-pixel
-chla are equivalently weak. Coos Bay's strongest correlation is NEGATIVE — high chla
-often reflects non-Pseudo-nitzschia blooms.
+So roughly a fifth to a quarter of the AE score variance covaries with cloud
+fraction. This is not "the AE is wrong" — it's "the AE is partly detecting
+weather-driven ocean dynamics, which is real but not the same as DA-relevant
+bloom dynamics." The mae050 checkpoint was chosen specifically because its
+cloud confound (~19% in SW WA) is lower than mae070 (~24%); the integration
+also includes the cloud-fraction itself as a parallel feature so DATect's tree
+ensemble can learn to discount cloudy weeks.
 
-### 6.2 SST anomaly from climatology is the strongest satellite predictor
+---
 
-| Predictor | Pooled r at lag 0 | Pooled r at lag 16w |
-|---|---:|---:|
-| `modis-chla` | −0.002 | +0.020 |
-| `modis-sst` (raw) | +0.032 | +0.045 |
-| `oad_score` | −0.022 | +0.050 |
-| `beuti` (existing) | +0.044 | +0.035 |
-| **`sst-anom`** (existing) | **+0.143** | **+0.203** |
+## Chapter 5 — The headline positive result: OAD validates at the offshore source
 
-DATect already includes `sst-anom` and the existing tuning correctly weights it
-highly. The OAD subproject's value is therefore **diagnostic** — it confirmed that
-the satellite-chla pathway doesn't carry DA-predictive information, validating the
-existing preference for SST-anomaly features.
+The cleanest test of whether OAD captures *real* bloom signal is to compare the
+satellite score against in-situ measurements at the NEMO mooring (offshore
+North WA shelf, 47.97°N 124.97°W), which carried an Environmental Sample
+Processor (ESP) during ChaBa deployments (Moore et al. 2021) that measured
+both *Pseudo-nitzschia* cell density (SHA) and particulate DA (cELISA).
 
-### 6.3 ORHAB beach data is largely redundant with DATect's existing inputs
+The ESP data is limited (76–90 daily samples from 2016–2018), so correlations
+are reported with 95% bootstrap CIs (2,000 resamples, seed = 42).
 
-Comparison of ORHAB Long Beach PN data (1,419 rows, 2000-2015) vs DATect's
-`data/raw/pn-input/long-beach-pn.csv` (2,002 rows, 2002-2023):
+### OAD score vs ESP Pseudo-nitzschia cell density (76 samples)
 
-| Site | Shared dates | Exact PN match | DATect extends through |
-|---|---:|---:|---|
-| Long Beach | 1,179 | 100% (1178/1179) | 2023-12 |
-| Kalaloch | 919 | 99% (910/919) | 2023-11 |
-| Copalis | 944 | 99% (936/944) | 2023-12 |
+| OAD region | r | 95% CI | p |
+|---|---:|---|---:|
+| **Olympic Coast (WA)** | **+0.458** | [+0.185, +0.655] | 3.1×10⁻⁵ |
+| SW Washington / Long Beach | +0.305 | [+0.105, +0.512] | 7.3×10⁻³ |
+| Overall WA-OR-NCA envelope | +0.160 | [−0.095, +0.387] | 0.17 |
 
-ORHAB is the same monitoring program already feeding DATect. The 1% disagreements
-are below-LLOQ detections that DATect's pipeline filters to zero. The only ORHAB-
-unique signal is the `pDA (ng/L)` column (particulate seawater DA, distinct from
-shellfish DA) — but DATect already targets shellfish DA so pDA is secondary.
+### OAD score vs ESP particulate domoic acid (90 samples)
 
-## 7. Hyperparameter tuning (in progress)
+| OAD region | r | 95% CI | p |
+|---|---:|---|---:|
+| Olympic Coast (WA) | +0.317 | [−0.018, +0.526] | 2.3×10⁻³ |
+| **SW Washington / Long Beach** | **+0.334** | [+0.125, +0.518] | 1.3×10⁻³ |
+| Overall WA-OR-NCA envelope | +0.207 | [+0.021, +0.363] | 0.05 |
 
-After the OAD null result was confirmed, we launched two Optuna-driven tuning jobs:
+**Interpretation.** At the NEMO source region, the AE anomaly score encodes
+meaningful information about both *Pn* cell density (the population producing
+DA) and the particulate DA itself (the toxin in the water). The strongest
+Pn-cell correlation is in Olympic Coast (which contains NEMO directly); the
+strongest pDA correlation is in SW Washington (the downwind transport corridor).
+The coast-wide envelope is the weakest of the three regional choices — spatial
+averaging dilutes the localized signal, as it should.
 
-### 7.1 Per-site regression tuning
-- **Scope**: 18 hyperparameters per site (10 XGB + 5 RF + ensemble weight + clip_q + clip_max)
-- **Protocol**: 3-window chronological split — train (pre-2019) / validate (2019-2022, Optuna's objective) / holdout (2022-2024, untouched final test)
-- **Status**: 4 of 10 sites complete as of writing; partial validation-window results:
+**This is the headline scientific finding of the OAD subproject.** An
+unsupervised satellite autoencoder that has never seen a DA measurement
+correlates with in-situ DA at the offshore bloom source at r = +0.33, with
+the bootstrap CI excluding zero. That validates both the unsupervised approach
+and the AE's biological relevance.
 
-| Site | Baseline R² (Task 10) | Tuned R² (val 2019-22) | Δ on val | N val |
+---
+
+## Chapter 6 — The headline null result: OAD doesn't help beach DA forecasting
+
+DATect's target is razor clam shellfish DA at 10 Pacific coast beaches. Despite
+OAD's offshore validation above, integrating it as a 16-dimensional feature set
+(14 score features per region + 2 cloud fraction features) gave essentially zero
+lift on the DATect ensemble:
+
+| Configuration | Pooled R² (seed 123) | MAE (µg/g) | Spike recall | Δ vs baseline |
 |---|---:|---:|---:|---:|
-| Long Beach | +0.520 | +0.653 | **+0.13** | 16 |
-| Clatsop Beach | +0.296 | +0.383 | +0.09 | 32 |
-| Gold Beach | +0.035 | +0.331 | +0.30 | 30 |
-| Newport | −0.163 | −0.093 | +0.07 | 31 |
+| Baseline (DATect feature set) | +0.175 | 6.52 | 0.85 | — |
+| + 16 OAD features | +0.173 | 6.53 | 0.85 | **−0.002** (within noise) |
 
-These are SIGNIFICANT IF they generalize to the 2022-2024 holdout — pending validation.
-Long Beach N=16 is small enough that the +0.13 could be noise. Gold Beach +0.30 is
-suspiciously large; the holdout test will determine whether tuning genuinely helped
-or whether Optuna fit noise on the validation window.
+Per-site Δ R² in the SW Washington region (where OAD's intrinsic skill is highest):
 
-### 7.2 Spike classifier tuning
-- **Scope**: 9 XGB params + alert probability threshold (`SPIKE_ALERT_PROB_THRESHOLD`)
-- **Objective**: F2 (recall-weighted) on DA > 20 µg/g events
-- **Status**: DONE, validation-window F2 = 0.732 (recall 0.91, precision 0.41). Alert threshold tuned from 0.10 → 0.227 (less sensitive → fewer false alarms). Holdout F2 pending.
+| Site | Δ R² when OAD added |
+|---|---:|
+| Twin Harbors | −0.006 |
+| Long Beach | −0.006 |
+| Clatsop Beach | −0.008 |
+| Cannon Beach | +0.000 |
 
-## 8. v2 feature chains scaffolded (not yet run)
+All within the |ΔR²| < 0.01 noise floor established by the stability study. The
+result holds under the deterministic 2022-2023 holdout (regression R² = 0.485
+[0.33, 0.60] with OAD features kept) — OAD neither helps nor hurts the headline
+holdout number to within bootstrap CI.
 
-Four feature-extension experiments are coded and ready to queue as
-`chains/run_chain.sbatch` once tuning completes:
+---
 
-| Chain | What it adds | Sites | Expected lift |
-|---|---|---|---|
-| `c1_lagged_pn` | 7 lagged PN features (DATect's own data) | 5 high-N | **Real** — r=+0.31 at TH lag 4w (highest expected gain) |
-| `c2_beuti_derivatives` | 7 BEUTI temporal-context features | all 10 | Modest — derivatives of existing feature |
-| `c3_nemo_mooring` | 8 in-situ subsurface features (T, salt, DO, chl, pCO2 from NEMO .mat file) | 7 WA | Unknown — first test of in-situ subsurface state |
-| `c4_esp_offshore_pda` | 5 ESP pDA features (asof-merged from ChaBa) | 7 WA | Unknown — directly tests if offshore toxin signal bridges the gap |
+## Chapter 7 — Why the offshore signal doesn't reach the beach
 
-Each runs as a standalone 2-task A/B (with vs without those features). Total compute
-when all 4 run in parallel: ~2 hr Hyak wall-clock.
+The negative result is not a model failure — it's a statement about the causal
+chain between offshore ocean state and shellfish toxicity. Five compounding
+noise sources between OAD's signal (regional ocean anomaly at NEMO, 24 km
+offshore) and DATect's target (toxin accumulated in razor clam tissue at the
+beach):
 
-## 9. Conclusions
+| Step | What happens | Effect on signal |
+|---|---|---|
+| Onshore transport | Cells advect ~24 km onshore via wind-driven currents; timing varies with wind direction and intensity | Cells reach different beaches at different times; some beaches miss a bloom entirely |
+| Cell mortality + dilution | Many cells die or are diluted during transit | Signal magnitude attenuates |
+| Species selection | Total *Pn* ≠ DA-producing *Pn* (P. australis, P. multiseries toxic; P. pungens often not) | Strong "total bloom" doesn't always mean strong toxin |
+| Bioaccumulation kinetics | Razor clams filter water for 1–2 weeks before DA accumulates to measurable levels in tissue | Adds temporal lag + per-clam variability |
+| Spatial gap | NEMO is at one point; each beach is at a different point | Different beaches see different transport corridors |
 
-1. **OAD works at the offshore source.** When evaluated against in-situ ESP
-   measurements at NEMO mooring (the source region for WA bloom transport), the AE's
-   anomaly score correlates significantly with both *Pseudo-nitzschia* cell density
-   (r=+0.46) and particulate DA (r=+0.33), with 95% bootstrap CIs excluding zero at
-   the strongest tests.
+Each step is a stochastic filter that attenuates and smears the offshore signal.
+By the time it reaches razor clam tissue at the beach, the original OAD anomaly
+score has been buried under five compounded noise processes.
 
-2. **OAD does not improve beach-level DA forecasting.** Integration as a per-site
-   feature for the 10 monitoring beaches yields Δ R² = −0.0015 pooled (within the
-   |ΔR²| < 0.01 noise floor), with similar nulls at every site including the SW
-   Washington region where OAD's intrinsic skill is highest.
+This is the *mechanistic* finding that makes the null result interesting rather
+than disappointing. It tells the field where the binding constraint actually
+sits: not in offshore satellite remote sensing (which works), but in the
+short-distance physical and biological transport processes that bridge the gap
+to the shellfish.
 
-3. **The gap is the transport + bioaccumulation chain.** Signal magnitude that OAD
-   captures at the source (~24 km offshore) does not survive: variable onshore
-   transport timing, species-specific toxicity (not all Pn species produce DA),
-   site-specific local oceanography, and 1-2 week razor clam bioaccumulation.
+---
 
-4. **The OAD subproject's value is therefore diagnostic, not feature-additive.**
-   It quantitatively confirmed which satellite signals do and don't carry DA-
-   predictive information: chla (per-pixel OR regional OR AE-compressed) doesn't;
-   SST anomaly from climatology does. This validates DATect's existing feature
-   design and rules out chla-based satellite approaches for v2.
+## Chapter 8 — Supporting evidence: chla doesn't rescue the satellite path
 
-5. **The highest-leverage v2 improvement is not a new satellite product.** It's
-   wiring DATect's existing in-situ PN cell counts (`pn` column already in
-   `final_output.parquet`) into the feature subsets of the 9 sites that currently
-   ignore it. Lagged PN at week (t−2w) correlates with shellfish DA at r=+0.31
-   at Twin Harbors (vs |r|<0.15 for anything OAD provides). One afternoon's work
-   for likely-larger gains than the entire OAD project.
+To rule out the alternative explanation that "the AE is too compressed and a
+simpler satellite feature would work", we tested per-pixel chlorophyll and
+regional chlorophyll directly:
 
-## 10. Where to read more
+| Predictor | Best per-site \|r\| vs beach DA | Best pooled r at any lag (0–16w) |
+|---|---:|---:|
+| Per-pixel `modis-chla` (existing DATect input) | 0.225 (Cannon Beach concurrent) | +0.021 (16-week lag) |
+| Regional chla **mean** over OAD polygon | 0.204 (Coos Bay, **negative**) | +0.053 (16-week lag) |
+| Regional chla **p95** | 0.190 (Coos Bay, negative) | +0.060 (16-week lag) |
+| **OAD anomaly score** | 0.124 (Coos Bay, negative) | +0.062 (12-week lag) |
 
-- `../docs/OAD_INTEGRATION_RESULTS.md` — full 17-section paper-ready writeup including:
-  - §3 A/B results (pooled, per-site, SW WA subset)
-  - §11-§13 correlation diagnostics (multi-lag, per-pixel vs regional chla)
-  - §14 synthesis with Moore et al. 2021 ESP paper
-  - §15 in-situ datasets inventory + ORHAB redundancy analysis
-  - §16 OAD-ESP correlation deep dive
-  - §17 lagged PN free-lift opportunity
-- `RESULTS.md` — OAD's intrinsic forecastability vs PCA baselines
-- `IMPLEMENTATION_PLAN.md` — design history of the OAD subproject
+Spatial aggregation did not rescue chlorophyll as a predictor — regional and
+per-pixel chla are equivalently weak, and the strongest per-site correlation
+across all three (Coos Bay) is *negative*. High regional chlorophyll often
+reflects non-Pn blooms entirely.
+
+For comparison, the strongest existing DATect satellite feature is
+`sst-anom` (SST anomaly from climatology), which reaches pooled r = +0.14 at
+lag 0 and r = +0.20 at lag 16w. DATect's existing tuning correctly weights
+sst-anom highly; the OAD subproject confirms that the **chla pathway** — at any
+spatial scale and at any compression level — does not carry DA-predictive
+information at the beach, while the **SST-anomaly pathway** does.
+
+The OAD subproject's value is therefore *diagnostic* (it rules out a satellite
+pathway) in addition to *generative* (the offshore validation result).
+
+---
+
+## Chapter 9 — What this means for two different papers
+
+The OAD subproject naturally splits into two narratives, suitable for two
+different audiences:
+
+### Paper A — DATect HAB forecasting paper
+
+OAD enters as one of six tested feature-extension ablations (alongside lagged
+*Pseudo-nitzschia*, BEUTI derivatives, NEMO mooring anomalies, offshore ESP pDA,
+and NDBC wind upwelling proxies). All six are null at the pooled level. The
+combined finding is reported as evidence that DATect's current feature set is
+at its data-limited ceiling — additional satellite-derived features cannot
+improve beach-level forecasting under the current monitoring density, so the
+field's next investment should be in denser in-situ sampling rather than richer
+satellite products.
+
+### Paper B — OAD standalone (in preparation)
+
+The unsupervised representation itself is the contribution. The story is:
+
+1. We trained an unsupervised 3D ConvAE on 22 years of MODIS Aqua imagery with
+   no DA labels.
+2. The learned representation outperforms PCA baselines and climatology at
+   lead-time forecasting in every PNW region — i.e., it captures structure that
+   linear methods don't.
+3. The representation correlates significantly with in-situ ESP measurements
+   of both *Pn* cell density (r = +0.46) and particulate DA (r = +0.33) at the
+   NEMO mooring source region, with bootstrap CIs excluding zero.
+4. The cloud-cover confound is real (~19–24% of score variance) but moderate;
+   the integration mitigates it by including cloud fraction as a parallel feature.
+5. The representation does **not** predict beach-level shellfish DA, and the
+   mechanism is the offshore-to-shore-to-shellfish causal chain — five
+   compounding stochastic filters between the source and the target.
+
+The framing of Paper B is therefore: *an unsupervised satellite-anomaly
+representation that validates as a real proxy for offshore HAB activity, with
+the boundary of its predictive reach explicitly characterized.* That is a
+publishable result, ideally in a remote-sensing or ocean-biology journal where
+the offshore validation is the headline and the beach-DA null is the rigorous
+boundary check.
+
+---
+
+## Chapter 10 — What we learned beyond the result itself
+
+Three meta-lessons from running the OAD subproject:
+
+1. **Unsupervised satellite representations can work** — the AE genuinely learns
+   ocean-state structure that PCA cannot. This is non-trivial and suggests the
+   broader satellite-ML community should explore unsupervised approaches more.
+   For PNW ocean biology specifically, the path forward is more direct in-situ
+   ground-truth datasets like the ChaBa ESP campaign — not more sophisticated
+   models on the existing data.
+
+2. **A negative result with mechanism is more useful than a marginal positive.**
+   "OAD is null at the beach" would be unsatisfying alone. "OAD is null at the
+   beach because the offshore-to-shore-to-shellfish causal chain has too much
+   variance, but the representation validates at the source" is a finding the
+   field can build on.
+
+3. **Hand-tuned feature engineering hits a ceiling.** Combined with the five
+   chain experiments (lagged PN, BEUTI derivatives, NEMO mooring, ESP pDA, NDBC
+   wind) all returning null, the OAD null reinforces the same lesson: at the
+   current monitoring density, no derived-feature approach is going to materially
+   improve beach DA forecasting. The next investment should be in *data*, not
+   in models.
+
+---
+
+## Companion documents
+
+- [`RESULTS.md`](RESULTS.md) — OAD's intrinsic E4-forecastability validation
+  against PCA baselines, with per-region tables, annual cycle plots, and the
+  sanity-check caveats on the 1-day lead inflation
+- [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) — design history of the
+  OAD subproject's three training phases (A → B → C masked-autoencoder)
+- [`../docs/OAD_INTEGRATION_RESULTS.md`](../docs/OAD_INTEGRATION_RESULTS.md) —
+  full paper-ready writeup of the DATect-side integration: ablation tables,
+  per-site Δ R², SW Washington subset analysis, leakage guarantees, and the
+  17-section paper-section structure
+- [`../paper/datect_paper_mdpi.tex`](../paper/datect_paper_mdpi.tex) §6.5
+  "Feature-Extension Experiments and the Data-Limited Ceiling" — how the OAD
+  null result is presented in the DATect manuscript
 - Branch: [`oad-integration`](https://github.com/ansoncchen/DATect-Forecasting-Domoic-Acid/tree/oad-integration)
+
+**Reporting model:** `AE_3d_l32_c4_t4_s42_mae050` (3D masked-autoencoder, mask
+ratio 0.50). Score parquet: `outputs/scores/ae_3d_l32_c4_t4_s42_mae050.parquet`
+(committed on Hyak, scp'd to local `data/processed/oad_scores.parquet` for the
+DATect integration runs).

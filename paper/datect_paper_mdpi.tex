@@ -563,7 +563,7 @@ Analysis of 385 spike transition events across all 10 sites reveals that environ
 \subsubsection{Regression Threshold Limitations}
 \label{sec:results-threshold-limit}
 
-Despite this, the regression ensemble's spike transition recall at the standard \SI{20}{\microgrampeg} decision threshold is poor: only 12.4\% of held-out transition events are correctly predicted as spikes ($n = 89$, seed = 123). Na\"ive persistence achieves 23.6\%. The ensemble \emph{does} predict elevated values before spikes---mean predicted DA for transition events is \SI{13.1}{\microgrampeg}---but the conservative bias inherent in MSE-optimized regression prevents predictions from crossing the regulatory threshold. A threshold sensitivity analysis confirms this: lowering the decision boundary from 20 to \SI{12}{\microgrampeg} increases transition recall substantially while maintaining acceptable precision (this threshold is motivated further in Section~\ref{sec:results-spike-classifier}).
+Despite this, the regression ensemble's spike transition recall at the standard \SI{20}{\microgrampeg} decision threshold is poor: only 14.5\% of held-out transition events are correctly predicted as spikes (seed = 123). Na\"ive persistence achieves 23.6\%. The ensemble \emph{does} predict elevated values before spikes---mean predicted DA for transition events is \SI{13.1}{\microgrampeg}---but the conservative bias inherent in MSE-optimized regression prevents predictions from crossing the regulatory threshold. A threshold sensitivity analysis confirms this: lowering the decision boundary from 20 to \SI{12}{\microgrampeg} increases transition recall substantially while maintaining acceptable precision (this threshold is motivated further in Section~\ref{sec:results-spike-classifier}).
 
 \subsubsection{Transition-Focused Binary Classifier}
 \label{sec:results-spike-classifier}
@@ -572,23 +572,23 @@ To exploit the pre-spike environmental signals without the regression's conserva
 
 The deployed \emph{hybrid} alert fires if either the classifier probability exceeds a fixed threshold of $0.10$ or the regression prediction reaches \SI{12}{\microgrampeg}; both are fixed constants in the system configuration (applied identically to every retrospective row). The \SI{12}{\microgrampeg} regression arm is motivated by the systematic under-prediction in the transition band (Section~\ref{sec:results-diagnostics}) and the sensitivity of transition recall to lowering the regression decision boundary (Section~\ref{sec:results-threshold-limit}). Table~\ref{tab:spike-transition} reports metrics on the seed-123 held-out set under this \emph{fixed} policy; we did not optimize these thresholds on that held-out row set to maximize the reported recalls. Absolute recall and precision should therefore be read as conditional on this operating point.
 
-Table~\ref{tab:spike-transition} compares spike transition detection across approaches on the held-out test set (seed = 123, $n = 2{,}181$, 89 transitions). Figure~\ref{fig:spike-summary} highlights the same operating-point tradeoff visually.
+Table~\ref{tab:spike-transition} compares spike transition detection across approaches on the held-out retrospective panel (seed = 123, $n = 1{,}177$, 66 below-to-above-threshold transitions). Figure~\ref{fig:spike-summary} highlights the same operating-point tradeoff visually.
 
 \begin{table}[H]
-\caption{Spike transition detection performance on the held-out test set ($n = 2{,}181$, 89 below-to-above-threshold transitions). Transition recall measures the fraction of below-to-above-threshold crossings correctly identified. The hybrid alert (spike classifier combined with regression trigger at \SI{12}{\microgrampeg}) achieves 3.1$\times$ the transition recall of na\"ive persistence.}
+\caption{Spike transition detection performance on the held-out retrospective panel ($n = 1{,}177$, 66 below-to-above-threshold transitions; seed = 123). Each approach is evaluated at its own canonical alert threshold (na\"ive and regression-only alert at the regulatory \SI{20}{\microgrampeg} threshold; the hybrid alert combines the spike classifier with a regression trigger at the operational \SI{12}{\microgrampeg} threshold). The hybrid achieves 3.4$\times$ the transition recall of na\"ive persistence.}
 \label{tab:spike-transition}
 \centering\footnotesize
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcccc}
 \toprule
 \textbf{Approach} & \textbf{Trans.\ Rec.} & \textbf{Spike Rec.} & \textbf{Prec.} & \textbf{F2} \\
 \midrule
-Na\"ive persistence        & 0.236 & 0.754 & 0.546 & 0.700 \\
-Ensemble ($\geq$20 \si{\microgrampeg}) & 0.124 & 0.558 & 0.618 & 0.569 \\
-Hybrid alert (cls.\ + 12 trigger) & \textbf{0.734} & \textbf{0.859} & 0.344 & 0.661 \\
+Na\"ive persistence ($\geq$20 \si{\microgrampeg})        & 0.236 & 0.739 & 0.553 & 0.693 \\
+Ensemble ($\geq$20 \si{\microgrampeg})                  & 0.145 & 0.522 & 0.632 & 0.541 \\
+Hybrid alert (cls.\ $\cup$ regression $\geq$12 \si{\microgrampeg}) & \textbf{0.803} & \textbf{0.876} & 0.318 & 0.649 \\
 \bottomrule
 \end{tabular*}
 \vspace{0.3em}\\
-\footnotesize{F2 weights recall twice as heavily as precision ($\beta = 2$). The hybrid alert's F2 (0.661) is lower than na\"ive persistence (0.700) because its precision drops sharply; however, the hybrid's advantage is specifically in \textit{transition} recall (0.734 vs.\ 0.236), which F2 does not separately capture. For closure-relevant early warning, transition recall is the operationally critical metric.}
+\footnotesize{F2 weights recall twice as heavily as precision ($\beta = 2$). The hybrid alert's F2 (0.649) is lower than na\"ive persistence (0.693) because its precision drops sharply at the lower alert threshold; however, the hybrid's advantage is specifically in \textit{transition} recall (0.803 vs.\ 0.236, a 3.4$\times$ improvement), which F2 does not separately capture. For closure-relevant early warning, transition recall is the operationally critical metric: a missed below-to-above-threshold crossing leaves managers reacting after contamination has already occurred, while a false alert at most increases sampling attention.}
 \end{table}
 
 \begin{figure}[H]
@@ -598,12 +598,12 @@ Hybrid alert (cls.\ + 12 trigger) & \textbf{0.734} & \textbf{0.859} & 0.344 & 0.
 \label{fig:spike-summary}
 \end{figure}
 
-The hybrid alert---combining the transition-focused classifier with a regression trigger at \SI{12}{\microgrampeg}---achieves 73.4\% transition recall compared to 23.6\% for na\"ive persistence and 12.4\% for the standard regression ensemble. This 3.1$\times$ improvement in transition recall comes at the cost of substantially lower precision (0.344 vs.\ 0.546), and the hybrid's overall F2 score (0.661) is therefore \textit{lower} than na\"ive persistence (0.700). The tradeoff is intentional: F2 does not separately capture transition detection, and in the closure-warning context, the cost of a missed below-to-above-threshold transition (delayed public health response) far exceeds the cost of a false alert (increased sampling attention). Transition recall is therefore the operationally critical metric for this application. The classifier's top features are rolling DA maximum over 4 weeks (gain importance 0.41--0.45 across the five evaluation seeds: 42, 123, 456, 789, 1337), consistent with the biological mechanism where gradual toxin accumulation precedes a threshold crossing (Figure~\ref{fig:feature-importance}). Environmental features including PDO, BEUTI, and fluorescence contribute meaningfully when persistence features are excluded by the safe-baseline filter.
+The hybrid alert---combining the transition-focused classifier with a regression trigger at \SI{12}{\microgrampeg}---achieves 80.3\% transition recall compared to 23.6\% for na\"ive persistence (at the \SI{20}{\microgrampeg} regulatory threshold) and 14.5\% for the standard regression ensemble. This 3.4$\times$ improvement in transition recall over na\"ive persistence comes at the cost of lower precision (0.318 hybrid vs.\ 0.553 naive at the same operational threshold), and the hybrid's overall F2 score (0.649) is therefore \textit{lower} than na\"ive persistence (0.714). The tradeoff is intentional: F2 does not separately capture transition detection, and in the closure-warning context, the cost of a missed below-to-above-threshold transition (delayed public health response) far exceeds the cost of a false alert (increased sampling attention). Transition recall is therefore the operationally critical metric for this application. The classifier's top features are rolling DA maximum over 4 weeks (gain importance 0.41--0.45 across the five evaluation seeds: 42, 123, 456, 789, 1337), consistent with the biological mechanism where gradual toxin accumulation precedes a threshold crossing (Figure~\ref{fig:feature-importance}). Environmental features including PDO, BEUTI, and fluorescence contribute meaningfully when persistence features are excluded by the safe-baseline filter.
 
 \subsection{Ablation Study}
 \label{sec:results-ablation}
 
-Component ablation is summarized in Appendix~\ref{app:component-ablation} (Table~\ref{tab:ablation}) using the development set (seed = 42, $n = 1{,}177$). Appendix tables sometimes quote slightly different baseline $R^2$ values where captions note an intermediate configuration checkpoint; only the qualitative $\Delta R^2$ comparisons are carried across those checkpoints. Per-site customization is the most impactful component ($\Delta R^2 = -0.158$), confirming that the 10 monitoring sites cannot be represented well by a single global configuration. Interpolated training provides a modest improvement ($\Delta R^2 = -0.029$ when removed), while observation-order lags and derived features show negligible standalone impact at the one-week horizon. These latter effects are best interpreted as redundancy rather than as proof that the features are uninformative: persistence and rolling statistics already capture much of the same recent-history signal.
+Component ablation is summarized in Appendix~\ref{app:component-ablation} (Table~\ref{tab:ablation}), evaluated on the held-out paper sample (seed = 123, $n = 1{,}202$) under the current grid-winner per-site configuration. Per-site customization is the most impactful component ($\Delta R^2 = -0.187$ when removed), confirming that the 10 monitoring sites cannot be represented well by a single global configuration. Interpolated training provides a modest improvement ($\Delta R^2 = -0.024$ when removed). Observation-order lags ($\Delta R^2 = -0.003$) and derived features ($\Delta R^2 = +0.000$) show negligible standalone impact at the one-week horizon; these are best interpreted as redundancy with persistence and rolling-statistics features that already capture much of the same recent-history signal. The OAD ocean-anomaly features show similar sub-noise impact ($\Delta R^2 = -0.003$) for reasons discussed in Section~\ref{sec:discussion-feature-extension}.
 
 \begin{sloppypar}
 A fine-grained per-feature ablation (Appendix~\ref{app:feature-ablation}, Table~\ref{tab:feature-ablation}) confirms that no individual environmental feature exceeds noise-level impact ($|\Delta R^2| \leq 0.005$), and removing all low-importance features simultaneously costs only $\Delta R^2 = -0.004$. Feature importance rankings (Figure~\ref{fig:feature-importance}) show that persistence features (\texttt{last\_observed\_da\_raw}, \texttt{weeks\_since\_last\_spike}) dominate, accounting for over half of total model gain and confirming the strong DA autocorrelation at weekly timescales. Environmental features (PDO, SST, ONI) appear in the top tier but at substantially lower gain. Critically, high gain importance does not imply high marginal contribution: lag features rank highly in model splits but are largely redundant with \texttt{last\_observed\_da\_raw} ($\Delta R^2 = -0.001$ when removed). A targeted perturbation study (Appendix~\ref{app:perturbation-sensitivity}, Tables~\ref{tab:perturbation}--\ref{tab:seed-stability}) confirms that RF hyperparameters, clipping thresholds, and per-site model selection are all well-calibrated, with Washington sites stable across five seeds (mean $R^2 = 0.61 \pm 0.05$) and Oregon variance reflecting data scarcity rather than tuning fragility.
@@ -633,7 +633,7 @@ The difference between the standard single-seed paper sample ($R^2 = 0.238$ at s
 
 Strong persistence at several Washington sites is biologically plausible. DA depuration from razor clam tissue occurs over weeks to months \cite{Drum1993, Wekell1994}, so one-week-ahead DA often remains close to the most recent observation during sustained bloom periods. DATect therefore treats na\"ive persistence as a serious external baseline rather than a straw man. The pooled held-out result ($R^2 = -0.426$) should not be read as evidence that persistence is never useful; rather, it reflects the fact that persistence is highly site-dependent and degrades sharply at the low-skill Oregon sites.
 
-The near-tie between the tree-based models and Ridge regression further shows that most forecast signal comes from the feature set and the per-site design, not from an intrinsically superior model family. Removing per-site customization costs $\Delta R^2 = -0.158$ in the component ablation (Table~\ref{tab:ablation}; the perturbation study reports $-0.103$ for the same removal from a slightly earlier baseline---see Table~\ref{tab:perturbation} caption), far more than any other single component. Likewise, model-selection robustness in Appendix~\ref{app:weight-robustness} shows that choosing XGBoost versus Random Forest per site changes aggregate $R^2$ only modestly.
+The near-tie between the tree-based models and Ridge regression further shows that most forecast signal comes from the feature set and the per-site design, not from an intrinsically superior model family. Removing per-site customization costs $\Delta R^2 = -0.187$ in the component ablation under the current grid-winner config ($-0.158$ under the prior hand-tuned baseline; Table~\ref{tab:ablation}), far more than any other single component. Likewise, model-selection robustness in Appendix~\ref{app:weight-robustness} shows that choosing XGBoost versus Random Forest per site changes aggregate $R^2$ only modestly.
 
 This perspective also helps interpret the ablations. Interpolated training provides a modest gain, while observation-order lags and derived features show little standalone marginal effect at the one-week horizon---their signal overlaps with persistence and rolling-history terms, and tree models can capture simple nonlinear structure without handcrafted interactions.
 
@@ -797,18 +797,19 @@ Extreme  & 15   & 22  & 32 & 39 \\
 \label{app:component-ablation}
 
 \begin{table}[H]
-\caption{Component ablation study showing the contribution of each DATect design choice. Each row removes one component from the full system. $\Delta R^2$ and $\Delta$MAE are relative to the baseline. Evaluated on the development set (seed = 42, $n = 1{,}177$); the held-out test set (seed = 123) was reserved for final reporting.}
+\caption{Component ablation study showing the contribution of each DATect design choice. Each row removes one component from the full system. Evaluated on the held-out paper sample (seed = 123, $n = 1{,}202$) under the leak-free grid-winner per-site configuration.}
 \label{tab:ablation}
 \centering\footnotesize
 \begin{tabularx}{\linewidth}{lcccX}
 \toprule
 \textbf{Configuration} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} & \textbf{Notes} \\
 \midrule
-Full DATect (baseline)    & 0.414 & ---      & 6.38 & Current config (dev set) \\
-No per-site custom.       & 0.256 & $-0.158$ & 6.69 & Largest impact \\
-No interp.\ training      & 0.385 & $-0.029$ & 6.61 & Data augmentation \\
-No obs-order lags         & 0.413 & $-0.001$ & 6.39 & Minimal standalone \\
-No derived features       & 0.415 & $+0.001$ & 6.38 & Negligible impact \\
+Full DATect (baseline)    & 0.211 & ---      & 6.60 & Current grid-winner config \\
+No per-site custom.       & 0.023 & $-0.187$ & 6.71 & Largest impact \\
+No interp.\ training      & 0.186 & $-0.024$ & 6.90 & Data augmentation contribution \\
+No obs-order lags         & 0.208 & $-0.003$ & 6.70 & Redundant with persistence at 1-wk horizon \\
+No derived features       & 0.211 & $+0.000$ & 6.60 & Negligible standalone impact \\
+No OAD features           & 0.208 & $-0.003$ & 6.59 & Sub-noise; offshore signal doesn't reach beach \\
 \bottomrule
 \end{tabularx}
 \end{table}

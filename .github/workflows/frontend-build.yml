@@ -40,8 +40,10 @@ jobs:
         # current platform. See https://github.com/npm/cli/issues/4828.
         run: npm install --no-audit --no-fund
 
-      - name: Lint
-        run: npm run lint --if-present
+      # Lint step intentionally omitted: package.json contains a `lint` script
+      # but no ESLint config file (.eslintrc.* / eslint.config.js). The script
+      # is orphaned from before the project's current setup. Add back when the
+      # team formally adopts ESLint with a config.
 
       - name: Build production bundle
         run: npm run build

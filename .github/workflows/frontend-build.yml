@@ -30,18 +30,15 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        # `npm ci` is the reproducible path (requires package-lock.json).
-        # If the lockfile is somehow missing, fall back to `npm install` so the
-        # build can still proceed — this should rarely fire since the lockfile
-        # is tracked, but it keeps CI resilient against accidental .gitignore
-        # additions.
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            echo "::warning::frontend/package-lock.json missing — falling back to 'npm install'. Commit the lockfile for reproducible CI."
-            npm install
-          fi
+        # Use `npm install` (not `npm ci`) so platform-specific optional
+        # dependencies resolve correctly. The lockfile is generated on the
+        # developer's local machine (often macOS), so it only records the
+        # Rollup optionalDependencies for that platform. `npm ci` then fails
+        # on Linux runners with "Missing: @rollup/rollup-linux-x64-gnu from
+        # lock file". `npm install` honors version constraints from the
+        # lockfile while still resolving missing optional deps for the
+        # current platform. See https://github.com/npm/cli/issues/4828.
+        run: npm install --no-audit --no-fund
 
       - name: Lint
         run: npm run lint --if-present

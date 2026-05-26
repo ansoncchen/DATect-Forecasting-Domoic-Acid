@@ -311,6 +311,15 @@ Figure~\ref{fig:esp-validation} visualizes the underlying scatter for the two st
 \label{fig:esp-validation}
 \end{figure}
 
+Beyond the per-day scatter, Figure~\ref{fig:esp-timeseries} shows the OAD score and ESP measurements as co-evolving time series during each of the five ESP deployment windows in 2016--2018. The visual co-variation---OAD score peaks lining up with elevated ESP \textit{Pn} cell counts (Olympic Coast, left column) and with elevated pDA (SW Washington, right column)---is the strongest single-day evidence that the unsupervised satellite signal tracks the same offshore bloom dynamics that the in-situ instruments measure directly. Notably, the 2017 deployments captured a particularly strong upwelling-driven bloom; the OAD score detected it both before and during the ESP-measured \textit{Pn} spike, suggesting the unsupervised representation may have value as a leading indicator for in-situ sampling deployments.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{figures/fig9_oad_esp_timeseries.png}
+\caption{Time-series overlay of OAD anomaly score (blue line, left axis, z-units) and ESP in-situ measurements (red/orange markers, right axis on log scale) at the NEMO mooring during the five 2016--2018 ChaBa deployment windows. Yellow shading marks each ESP deployment period (with $\pm$14 days of context). Left column: Olympic Coast region OAD score with ESP \textit{Pseudo-nitzschia} cell counts (sum of toxin-producing species). Right column: SW Washington region OAD score with ESP particulate domoic acid. The temporal co-evolution of the unsupervised satellite signal and the independent in-situ biological measurements is direct visual confirmation that the OAD representation captures real bloom dynamics at the offshore source.}
+\label{fig:esp-timeseries}
+\end{figure}
+
 This is the headline scientific finding of the OAD subproject. An unsupervised satellite autoencoder that has never seen a single DA measurement during training correlates with in-situ DA at the offshore source region at $r = +0.33$, with the bootstrap 95\% CI excluding zero. Combined with the lead-time forecastability result in Section~\ref{sec:results-forecastability}, this establishes that the learned representation captures real bloom-related ocean state---both by intrinsic dynamics (PCA baselines fail) and by independent biological ground truth (ESP correlations are significant).
 
 \subsection{Cloud-Cover Confound Characterization}

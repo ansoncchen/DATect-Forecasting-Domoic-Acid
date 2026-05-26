@@ -149,6 +149,13 @@ Missing-data convention & NaN = cloud-flagged or unobserved \\
 \end{tabular}
 \end{table}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/fig1_study_region.png}
+\caption{Study region (41--49\textdegree\,N, 122--127\textdegree\,W) and example MODIS Aqua 8-day composite. The U.S.\ Pacific Northwest coast spans approximately 600~km from northern California to the Olympic Peninsula; the OAD analysis covers the full coastal box at 0.025\textdegree\ resolution (stride~2 from native MODIS).}
+\label{fig:study-region}
+\end{figure}
+
 \subsection{Regional Sub-Bands}
 
 All downstream analyses report per-region scores. The PNW coast is divided into five regions (Table~\ref{tab:regions}): an overall envelope plus four alongshore sub-bands chosen for approximate hydrographic homogeneity. The Olympic Coast region contains the NEMO mooring (Section~\ref{sec:insitu-data}); the SW Washington region is the downwind transport corridor and contains the highest-density razor clam fisheries.
@@ -188,6 +195,13 @@ These ESP data were collected entirely independently of the satellite training d
 \section{Method}
 \label{sec:method}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/fig2_architecture.png}
+\caption{OAD 3D convolutional masked-autoencoder architecture. Input is a 4-channel (chl-a, Kd490, nFLH, SST) 4-day rolling 8-day-composite cube. The encoder applies four 3D conv + stride-2 downsampling blocks to a latent of dimension 32; the decoder symmetrically reconstructs the input. During training, 50\% of input pixels are randomly masked (mae050 variant) and the reconstruction loss is computed only on ocean pixels in the static mask, with cloud-flagged (NaN) pixels excluded per-pixel.}
+\label{fig:architecture}
+\end{figure}
+
 \subsection{3D Convolutional Autoencoder Architecture}
 
 OAD is a 3D convolutional autoencoder operating on tensors of shape (channels, time, lat, lon) $=$ ($4$, $4$, $321$, $409$). The encoder applies four blocks of 3D convolution + stride-2 spatial downsampling + group normalization + GELU activation, producing a latent representation of dimensionality 32 per spatial cell. The decoder is symmetric: four blocks of transposed 3D convolution + upsampling reconstruct the input shape. Training loss is masked MSE: only ocean pixels (per the static 2D mask) contribute to the loss, and NaN pixels within the ocean mask (cloud-flagged) are excluded per-pixel.
@@ -215,7 +229,22 @@ For a given daily 8-day composite at region $R$, the trained model produces a pe
 
 The first question to ask of any unsupervised representation is whether it captures anything beyond a simple linear compression of the input. We compare OAD at multiple lead times against three baselines: a PCA baseline (B3T) with matched dimensionality to the AE latent, a long-run mean baseline (B1), and a day-of-year climatology baseline (B2). The forecasting task is per-region anomaly state prediction from the past 4 days, evaluated on the 2019+ held-out period.
 
-Headline results for the SW Washington region are reported in Table~\ref{tab:lead-time}. The 1-day-ahead $R^2$ is inflated by 8-day composite overlap (consecutive daily composites share 7 of 8 input days, making prediction partly a copy operation), so the honest forecastability comparison happens at lead $\geq$ 7 days where the composite overlap is gone. At lead $= 7$ days, OAD (mae050) achieves $R^2 = 0.15$ in SW Washington, while the PCA baseline yields $R^2 = -0.11$ and climatology B2 yields $R^2 < 0$. Across all 5 PNW regions tested, OAD is the \emph{only} method with positive $R^2$ at lead $= 7$ days in every region (range 0.10--0.26); PCA and climatology baselines collapse to $\leq 0$ in every region.
+Headline results for the SW Washington region are reported in Table~\ref{tab:lead-time}, and the per-region multi-method comparison is visualized in Figure~\ref{fig:forecastability} and Figure~\ref{fig:multistep}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/fig3_forecastability.png}
+\caption{Per-region 7-day forecastability $R^2$ across all 5 PNW regions. The OAD \texttt{mae050} representation (blue) is the only method with positive $R^2$ in every region (range 0.10--0.26). The matched-dimensionality PCA baseline (orange) collapses to $\approx 0$ in every region, and the day-of-year climatology baseline (gray) actively anti-predicts in several regions. This is evidence that the unsupervised masked-autoencoder learns ocean-state structure that linear or seasonal-decomposition methods cannot recover.}
+\label{fig:forecastability}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/fig4_multistep_leadtime.png}
+\caption{Multi-step lead-time forecastability ($R^2$ vs lead in days) for the SW Washington region. The 1-day-ahead inflation from 8-day composite overlap is visible as the leftmost point; the honest regime begins at lead $\geq$ 7 days, where the OAD representation maintains positive $R^2$ while baselines collapse.}
+\label{fig:multistep}
+\end{figure}
+ The 1-day-ahead $R^2$ is inflated by 8-day composite overlap (consecutive daily composites share 7 of 8 input days, making prediction partly a copy operation), so the honest forecastability comparison happens at lead $\geq$ 7 days where the composite overlap is gone. At lead $= 7$ days, OAD (mae050) achieves $R^2 = 0.15$ in SW Washington, while the PCA baseline yields $R^2 = -0.11$ and climatology B2 yields $R^2 < 0$. Across all 5 PNW regions tested, OAD is the \emph{only} method with positive $R^2$ at lead $= 7$ days in every region (range 0.10--0.26); PCA and climatology baselines collapse to $\leq 0$ in every region.
 
 \begin{table}[H]
 \caption{Lead-time forecastability for the SW Washington region, evaluated on the 2019+ held-out test period. All methods predict per-region anomaly state from the past 4 days of input.}
@@ -273,6 +302,15 @@ Overall WA--OR--N.\ CA envelope & $+0.207$ & $[+0.021, +0.363]$ & $0.05$ \\
 
 The OAD score at the NEMO source region shows statistically significant positive correlation with both biological targets. The strongest \textit{Pn}-cell correlation is in the Olympic Coast region, which contains NEMO directly ($r = +0.458$, $p = 3.1 \times 10^{-5}$). The strongest pDA correlation is in the SW Washington region, which is the downwind transport corridor ($r = +0.334$, $p = 1.3 \times 10^{-3}$). The coastwide envelope is the weakest of the three regional choices for both biological targets---spatial averaging dilutes the localized signal, as expected.
 
+Figure~\ref{fig:esp-validation} visualizes the underlying scatter for the two strongest correlations (Olympic Coast for \textit{Pn} cells and SW Washington for pDA).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig5_esp_validation.png}
+\caption{OAD anomaly score vs.\ in-situ ESP measurements at the NEMO mooring (47.97\textdegree\,N, 124.97\textdegree\,W) during the 2016--2018 ChaBa deployments. \textbf{Top row:} \textit{Pseudo-nitzschia} cell density (sum of toxin-producing species via SHA assay, $\log_{10}$-transformed). \textbf{Bottom row:} particulate domoic acid via cELISA assay ($\log_{10}$-transformed). Columns show the two regional OAD scores closest to NEMO. Reported Pearson $r$ and 95\% bootstrap CIs are computed on raw values (text uses raw correlations; plot uses $\log_{10}$ axes for visual clarity). The strongest \textit{Pn} correlation appears in the Olympic Coast region containing NEMO; the strongest pDA correlation appears in SW Washington, consistent with downwind transport of the toxin from the source.}
+\label{fig:esp-validation}
+\end{figure}
+
 This is the headline scientific finding of the OAD subproject. An unsupervised satellite autoencoder that has never seen a single DA measurement during training correlates with in-situ DA at the offshore source region at $r = +0.33$, with the bootstrap 95\% CI excluding zero. Combined with the lead-time forecastability result in Section~\ref{sec:results-forecastability}, this establishes that the learned representation captures real bloom-related ocean state---both by intrinsic dynamics (PCA baselines fail) and by independent biological ground truth (ESP correlations are significant).
 
 \subsection{Cloud-Cover Confound Characterization}
@@ -297,18 +335,44 @@ Olympic Coast (WA) & $+0.49$ & $\sim 24\%$ \\
 \end{tabular}
 \end{table}
 
+Figure~\ref{fig:cloud-confound} visualizes the relationship across the full coastwide envelope.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\textwidth]{figures/fig7_cloud_confound.png}
+\caption{Cloud-cover confound diagnostic. Per-region scatter of the daily OAD anomaly score (x-axis) against the in-region valid-pixel fraction (y-axis, where 1.0 = fully cloud-free). A modest positive correlation ($r \approx 0.44$--$0.49$ across SW Washington and Olympic Coast) indicates that $\sim$19--24\% of the score variance covaries with cloud cover. This is mitigated in downstream use by reporting the cloud-fraction time series as a parallel feature.}
+\label{fig:cloud-confound}
+\end{figure}
+
 This is not a refutation of the OAD signal but a partial characterization: roughly one-fifth to one-quarter of the score variance covaries with cloud fraction. The mae050 checkpoint was chosen specifically because its cloud confound is lower than mae070's without giving up multi-step forecast skill. For downstream consumption, the cloud-fraction time series itself should be reported as a parallel feature so consuming models can learn to discount cloudy weeks.
 
-\subsection{What the OAD Score Looks Like Across 22 Years}
+\subsection{Agreement with Known PNW Coastal Ocean Climatology}
 \label{sec:results-timeseries}
 
-Beyond the headline forecastability and validation numbers, the OAD score produces a per-region time series spanning 22 years. Visual inspection (annual-cycle and inter-annual plots, Figure~\ref{fig:annual-cycle} placeholder; see companion repository) reveals three consistent patterns:
+Beyond the headline forecastability and in-situ validation numbers, the OAD score produces a per-region daily time series spanning 22 years. Figure~\ref{fig:seasonal-cycle} shows the multi-year seasonal cycle for SW Washington (the highest-amplitude region), and Figure~\ref{fig:event-detection} overlays the daily score on identified bloom events. Three patterns emerge that match well-established knowledge about PNW coastal ocean dynamics:
 
-\begin{itemize}[nosep]
-    \item \textbf{Strong seasonal cycle.} The score systematically rises in late spring through early autumn across all 5 regions, matching the bloom-favorable season. The amplitude is largest in SW Washington and the Olympic Coast.
-    \item \textbf{Inter-annual variability.} Years known for unusually large HABs---e.g.\ 2015 (the Pacific marine heatwave) and 2019---show elevated annual-mean OAD scores. Quiescent years show suppressed scores.
-    \item \textbf{Cross-region coherence with heterogeneity.} The four sub-bands tend to move together at seasonal scale (cross-region correlation $> 0.5$ on monthly means), but each region also has its own high-frequency signal---demonstrating that the per-region polygons capture distinct ocean states rather than merely re-sampling the same field.
-\end{itemize}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/fig6_seasonal_cycle_sw_wa.png}
+\caption{Seasonal cycle of the OAD anomaly score in the SW Washington region (2003--2024). The mean climatology (solid line) rises sharply in late spring with peak in mid-summer, declining through autumn, matching the well-documented spring-summer upwelling and \textit{Pseudo-nitzschia} bloom season in the PNW \cite{Trainer2009, McCabe2023}. Inter-quartile and full-range bands show that year-to-year variability is largest during the bloom window, as expected.}
+\label{fig:seasonal-cycle}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig8_event_detection_sw_wa.png}
+\caption{Multi-year OAD score time series in SW Washington (2003--2024) with documented HAB events overlaid. Elevated annual-mean and peak score values during 2015 (the Pacific marine heatwave / ``the Blob'' event \cite{Bond2015}) and the largest closure-triggering blooms of 2015 and 2019 align with the elevated OAD signal, supporting that the unsupervised representation captures inter-annual variability of bloom-favorable ocean state.}
+\label{fig:event-detection}
+\end{figure}
+
+\textbf{Strong seasonal cycle matching documented bloom phenology.}
+The score systematically rises in late spring (April--May), peaks in mid-summer (June--August), and declines through autumn across all 5 regions. The amplitude is largest in SW Washington and the Olympic Coast. This matches the canonical PNW \textit{Pseudo-nitzschia} bloom phenology---a coastal upwelling-driven productivity cycle that has been documented in the region for decades \cite{Trainer2002, Trainer2009, MacCready2021}. The amplitude pattern (largest in SW Washington, where the Columbia River plume interacts with shelf upwelling, and Olympic Coast, where the Juan de Fuca eddy retains nutrient-rich water \cite{Hickey2010}) also matches known hydrographic structure.
+
+\textbf{Inter-annual variability matching documented HAB events.}
+Years known for unusually large HAB events show elevated annual-mean OAD scores. The most striking case is 2015: the Pacific marine heatwave---``the Blob''---caused a multi-month anomalous warm-water event across the Northeast Pacific \cite{Bond2015}, which in turn drove the largest \textit{Pseudo-nitzschia australis} bloom on record from southern California through Alaska, with PNW razor clam fisheries closed for over a year \cite{McCabe2016, McCabe2023}. The OAD score for the 2014--16 marine-heatwave window shows clearly elevated annual-mean values across all PNW regions (Figure~\ref{fig:event-detection}), without ever having been told that 2015 was anomalous. Quiescent years (e.g.\ 2010, 2012) show correspondingly suppressed scores. The amplitude and timing of the 2019 bloom are also visible. We emphasize that the model was trained on per-pixel reconstruction error with no temporal anomaly labels, so the inter-annual structure shown here emerges entirely from the unsupervised objective.
+
+\textbf{Cross-region coherence with hydrographic heterogeneity.}
+The four sub-bands tend to move together at seasonal scale (cross-region correlation $> 0.5$ on monthly means), consistent with the dominant role of basin-scale upwelling forcing along the PNW coast. However, each region also exhibits distinct high-frequency signal---demonstrating that the per-region polygons capture distinct ocean states rather than re-sampling the same field. The dichotomy between coherent low-frequency forcing (PDO-modulated upwelling, ENSO teleconnections \cite{Jacox2018}) and locally-resolved high-frequency variability (eddies, river plumes, local wind events) is exactly the structure one would expect a representation faithful to PNW coastal dynamics to recover, and contrasts with the spatially-uniform behavior that a simpler climatology-based representation would produce.
 
 % ══════════════════════════════════════════════════════════════════════════════
 %  6. DISCUSSION

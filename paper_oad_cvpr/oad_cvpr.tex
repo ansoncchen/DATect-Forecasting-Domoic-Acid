@@ -130,7 +130,7 @@ At the operationally honest lead of 7 days, OAD is the \emph{only} method with p
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figures/fig3_forecastability.png}
-\caption{Per-region 7-day forecastability $R^2$. OAD (mae050) is the only method with positive $R^2$ in every PNW region (0.10--0.26). The matched PCA baseline (orange) and day-of-year climatology (gray) collapse to $\leq 0$ everywhere. Region labels along the x-axis cover the full coastwide envelope plus the four alongshore sub-bands.}
+\caption{\textbf{How predictable is each region's ocean state 7 days ahead, using only the past 4 days?} Bars show held-out $R^2$ on 2019+ data (right of zero = better than predicting the mean). OAD-70 (dark blue) is the only method positive in all five regions (0.10--0.26); the lower-mask OAD-50 variant we deploy is positive in 3 of 5 but trades $R^2$ for a cleaner cloud signature (\cref{sec:cloud}). The matched-dimensionality PCA baseline (orange) and the two climatology baselines (grays) sit at or below zero everywhere, meaning a linear projection of the same pixels carries essentially no multi-day predictive structure. This is the headline evidence that the autoencoder is learning ocean dynamics rather than reconstructing static texture.}
 \label{fig:forecastability}
 \end{figure}
 
@@ -163,14 +163,14 @@ The per-day scatter (\cref{fig:esp-scatter}) makes the correlation structure vis
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figures/fig5_esp_validation.png}
-\caption{OAD score vs.\ ESP in-situ measurements at NEMO, 2016--2018. Top: \textit{Pn} cell density ($\log_{10}$). Bottom: pDA ($\log_{10}$). Columns show the two regions closest to NEMO. Reported $r$ and 95\% CIs use raw values; log-axes shown for visual clarity only.}
+\caption{\textbf{Per-day scatter of the unsupervised OAD score against independent in-situ biology at the NEMO mooring.} Top row: ESP-measured \textit{Pseudo-nitzschia} cell density. Bottom row: ESP-measured particulate domoic acid. Each point is one matched day in 2016--2018; red line is OLS fit. Pearson $r$ with bootstrap 95\% CIs (2000 resamples) are computed on raw values; log axes are for visual clarity only. The \textit{Pn}-cell signal is strongest at the source region containing NEMO (Olympic Coast, top-left), while the toxin signal is strongest in the downwind SW Washington transport corridor (bottom-right)---a spatial split that matches known PNW alongshore transport.}
 \label{fig:esp-scatter}
 \end{figure}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/fig9_oad_esp_timeseries_wide.png}
-\caption{Time-series overlay of OAD anomaly score (blue line, left axis) and ESP in-situ measurements (markers, right axis on symlog scale) across the five 2016--2018 ChaBa deployment windows (yellow shading $\pm$7 days of context). Top row: Olympic Coast OAD vs.\ ESP \textit{Pn} cell density. Bottom row: SW Washington OAD vs.\ ESP pDA. The temporal co-evolution of the unsupervised satellite signal and the independent in-situ biology is direct visual confirmation that OAD captures real bloom dynamics at the source. The 2017 spring deployment (third column) is particularly informative: the OAD score rises noticeably before the ESP-measured \textit{Pn} spike.}
+\caption{\textbf{Day-by-day time-series overlay of OAD score (blue line) and the independent in-situ ESP measurements (red/orange markers) during the five 2016--2018 ChaBa deployments.} Yellow shading marks each deployment window. Top row: Olympic Coast OAD score vs.\ ESP \textit{Pn} cell density (right axis, symlog cells/L). Bottom row: SW Washington OAD vs.\ ESP particulate domoic acid (right axis, symlog ng/L). When the satellite-derived score rises, the in-water biology rises too---direct visual confirmation that the unsupervised representation tracks real bloom dynamics, not satellite artifacts. The 2017 spring deployment (third column) is the cleanest case: OAD ramps up several days before the ESP-measured \textit{Pn} peak, suggesting potential value as a leading indicator for in-situ sampling.}
 \label{fig:esp-ts}
 \end{figure*}
 
@@ -182,7 +182,14 @@ The unsupervised score also recovers well-established PNW coastal ocean patterns
 
 \noindent\textbf{Seasonal cycle.} The score rises sharply in late spring (April--May), peaks in mid-summer, and declines through autumn across all five regions---matching canonical PNW \textit{Pn} bloom phenology \cite{Trainer2002,Trainer2009,MacCready2021}. Amplitude is largest in SW Washington (Columbia River plume $\times$ shelf upwelling) and Olympic Coast (Juan de Fuca eddy retains nutrient-rich water \cite{Hickey2010}).
 
-\noindent\textbf{Inter-annual variability and the 2014--16 marine heatwave.} Years with documented major HAB events show elevated annual-mean OAD scores. The most striking case is the 2014--16 Pacific marine heatwave (``the Blob'' \cite{Bond2015}), which drove the largest \textit{P.\ australis} bloom on record from southern California through Alaska \cite{McCabe2016,McCabe2023}. The OAD score is clearly elevated across the entire 2014--16 window despite no temporal anomaly labels being seen during training. The 2019 bloom is similarly visible. Quiescent years (e.g.\ 2010, 2012) show suppressed scores.
+\noindent\textbf{Inter-annual variability and the 2014--16 marine heatwave.} Years with documented major HAB events show elevated annual-mean OAD scores (\cref{fig:climatology-ts}). The most striking case is the 2014--16 Pacific marine heatwave (``the Blob'' \cite{Bond2015}), which drove the largest \textit{P.\ australis} bloom on record from southern California through Alaska \cite{McCabe2016,McCabe2023}. The OAD score is clearly elevated across the entire 2014--16 window in every region despite no temporal anomaly labels being seen during training. The 2019 bloom appears as a second distinct peak. Quiescent years (e.g.\ 2010, 2012) show suppressed scores.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig4_climatology_timeseries.png}
+\caption{\textbf{22-year OAD anomaly score per region (30-day rolling mean), with documented PNW events overlaid.} Red shading marks the 2014--16 Pacific marine heatwave (``the Blob'') that triggered the largest \textit{P.\ australis} bloom on record; purple marks the 2019 bloom; the hatched 2009--11 strip is the MODIS Aqua coverage gap, not a true low. The score is elevated across all four alongshore regions throughout the heatwave and shows a second clear peak in 2019, despite the model never being shown an event label during training. The strict spring-to-summer seasonal cycle visible in every year is consistent with canonical PNW \textit{Pn} bloom phenology \cite{Trainer2002,Trainer2009}.}
+\label{fig:climatology-ts}
+\end{figure*}
 
 \noindent\textbf{Cross-region coherence with heterogeneity.} Regional scores correlate at $> 0.5$ on monthly means---consistent with PDO-modulated basin-scale upwelling and ENSO teleconnections \cite{Jacox2018}---but each region preserves its own high-frequency signal from local eddies, plumes, and wind events. This dichotomy is exactly the structure a representation faithful to PNW coastal dynamics should produce.
 

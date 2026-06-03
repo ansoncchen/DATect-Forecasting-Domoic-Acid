@@ -44,7 +44,7 @@ University of Washington, Seattle, WA 98195\\
 \begin{abstract}
 Harmful algal blooms along the U.S.\ Pacific Northwest coast are visible in satellite imagery, but using single satellite channels like chlorophyll-a to predict downstream biology has historically not worked very well. We train a 3D convolutional masked-autoencoder on 22 years (2003--2024) of MODIS Aqua imagery over the 41--49\textdegree\,N coastal box. The model takes four ocean channels (chlorophyll-a, water clarity, fluorescence, sea-surface temperature) on a 321$\times$409 grid and a 4-day time window, and outputs one number per day per region: an ``anomaly score'' based on how badly it reconstructs the input. We do not give it any bloom labels.
 
-We then check whether that score is useful. Three results: (1)~at a 7-day forecast horizon it is the only method we tested with positive $R^2$ in every region (0.10--0.26)---a modest absolute number, but the matched-complexity PCA baseline sits at zero. (2)~The score correlates with in-water Environmental Sample Processor measurements at the NEMO mooring during 2016--2018 (\textit{Pseudo-nitzschia} cells $r{=}{+}0.46$, $p{=}3{\times}10^{-5}$; particulate domoic acid $r{=}{+}0.33$, $p{=}1{\times}10^{-3}$). These are not strong correlations, but they are statistically significant for an unsupervised signal validated against an instrument it never trained on. (3)~The summer-mean score in 2014 is the highest of any year on record in three of four regions and the second-highest in the fourth, matching the documented Pacific marine heatwave. We also document a moderate cloud-cover confound (19--24\% of score variance) and suggest that downstream users carry the in-region valid-pixel fraction as a parallel feature.
+We then check whether that score is useful. Three results: (1)~at a 7-day forecast horizon it is the only method we tested with positive $R^2$ in every region (0.10--0.26)---a modest absolute number, but the matched-complexity PCA baseline sits at zero. (2)~The score correlates with in-water Environmental Sample Processor measurements at the NEMO mooring during 2016--2018 (\textit{Pseudo-nitzschia} cells $r{=}{+}0.46$, $p{=}3{\times}10^{-5}$; particulate domoic acid $r{=}{+}0.35$, $p{=}7{\times}10^{-4}$). These are not strong correlations, but they are statistically significant for an unsupervised signal validated against an instrument it never trained on. (3)~The summer-mean score in 2014 is the highest of any year on record in three of four regions and the second-highest in the fourth, matching the documented Pacific marine heatwave. We also document a moderate cloud-cover confound (about 21--24\% of score variance in the two highest-amplitude regions) and suggest that downstream users carry the in-region valid-pixel fraction as a parallel feature.
 \end{abstract}
 
 %================================================================
@@ -60,7 +60,7 @@ We call the resulting system \textbf{OAD} (Ocean Anomaly Detection). It is a 3D 
 \begin{enumerate}\itemsep1pt
     \item A 3D convolutional autoencoder with three-phase masked-autoencoder training that turns the MODIS cube into one daily score per coastal region.
     \item A lead-time comparison showing OAD is the only method tested that is better than predicting the mean at a 7-day horizon in every region, while two natural baselines (matched-complexity PCA and day-of-year climatology) are not.
-    \item Comparison against in-water Environmental Sample Processor data at the NEMO mooring (2016--2018): the unsupervised satellite score correlates with both \textit{Pn} cell density ($r{=}{+}0.46$) and particulate domoic acid ($r{=}{+}0.33$), with bootstrap 95\% confidence intervals that exclude zero.
+    \item Comparison against in-water Environmental Sample Processor data at the NEMO mooring (2016--2018): the unsupervised satellite score correlates with both \textit{Pn} cell density ($r{=}{+}0.46$) and particulate domoic acid ($r{=}{+}0.35$), with bootstrap 95\% confidence intervals that exclude zero.
     \item The summer-mean score for 2014 is the highest of any year in the record in three out of four regions, lining up with the documented Pacific marine heatwave, again without ever being told which year that was.
 \end{enumerate}
 
@@ -87,18 +87,18 @@ We call the resulting system \textbf{OAD} (Ocean Anomaly Detection). It is a 3D 
 
 \noindent\textbf{Data.} The training cube is built from MODIS Aqua Level-3 daily ocean-color products \cite{NASA_OceanColor} covering 2003--2024 ($\sim$4{,}700 daily rolling 8-day composites) on a 321$\times$409 grid at 0.025\textdegree\ resolution. Four channels are used: chl-a, Kd490 (water clarity), normalized fluorescence (nFLH), and SST. A 2D static ocean/land mask excludes land pixels; NaN pixels (cloud-flagged or otherwise unobserved) are excluded per-pixel from the masked-MSE reconstruction loss.
 
-\noindent\textbf{Architecture.} OAD is a 3D ConvAE operating on tensors of shape $(C{=}4,\, T{=}4,\, H{=}321,\, W{=}409)$ (\cref{fig:architecture}). The encoder applies four blocks of 3D convolution with stride-2 spatial downsampling, GroupNorm, and GELU activation, producing a latent of dimension 32. The decoder mirrors the encoder with transposed convolutions and upsampling.
+\noindent\textbf{Architecture.} OAD is a 3D ConvAE applied to $64\times64$ spatial patches tiled over the $321\times409$ grid, each of shape $(C{=}4,\, T{=}4,\, H{=}64,\, W{=}64)$ (\cref{fig:architecture}). The encoder applies three blocks of 3D convolution with stride-2 downsampling, batch normalization, and ReLU activation, reducing the $64\times64$ field to an $8\times8$ spatial bottleneck ($128{\times}1{\times}8{\times}8$) and a latent of dimension 32. The decoder mirrors the encoder with transposed convolutions and upsampling.
 
-\noindent\textbf{Three-phase training.} \emph{Phase A} (plain autoencoder) produced reconstruction error that correlated poorly with bloom events---the model learned to copy textures. \emph{Phase B} added per-region z-score post-processing, which improved scale but not the underlying representation. \emph{Phase C} is masked-autoencoder pretraining \cite{He2022MAE} with 50\% random pixel masking, forcing the model to infer hidden pixels from larger spatial context. We select Phase~C with 50\% masking (\texttt{mae050}) over a 70\%-masking variant because mae050 has lower cloud confound (\cref{sec:cloud}) without sacrificing multi-step forecast skill.
+\noindent\textbf{Three-phase training.} \emph{Phase A} (plain autoencoder) produced reconstruction error that correlated poorly with bloom events---the model learned to copy textures. \emph{Phase B} added per-region z-score post-processing, which improved scale but not the underlying representation. \emph{Phase C} is masked-autoencoder pretraining \cite{He2022MAE} with random pixel masking, forcing the model to infer hidden pixels from larger spatial context. Sweeping the mask ratio, we select Phase~C with 70\% masking (\texttt{mae070}) as the headline checkpoint because it is the only variant with positive multi-step forecast skill in all five regions at the 7-day lead (\cref{sec:forecastability}); a lower-masking 50\% variant (\texttt{mae050}) has a modestly cleaner cloud signature (\cref{sec:cloud}) but loses that skill, staying positive in only three of the five regions.
 
 \noindent\textbf{Score derivation.} For each daily composite at region $R$, the trained model produces a per-pixel reconstruction. We average per-pixel reconstruction error over in-region ocean pixels and z-score the result against an in-region historical distribution, producing a single scalar per (region, day). Downstream analyses operate only on this per-region daily scalar; the convolutional model is not invoked again at consumption time.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\linewidth]{figures/fig2_architecture.png}
-\caption{OAD 3D convolutional masked-autoencoder. Input is a 4-channel ($C{=}4$), 4-day-window ($T{=}4$), 321$\times$409 tensor. The encoder applies four stride-2 3D conv blocks to a latent of dimension 32; the decoder symmetrically reconstructs the input. During Phase~C training, 50\% of input pixels are randomly masked and the reconstruction loss is computed only on ocean pixels with cloud-flagged NaN pixels excluded per-pixel.}
+\includegraphics[width=\textwidth]{figures/fig2_architecture.png}
+\caption{OAD pipeline. Input is a 4-channel ($C{=}4$), 4-day-window ($T{=}4$), 64$\times$64 patch tiled over the 321$\times$409 grid. The encoder applies three stride-2 3D conv blocks to a latent of dimension 32; the decoder symmetrically reconstructs the input. During Phase~C training, 70\% of input pixels are randomly masked and the masked-MSE reconstruction loss is computed only on ocean pixels (cloud-flagged NaNs excluded per-pixel). The anomaly score is the anchor-frame reconstruction error, averaged over each region's ocean pixels and z-scored against history.}
 \label{fig:architecture}
-\end{figure}
+\end{figure*}
 
 %================================================================
 \section{Results}
@@ -120,9 +120,9 @@ We compare OAD against a matched-dimensionality PCA baseline and a day-of-year c
 \toprule
 \textbf{Lead} & \textbf{OAD-50} & \textbf{OAD-70} & \textbf{PCA} & \textbf{Climatology} \\
 \midrule
-1\,day  & $+0.84$ & $+0.87$ & $-0.11$ & $\leq -0.5$ \\
-7\,days & $+0.15$ & $+0.15$ & $-0.11$ & $< 0$ \\
-14\,days & $+0.05$ & $+0.05$ & $-0.11$ & $< 0$ \\
+1\,day  & $+0.84$ & $+0.87$ & $-0.13$ &$\leq -0.5$ \\
+7\,days & $+0.08$ & $+0.15$ & $-0.13$ &$< 0$ \\
+14\,days & $+0.01$ & $+0.05$ & $-0.13$ &$< 0$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -134,7 +134,7 @@ At the honest 7-day lead, OAD is the only method we tested with positive $R^2$ i
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figures/fig3_forecastability.png}
-\caption{\textbf{Can each method predict the next week's regional anomaly state from the past 4 days?} Bars are held-out $R^2$ on data from 2019 onward. Bars to the right of zero do better than just guessing the mean; bars to the left do worse. OAD-70 (dark blue) is positive in all five regions (0.10--0.26)---not a huge number, but every other method we tried sits at or below zero. PCA (orange) is the right control because it has the same number of dimensions as the autoencoder, so the gap is not just ``more parameters help.'' The lower-masking OAD-50 variant we ship downstream is positive in 3 of 5 regions; it trades a little $R^2$ for a cleaner cloud-cover signature (\cref{sec:cloud}).}
+\caption{\textbf{Held-out 7-day-ahead forecast skill ($R^2$), by region (2019+).} Each method predicts the next week's regional anomaly state from the past 4 days; bars above zero do better than just guessing the mean. OAD (purple, the 70\%-mask variant) is positive in all five regions (0.10--0.26)---not a huge number, but every other method we tried sits at or below zero. PCA (gray) is the right control because it has the same number of dimensions as the autoencoder, so the gap is not just ``more parameters help''; day-of-year climatology (light gray) is worse than the mean. The lower-masking OAD-50 variant is positive in only 3 of 5 regions---it trades multi-step skill for a slightly cleaner cloud-cover signature (\cref{sec:cloud}), which is why we report and ship mae070 rather than mae050.}
 \label{fig:forecastability}
 \end{figure}
 
@@ -146,21 +146,21 @@ The cleanest test of whether OAD captures real biology---rather than an idiosync
 
 \begin{table}[t]
 \centering\small
-\caption{OAD score vs.\ in-situ ESP measurements at NEMO, 2016--2018. \textbf{Pn cells}: $N{=}76$ days (SHA assay). \textbf{pDA}: $N{=}90$ days (cELISA assay). The strongest \textit{Pn}-cell correlation appears in the region containing NEMO directly (Olympic Coast); the strongest pDA correlation appears in the downwind transport corridor (SW Washington).}
+\caption{OAD score vs.\ in-situ ESP measurements at NEMO, 2016--2018. \textbf{Pn cells}: $N{=}76$ days (SHA assay). \textbf{pDA}: $N{=}87$ days (cELISA assay). The strongest \textit{Pn}-cell correlation appears in the region containing NEMO directly (Olympic Coast); the strongest pDA correlation appears in the downwind transport corridor (SW Washington).}
 \label{tab:esp}
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{@{}lcc@{}}
 \toprule
 \textbf{Region} & \textit{Pn} cells $r$\,[CI] & pDA $r$\,[CI] \\
 \midrule
-Olympic Coast      & $\mathbf{+0.46}$\,[.19,\,.66] & $+0.32$\,[$-$.02,\,.53] \\
-SW WA              & $+0.31$\,[.11,\,.51]          & $\mathbf{+0.33}$\,[.13,\,.52] \\
-Coastwide envelope & $+0.16$\,[$-$.10,\,.39]       & $+0.21$\,[.02,\,.36] \\
+Olympic Coast      & $\mathbf{+0.46}$\,[.17,\,.66] & $+0.34$\,[.02,\,.54] \\
+SW WA              & $+0.31$\,[.10,\,.50]          & $\mathbf{+0.35}$\,[.15,\,.53] \\
+Coastwide envelope & $+0.12$\,[$-$.11,\,.34]       & $+0.21$\,[.04,\,.37] \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The score correlates with both biological measurements, and the correlations are statistically significant: the strongest \textit{Pn}-cell correlation is in Olympic Coast (which contains NEMO; $p = 3{\times}10^{-5}$), and the strongest pDA correlation is in SW Washington just downwind ($p = 1{\times}10^{-3}$). Bootstrap 95\% confidence intervals exclude zero in both cases. Honest framing: $r \approx 0.33$--$0.46$ is moderate, not strong---there is plenty of bloom-day-to-bloom-day biology that the satellite is missing. But the model was never trained on these in-water measurements, so any consistent signal is informative.
+The score correlates with both biological measurements, and the correlations are statistically significant: the strongest \textit{Pn}-cell correlation is in Olympic Coast (which contains NEMO; $p = 3{\times}10^{-5}$), and the strongest pDA correlation is in SW Washington just downwind ($p = 7{\times}10^{-4}$). Bootstrap 95\% confidence intervals exclude zero in both cases. Honest framing: $r \approx 0.35$--$0.46$ is moderate, not strong---there is plenty of bloom-day-to-bloom-day biology that the satellite is missing. But the model was never trained on these in-water measurements, so any consistent signal is informative.
 
 The coastwide envelope is the weakest of the three regions tested for both targets, which is what we would expect: spatial averaging over a 41--49\textdegree\,N strip dilutes the local Olympic Coast bloom. The per-day scatter (\cref{fig:esp-scatter}) shows the correlation visually, and the time-series overlay (\cref{fig:esp-ts}) shows that OAD peaks and ESP peaks tend to move together during each of the five 2016--2018 deployment windows. The 2017 spring deployment is the clearest case: OAD ramps up several days before the ESP-measured \textit{Pn} peak, which suggests it may be useful as a leading indicator for when to deploy in-water samplers.
 
@@ -186,12 +186,12 @@ The unsupervised score also recovers well-established PNW coastal ocean patterns
 
 \noindent\textbf{Seasonal cycle.} The score rises sharply in late spring (April--May), peaks in mid-summer, and declines through autumn across all five regions---matching canonical PNW \textit{Pn} bloom phenology \cite{Trainer2002,Trainer2009,MacCready2021}. Amplitude is largest in SW Washington (Columbia River plume $\times$ shelf upwelling) and Olympic Coast (Juan de Fuca eddy retains nutrient-rich water \cite{Hickey2010}).
 
-\noindent\textbf{The 2014 marine heatwave stands out.} The clearest test of the score's climate sensitivity is whether it picks out the year of the 2014--16 Pacific marine heatwave (``the Blob'' \cite{Bond2015}), which triggered the largest \textit{P.\ australis} bloom on record \cite{McCabe2016,McCabe2023}. \cref{fig:climatology-ts} plots the May--September mean OAD score for each year. In Olympic Coast, Central Oregon, and Southern OR/N.\ California, 2014 is the highest summer-mean of all 19 measured years; in SW Washington it is the second-highest. The model was never told which years had blooms, so this ranking comes entirely from the satellite imagery itself.
+\noindent\textbf{The 2014 marine heatwave stands out.} The clearest test of the score's climate sensitivity is whether it picks out the year of the 2014--16 Pacific marine heatwave (``the Blob'' \cite{Bond2015}), which triggered the largest \textit{P.\ australis} bloom on record \cite{McCabe2016,McCabe2023}. \cref{fig:climatology-ts} plots the monthly-mean OAD score per region across 2003--2024. In Olympic Coast, Central Oregon, and Southern OR/N.\ California, 2014 is the highest summer-mean of all 19 measured years; in SW Washington it is the second-highest. The model was never told which years had blooms, so this ranking comes entirely from the satellite imagery itself.
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/fig4_climatology_timeseries.png}
-\caption{\textbf{Summer (May--September) mean OAD score for each year, by region.} Red bars mark 2014--15, the peak years of the Pacific marine heatwave (``the Blob''). 2014 is the highest summer mean of any year on record in three of the four regions, and the second-highest in the fourth---without the model ever being shown a bloom-year label. The ``$\times$'' marks the 2009--11 MODIS Aqua coverage gap (no data).}
+\caption{\textbf{Monthly-mean OAD score per region across the full 2003--2024 record.} The 2014--16 Pacific marine heatwave (``the Blob,'' shaded) stands out as the highest sustained anomaly in the series. Quantitatively, 2014 is the highest summer (May--September) mean of any year on record in three of the four regions, and the second-highest in the fourth---without the model ever being shown a bloom-year label. The gray band marks the 2009--11 MODIS Aqua coverage gap (no data; the line is broken across it).}
 \label{fig:climatology-ts}
 \end{figure*}
 
@@ -201,13 +201,13 @@ The unsupervised score also recovers well-established PNW coastal ocean patterns
 \subsection{Cloud-cover confound}
 \label{sec:cloud}
 
-Per-region Pearson correlation between the OAD score and the in-region valid-pixel fraction is moderate: SW Washington shows $r \approx +0.44$ ($\sim$19\% of variance covaries with cloud cover) and Olympic Coast shows $r \approx +0.49$ ($\sim$24\%). The mae070 variant is 4--10 percentage points higher in absolute value, which is why we selected mae050 as the reporting checkpoint. Downstream applications should carry the in-region valid-pixel fraction as a parallel feature so consuming models can learn to discount cloudy weeks.
+Per-region Pearson correlation between the OAD score and the in-region valid-pixel fraction is moderate: for our headline mae070 checkpoint, SW Washington shows $r \approx +0.49$ ($\sim$24\% of variance covaries with cloud cover) and Olympic Coast shows $r \approx +0.46$ ($\sim$21\%). The cleaner-cloud mae050 variant is 4--9 percentage points lower, but we do not select it because it loses multi-step forecast skill (\cref{sec:forecastability}). Downstream applications should carry the in-region valid-pixel fraction as a parallel feature so consuming models can learn to discount cloudy weeks.
 
 %================================================================
 \section{Discussion}
 \label{sec:discussion}
 
-The three checks each show something modest but real. The forecastability $R^2$ is small in absolute terms (0.10--0.26), but every baseline we tried at the same complexity drops to zero or below---so the gap, not the absolute number, is the result. The ESP correlations ($r = 0.33$--$0.46$) are moderate and significant, but the model was never trained on those measurements, so any consistent signal is informative. The 2014 heatwave-year ranking comes out cleanly without any temporal labels. None of this proves the score is a finished bloom-prediction tool. It does show that an unsupervised representation of the satellite cube is picking up structure that linear baselines miss and that lines up with real biology at the source.
+The three checks each show something modest but real. The forecastability $R^2$ is small in absolute terms (0.10--0.26), but every baseline we tried at the same complexity drops to zero or below---so the gap, not the absolute number, is the result. The ESP correlations ($r = 0.35$--$0.46$) are moderate and significant, but the model was never trained on those measurements, so any consistent signal is informative. The 2014 heatwave-year ranking comes out cleanly without any temporal labels. None of this proves the score is a finished bloom-prediction tool. It does show that an unsupervised representation of the satellite cube is picking up structure that linear baselines miss and that lines up with real biology at the source.
 
 What this paper does \emph{not} show is whether the source-region OAD score predicts beach-level shellfish toxicity. That depends on a chain of additional physics: wind direction, onshore transport, which \textit{Pn} species is present and whether it is producing toxin, and how much each clam happens to filter. We test only the offshore signal here.
 

@@ -173,6 +173,10 @@ def sophisticated_nan_handling_for_correlation(df):
         feature_cols = [col for col in numeric_cols if col != 'da']
         
         if feature_cols and len(df_processed) > 0:
+            # Fill entirely-NaN columns with 0.0 to prevent the imputer from dropping them
+            for col in feature_cols:
+                if df_processed[col].isna().all():
+                    df_processed[col] = 0.0
             imputer = SimpleImputer(strategy="median")
             df_processed[feature_cols] = imputer.fit_transform(df_processed[feature_cols])
     

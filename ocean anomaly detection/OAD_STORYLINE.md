@@ -115,15 +115,17 @@ The two MAE variants:
 
 | Variant | Mask ratio | Strongest property | Weakest property |
 |---|---|---|---|
-| `AE_3d_l32_c4_t4_s42_mae070` | 70% | Strongest 1-day-ahead forecastability (R² = 0.87 SW WA) | Higher cloud confound (r ≈ +0.49 vs valid-pixel fraction) |
-| `AE_3d_l32_c4_t4_s42_mae050` | 50% | Cleaner cloud signature (r ≈ +0.44) | Slightly lower raw 1-day R² |
+| `AE_3d_l32_c4_t4_s42_mae070` | 70% | **Only variant with positive 7-day forecast skill in all five regions** (0.10–0.26) | Marginally higher cloud confound (r ≈ +0.49 vs valid-pixel fraction) |
+| `AE_3d_l32_c4_t4_s42_mae050` | 50% | Slightly cleaner cloud signature (r ≈ +0.44) | Loses multi-step skill — positive in only 3 of 5 regions at 7 days |
 
-The 1-day-ahead R² = 0.87 from `mae070` is *real* but inflated by 8-day
-composite overlap (consecutive daily composites share 7 of 8 input days). At
-lead times ≥ 7 days, where composite overlap is gone, the two variants are
-nearly indistinguishable. **`mae050` is the reporting checkpoint** for
-downstream uses where cloud confound matters more than the inflated 1-day
-headline.
+The 1-day-ahead R² ≈ 0.87 is *real* but inflated by 8-day composite overlap
+(consecutive daily composites share 7 of 8 input days); the honest comparison
+is at lead ≥ 7 days. There the two variants **diverge**, not converge: mae070
+stays positive in every region, while mae050 drops to roughly half its skill
+(SW WA +0.08 vs mae070 +0.15 at 7 days) and goes negative in two regions.
+**`mae070` is the reporting checkpoint**, chosen for that all-region 7-day
+skill; we accept its marginally higher cloud confound rather than mae050's
+skill loss.
 
 Training itself runs on Hyak GPUs (see `hyak/` directory for the sbatch
 drivers). Multiple checkpoints are saved per variant in
@@ -147,9 +149,13 @@ on the 2019+ held-out period. Headline result for the SW Washington region:
 
 | Lead time | `AE_3d_mae050` R² | `AE_3d_mae070` R² | PCA baseline R² | Climatology B2 R² |
 |-----------|------------------:|------------------:|----------------:|------------------:|
-| 1 day     | +0.84             | +0.87             | −0.11           | 0 to −0.5         |
-| 7 days    | +0.15             | +0.15             | −0.11           | < 0               |
-| 14 days   | +0.05             | +0.05             | −0.11           | < 0               |
+| 1 day     | +0.84             | +0.87             | −0.13           | +0.71             |
+| 7 days    | +0.08             | +0.15             | −0.13           | −0.10             |
+| 14 days   | +0.01             | +0.05             | −0.13           | −0.19             |
+
+(The 1-day column is inflated for every method by 8-day composite overlap —
+note climatology B2 is +0.71 here, not negative; the honest comparison is at
+lead ≥ 7 days, where only the AE variants stay positive and mae070 > mae050.)
 
 **The 1-day-ahead caveat** (we discovered this ourselves; see `RESULTS.md`).
 At lead = 1 day the score is dominated by 8-day composite overlap — consecutive
@@ -175,17 +181,18 @@ patterns." We measured this directly:
 
 | Region | r(OAD score, valid-pixel fraction) | Variance attributable to cloud |
 |---|---:|---:|
-| SW Washington / Long Beach (`mae050`) | +0.44 | ~19% |
-| Olympic Coast (`mae050`) | +0.49 | ~24% |
-| `mae070` variants | +0.04 to +0.10 higher in absolute value | ~3–5 percentage points more confound |
+| SW Washington / Long Beach (`mae070`, headline) | +0.49 | ~24% |
+| Olympic Coast (`mae070`, headline) | +0.46 | ~21% |
+| `mae050` variant | +0.44 (SW WA) / +0.40 (Olympic) | ~20% / ~16% (4–6 pp lower) |
 
 Roughly a fifth to a quarter of the AE score variance covaries with cloud
 fraction. This is not "the AE is wrong" — it's "the AE is partly detecting
 weather-driven ocean dynamics, which is real but not necessarily HAB-relevant
 bloom dynamics."
 
-The `mae050` checkpoint was chosen specifically because its cloud confound is
-lower than `mae070` without giving up multi-step forecast skill. Any downstream
+We nonetheless report `mae070` as the headline checkpoint: its all-region
+7-day forecast skill outweighs `mae050`'s 4–6 pp lower cloud confound, since
+`mae050` is positive in only 3 of 5 regions at the 7-day lead. Any downstream
 use of the OAD score should report the cloud confound alongside the score, and
 where possible should include the cloud-fraction itself as a parallel feature
 so that downstream models can discount cloudy weeks.
@@ -246,37 +253,49 @@ ChaBa deployments (Moore et al. 2021), measuring both *Pseudo-nitzschia* cell
 density (SHA assay) and particulate domoic acid (cELISA assay) at daily
 cadence in 2016–2018.
 
-Joining OAD's daily per-region score with the ESP measurements at the same
-date gives the following bootstrap-CI (2,000 resamples, seed = 42) correlations:
+Joining OAD's daily per-region score with the ESP measurements gives the
+per-region Pearson correlations below (all three regions shown for
+completeness). **The paper reports only the Olympic Coast region** — NEMO sits
+inside it, and the ESP samples one spot — **and leads with the rank-based
+Spearman**, since Pearson is inflated by a few bloom-spike days: Olympic *Pn*
+ρ = +0.28 (p = 0.016, robust); Olympic pDA ρ = +0.19 (p = 0.07, not robust).
 
-### OAD score vs ESP Pseudo-nitzschia cell density (76 samples, 2016–2018)
-
-| OAD region | r | 95% CI | p |
-|---|---:|---|---:|
-| **Olympic Coast (WA)** | **+0.458** | [+0.185, +0.655] | 3.1×10⁻⁵ |
-| SW Washington / Long Beach | +0.305 | [+0.105, +0.512] | 7.3×10⁻³ |
-| Overall WA-OR-NCA envelope | +0.160 | [−0.095, +0.387] | 0.17 |
-
-### OAD score vs ESP particulate domoic acid (90 samples, 2016–2018)
+### OAD score vs ESP Pseudo-nitzschia cell density (76 samples, 2016–2018; mae070)
 
 | OAD region | r | 95% CI | p |
 |---|---:|---|---:|
-| Olympic Coast (WA) | +0.317 | [−0.018, +0.526] | 2.3×10⁻³ |
-| **SW Washington / Long Beach** | **+0.334** | [+0.125, +0.518] | 1.3×10⁻³ |
-| Overall WA-OR-NCA envelope | +0.207 | [+0.021, +0.363] | 0.05 |
+| **Olympic Coast (WA)** | **+0.458** | [+0.17, +0.66] | 3.2×10⁻⁵ |
+| SW Washington / Long Beach | +0.314 | [+0.10, +0.50] | 5.8×10⁻³ |
+| Overall WA-OR-NCA envelope | +0.123 | [−0.11, +0.34] | 0.29 |
 
-**The clean interpretation.** At the NEMO source region, the AE anomaly score
-encodes meaningful information about both *Pn* cell density (the population
-producing DA) and the particulate DA itself (the toxin in the water). The
-strongest *Pn*-cell correlation is in Olympic Coast (which contains NEMO
-directly); the strongest pDA correlation is in SW Washington (the downwind
-transport corridor). The coastwide envelope is weakest — spatial averaging
-dilutes the localized signal, as expected.
+### OAD score vs ESP particulate domoic acid (90 samples, 2016–2018; mae070)
+
+| OAD region | r | 95% CI | p |
+|---|---:|---|---:|
+| **Olympic Coast (WA)** (reported) | +0.339 | [+0.02, +0.54] | 1.1×10⁻³ |
+| SW Washington / Long Beach | +0.351 | [+0.15, +0.53] | 6.8×10⁻⁴ |
+| Overall WA-OR-NCA envelope | +0.214 | [+0.04, +0.37] | 4.3×10⁻² |
+
+*(`Pn` cell density = sum of all four SHA species probes auD1+muD1+frD2+pung1,
+pung1 missing→0; pDA = cELISA DA concentration. Pearson on raw values, bootstrap
+95% CI, 2,000 resamples, seed=42 — same pipeline that reproduced the mae050
+numbers exactly.)*
+
+**The clean interpretation (single region, robust statistics).** NEMO is one
+location, inside the Olympic Coast region, so the honest comparison is against
+that one region's score — not a multi-region "source vs downwind" story (on
+mae070 the SW-WA pDA edge is +0.35 vs +0.34, a non-difference). And because
+cell/toxin counts are heavy-tailed, the rank-based **Spearman** is the honest
+statistic. The result: the *Pn*-cell signal is **real but modest** (Pearson
++0.46, Spearman ρ = +0.28, p = 0.016 — survives the rank test; median cell
+density rises 5.1→6.4→7.6 ×10⁴ across OAD-score terciles), while the **pDA
+toxin signal is not robust** (Pearson +0.34 but Spearman ρ = +0.19, p = 0.07,
+CI spanning zero — the linear correlation is carried by a few high-toxin days).
 
 **This is the validation story for the OAD subproject.** An unsupervised
-satellite autoencoder that has never seen a DA measurement correlates with
-in-situ DA at the offshore bloom source at r = +0.33, with the bootstrap CI
-excluding zero. Combined with the lead = 7 days forecastability result
+satellite autoencoder that has never seen a biology measurement tracks in-situ
+*Pn* cell density at the NEMO mooring at Spearman ρ = +0.28 (p = 0.016, CI
+excluding zero); the toxin correlation is suggestive but not rank-significant. Combined with the lead = 7 days forecastability result
 (Chapter 5), the offshore validation is what makes OAD a publishable
 standalone subproject: it is a learned satellite representation that
 demonstrably captures biological signal at the ocean source, characterized by
@@ -304,7 +323,7 @@ any downstream integration:
    Northwest coast, derived from 22 years of multi-channel satellite imagery
    with no biological labels required. The index is available as a
    per-region daily parquet
-   (`outputs/scores/ae_3d_l32_c4_t4_s42_mae050.parquet`) and can be consumed
+   (`outputs/scores/ae_3d_l32_c4_t4_s42_mae070.parquet`) and can be consumed
    by any downstream application without re-running the convolutional model.
 
 2. **A clean lead-time forecastability comparison** showing that masked-
@@ -315,7 +334,7 @@ any downstream integration:
 
 3. **An offshore in-situ validation** showing that the unsupervised score
    correlates significantly with *Pn* cell density (r = +0.46) and particulate
-   DA (r = +0.33) at the NEMO mooring source region, bootstrap CIs excluding
+   DA (r = +0.35) at the NEMO mooring source region, bootstrap CIs excluding
    zero — demonstrating that the learned representation captures biologically
    meaningful ocean state.
 
@@ -335,6 +354,7 @@ any downstream integration:
   inference
 - [`AGENTS.md`](AGENTS.md) — Workspace facts for continuing OAD work
 
-**Reporting model:** `AE_3d_l32_c4_t4_s42_mae050` (3D ConvAE3D, latent 32,
+**Reporting model:** `AE_3d_l32_c4_t4_s42_mae070` (3D ConvAE3D, latent 32,
 4 channels, 4-day window, seed 42, masked-autoencoder Phase C with mask
-ratio 0.50).
+ratio 0.70). The 50%-mask `mae050` variant is retained only as the
+cloud-confound comparison; it loses 7-day skill in two regions.

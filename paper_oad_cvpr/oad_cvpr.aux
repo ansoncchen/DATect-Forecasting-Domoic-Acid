@@ -1,0 +1,120 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{Trainer2009,McCabe2023}
+\citation{Anderson2016,Hill2020}
+\citation{He2022MAE}
+\@writefile{toc}{\contentsline {section}{\numberline {1}\hskip -1em.~Introduction}{1}{section.1}\protected@file@percent }
+\newlabel{sec:intro}{{1}{1}{\hskip -1em.~Introduction}{section.1}{}}
+\newlabel{sec:intro@cref}{{[section][1][]1}{[1][1][]1}{}{}{}}
+\@writefile{brf}{\backcite{Trainer2009,McCabe2023}{{1}{1}{section.1}}}
+\@writefile{brf}{\backcite{Anderson2016,Hill2020}{{1}{1}{section.1}}}
+\@writefile{brf}{\backcite{He2022MAE}{{1}{1}{section.1}}}
+\citation{Stumpf2003,Wynne2008}
+\citation{Trainer2002,Trainer2009}
+\citation{Anderson2016}
+\citation{He2022MAE}
+\citation{Cong2022SatMAE}
+\citation{Wang2023MAE}
+\citation{Scholin2017}
+\citation{Moore2021ESP}
+\citation{Moore2021ESP}
+\citation{NASA_OceanColor}
+\citation{He2022MAE}
+\@writefile{toc}{\contentsline {section}{\numberline {2}\hskip -1em.~Related Work}{2}{section.2}\protected@file@percent }
+\newlabel{sec:related}{{2}{2}{\hskip -1em.~Related Work}{section.2}{}}
+\newlabel{sec:related@cref}{{[section][2][]2}{[1][2][]2}{}{}{}}
+\@writefile{brf}{\backcite{Stumpf2003,Wynne2008}{{2}{2}{section.2}}}
+\@writefile{brf}{\backcite{Trainer2002,Trainer2009}{{2}{2}{section.2}}}
+\@writefile{brf}{\backcite{Anderson2016}{{2}{2}{section.2}}}
+\@writefile{brf}{\backcite{He2022MAE}{{2}{2}{section.2}}}
+\@writefile{brf}{\backcite{Cong2022SatMAE}{{2}{2}{section.2}}}
+\@writefile{brf}{\backcite{Wang2023MAE}{{2}{2}{section.2}}}
+\@writefile{brf}{\backcite{Scholin2017}{{2}{2}{section.2}}}
+\@writefile{brf}{\backcite{Moore2021ESP}{{2}{2}{section.2}}}
+\@writefile{brf}{\backcite{Moore2021ESP}{{2}{2}{section.2}}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}\hskip -1em.~Method}{2}{section.3}\protected@file@percent }
+\newlabel{sec:method}{{3}{2}{\hskip -1em.~Method}{section.3}{}}
+\newlabel{sec:method@cref}{{[section][3][]3}{[1][2][]2}{}{}{}}
+\@writefile{brf}{\backcite{NASA_OceanColor}{{2}{3}{figure.caption.2}}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Study region (41--49\textdegree \,N) with example MODIS Aqua 8-day composite. The U.S.\ PNW coastal box is analyzed at 0.025\textdegree \ resolution on a 321$\times $409 grid. Five alongshore sub-regions are used for downstream analysis; the Olympic Coast region contains the NEMO mooring (47.97\textdegree \,N, 124.97\textdegree \,W) at which ESP in-situ measurements were collected during the 2016--2018 ChaBa deployments.}}{2}{figure.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:study-region}{{1}{2}{Study region (41--49\textdegree \,N) with example MODIS Aqua 8-day composite. The U.S.\ PNW coastal box is analyzed at 0.025\textdegree \ resolution on a 321$\times $409 grid. Five alongshore sub-regions are used for downstream analysis; the Olympic Coast region contains the NEMO mooring (47.97\textdegree \,N, 124.97\textdegree \,W) at which ESP in-situ measurements were collected during the 2016--2018 ChaBa deployments}{figure.caption.1}{}}
+\newlabel{fig:study-region@cref}{{[figure][1][]1}{[1][2][]2}{}{}{}}
+\@writefile{brf}{\backcite{He2022MAE}{{2}{3}{figure.caption.2}}}
+\citation{Moore2021ESP}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces OAD pipeline. Input is a 4-channel ($C{=}4$), 4-day-window ($T{=}4$), 64$\times $64 patch tiled over the 321$\times $409 grid. The encoder applies three stride-2 3D conv blocks to a latent of dimension 32, and the decoder symmetrically reconstructs the input. During Phase~C training, 70\% of input pixels are randomly masked and the masked-MSE reconstruction loss is computed only on ocean pixels (cloud-flagged NaNs excluded per-pixel). The anomaly score is the anchor-frame reconstruction error, averaged over each region's ocean pixels and z-scored against history.}}{3}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:architecture}{{2}{3}{OAD pipeline. Input is a 4-channel ($C{=}4$), 4-day-window ($T{=}4$), 64$\times $64 patch tiled over the 321$\times $409 grid. The encoder applies three stride-2 3D conv blocks to a latent of dimension 32, and the decoder symmetrically reconstructs the input. During Phase~C training, 70\% of input pixels are randomly masked and the masked-MSE reconstruction loss is computed only on ocean pixels (cloud-flagged NaNs excluded per-pixel). The anomaly score is the anchor-frame reconstruction error, averaged over each region's ocean pixels and z-scored against history}{figure.caption.2}{}}
+\newlabel{fig:architecture@cref}{{[figure][2][]2}{[1][2][]3}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}\hskip -1em.~Results}{3}{section.4}\protected@file@percent }
+\newlabel{sec:results}{{4}{3}{\hskip -1em.~Results}{section.4}{}}
+\newlabel{sec:results@cref}{{[section][4][]4}{[1][2][]3}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}\hskip -1em.~Lead-time forecastability vs. baselines}{3}{subsection.4.1}\protected@file@percent }
+\newlabel{sec:forecastability}{{4.1}{3}{\hskip -1em.~Lead-time forecastability vs. baselines}{subsection.4.1}{}}
+\newlabel{sec:forecastability@cref}{{[subsection][1][4]4.1}{[1][3][]3}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Lead-time forecastability $R^2$, SW Washington region (2019+ held-out). The 1-day result is inflated by 8-day composite overlap (consecutive composites share 7/8 input days), so the honest comparison is at lead $\geq 7$ days.}}{3}{table.caption.3}\protected@file@percent }
+\newlabel{tab:leadtime}{{1}{3}{Lead-time forecastability $R^2$, SW Washington region (2019+ held-out). The 1-day result is inflated by 8-day composite overlap (consecutive composites share 7/8 input days), so the honest comparison is at lead $\geq 7$ days}{table.caption.3}{}}
+\newlabel{tab:leadtime@cref}{{[table][1][]1}{[1][3][]3}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}\hskip -1em.~In-situ validation against ESP/ChaBa}{3}{subsection.4.2}\protected@file@percent }
+\newlabel{sec:esp}{{4.2}{3}{\hskip -1em.~In-situ validation against ESP/ChaBa}{subsection.4.2}{}}
+\newlabel{sec:esp@cref}{{[subsection][2][4]4.2}{[1][3][]3}{}{}{}}
+\citation{Trainer2002,Trainer2009,MacCready2021}
+\citation{Hickey2010}
+\citation{Bond2015}
+\citation{McCabe2016,McCabe2023}
+\citation{Jacox2018}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces \textbf  {Held-out 7-day-ahead forecast skill ($R^2$), by region (2019+).} Each method predicts the next week's regional anomaly state from the past 4 days, and bars above zero do better than just guessing the mean. OAD (purple, the 70\%-mask variant) is positive in all five regions (0.10--0.26), which is not a huge number, but every other method we tried sits at or below zero. PCA (gray) is the right control because it has the same number of dimensions as the autoencoder, so the gap is not just ``more parameters help.'' Day-of-year climatology (light gray) is worse than the mean. The lower-masking OAD-50 variant is positive in only 3 of 5 regions, since it trades multi-step skill for a slightly cleaner cloud-cover signature (\cref  {sec:cloud}), which is why we report and ship mae070 rather than mae050.}}{4}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:forecastability}{{3}{4}{\textbf {Held-out 7-day-ahead forecast skill ($R^2$), by region (2019+).} Each method predicts the next week's regional anomaly state from the past 4 days, and bars above zero do better than just guessing the mean. OAD (purple, the 70\%-mask variant) is positive in all five regions (0.10--0.26), which is not a huge number, but every other method we tried sits at or below zero. PCA (gray) is the right control because it has the same number of dimensions as the autoencoder, so the gap is not just ``more parameters help.'' Day-of-year climatology (light gray) is worse than the mean. The lower-masking OAD-50 variant is positive in only 3 of 5 regions, since it trades multi-step skill for a slightly cleaner cloud-cover signature (\cref {sec:cloud}), which is why we report and ship mae070 rather than mae050}{figure.caption.4}{}}
+\newlabel{fig:forecastability@cref}{{[figure][3][]3}{[1][3][]4}{}{}{}}
+\@writefile{brf}{\backcite{Moore2021ESP}{{4}{4.2}{subsection.4.2}}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces OAD score for the Olympic Coast region (which contains NEMO) vs.\ the in-situ ESP measurements taken at NEMO, 2016--2018 (\textit  {Pn} cells by SHA assay; pDA by cELISA). Pearson is on raw values; Spearman is the rank correlation, robust to the heavy-tailed bloom-spike days. Brackets are 95\% bootstrap CIs (2{,}000 resamples, seed = 42). The cell-density signal survives the rank test; the toxin signal does not.}}{4}{table.caption.5}\protected@file@percent }
+\newlabel{tab:esp}{{2}{4}{OAD score for the Olympic Coast region (which contains NEMO) vs.\ the in-situ ESP measurements taken at NEMO, 2016--2018 (\textit {Pn} cells by SHA assay; pDA by cELISA). Pearson is on raw values; Spearman is the rank correlation, robust to the heavy-tailed bloom-spike days. Brackets are 95\% bootstrap CIs (2{,}000 resamples, seed = 42). The cell-density signal survives the rank test; the toxin signal does not}{table.caption.5}{}}
+\newlabel{tab:esp@cref}{{[table][2][]2}{[1][4][]4}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}\hskip -1em.~Agreement with documented PNW climatology}{4}{subsection.4.3}\protected@file@percent }
+\newlabel{sec:climatology}{{4.3}{4}{\hskip -1em.~Agreement with documented PNW climatology}{subsection.4.3}{}}
+\newlabel{sec:climatology@cref}{{[subsection][3][4]4.3}{[1][4][]4}{}{}{}}
+\@writefile{brf}{\backcite{Trainer2002,Trainer2009,MacCready2021}{{4}{4.3}{subsection.4.3}}}
+\@writefile{brf}{\backcite{Hickey2010}{{4}{4.3}{subsection.4.3}}}
+\@writefile{brf}{\backcite{Bond2015}{{4}{4.3}{subsection.4.3}}}
+\@writefile{brf}{\backcite{McCabe2016,McCabe2023}{{4}{4.3}{subsection.4.3}}}
+\@writefile{brf}{\backcite{Jacox2018}{{4}{4.3}{subsection.4.3}}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}\hskip -1em.~Cloud-cover confound}{4}{subsection.4.4}\protected@file@percent }
+\newlabel{sec:cloud}{{4.4}{4}{\hskip -1em.~Cloud-cover confound}{subsection.4.4}{}}
+\newlabel{sec:cloud@cref}{{[subsection][4][4]4.4}{[1][4][]4}{}{}{}}
+\bibstyle{ieee_fullname}
+\bibdata{references}
+\bibcite{Anderson2016}{1}
+\bibcite{Bond2015}{2}
+\bibcite{Cong2022SatMAE}{3}
+\bibcite{He2022MAE}{4}
+\bibcite{Hickey2010}{5}
+\bibcite{Hill2020}{6}
+\bibcite{Jacox2018}{7}
+\bibcite{MacCready2021}{8}
+\bibcite{McCabe2016}{9}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces \textbf  {OAD score for the Olympic Coast region vs.\ the in-situ biology measured at the NEMO mooring it contains (2016--2018).} \textbf  {Top:} per-day scatter (one dot per matched day; red line is a log-linear fit for visualization; $y$ log-scaled for readability) annotated with both Pearson $r$ and the rank-based Spearman $\rho $. \textbf  {Bottom:} median ESP value within terciles of the OAD score. Cell density (left), the validated signal, rises monotonically with the score, while the toxin (right, pDA) is essentially flat across terciles, consistent with its non-significant rank correlation.}}{5}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:esp-scatter}{{4}{5}{\textbf {OAD score for the Olympic Coast region vs.\ the in-situ biology measured at the NEMO mooring it contains (2016--2018).} \textbf {Top:} per-day scatter (one dot per matched day; red line is a log-linear fit for visualization; $y$ log-scaled for readability) annotated with both Pearson $r$ and the rank-based Spearman $\rho $. \textbf {Bottom:} median ESP value within terciles of the OAD score. Cell density (left), the validated signal, rises monotonically with the score, while the toxin (right, pDA) is essentially flat across terciles, consistent with its non-significant rank correlation}{figure.caption.6}{}}
+\newlabel{fig:esp-scatter@cref}{{[figure][4][]4}{[1][4][]5}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}\hskip -1em.~Discussion}{5}{section.5}\protected@file@percent }
+\newlabel{sec:discussion}{{5}{5}{\hskip -1em.~Discussion}{section.5}{}}
+\newlabel{sec:discussion@cref}{{[section][5][]5}{[1][5][]5}{}{}{}}
+\bibcite{McCabe2023}{10}
+\bibcite{Moore2021ESP}{11}
+\bibcite{NASA_OceanColor}{12}
+\bibcite{Scholin2017}{13}
+\bibcite{Stumpf2003}{14}
+\bibcite{Trainer2002}{15}
+\bibcite{Trainer2009}{16}
+\bibcite{Wang2023MAE}{17}
+\bibcite{Wynne2008}{18}
+\@writefile{toc}{\contentsline {section}{\numberline {A}\hskip -1em.~Supplementary Figures}{7}{section.A}\protected@file@percent }
+\newlabel{sec:appendix}{{A}{7}{\hskip -1em.~Supplementary Figures}{section.A}{}}
+\newlabel{sec:appendix@cref}{{[section][1][]A}{[1][7][]7}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces \textbf  {Monthly-mean OAD score per region across the full 2003--2024 record.} The 2014--16 Pacific marine heatwave (``the Blob,'' shaded) stands out as the highest sustained anomaly in the series. Quantitatively, 2014 is the highest summer (May--September) mean of any year on record in three of the four regions, and the second-highest in the fourth, without the model ever being shown a bloom-year label. The gray band marks the 2009--11 MODIS Aqua coverage gap, where there is no data and the line is broken across it.}}{7}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:climatology-ts}{{5}{7}{\textbf {Monthly-mean OAD score per region across the full 2003--2024 record.} The 2014--16 Pacific marine heatwave (``the Blob,'' shaded) stands out as the highest sustained anomaly in the series. Quantitatively, 2014 is the highest summer (May--September) mean of any year on record in three of the four regions, and the second-highest in the fourth, without the model ever being shown a bloom-year label. The gray band marks the 2009--11 MODIS Aqua coverage gap, where there is no data and the line is broken across it}{figure.caption.8}{}}
+\newlabel{fig:climatology-ts@cref}{{[figure][5][]5}{[1][7][]7}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces \textbf  {Day-by-day overlay of the Olympic Coast OAD score (line, left axis) and the in-water ESP measurements at NEMO (markers, right axis, log scale) during the five 2016--2018 ChaBa deployments.} Yellow bands mark each deployment window. The top row is ESP \textit  {Pn} cells per liter, and the bottom row is ESP particulate domoic acid in ng/L. When the satellite score goes up, the in-water biology tends to follow. The 2017 spring panel (third column) is the cleanest example, where OAD starts rising several days before the ESP measures the \textit  {Pn} peak, which is the kind of behavior you would want from an early-warning signal.}}{7}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:esp-ts}{{6}{7}{\textbf {Day-by-day overlay of the Olympic Coast OAD score (line, left axis) and the in-water ESP measurements at NEMO (markers, right axis, log scale) during the five 2016--2018 ChaBa deployments.} Yellow bands mark each deployment window. The top row is ESP \textit {Pn} cells per liter, and the bottom row is ESP particulate domoic acid in ng/L. When the satellite score goes up, the in-water biology tends to follow. The 2017 spring panel (third column) is the cleanest example, where OAD starts rising several days before the ESP measures the \textit {Pn} peak, which is the kind of behavior you would want from an early-warning signal}{figure.caption.9}{}}
+\newlabel{fig:esp-ts@cref}{{[figure][6][]6}{[1][7][]7}{}{}{}}
+\gdef \@abspage@last{7}

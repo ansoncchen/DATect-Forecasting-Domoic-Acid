@@ -49,7 +49,7 @@ def clean_for_json(obj):
         return None
     if isinstance(obj, dict):
         return {k: clean_for_json(v) for k, v in obj.items()}
-    if isinstance(obj, list):
+    if isinstance(obj, (list, tuple)):
         return [clean_for_json(item) for item in obj]
     if isinstance(obj, np.ndarray):
         return obj.tolist()

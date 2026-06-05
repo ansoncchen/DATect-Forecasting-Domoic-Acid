@@ -1,0 +1,128 @@
+\begin{thebibliography}{10}\itemsep=-1pt
+
+\bibitem{Anderson2016}
+Clarissa~R. Anderson, Raphael~M. Kudela, Mati Kahru, Yi Chao, Leslie~K.
+  Rosenfeld, Frank~L. Bahr, Donald~M. Anderson, and Tenaya~A. Norris.
+\newblock Initial skill assessment of the {California Harmful Algae Risk
+  Mapping} ({C-HARM}) system.
+\newblock {\em Harmful Algae}, 59:1--18, 2016.
+
+\bibitem{Bond2015}
+Nicholas~A. Bond, Meghan~F. Cronin, Howard Freeland, and Nathan Mantua.
+\newblock Causes and impacts of the 2014 warm anomaly in the {NE Pacific}.
+\newblock {\em Geophysical Research Letters}, 42(9):3414--3420, 2015.
+
+\bibitem{Cong2022SatMAE}
+Yezhen Cong, Samar Khanna, Chenlin Meng, Patrick Liu, Erik Rozi, Yutong He,
+  Marshall Burke, David Lobell, and Stefano Ermon.
+\newblock {SatMAE}: Pre-training transformers for temporal and multi-spectral
+  satellite imagery.
+\newblock In {\em Advances in Neural Information Processing Systems (NeurIPS)},
+  volume~35, pages 197--211, 2022.
+
+\bibitem{He2022MAE}
+Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Doll{\'a}r, and Ross
+  Girshick.
+\newblock Masked autoencoders are scalable vision learners.
+\newblock In {\em Proceedings of the IEEE/CVF Conference on Computer Vision and
+  Pattern Recognition (CVPR)}, pages 16000--16009, 2022.
+
+\bibitem{Hickey2010}
+Barbara~M Hickey, Raphael~M Kudela, JD Nash, Kenneth~W Bruland, William~T
+  Peterson, Parker MacCready, Evelyn~J Lessard, David~A Jay, Neil~S Banas,
+  Antonio~M Baptista, et~al.
+\newblock River influences on shelf ecosystems: introduction and synthesis.
+\newblock {\em Journal of Geophysical Research: Oceans}, 115(C2), 2010.
+
+\bibitem{Hill2020}
+Paul~R. Hill, Anurag Kumar, Marouane Temimi, and David~R. Bull.
+\newblock {HABNet}: Machine learning, remote sensing-based detection of harmful
+  algal blooms.
+\newblock {\em IEEE Journal of Selected Topics in Applied Earth Observations
+  and Remote Sensing}, 13:3229--3239, 2020.
+
+\bibitem{Jacox2018}
+Michael~G. Jacox, Christopher~A. Edwards, Elliott~L. Hazen, and Steven~J.
+  Bograd.
+\newblock Coastal upwelling revisited: {Ekman}, {Bakun}, and updated indices
+  for the {U.S.} {West Coast}.
+\newblock {\em Journal of Geophysical Research: Oceans}, 123(10):7332--7350,
+  2018.
+
+\bibitem{MacCready2021}
+Parker MacCready, Ryan~M. McCabe, Samantha~A. Siedlecki, Marissa Lorber,
+  Sarah~G. Pauley, Jilian Bos, David~T. Menzies, and Barbara~M. Hickey.
+\newblock Estuarine circulation, mixing, and residence times in the {Salish
+  Sea}.
+\newblock {\em Journal of Geophysical Research: Oceans}, 126(2):e2020JC016738,
+  2021.
+
+\bibitem{McCabe2016}
+Ryan~M. McCabe, Barbara~M. Hickey, Raphael~M. Kudela, Kathi~A. Lefebvre,
+  Nicolaus~G. Adams, Brian~D. Bill, Frances M.~D. Gulland, Richard~E. Thomson,
+  William~P. Cochlan, and Vera~L. Trainer.
+\newblock An unprecedented coastwide toxic algal bloom linked to anomalous
+  ocean conditions.
+\newblock {\em Geophysical Research Letters}, 43(19):10366--10376, 2016.
+
+\bibitem{McCabe2023}
+Ryan~M. McCabe, Barbara~M. Hickey, and Vera~L. Trainer.
+\newblock The {Pacific Northwest Harmful Algal Blooms Bulletin}.
+\newblock {\em Harmful Algae}, 127:102480, 2023.
+
+\bibitem{Moore2021ESP}
+Stephanie~K Moore, John~B Mickett, Barbara~M Hickey, et~al.
+\newblock An autonomous platform for near real-time surveillance of harmful
+  algae and their toxins in the coastal waters of the {Pacific Northwest}.
+\newblock {\em Frontiers in Marine Science}, 8:645525, 2021.
+
+\bibitem{NASA_OceanColor}
+{NASA Ocean Biology Processing Group}.
+\newblock {NASA} {OB.DAAC} {MODIS} {Aqua Level-3} mapped ocean color products.
+\newblock Accessed via \url{https://oceancolor.gsfc.nasa.gov/}, 2024.
+
+\bibitem{Scholin2017}
+Christopher~A Scholin, James Birch, Scott Jensen, Roman Marin, Eugene Massion,
+  Douglas Pargett, Christina Preston, Brent Roman, William Ussler, et~al.
+\newblock The environmental sample processor ({ESP}): a continuing evolution of
+  autonomous in situ molecular monitoring.
+\newblock {\em Methods in Oceanography}, 2017.
+
+\bibitem{Stumpf2003}
+Richard~P Stumpf, Mary~E Culver, Patricia~A Tester, Michelle Tomlinson, Gary~J
+  Kirkpatrick, Bruce~A Pederson, Earnest Truby, Varis Ransibrahmanakul, and
+  Mark Soracco.
+\newblock Monitoring {Karenia} brevis blooms in the {Gulf of Mexico} using
+  satellite ocean color imagery and other data.
+\newblock {\em Harmful Algae}, 2(2):147--160, 2003.
+
+\bibitem{Trainer2002}
+Vera~L. Trainer, Nicolaus~G. Adams, Brian~D. Bill, Connie~M. Stehr, John~C.
+  Wekell, Peter Moeller, Mary Busman, and David Woodruff.
+\newblock Domoic acid production near {California} coastal upwelling zones,
+  {June} 1998.
+\newblock {\em Limnology and Oceanography}, 47(4):1137--1146, 2002.
+
+\bibitem{Trainer2009}
+Vera~L. Trainer, Barbara~M. Hickey, Evelyn~J. Lessard, William~P. Cochlan,
+  Charles~G. Trick, Mark~L. Wells, Ariel MacFadyen, and Stephanie~K. Moore.
+\newblock Variability of {Pseudo-nitzschia} and domoic acid in the {Juan de
+  Fuca} eddy region and its adjacent shelves.
+\newblock {\em Limnology and Oceanography}, 54(1):289--308, 2009.
+
+\bibitem{Wang2023MAE}
+Yi Wang, Conrad~M Albrecht, Nassim Ait~Ali Braham, Lichao Mou, and Xiao~Xiang
+  Zhu.
+\newblock Self-supervised learning in remote sensing: A review.
+\newblock {\em IEEE Geoscience and Remote Sensing Magazine}, 10(4):213--247,
+  2023.
+
+\bibitem{Wynne2008}
+Timothy~T Wynne, Richard~P Stumpf, Michelle~C Tomlinson, Robert~A Warner,
+  Patricia~A Tester, Julianne Dyble, and Gary~L Fahnenstiel.
+\newblock Relating spectral shape to cyanobacterial blooms in the {Laurentian
+  Great Lakes}.
+\newblock {\em International Journal of Remote Sensing}, 29(12):3665--3672,
+  2008.
+
+\end{thebibliography}

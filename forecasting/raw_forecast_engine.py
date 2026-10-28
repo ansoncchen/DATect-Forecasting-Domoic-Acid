@@ -989,7 +989,8 @@ class RawForecastEngine:
         min_train_for_tuning = config.MIN_TRAINING_FOR_TUNING
 
         if (
-            not calib_candidates.empty
+            config.PER_ANCHOR_TUNING
+            and not calib_candidates.empty
             and len(calib_candidates) >= min_tuning
             and len(effective_grid) > 1
             and len(train_data) >= min_train_for_tuning

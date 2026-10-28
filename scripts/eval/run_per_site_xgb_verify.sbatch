@@ -18,7 +18,6 @@ mkdir -p logs results/tuning_provenance/xgb_verify_results
 
 PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
 export PATH="$(dirname "$PYBIN"):$PATH"
-export DATECT_MIN_TRAINING_FOR_TUNING=99999
 
 # 5 perturbations applied to ALL sites: 0=baseline, 1=depth+1, 2=depth-1, 3=mcw×1.5, 4=mcw×0.67
 PERT=$SLURM_ARRAY_TASK_ID

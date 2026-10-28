@@ -127,7 +127,6 @@ def evaluate_config_fold(site: str, params: dict, fold_start: str, fold_end: str
     try:
         result = run_python(SUBPROCESS_SCRIPT, {
             "DATECT_HPARAM_OVERRIDE_JSON": json_path,
-            "DATECT_MIN_TRAINING_FOR_TUNING": "99999",  # skip inner tuning
             "GRID_SITE": site,
             "FOLD_START": fold_start,
             "FOLD_END": fold_end,

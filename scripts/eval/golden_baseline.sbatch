@@ -12,13 +12,12 @@
 #SBATCH --error=golden-%j.err
 #
 # Runs every evaluation that backs a reported number, with the headline
-# config (per-anchor tuning disabled). Submit via golden_baseline.sh so the
+# config (per-anchor tuning off, the default). Submit via golden_baseline.sh so the
 # job runs in a disposable worktree; outputs land at their usual relative paths.
 # Results do not depend on the core count: every forecast is independent and seeded.
 set -euo pipefail
 
 PY=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
-export DATECT_MIN_TRAINING_FOR_TUNING=99999
 export TMPDIR=/gscratch/scrubbed/$USER/tmp
 mkdir -p "$TMPDIR"
 

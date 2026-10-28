@@ -21,7 +21,7 @@ def fast_models(request):
                  "XGB_CLASSIFICATION_PARAMS", "SPIKE_CLASSIFIER_PARAMS"):
         mp.setitem(getattr(config, name), "n_estimators", 5)
     mp.setattr(config, "ENABLE_PARALLEL", False)
-    mp.setattr(config, "MIN_TRAINING_FOR_TUNING", 99999)
+    mp.setattr(config, "PER_ANCHOR_TUNING", False)
     fraction = getattr(request.cls, "test_sample_fraction", None)
     if fraction is not None:
         mp.setattr(config, "TEST_SAMPLE_FRACTION", fraction)

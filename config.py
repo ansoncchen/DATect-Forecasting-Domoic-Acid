@@ -332,10 +332,13 @@ MONOTONIC_FEATURE_CONSTRAINTS: dict = {
     "raw_obs_roll_mean_4": 1,        # Higher 4-week mean → higher or equal forecast
 }
 
-# Minimum training rows required before per-anchor XGB tuning is attempted.
-# Tuned value from JSON; env var still overrides. Sweep (2026-05-23) showed
-# this parameter has zero effect at the current configuration — kept for
-# future-proofing if param_grids ever grow.
+# Per-anchor XGB tuning (grid search on calibration rows before every forecast).
+# Off by default: every reported number was produced without it, and it changes
+# predictions without improving skill (see provenance in the tuned JSON).
+PER_ANCHOR_TUNING = os.environ.get(
+    "DATECT_PER_ANCHOR_TUNING", str(_tuned["per_anchor_tuning"])
+).lower() == "true"
+# Minimum training rows before per-anchor tuning is attempted (only when enabled).
 MIN_TRAINING_FOR_TUNING = int(os.environ.get(
     "DATECT_MIN_TRAINING_FOR_TUNING",
     str(_tuned["min_training_for_tuning"]),

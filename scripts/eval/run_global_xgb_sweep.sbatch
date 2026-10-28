@@ -18,7 +18,6 @@ mkdir -p logs results/tuning_provenance/xgb_sweep_results
 
 PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
 export PATH="$(dirname "$PYBIN"):$PATH"
-export DATECT_MIN_TRAINING_FOR_TUNING=99999
 
 # 2x2x2 grid: max_depth × n_estimators × learning_rate
 DEPTHS=(4 6 4 6 4 6 4 6)

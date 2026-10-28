@@ -15,12 +15,13 @@
     "xgb_params_per_site": "HAND-TUNED on dev set (verified stable via xgb-verify sweep, Hyak job 35518565)",
     "rf_params_per_site": "HAND-TUNED + RF_CONSERVATIVE preset (verified stable via stability study, |\u0394R\u00b2|<0.001)",
     "feature_subset_per_site": "HAND-CURATED (verified via XGB gain importance pre-2022, no high-importance features excluded)",
-    "param_grid_per_site": "HAND-CURATED (verified via param_grid sweep, Hyak job 35518567)",
+    "param_grid_per_site": "HAND-CURATED. Only used when per_anchor_tuning is on; the param_grid sweep (Hyak job 35518567) ran with tuning forced off, so it did not test these grids.",
     "xgb_base_params": "PROJECT DEFAULTS (verified via global XGB sweep \u2014 all 8 configs within \u00b10.02 R\u00b2)",
     "rf_base_params": "PROJECT DEFAULTS (per stability study)",
     "spike_classifier_params": "PROJECT DEFAULTS (verification sweep pending, Hyak job 35518566)",
     "param_grid_global": "PROJECT DEFAULTS (acts as fallback only; site-level param_grids override)",
-    "min_training_for_tuning": "MAGIC NUMBER, verified to have zero effect via sweep (Hyak job 35518468)",
+    "per_anchor_tuning": "OFF: every reported number (chronological holdout, multi-seed, paper metrics) was produced with it disabled. results/holdout_validation shows it changes 23% of predictions but not skill (seeds 42-46 pooled R2 0.414 on vs 0.417 off; 2022-2023 0.462 vs 0.492) while costing 1-3 min per forecast. Enable with DATECT_PER_ANCHOR_TUNING=true.",
+    "min_training_for_tuning": "Only used when per_anchor_tuning is on. The 2026-05 sweep (Hyak job 35518468) never varied it: multi_seed_baseline.py forced DATECT_MIN_TRAINING_FOR_TUNING=99999 in every run, so its identical outputs say nothing about this value.",
     "calibration_fraction": "MAGIC NUMBER, untested",
     "max_calibration_rows": "MAGIC NUMBER, untested",
     "spike_alert_prob_threshold": "PROJECT DEFAULT (post-hoc 20-cell sweep showed flat plateau)",
@@ -75,6 +76,7 @@
         "min_child_weight": 3
       }
     ],
+    "per_anchor_tuning": false,
     "min_training_for_tuning": 80,
     "calibration_fraction": 0.3,
     "max_calibration_rows": 20,

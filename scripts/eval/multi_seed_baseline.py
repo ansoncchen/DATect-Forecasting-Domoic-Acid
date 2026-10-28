@@ -65,7 +65,6 @@ def run_one_seed(seed: int, out_dir: Path) -> None:
     result = run_python(SUBPROCESS_SCRIPT, {
         "BOOTSTRAP_SEED": str(seed),
         "OUT_PATH": str(out_path.resolve()),
-        "DATECT_MIN_TRAINING_FOR_TUNING": "99999",  # match holdout config for consistency
     }, timeout=7200)
     elapsed = time.time() - t0
     if result.returncode != 0:

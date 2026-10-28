@@ -54,7 +54,7 @@ def test_global_block_required_keys():
     required = (
         "xgb_base_params", "rf_base_params",
         "spike_classifier_params", "param_grid",
-        "min_training_for_tuning", "calibration_fraction",
+        "per_anchor_tuning", "min_training_for_tuning", "calibration_fraction",
         "max_calibration_rows", "min_tuning_samples",
         "spike_alert_prob_threshold", "spike_regression_alert_threshold",
         "spike_threshold_actual", "linear_regression_alpha",
@@ -149,6 +149,7 @@ def test_config_py_loads_from_json(fresh_import):
     assert config.SPIKE_THRESHOLD == float(g["spike_threshold_actual"])
     assert config.SPIKE_ALERT_PROB_THRESHOLD == float(g["spike_alert_prob_threshold"])
     assert config.MIN_TRAINING_FOR_TUNING == int(g["min_training_for_tuning"])
+    assert config.PER_ANCHOR_TUNING is bool(g["per_anchor_tuning"])
     assert config.CALIBRATION_FRACTION == float(g["calibration_fraction"])
     assert list(config.PARAM_GRID) == list(g["param_grid"])
     assert list(config.ZERO_IMPORTANCE_FEATURES) == list(g["zero_importance_features"])

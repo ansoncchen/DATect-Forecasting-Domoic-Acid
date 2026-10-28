@@ -32,10 +32,7 @@ The workflow:
   Stage 3 — global XGB defaults sweep (8 configs)
             → produces results/tuning_provenance/xgb_sweep_results/d{4,6}_n{400,600}_lr{05,10}/
             → confirms global xgb_base_params are well-calibrated
-  Stage 4 — MIN_TRAINING_FOR_TUNING sweep (5 cutoff values)
-            → produces results/tuning_provenance/mintrain_sweep_results/min{40..160}/
-            → confirms the magic number has near-zero effect
-  Stage 5 — spike classifier hyperparameter sweep (6 configs)
+  Stage 4 — spike classifier hyperparameter sweep (6 configs)
             → produces results/tuning_provenance/spike_clf_sweep_results/d{3,4,5}_*/
             → confirms current SPIKE_CLASSIFIER_PARAMS are near optimum
 
@@ -67,7 +64,6 @@ STAGES = [
     ("grid_search",     "scripts/eval/grid_search_weights_clip.sbatch",   "results/tuning_provenance/grid_search_results"),
     ("xgb_verify",      "scripts/eval/run_per_site_xgb_verify.sbatch",   "results/tuning_provenance/xgb_verify_results"),
     ("xgb_sweep",       "scripts/eval/run_global_xgb_sweep.sbatch",      "results/tuning_provenance/xgb_sweep_results"),
-    ("mintrain_sweep",  "scripts/eval/run_mintrain_sweep.sbatch",        "results/tuning_provenance/mintrain_sweep_results"),
     ("spike_clf_sweep", "scripts/eval/run_spike_classifier_sweep.sbatch", "results/tuning_provenance/spike_clf_sweep_results"),
 ]
 
@@ -149,14 +145,6 @@ def assemble_global_xgb_status() -> str:
             f"(see {pattern}) — per-site is irreducible")
 
 
-def assemble_mintrain_status() -> str:
-    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "mintrain_sweep_results" / "min*")
-    dirs = sorted(glob.glob(pattern))
-    if not dirs:
-        return "not yet run"
-    return f"verified inert: all {len(dirs)} cutoff values yield identical R² (see {pattern})"
-
-
 def assemble_spike_clf_status() -> str:
     pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "spike_clf_sweep_results" / "d*")
     dirs = sorted(glob.glob(pattern))
@@ -206,9 +194,6 @@ def assemble_json(grid_winners: Dict[str, Dict[str, Any]], dry_run: bool = False
     data["provenance"]["xgb_base_params"] = (
         f"PROJECT DEFAULTS; {assemble_global_xgb_status()} (refreshed {today})"
     )
-    data["provenance"]["min_training_for_tuning"] = (
-        f"MAGIC NUMBER; {assemble_mintrain_status()} (refreshed {today})"
-    )
     data["provenance"]["spike_classifier_params"] = (
         f"PROJECT DEFAULTS; {assemble_spike_clf_status()} (refreshed {today})"
     )
@@ -217,7 +202,7 @@ def assemble_json(grid_winners: Dict[str, Dict[str, Any]], dry_run: bool = False
         print(f"  [DRY RUN] would write JSON to {JSON_PATH}")
         print(f"    version: {data['version']}")
         print(f"    per_site sites updated: {sorted(grid_winners.keys())}")
-        print("    provenance keys updated: 6")
+        print("    provenance keys updated: 5")
     else:
         with open(JSON_PATH, "w") as f:
             json.dump(data, f, indent=2)
@@ -233,9 +218,9 @@ def main() -> int:
     p.add_argument("--dry-run", action="store_true",
                    help="Don't actually submit jobs or write JSON; print what would happen")
     p.add_argument("--assemble-only", action="store_true",
-                   help="Skip Stages 1-5; just read existing sweep outputs and rewrite JSON")
+                   help="Skip Stages 1-4; just read existing sweep outputs and rewrite JSON")
     p.add_argument("--no-wait", action="store_true",
-                   help="Submit Stages 1-5 in parallel and exit without waiting for completion")
+                   help="Submit Stages 1-4 in parallel and exit without waiting for completion")
     args = p.parse_args()
 
     if not args.assemble_only:
@@ -253,7 +238,7 @@ def main() -> int:
         if not args.dry_run:
             wait_for_jobs(job_ids)
 
-    print("\n=== Stage 6 — assemble JSON from sweep winners ===")
+    print("\n=== Stage 5 — assemble JSON from sweep winners ===")
     grid_winners = assemble_grid_winners()
     print(f"  Read grid winners for {len(grid_winners)} sites")
     assemble_json(grid_winners, dry_run=args.dry_run)

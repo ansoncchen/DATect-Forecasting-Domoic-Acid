@@ -18,7 +18,6 @@ mkdir -p logs results/tuning_provenance/spike_clf_sweep_results
 
 PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
 export PATH="$(dirname "$PYBIN"):$PATH"
-export DATECT_MIN_TRAINING_FOR_TUNING=99999
 
 # 6 configs over (max_depth, n_estimators, scale_pos_weight). scale_pos_weight=3-5
 # compensates for ~10% positive class (key F2 lever).

@@ -19,12 +19,12 @@ from typing import Dict
 
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import config as cfg
 
 
-def compute_autocorrelation_ceiling(raw_da: pd.DataFrame) -> Dict[str, dict]:
+def compute_autocorrelation_ceiling(raw_da: pd.DataFrame, max_gap_days: int = 28) -> Dict[str, dict]:
     """
     Compute lag-1 autocorrelation and R² ceiling for each site.
 
@@ -32,11 +32,14 @@ def compute_autocorrelation_ceiling(raw_da: pd.DataFrame) -> Dict[str, dict]:
     ----------
     raw_da : DataFrame with columns ['site', 'date', 'da_raw']
         Raw DA measurements (not interpolated).
+    max_gap_days : consecutive pairs further apart than this (e.g. across the
+        off-season) say nothing about week-ahead persistence and are skipped.
 
     Returns
     -------
     dict mapping site -> {
         'n': int,                   # number of real measurements
+        'n_pairs': int,             # consecutive pairs within max_gap_days
         'autocorr_lag1': float,     # lag-1 autocorrelation of raw DA series
         'r2_ceiling': float,        # rho² — theoretical max R² for one-step forecast
         'mean_da': float,
@@ -64,13 +67,16 @@ def compute_autocorrelation_ceiling(raw_da: pd.DataFrame) -> Dict[str, dict]:
             }
             continue
 
-        # Lag-1 autocorrelation on the raw series (not de-meaned — matches
-        # what a persistence baseline effectively measures)
-        rho = float(np.corrcoef(vals[:-1], vals[1:])[0, 1])
+        # Lag-1 autocorrelation of consecutive raw observations (not de-meaned:
+        # matches what a persistence baseline effectively measures)
+        gaps = np.diff(site_df["date"].values) / np.timedelta64(1, "D")
+        close = gaps <= max_gap_days
+        rho = float(np.corrcoef(vals[:-1][close], vals[1:][close])[0, 1])
         r2_ceil = round(rho ** 2, 4)
 
         results[site] = {
             "n": n,
+            "n_pairs": int(close.sum()),
             "autocorr_lag1": round(rho, 4),
             "r2_ceiling": r2_ceil,
             "mean_da": round(float(np.mean(vals)), 2),
@@ -88,7 +94,7 @@ def print_ceiling_table(results: Dict[str, dict], current_r2: Dict[str, float] |
     print("\n" + "=" * 90)
     print("PER-SITE PREDICTABILITY CEILING (lag-1 autocorrelation²)")
     print("=" * 90)
-    header = f"  {'Site':<18s}  {'N':>4s}  {'ρ lag-1':>8s}  {'R² ceil':>8s}  {'Mean DA':>8s}  {'Std DA':>8s}  {'%>0':>6s}"
+    header = f"  {'Site':<18s}  {'N':>4s}  {'Pairs':>5s}  {'ρ lag-1':>8s}  {'R² ceil':>8s}  {'Mean DA':>8s}  {'Std DA':>8s}  {'%>0':>6s}"
     if current_r2:
         header += f"  {'Cur R²':>8s}  {'Gap':>7s}"
     print(header)
@@ -100,7 +106,7 @@ def print_ceiling_table(results: Dict[str, dict], current_r2: Dict[str, float] |
             print(f"  {site:<18s}  {'n/a':>4s}  — insufficient data —")
             continue
         row = (
-            f"  {site:<18s}  {m['n']:>4d}  {m['autocorr_lag1']:>8.4f}"
+            f"  {site:<18s}  {m['n']:>4d}  {m['n_pairs']:>5d}  {m['autocorr_lag1']:>8.4f}"
             f"  {m['r2_ceiling']:>8.4f}  {m['mean_da']:>8.2f}  {m['std_da']:>8.2f}"
             f"  {m['pct_nonzero']:>5.1%}"
         )
@@ -118,7 +124,7 @@ def print_ceiling_table(results: Dict[str, dict], current_r2: Dict[str, float] |
     if or_ceil:
         print(f"  OR mean R² ceiling: {np.mean(or_ceil):.4f}")
     print("=" * 90)
-    print("  ρ lag-1: Pearson correlation of consecutive raw DA observations")
+    print("  ρ lag-1: Pearson correlation of consecutive raw DA observations at most 28 days apart")
     print("  R² ceil: ρ² — theoretical max R² for a persistence-only forecast")
     print("  Gap: current model R² minus ceiling (positive = env features add signal beyond persistence)")
 

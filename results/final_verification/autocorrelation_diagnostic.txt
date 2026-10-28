@@ -1,0 +1,23 @@
+
+==========================================================================================
+PER-SITE PREDICTABILITY CEILING (lag-1 autocorrelation²)
+==========================================================================================
+  Site                   N  Pairs   ρ lag-1   R² ceil   Mean DA    Std DA     %>0
+  --------------------------------------------------------------------------------------
+  Kalaloch             553    505    0.8860    0.7849     12.27     21.82  100.0%
+  Quinault             489    436    0.8774    0.7699      8.08     12.27  100.0%
+  Copalis              687    669    0.9014    0.8126      8.61     17.52  100.0%
+  Twin Harbors         538    500    0.8521    0.7260     10.79     18.79  100.0%
+  Long Beach           522    482    0.8542    0.7297     10.03     17.01  100.0%
+  Clatsop Beach        772    755    0.8399    0.7054     10.58     20.21  85.2%
+  Cannon Beach         293    231    0.4814    0.2317      2.86     12.55  70.0%
+  Newport              518    480    0.2176    0.0474     11.84     28.53  63.5%
+  Coos Bay             273    232    0.5046    0.2546     27.74     42.87  74.4%
+  Gold Beach           603    581    0.2189    0.0479      9.05     28.17  63.5%
+
+  WA mean R² ceiling: 0.7646
+  OR mean R² ceiling: 0.2574
+==========================================================================================
+  ρ lag-1: Pearson correlation of consecutive raw DA observations at most 28 days apart
+  R² ceil: ρ² — theoretical max R² for a persistence-only forecast
+  Gap: current model R² minus ceiling (positive = env features add signal beyond persistence)

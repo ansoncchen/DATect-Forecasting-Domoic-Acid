@@ -233,7 +233,7 @@ class DATectCacheGenerator:
 
 
 def main() -> None:
-    """Entry point for `python precompute_cache.py` and the `datect-cache` console script."""
+    """Entry point for `python precompute_cache.py`."""
     DATectCacheGenerator().run_full_precomputation()
 
 

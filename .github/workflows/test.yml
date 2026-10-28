@@ -1,46 +1,36 @@
 name: tests
 
-# Runs the regression-test suite on every PR and push to main/oad-integration.
+# Runs the regression-test suite on every PR and push to main.
 # Catches drift between config/tuned_hyperparameters.json and runtime code,
-# leakage-audit failures, and per-site config schema regressions.
+# leakage-audit failures, API regressions, and per-site config schema changes.
 
 on:
   push:
-    branches: [main, oad-integration]
+    branches: [main]
+    paths-ignore: ['paper*/**', 'papers/**', 'docs/**', '**.md']
   pull_request:
-    branches: [main, oad-integration]
+    branches: [main]
+    paths-ignore: ['paper*/**', 'papers/**', 'docs/**', '**.md']
 
 jobs:
   pytest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Minimal subset for test execution. Skip heavy deps (numba, xgboost
-          # GPU, plotly, etc.) that the test suite doesn't actually exercise.
-          pip install pandas numpy scikit-learn pyarrow xgboost pytest
+          pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Run regression tests
-        run: |
-          pytest tests/ -v --tb=short
-
-      - name: Verify config/tuned_hyperparameters.json validates
-        run: |
-          python -c "
-          import json, sys
-          with open('config/tuned_hyperparameters.json') as f:
-              d = json.load(f)
-          for k in ('version','schema_version','tuning_protocol','eval_windows','provenance','global','per_site'):
-              assert k in d, f'Missing top-level key: {k}'
-          assert len(d['per_site']) == 10, f\"Expected 10 sites, got {len(d['per_site'])}\"
-          print(f\"JSON OK: version={d['version']}, {len(d['per_site'])} sites, {len(d['provenance'])} provenance entries\")
-          "
+      - name: Run tests
+        run: pytest tests/ -q --tb=short

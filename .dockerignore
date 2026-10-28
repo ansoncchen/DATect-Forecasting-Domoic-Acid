@@ -1,0 +1,16 @@
+# Docker build context whitelist: only what Dockerfile.production copies.
+*
+!backend
+!forecasting
+!data
+!config
+!config.py
+!requirements.txt
+!cache
+!frontend
+
+frontend/node_modules
+frontend/dist
+**/__pycache__
+**/*.pyc
+**/.DS_Store

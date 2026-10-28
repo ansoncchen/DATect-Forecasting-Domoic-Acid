@@ -1,0 +1,35 @@
+name: docker
+
+# Builds the production image and checks that the API starts and answers
+# /health. Catches missing COPY lines and import-time crashes that unit tests
+# cannot see (e.g. config/tuned_hyperparameters.json absent from the image).
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['paper*/**', 'papers/**', 'docs/**', '**.md']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['paper*/**', 'papers/**', 'docs/**', '**.md']
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Stub pre-computed cache
+        # cache/ is generated on Hyak and not tracked; the image only needs the directory.
+        run: mkdir -p cache && touch cache/.keep
+
+      - name: Build image
+        run: docker build -f Dockerfile.production -t datect:ci .
+
+      - name: Start container and check /health
+        run: |
+          docker run -d --name datect -p 8080:8080 datect:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health; then echo; exit 0; fi
+            sleep 2
+          done
+          echo "API did not become healthy"; docker logs datect; exit 1

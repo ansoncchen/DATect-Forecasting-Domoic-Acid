@@ -1,0 +1,7 @@
+# Development, test, and figure-script dependencies (on top of requirements.txt).
+# Install: pip install -r requirements.txt -r requirements-dev.txt
+
+pytest>=7.4.0
+httpx>=0.26.0         # Required by fastapi.testclient in tests/test_api_robustness.py
+ruff>=0.1.0
+matplotlib>=3.8.0     # Paper and evaluation figure scripts

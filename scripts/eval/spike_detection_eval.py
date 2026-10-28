@@ -55,7 +55,7 @@ def load_or_run_retrospective(
         return pd.read_parquet(cache_path)
 
     print(f"  Running retrospective evaluation for model_type='{model_type}'...")
-    print(f"  (This may take 15-45 minutes on Hyak)")
+    print("  (This may take 15-45 minutes on Hyak)")
 
     from forecasting.raw_forecast_engine import RawForecastEngine
 
@@ -373,7 +373,7 @@ def print_summary(all_metrics: pd.DataFrame, per_site_metrics: pd.DataFrame):
         trans_n = int(sr.get("transition_n", 0))
         trans_recall = sr.get("transition_recall", 0)
         trans_caught = int(round(trans_recall * trans_n)) if trans_n > 0 else 0
-        print(f"\n--- Spike Classifier Breakdown ---")
+        print("\n--- Spike Classifier Breakdown ---")
         print(f"  Raised {n_alerts} alerts total:")
         print(f"    {tp} were real spikes (true positives)")
         print(f"    {fp} were false alarms (DA stayed below 20)")

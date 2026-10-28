@@ -90,7 +90,7 @@ def _run_subprocess_ablation(name, seed, env_overrides):
                 break
 
         if json_start is None:
-            print(f"  ERROR: No JSON in output")
+            print("  ERROR: No JSON in output")
             print(result.stdout[-500:])
             return None
 

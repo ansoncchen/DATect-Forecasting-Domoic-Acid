@@ -10,7 +10,7 @@ discipline along the spatial axes.
 """
 from __future__ import annotations
 
-from typing import Callable, Protocol
+from typing import Protocol
 
 import numpy as np
 

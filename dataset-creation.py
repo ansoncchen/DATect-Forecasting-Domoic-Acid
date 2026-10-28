@@ -81,7 +81,7 @@ def normalize_site_name(value: str) -> str:
 
 logger.info("Starting dataset creation pipeline")
 logger.info("Loading configuration from config.py")
-print(f"--- Loading Configuration from config.py ---")
+print("--- Loading Configuration from config.py ---")
 da_files = config.ORIGINAL_DA_FILES
 pn_files = config.ORIGINAL_PN_FILES
 sites = config.SITES
@@ -101,7 +101,7 @@ print(f"Date range: {start_date.date()} to {end_date.date()}, Output: {final_out
 
 satellite_metadata = config.SATELLITE_DATA
 logger.info(f"Satellite configuration loaded with {len(satellite_metadata)} data types")
-print(f"\n--- Satellite Configuration loaded from main config ---")
+print("\n--- Satellite Configuration loaded from main config ---")
 print(f"Satellite configuration loaded with {len(satellite_metadata)} data types.")
 
 # Utility Functions
@@ -446,7 +446,7 @@ def generate_satellite_parquet(satellite_metadata_dict, main_sites_list, output_
     if path_to_return:
         print(f"generate_satellite_parquet is returning path: {path_to_return}")
     else:
-        print(f"generate_satellite_parquet is returning None (error or no file generated).")
+        print("generate_satellite_parquet is returning None (error or no file generated).")
     return path_to_return
 
 def add_satellite_data(target_df, satellite_parquet_path):
@@ -963,7 +963,7 @@ def compile_da_pn(lt_df, da_df, pn_df):
     da_missing_after = lt_df_merged['DA_Levels'].isna().sum()
     pn_missing_after = lt_df_merged['PN_Levels'].isna().sum()
     
-    print(f"  Biological decay interpolation complete:")
+    print("  Biological decay interpolation complete:")
     print(f"    - DA: {da_interpolated_total} values interpolated with exponential decay")
     print(f"    - PN: {pn_interpolated_total} values interpolated with exponential decay") 
     print(f"    - Gaps >{da_max_gap_weeks}/{pn_max_gap_weeks} weeks filled with 0")
@@ -1023,7 +1023,7 @@ def main():
     should_generate_new_satellite_file = False
     if FORCE_SATELLITE_REPROCESSING:
         print(
-            f"\n--- FORCE_SATELLITE_REPROCESSING is True. Satellite data will be regenerated. ---"
+            "\n--- FORCE_SATELLITE_REPROCESSING is True. Satellite data will be regenerated. ---"
         )
         should_generate_new_satellite_file = True
     elif not os.path.exists(SATELLITE_OUTPUT_PARQUET):
@@ -1036,7 +1036,7 @@ def main():
             f"\n--- Found existing satellite data: {SATELLITE_OUTPUT_PARQUET}. Using this file. ---"
         )
         print(
-            f"--- To regenerate, set FORCE_SATELLITE_REPROCESSING = True in the script. ---"
+            "--- To regenerate, set FORCE_SATELLITE_REPROCESSING = True in the script. ---"
         )
         satellite_parquet_file_path = (
             SATELLITE_OUTPUT_PARQUET  # Use existing file
@@ -1044,7 +1044,7 @@ def main():
 
     if should_generate_new_satellite_file:
         print(
-            f"--- Generating satellite data. This may take a while... ---"
+            "--- Generating satellite data. This may take a while... ---"
         )
         if FORCE_SATELLITE_REPROCESSING and os.path.exists(SATELLITE_OUTPUT_PARQUET):
             try:

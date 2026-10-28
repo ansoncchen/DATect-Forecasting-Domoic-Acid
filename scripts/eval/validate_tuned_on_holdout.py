@@ -24,11 +24,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from sklearn.metrics import r2_score, mean_absolute_error
 
@@ -46,7 +44,6 @@ VAL_END   = pd.Timestamp(_w["validation_end"])  # holdout starts here
 
 
 def run_eval(label: str, output_dir: str = "results/holdout_validation") -> str:
-    import config
     from forecasting.raw_forecast_engine import RawForecastEngine
 
     engine = RawForecastEngine(validate_on_init=False)

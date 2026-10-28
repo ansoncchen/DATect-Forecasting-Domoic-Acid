@@ -11,7 +11,6 @@ are still applied on top of the JSON values by the respective consumers.
 from __future__ import annotations
 
 import json
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict

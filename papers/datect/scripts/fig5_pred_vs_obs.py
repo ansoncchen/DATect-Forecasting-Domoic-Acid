@@ -14,7 +14,6 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from scipy import stats
 
 # ── paths ────────────────────────────────────────────────────────────────
 ROOT = pathlib.Path(__file__).resolve().parents[3]

@@ -50,7 +50,7 @@ for region in regions:
         # Mean cycle across all years (median smoothing)
         agg = sub.groupby("doy")["score"].median()
         ax.plot(agg.index, agg.values, color="black", lw=2.0, alpha=0.85,
-                label=f"22-year median")
+                label="22-year median")
         ax.set_title(f"{method}", fontsize=10)
         ax.set_ylabel("Anomaly score")
         ax.legend(fontsize=7, loc="upper left", ncol=4, frameon=False)

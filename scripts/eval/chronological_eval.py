@@ -42,7 +42,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import (
     r2_score, mean_absolute_error, mean_squared_error,
-    recall_score, precision_score, fbeta_score, f1_score,
+    recall_score, precision_score, fbeta_score,
 )
 
 # Repo root on sys.path so ``import config`` works from anywhere

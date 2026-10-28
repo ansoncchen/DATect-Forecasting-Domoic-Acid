@@ -2,7 +2,6 @@
 from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib.patches import Rectangle, FancyBboxPatch, FancyArrowPatch
 from matplotlib.colors import LogNorm
 from pathlib import Path

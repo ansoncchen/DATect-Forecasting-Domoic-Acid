@@ -18,7 +18,7 @@ operates on flattened (C*T*P*P) vectors.
 """
 from __future__ import annotations
 
-from typing import Callable, Protocol
+from typing import Protocol
 
 import numpy as np
 

@@ -15,7 +15,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -61,7 +60,7 @@ def main():
         index="date", columns="method", values="score", aggfunc="first"
     )
     print("=" * 92)
-    print(f"Pearson correlation matrix (Overall region only)")
+    print("Pearson correlation matrix (Overall region only)")
     corr = sub.corr().round(3)
     with pd.option_context("display.max_columns", None, "display.width", 200):
         print(corr)

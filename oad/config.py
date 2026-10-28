@@ -1,5 +1,4 @@
 """Central configuration for the ocean anomaly detection subproject."""
-import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------

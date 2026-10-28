@@ -202,7 +202,7 @@ class DATectCacheGenerator:
         """Run all pre-computation tasks."""
         print("Starting DATect cache pre-computation")
         print("=====================================")
-        print(f"Configuration:")
+        print("Configuration:")
         print(f"  RANDOM_SEED: {config.RANDOM_SEED}")
         print(f"  FORECAST_HORIZON_DAYS: {config.FORECAST_HORIZON_DAYS}")
         print("=====================================")

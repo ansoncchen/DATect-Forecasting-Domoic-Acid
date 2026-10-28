@@ -197,7 +197,7 @@ def main():
                         out_dir / f"{name}_{year}_{month:02d}.nc",
                         name, f"{year}-{month:02d}",
                     ))
-        print(f"\n=== MONTH-CHUNK MODE (--per-year flag) ===")
+        print("\n=== MONTH-CHUNK MODE (--per-year flag) ===")
         print(f"Total requests: {len(tasks)} ({len(selected)} channels × {end_year - start_year + 1} years × 12 months)  "
               f"stride={stride}  workers={args.workers}\n")
     else:

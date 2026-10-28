@@ -51,7 +51,6 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import os
 import re
 import subprocess
 import sys
@@ -218,7 +217,7 @@ def assemble_json(grid_winners: Dict[str, Dict[str, Any]], dry_run: bool = False
         print(f"  [DRY RUN] would write JSON to {JSON_PATH}")
         print(f"    version: {data['version']}")
         print(f"    per_site sites updated: {sorted(grid_winners.keys())}")
-        print(f"    provenance keys updated: 6")
+        print("    provenance keys updated: 6")
     else:
         with open(JSON_PATH, "w") as f:
             json.dump(data, f, indent=2)
@@ -249,25 +248,25 @@ def main() -> int:
                 job_ids.append(jid)
         if args.no_wait:
             print(f"\nSubmitted {len(job_ids)} jobs; --no-wait was set, exiting.")
-            print(f"Re-run with --assemble-only after all jobs complete to rebuild the JSON.")
+            print("Re-run with --assemble-only after all jobs complete to rebuild the JSON.")
             return 0
         if not args.dry_run:
             wait_for_jobs(job_ids)
 
-    print(f"\n=== Stage 6 — assemble JSON from sweep winners ===")
+    print("\n=== Stage 6 — assemble JSON from sweep winners ===")
     grid_winners = assemble_grid_winners()
     print(f"  Read grid winners for {len(grid_winners)} sites")
     assemble_json(grid_winners, dry_run=args.dry_run)
 
     print(f"\n=== Done at {datetime.now().isoformat(timespec='seconds')} ===")
     if not args.dry_run:
-        print(f"Next steps:")
-        print(f"  1. Re-run multi-seed bootstrap to verify performance:")
-        print(f"       sbatch scripts/eval/multi_seed_baseline.sbatch")
-        print(f"  2. Re-run deterministic chronological eval:")
-        print(f"       sbatch scripts/eval/run_chronological.sbatch")
-        print(f"  3. If headline R² shifts meaningfully, update paper Tables 1–3.")
-        print(f"  4. Commit config/tuned_hyperparameters.json with a descriptive message.")
+        print("Next steps:")
+        print("  1. Re-run multi-seed bootstrap to verify performance:")
+        print("       sbatch scripts/eval/multi_seed_baseline.sbatch")
+        print("  2. Re-run deterministic chronological eval:")
+        print("       sbatch scripts/eval/run_chronological.sbatch")
+        print("  3. If headline R² shifts meaningfully, update paper Tables 1–3.")
+        print("  4. Commit config/tuned_hyperparameters.json with a descriptive message.")
     return 0
 
 

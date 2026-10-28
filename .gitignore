@@ -74,6 +74,8 @@ cache_seed123/
 # regenerable retrospective caches and scratch runs are not.
 results/**/retro*/
 results/**/_cache/
+results/**/*.png
+results/env_lead/prespike_features.csv
 eval_results/
 golden_multi_seed/
 golden-*.out

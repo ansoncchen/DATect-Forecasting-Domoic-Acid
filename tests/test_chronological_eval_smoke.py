@@ -42,21 +42,22 @@ def test_chronological_holdout_in_window():
     reason="Chronological JSON not present",
 )
 def test_chronological_metrics_match_paper():
-    """Headline holdout numbers must match the paper Table 3 values."""
+    """Headline holdout numbers must match docs/CORRECTED_NUMBERS.md.
+
+    The chronological eval is deterministic (every real DA measurement in the
+    window), so a re-run that changes these is a behavior change: update the
+    docs, README and paper together with this test.
+    """
     import json
     with open(CHRONO_JSON) as f:
         data = json.load(f)
     ov = data["overall"]
-    # The paper reports R² = 0.485 [0.330, 0.604], MAE = 6.76, spike recall = 0.857
-    # Use loose tolerance since the eval is run with the current grid-winner config
-    # which is stable but could shift slightly on a future re-run.
-    r2 = ov["r2"][0]
-    assert 0.40 < r2 < 0.55, f"Holdout R² out of expected range: {r2}"
-    mae = ov["mae"][0]
-    assert 5.5 < mae < 8.0, f"Holdout MAE out of expected range: {mae}"
-    if "spike_recall" in ov:
-        rec = ov["spike_recall"]
-        assert rec >= 0.75, f"Spike recall regressed: {rec}"
+    assert ov["n"] == 409
+    assert ov["n_spikes"] == 84
+    assert ov["r2"][0] == pytest.approx(0.419, abs=5e-4)
+    assert ov["mae"][0] == pytest.approx(7.49, abs=5e-3)
+    assert ov["spike_recall"] == pytest.approx(0.774, abs=5e-4)
+    assert ov["spike_f2"] == pytest.approx(0.693, abs=5e-4)
 
 
 @pytest.mark.skipif(

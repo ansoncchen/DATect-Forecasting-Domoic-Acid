@@ -59,10 +59,9 @@ sbatch --export=ALL,SKIP_DOWNLOAD=1 hyak/full_pipeline.sbatch
 
 ```bash
 # From local laptop
-scp -r klone:/gscratch/stf/ac283/oad/outputs/figures \
-       "ocean anomaly detection/outputs/figures_hyak"
-scp klone:/gscratch/stf/ac283/oad/outputs/figures/RESULTS_summary.txt \
-       "ocean anomaly detection/outputs/"
+# (generated figures are not tracked; the papers keep copies of the ones they use)
+scp -r klone-login:/gscratch/stf/ac283/oad_current/outputs/figures oad/outputs/figures
+scp klone-login:/gscratch/stf/ac283/oad_current/outputs/figures/RESULTS_summary.txt oad/outputs/
 ```
 
 ## Storage estimates (stride-2, 4 channels, daily cadence)

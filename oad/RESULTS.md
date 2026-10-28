@@ -102,7 +102,8 @@ but it should be disclosed.
    probably modest, not transformative. The empirical baseline-vs-+OAD comparison
    in `eval_paper_metrics.py` will tell the real story.
 
-Artifacts (in `outputs/figures_FINAL_v4/`):
+Artifacts (generated into `outputs/figures/` on Hyak; not tracked — the committed
+copies from this analysis are in git tag `archive/pre-cleanup`, `outputs/figures_FINAL_v4/`):
 - `sanity_cloud_confound.parquet` + `.png` — full per-(region, method) table
 - `E4_multistep.parquet` + `.png` — R² × lead × method × region
 

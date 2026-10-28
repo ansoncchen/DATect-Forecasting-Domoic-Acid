@@ -1,6 +1,6 @@
 #!/bin/bash
 # DATect Google Cloud Deployment
-# Builds frontend, ensures local ./cache (generates only if missing unless you opt in), then deploys to Cloud Run
+# Ensures local ./cache exists, then builds the image (frontend included) with Cloud Build and deploys to Cloud Run
 
 set -e
 
@@ -45,14 +45,6 @@ echo "=================================================="
 echo "Project ID: $PROJECT_ID"
 echo "Region: $REGION"
 echo "=================================================="
-
-print_status "🏗️ Building frontend locally..."
-if [ -f "./build_frontend.sh" ]; then
-    ./build_frontend.sh
-    print_success "Frontend built successfully"
-else
-    print_warning "Frontend build script not found, continuing..."
-fi
 
 print_status "📊 Pre-computing cache locally..."
 if [ ! -d "./cache" ] || [ -z "$(ls -A ./cache)" ]; then

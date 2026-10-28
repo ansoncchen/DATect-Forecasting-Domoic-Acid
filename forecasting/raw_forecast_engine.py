@@ -173,7 +173,7 @@ class RawForecastEngine:
         self,
         feature_frame: pd.DataFrame,
         anchor_date: pd.Timestamp,
-    ) -> tuple[Optional[pd.DataFrame], Optional[pd.Series]]:
+    ):
         """Build pooled ALL-SITE training data for the spike binary classifier.
 
         Uses data from every site up to *anchor_date* (temporal integrity),
@@ -181,7 +181,10 @@ class RawForecastEngine:
         feature selection is applied — the spike classifier gets a uniform
         feature set across all sites.
 
-        Returns (X_pooled, y_da_raw) or (None, None) if insufficient data.
+        Returns ``(X_pooled, y_da_raw, transformer, columns)``: the fitted
+        pooled transformer and its input columns must also be used to encode
+        the test row, so it is scored on the scale the classifier was trained
+        on. Returns four Nones if there is too little data.
         """
         anchor_date = pd.Timestamp(anchor_date)
         all_train = feature_frame[feature_frame["date"] <= anchor_date].copy()
@@ -189,7 +192,7 @@ class RawForecastEngine:
         # Only real measurements — can't define "spike" from interpolated DA
         all_train = all_train[all_train["da_raw"].notna()].copy()
         if len(all_train) < 30:
-            return None, None
+            return None, None, None, None
 
         all_train = add_temporal_features(all_train)
 
@@ -203,9 +206,10 @@ class RawForecastEngine:
         ] + list(zero_imp)
 
         transformer, X_pooled = create_transformer(all_train, drop_cols)
+        columns = list(X_pooled.columns)
         X_pooled = transformer.fit_transform(X_pooled)
 
-        return X_pooled, y_raw
+        return X_pooled, y_raw, transformer, columns
 
     # ------------------------------------------------------------------
     # Single forecast (realtime)
@@ -1067,8 +1071,8 @@ class RawForecastEngine:
         spike_alert = None
         if config.SPIKE_CLASSIFIER_ENABLED:
             try:
-                X_pooled, y_pooled = self._build_pooled_spike_data(
-                    feature_frame, anchor_date,
+                X_pooled, y_pooled, pooled_transformer, pooled_columns = (
+                    self._build_pooled_spike_data(feature_frame, anchor_date)
                 )
                 if X_pooled is not None:
                     spike_result = (
@@ -1080,9 +1084,15 @@ class RawForecastEngine:
                         )
                     )
                     if spike_result is not None:
+                        # Encode the test row with the pooled transformer the classifier
+                        # was trained on (not the per-site one, whose scaling and feature
+                        # subset differ); missing features get the pooled median.
+                        X_test_spike = pooled_transformer.transform(
+                            test_row.reindex(columns=pooled_columns)
+                        )
                         spike_prob = (
                             self.classification_adapter.predict_spike_probability(
-                                spike_result, X_test_processed,
+                                spike_result, X_test_spike,
                             )
                         )
                         classifier_fires = spike_prob >= config.SPIKE_ALERT_PROB_THRESHOLD

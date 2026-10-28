@@ -13,7 +13,7 @@ from functools import lru_cache
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -150,13 +150,6 @@ class ForecastRequest(BaseModel):
     task: str = "regression"  # "regression" or "classification"
     model: str = "ensemble"
 
-class ConfigUpdateRequest(BaseModel):
-    forecast_mode: str = "realtime"  # "realtime" or "retrospective"
-    forecast_task: str = "regression"  # "regression" or "classification"
-    forecast_model: str = "ensemble"  # "ensemble", "naive", or "linear"
-    selected_sites: List[str] = []  # For retrospective site filtering
-    forecast_horizon_weeks: int = 1  # Weeks ahead to forecast from data cutoff
-
 class ForecastResponse(BaseModel):
     success: bool
     forecast_date: date
@@ -187,6 +180,8 @@ class ModelInfo(BaseModel):
 
 class RetrospectiveRequest(BaseModel):
     selected_sites: List[str] = []  # Empty list means all sites
+    task: str = config.FORECAST_TASK  # "regression" or "classification"
+    model: str = config.FORECAST_MODEL  # "ensemble", "naive", or "linear"
 
 
 @app.get("/api")
@@ -362,42 +357,6 @@ async def get_config():
         "forecast_horizon_days": config.FORECAST_HORIZON_DAYS,
         "spike_threshold": config.SPIKE_THRESHOLD,
     }
-
-@app.post("/api/config")
-async def update_config(request: Request, config_request: ConfigUpdateRequest):
-    """Apply forecast UI settings for this API process only."""
-    try:
-        client_host = request.client.host if request.client else None
-        local_hosts = {"127.0.0.1", "::1", "localhost"}
-        allow_remote_updates = os.getenv("ENABLE_RUNTIME_CONFIG_UPDATE", "").lower() == "true"
-        if client_host not in local_hosts and not allow_remote_updates:
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "Runtime config updates are restricted to localhost unless "
-                    "ENABLE_RUNTIME_CONFIG_UPDATE=true"
-                ),
-            )
-
-        config.FORECAST_MODE = config_request.forecast_mode
-        config.FORECAST_TASK = config_request.forecast_task
-        config.FORECAST_MODEL = config_request.forecast_model
-        config.FORECAST_HORIZON_WEEKS = config_request.forecast_horizon_weeks
-        config.FORECAST_HORIZON_DAYS = config_request.forecast_horizon_weeks * 7
-
-        return {
-            "success": True,
-            "message": "Configuration updated for this server process (not persisted to disk)",
-            "config": {
-                "forecast_mode": config.FORECAST_MODE,
-                "forecast_task": config.FORECAST_TASK,
-                "forecast_model": config.FORECAST_MODEL,
-            },
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update configuration: {str(e)}")
 
 # Visualization endpoints
 # NOTE: More specific routes must come before generic parameter routes
@@ -773,17 +732,20 @@ async def generate_enhanced_forecast(request: ForecastRequest):
 
 @app.post("/api/retrospective")
 async def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequest()):
-    """Run complete retrospective analysis based on current config (uses pre-computed cache for production)."""
+    """Retrospective results for the requested task and model (pre-computed cache in production)."""
+    if request.task not in ("regression", "classification"):
+        raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
+    task = request.task
     try:
         # Map model names for API compatibility
-        if config.FORECAST_MODEL == "linear":
-            actual_model = "linear" if config.FORECAST_TASK == "regression" else "logistic"
+        if request.model == "linear":
+            actual_model = "linear" if task == "regression" else "logistic"
         else:
-            actual_model = config.FORECAST_MODEL  # "ensemble" or "naive" pass through
+            actual_model = request.model  # "ensemble" or "naive" pass through
         
         # Canonical on-disk path for this slice (response metadata); reads may come from Redis instead.
-        cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{config.FORECAST_TASK}_{actual_model}.json"
-        base_results = cache_manager.get_retrospective_forecast(config.FORECAST_TASK, actual_model)
+        cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{task}_{actual_model}.json"
+        base_results = cache_manager.get_retrospective_forecast(task, actual_model)
         cache_hit = base_results is not None
         
         if base_results is None:
@@ -793,7 +755,7 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
             engine.data_file = config.FINAL_OUTPUT_PATH
             
             results_df = engine.run_retrospective_evaluation(
-                task=config.FORECAST_TASK,
+                task=task,
                 model_type=actual_model,
             )
 
@@ -820,20 +782,20 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
 
             # Results computed on-demand for local development
         else:
-            logging.info(f"Serving pre-computed retrospective analysis: {config.FORECAST_TASK}+{actual_model}")
+            logging.info(f"Serving pre-computed retrospective analysis: {task}+{actual_model}")
 
         # Cached data now uses the same standardized format as fresh computation (actual_da, predicted_da, actual_category, predicted_category)
 
         # Filter by sites if specified
         filtered = [r for r in base_results if r['site'] in request.selected_sites] if request.selected_sites else base_results
         
-        summary = _compute_summary(filtered, config.FORECAST_TASK)
+        summary = _compute_summary(filtered, task)
         return {
             "success": True,
             "config": {
-                "forecast_mode": config.FORECAST_MODE,
-                "forecast_task": config.FORECAST_TASK,
-                "forecast_model": config.FORECAST_MODEL
+                "forecast_mode": "retrospective",
+                "forecast_task": task,
+                "forecast_model": request.model,
             },
             "cache": {
                 "enabled": cache_manager.enabled,

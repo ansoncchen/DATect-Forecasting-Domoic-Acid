@@ -14,8 +14,8 @@ const Dashboard = () => {
   
   const [config, setConfig] = useState({
     forecast_mode: 'realtime',
-    forecast_task: 'regression', 
-    forecast_model: 'xgboost',
+    forecast_task: 'regression',
+    forecast_model: 'ensemble',
     selected_sites: []
   })
   const [configLoading, setConfigLoading] = useState(false)
@@ -124,25 +124,18 @@ const Dashboard = () => {
 
     setConfigLoading(true)
     setError(null)
-    
+
+    // Settings travel with each request; the server holds no per-user state.
+    setTask(config.forecast_task)
+    setSelectedModel(config.forecast_model)
     try {
-      const response = await api.post('/api/config', config)
-      if (response.data.success) {
-        // Update local state
-        setTask(config.forecast_task)
-        setSelectedModel(config.forecast_model)
-        
-        // Move to next step based on mode
-        if (config.forecast_mode === 'realtime') {
-          setCurrentStep('realtime')
-        } else {
-          // Start retrospective analysis immediately
-          setCurrentStep('retrospective')
-          await runRetrospectiveAnalysis()
-        }
+      if (config.forecast_mode === 'realtime') {
+        setCurrentStep('realtime')
+      } else {
+        // Start retrospective analysis immediately
+        setCurrentStep('retrospective')
+        await runRetrospectiveAnalysis()
       }
-    } catch (err) {
-      setError('Failed to update configuration')
     } finally {
       setConfigLoading(false)
     }
@@ -301,7 +294,9 @@ const Dashboard = () => {
     
     try {
       const response = await api.post('/api/retrospective', {
-        selected_sites: config.selected_sites
+        selected_sites: config.selected_sites,
+        task: config.forecast_task,
+        model: config.forecast_model
       })
       
       setRetrospectiveResults(response.data)

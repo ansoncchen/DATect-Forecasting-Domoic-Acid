@@ -91,3 +91,13 @@ def test_api_models_endpoint():
         assert "available_models" in data
         assert "ensemble" in data["available_models"]["regression"]
         assert "descriptions" in data
+
+
+def test_settings_travel_with_each_request():
+    """The server holds no per-user settings: no config mutation endpoint, and
+    /api/retrospective validates the task it is given."""
+    with TestClient(app) as client:
+        assert client.post("/api/config", json={"forecast_model": "naive"}).status_code == 405
+        assert client.get("/api/config").status_code == 200
+        response = client.post("/api/retrospective", json={"task": "bogus", "model": "ensemble"})
+        assert response.status_code == 400

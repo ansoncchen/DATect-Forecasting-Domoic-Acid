@@ -559,12 +559,10 @@ def get_latest_da_from_raw_files():
             logger.warning("Unparseable date in last row of %s", file_path)
             continue
 
-        try:
-            if isinstance(da_value, str) and "<" in da_value:
-                da_numeric = float(da_value.replace("<", "").strip()) / 2
-            else:
-                da_numeric = float(da_value)
-        except (TypeError, ValueError):
+        from forecasting.measurements import parse_da_values
+
+        da_numeric = float(parse_da_values([da_value]).iloc[0])  # "<1" -> LOD/2
+        if pd.isna(da_numeric):
             logger.warning("Unparseable DA value in last row of %s", file_path)
             continue
 

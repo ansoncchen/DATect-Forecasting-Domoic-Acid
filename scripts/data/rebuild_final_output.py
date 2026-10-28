@@ -40,9 +40,6 @@ def load_dataset_creation():
     """Import dataset-creation.py (hyphenated, so via importlib) without running main()."""
     os.chdir(ROOT)
     sys.path.insert(0, str(ROOT))
-    # Use the pandas CSV reader: Polars fails on several of the raw CSVs, and the
-    # committed parquet was produced by the pandas path.
-    sys.modules["polars"] = None
     spec = importlib.util.spec_from_file_location("dataset_creation", ROOT / "dataset-creation.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

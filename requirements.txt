@@ -29,7 +29,6 @@ tqdm>=4.66.0
 xarray>=2024.1.0
 netcdf4>=1.6.0
 numba>=0.59.0         # Optional JIT for BEUTI interpolation
-polars>=0.20.0        # Optional CSV reader in dataset-creation.py
 
 # Optional Redis cache backend (enabled only when REDIS_URL is set)
 redis>=5.0.0

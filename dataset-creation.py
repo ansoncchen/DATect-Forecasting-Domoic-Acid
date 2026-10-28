@@ -26,16 +26,10 @@ import shutil
 import config
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from forecasting.measurements import parse_da_values, parse_dates, parse_pn_values
 from forecasting.oad_features import add_oad_features, OAD_FEATURES_ALL
 
-# High-performance libraries
-try:
-    import polars as pl
-    POLARS_AVAILABLE = True
-except ImportError:
-    pl = None
-    POLARS_AVAILABLE = False
-
+# Optional JIT for BEUTI interpolation
 try:
     from numba import jit
 except ImportError:
@@ -147,17 +141,12 @@ def local_filename(url, ext, temp_dir=None):
 
 
 def csv_to_parquet(csv_path):
-    """Convert CSV to Parquet for faster I/O. Uses Polars if available."""
+    """Convert CSV to Parquet for faster I/O."""
     parquet_path = csv_path[:-4] + '.parquet'
-    
-    if POLARS_AVAILABLE:
-        # Polars is 2-5x faster for CSV to Parquet conversion
-        df = pl.read_csv(csv_path)
-        df.write_parquet(parquet_path)
-    else:
-        df = pd.read_csv(csv_path, low_memory=False)
-        df.to_parquet(parquet_path, index=False)
-    
+    # pandas, not Polars: Polars rejects several raw files (e.g. "<1" in numeric columns)
+    df = pd.read_csv(csv_path, low_memory=False)
+    df.to_parquet(parquet_path, index=False)
+
     generated_parquet_files.append(parquet_path)
     return parquet_path
 
@@ -694,8 +683,8 @@ def process_da(da_files_dict):
             elif 'Domoic Acid' in df.columns: da_col = 'Domoic Acid'
 
             # Process valid columns
-            df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
-            df['DA_Levels'] = pd.to_numeric(df[da_col], errors='coerce')
+            df['Parsed_Date'] = parse_dates(df[date_col])
+            df['DA_Levels'] = parse_da_values(df[da_col])  # "<1" -> LOD/2
             df['Site'] = site_name_guess
 
             df.dropna(subset=['Parsed_Date', 'DA_Levels', 'Site'], inplace=True)
@@ -754,8 +743,8 @@ def process_pn(pn_files_dict):
             pn_col = pn_col_candidates[0]
 
         # Process valid columns
-        df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
-        df['PN_Levels'] = pd.to_numeric(df[pn_col], errors='coerce')
+        df['Parsed_Date'] = parse_dates(df[date_col])
+        df['PN_Levels'] = parse_pn_values(df[pn_col])  # accepts "12,345"
         df['Site'] = site_name_guess
         df.dropna(subset=['Parsed_Date', 'PN_Levels', 'Site'], inplace=True)
 

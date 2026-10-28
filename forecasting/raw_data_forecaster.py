@@ -18,6 +18,7 @@ import pandas as pd
 import numpy as np
 
 import config
+from .measurements import parse_da_values, parse_dates
 from .raw_data_processor import RawDataProcessor as DataProcessor
 from .logging_config import get_logger
 
@@ -74,8 +75,8 @@ def load_raw_da_measurements() -> pd.DataFrame:
             logger.warning("Unknown raw DA schema for %s", file_path)
             continue
 
-        df["date"] = pd.to_datetime(df[date_col], errors="coerce")
-        df["da_raw"] = pd.to_numeric(df[da_col], errors="coerce")
+        df["date"] = parse_dates(df[date_col])
+        df["da_raw"] = parse_da_values(df[da_col])  # "<1" -> LOD/2
         df["site"] = site_name
 
         valid_df = df.dropna(subset=["date", "da_raw"])

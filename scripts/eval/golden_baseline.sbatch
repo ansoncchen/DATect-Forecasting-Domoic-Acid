@@ -4,15 +4,15 @@
 #SBATCH --account=stf-ckpt
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=40
-#SBATCH --exclusive
-#SBATCH --mem=0
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=96G
 #SBATCH --time=06:00:00
 #SBATCH --requeue
 #SBATCH --output=golden-%j.out
 #SBATCH --error=golden-%j.err
 #
 # Runs every evaluation that backs a reported number, with the headline
+# (results do not depend on the core count: every forecast is independent and seeded)
 # config (per-anchor tuning disabled). Submit via golden_baseline.sh so the
 # job runs in a disposable worktree; outputs land at their usual relative paths.
 set -euo pipefail

@@ -14,6 +14,7 @@ Each site can override:
 
 from typing import Any, Dict, List, Optional, Tuple
 
+import config
 from forecasting.oad_features import OAD_FEATURES_ALL
 from forecasting.logging_config import get_logger
 
@@ -96,13 +97,8 @@ if _hparam_path and _os.path.exists(_hparam_path):
                 _v = tuple(_v)
             SITE_SPECIFIC_CONFIGS[_site][_k] = _v
 
-_clip_override = _os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")
-if _clip_override == "none":
-    for _sc in SITE_SPECIFIC_CONFIGS.values():
-        _sc['prediction_clip_q'] = None
-        _sc['prediction_clip_max'] = None
-elif _clip_override:
-    _cq = float(_clip_override)
+if config.CLIP_Q_OVERRIDE is not None:
+    _cq = None if config.CLIP_Q_OVERRIDE == "none" else config.CLIP_Q_OVERRIDE
     for _sc in SITE_SPECIFIC_CONFIGS.values():
         _sc['prediction_clip_q'] = _cq
         _sc['prediction_clip_max'] = None

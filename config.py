@@ -348,11 +348,16 @@ MIN_TRAINING_FOR_TUNING = int(os.environ.get(
 # Prediction clipping — default applies when a site has no prediction_clip_q.
 # Per-site overrides live in SITE_SPECIFIC_CONFIGS via per_site_models.py.
 PREDICTION_CLIP_Q = float(_tuned["prediction_clip_q_default"])
+# DATECT_CLIP_Q_OVERRIDE (ablations): "none" disables clipping; a number replaces the global and
+# every per-site clip quantile (per_site_models.py reads CLIP_Q_OVERRIDE). None = no override.
 _clip_override = os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")
-if _clip_override == "none":
+CLIP_Q_OVERRIDE = None if not _clip_override else (
+    "none" if _clip_override == "none" else float(_clip_override)
+)
+if CLIP_Q_OVERRIDE == "none":
     PREDICTION_CLIP_Q = None
-elif _clip_override:
-    PREDICTION_CLIP_Q = float(_clip_override)
+elif CLIP_Q_OVERRIDE is not None:
+    PREDICTION_CLIP_Q = CLIP_Q_OVERRIDE
 
 # Parallelization
 ENABLE_PARALLEL = True
@@ -389,14 +394,13 @@ if _extra_drop:
 # Minimum test date (early lower bound; per-site history fraction is the real filter)
 MIN_TEST_DATE = "2003-01-01"
 
-# Temporal hold-out evaluation mode
-# When scripts/eval/eval_paper_metrics.py --temporal-holdout is used, only dates >= TEMPORAL_HOLDOUT_CUTOFF
-# are used as test points. Training still uses all data before each anchor date.
-# Provides an uncontaminated generalization estimate separate from hyperparameter tuning.
+# Temporal holdout: the same window everywhere (paper, tuned JSON eval_windows, eval scripts),
+# 2022-01-01 onward. eval_paper_metrics.py --temporal-holdout keeps test points dated on or after
+# TEMPORAL_HOLDOUT_CUTOFF; training still uses all data before each anchor date.
 from forecasting.tuned_config import get_eval_windows as _get_eval_windows
 TEMPORAL_HOLDOUT_CUTOFF = os.environ.get(
     "DATECT_TEMPORAL_HOLDOUT_CUTOFF",
-    _get_eval_windows()["validation_start"],
+    _get_eval_windows()["holdout_start"],
 )
 
 # Parallelization backend (used by joblib in retrospective evaluation)

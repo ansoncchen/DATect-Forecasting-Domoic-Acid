@@ -428,10 +428,9 @@ def main():
     parser.add_argument("--output-dir", default="results/paper_metrics",
                         help="Output directory for CSV/JSON results")
     parser.add_argument("--temporal-holdout", action="store_true",
-                        help="Restrict test points to 2019-01-01 and later (temporal holdout). "
-                             "Output goes to results/paper_metrics_temporal/. "
-                             "Provides an unbiased generalization estimate: no tuning decisions "
-                             "informed by post-2019 data.")
+                        help="Restrict test points to the temporal holdout (dates on or after "
+                             "config.TEMPORAL_HOLDOUT_CUTOFF, 2022-01-01). "
+                             "Output goes to results/paper_metrics_temporal/.")
     args = parser.parse_args()
 
     seed = args.seed
@@ -441,7 +440,7 @@ def main():
 
     # Temporal holdout: override output dir and retro dir to avoid overwriting standard results
     if temporal_holdout:
-        holdout_cutoff = getattr(__import__("config"), "TEMPORAL_HOLDOUT_CUTOFF", "2019-01-01")
+        holdout_cutoff = __import__("config").TEMPORAL_HOLDOUT_CUTOFF
         output_dir = args.output_dir.replace("paper_metrics", "paper_metrics_temporal") \
             if args.output_dir == "results/paper_metrics" else args.output_dir + "_temporal"
         seed_suffix = f"_seed{seed}" if seed != 42 else ""

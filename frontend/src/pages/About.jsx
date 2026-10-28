@@ -16,9 +16,9 @@ const About = () => {
           <div>
             <h3 className="font-semibold text-gray-800">Key Features</h3>
             <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>21 years of temporal coverage (2002-2023)</li>
+              <li>21 years of temporal coverage (2003-2023)</li>
               <li>10 Pacific Coast monitoring sites</li>
-              <li>XGBoost machine learning</li>
+              <li>XGBoost + Random Forest ensemble with per-site configuration</li>
               <li>Real-time and retrospective analysis</li>
               <li>Scientific data visualization</li>
             </ul>

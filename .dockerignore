@@ -5,6 +5,8 @@
 !data
 !config
 !config.py
+!results/chronological
+!results/multi_seed
 !requirements.txt
 !cache
 !frontend

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Calendar, MapPin, Cpu, AlertTriangle, Settings, Play, BarChart3, TrendingUp, Clock, Download, Info } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import Select from 'react-select'
-import Plot from 'react-plotly.js'
+import Plot from '../utils/Plot'
 import { format, subDays } from 'date-fns'
 import api from '../services/api'
 import { plotConfig, getPlotFilename } from '../utils/plotConfig'
@@ -23,6 +23,8 @@ const Dashboard = () => {
   const [sites, setSites] = useState([])
   const [models, setModels] = useState({ regression: [], classification: [] })
   const [dateRange, setDateRange] = useState({ min: null, max: null })
+  // Headline holdout metrics from the latest committed evaluation (/api/metrics/summary)
+  const [metricsSummary, setMetricsSummary] = useState(null)
   
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedSite, setSelectedSite] = useState(null)
@@ -97,6 +99,13 @@ const Dashboard = () => {
       
     } catch (err) {
       setError('Failed to load initial data')
+    }
+    try {
+      const summaryRes = await api.get('/api/metrics/summary')
+      setMetricsSummary(summaryRes.data)
+    } catch (err) {
+      // Optional: the dashboard works without headline metrics
+      console.warn('Metrics summary unavailable:', err.message)
     }
   }
 
@@ -1318,21 +1327,16 @@ const Dashboard = () => {
             >
               <option value="all">All Sites</option>
               {sites.map(site => {
-                // Quality tier from deterministic 2022-2023 holdout
-                // (results/chronological/chronological_regression_ensemble_*.json).
-                // Per-site R² uses N≈40 per site (all real DA, no sampling).
-                const qualityTier = {
-                  'Twin Harbors':   '🟢',   // R² 0.633 [0.327, 0.798]
-                  'Coos Bay':       '🟢',   // R² 0.630 [0.451, 0.863]
-                  'Copalis':        '🟢',   // R² 0.598 [0.358, 0.777]
-                  'Quinault':       '🟢',   // R² 0.549 [0.237, 0.750]
-                  'Long Beach':     '🟢',   // R² 0.531 [0.219, 0.842]
-                  'Clatsop Beach':  '🟢',   // R² 0.515 [0.325, 0.700]
-                  'Kalaloch':       '🟢',   // R² 0.493 [0.225, 0.694]
-                  'Newport':        '🟡',   // R² 0.170 [-0.321, 0.393] — modest
-                  'Gold Beach':     '🔴',   // R² -0.235 [-12.1, 0.181] — genuine failure
-                  'Cannon Beach':   '⚪',   // No spike events in holdout window
-                }[site] || ''
+                // Quality tier from each site's deterministic holdout R²
+                // (all real DA in the window, no sampling; /api/metrics/summary)
+                const siteMetrics = metricsSummary?.per_site?.[site]
+                let qualityTier = ''
+                if (metricsSummary) {
+                  if (!siteMetrics) qualityTier = '⚪'  // too few holdout measurements to score
+                  else if (siteMetrics.r2[0] >= 0.4) qualityTier = '🟢'
+                  else if (siteMetrics.r2[0] >= 0) qualityTier = '🟡'
+                  else qualityTier = '🔴'
+                }
                 return (
                   <option key={site} value={site}>
                     {qualityTier} {site}
@@ -1409,9 +1413,15 @@ const Dashboard = () => {
                     <div><span className="text-yellow-300">Validation:</span> 2019–2022 (used by tuning)</div>
                     <div><span className="text-green-300">Holdout:</span> 2022–2023 (never seen by tuning)</div>
                   </div>
-                  <div className="mt-2 text-gray-300 italic">
-                    Headline holdout R² = <span className="text-green-300 font-semibold">0.485</span> [0.330, 0.604] (deterministic, all real DA, N=404); 5-seed bootstrap confirmation 0.433 ± 0.092. Pooled R² shown above mixes all windows. Filter by year/site for holdout-only view.
-                  </div>
+                  {metricsSummary && (
+                    <div className="mt-2 text-gray-300 italic">
+                      Headline holdout R² = <span className="text-green-300 font-semibold">{metricsSummary.overall.r2[0].toFixed(3)}</span>{' '}
+                      [{metricsSummary.overall.r2[1].toFixed(3)}, {metricsSummary.overall.r2[2].toFixed(3)}] (deterministic, all real DA, N={metricsSummary.overall.n})
+                      {metricsSummary.multi_seed?.r2_mean != null && (
+                        <>; {metricsSummary.multi_seed.n_seeds}-seed bootstrap confirmation {metricsSummary.multi_seed.r2_mean.toFixed(3)} ± {metricsSummary.multi_seed.r2_std.toFixed(3)}</>
+                      )}. Pooled R² shown above mixes all windows. Filter by year/site for holdout-only view.
+                    </div>
+                  )}
                 </div>
               </div>
             )}

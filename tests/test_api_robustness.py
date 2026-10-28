@@ -101,3 +101,16 @@ def test_settings_travel_with_each_request():
         assert client.get("/api/config").status_code == 200
         response = client.post("/api/retrospective", json={"task": "bogus", "model": "ensemble"})
         assert response.status_code == 400
+
+
+def test_metrics_summary_reads_committed_results():
+    """/api/metrics/summary serves the holdout numbers from results/, not hardcoded ones."""
+    with TestClient(app) as client:
+        response = client.get("/api/metrics/summary")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["holdout_window"]["start"] == "2022-01-01"
+        assert len(data["overall"]["r2"]) == 3  # point estimate and bootstrap CI
+        assert data["overall"]["n"] > 0
+        assert data["per_site"]
+        assert data["multi_seed"]["n_seeds"] == 5

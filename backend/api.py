@@ -185,7 +185,7 @@ class RetrospectiveRequest(BaseModel):
 
 
 @app.get("/api")
-async def root():
+def root():
     """Root endpoint with API information."""
     return {
         "message": "DATect API - Domoic Acid Forecasting System",
@@ -194,12 +194,12 @@ async def root():
     }
 
 @app.get("/health")
-async def health_check():
+def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/api/sites", response_model=SiteInfo)
-async def get_sites():
+def get_sites():
     """Get available sites and date range from the dataset."""
     try:
         # Load data to get site information
@@ -220,7 +220,7 @@ async def get_sites():
         raise HTTPException(status_code=500, detail=f"Failed to load site information: {str(e)}")
 
 @app.get("/api/models", response_model=ModelInfo)
-async def get_models():
+def get_models():
     """Get available models and their descriptions."""
     try:
         mf = get_model_factory()
@@ -241,7 +241,7 @@ async def get_models():
         raise HTTPException(status_code=500, detail=f"Failed to load model information: {str(e)}")
 
 @app.post("/api/forecast", response_model=ForecastResponse)
-async def generate_forecast(request: ForecastRequest):
+def generate_forecast(request: ForecastRequest):
     """Generate a forecast for the specified parameters."""
     if request.task not in ["regression", "classification"]:
         raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
@@ -300,7 +300,7 @@ async def generate_forecast(request: ForecastRequest):
 
 
 @app.get("/api/historical/{site}")
-async def get_historical_data(
+def get_historical_data(
     site: str,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
@@ -346,8 +346,59 @@ async def get_historical_data(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load historical data: {str(e)}")
 
+@lru_cache(maxsize=1)
+def _load_metrics_summary() -> dict:
+    """Headline evaluation metrics, read from the committed results in results/.
+
+    The dashboard shows these instead of hardcoding numbers that drift from the
+    latest evaluation: the deterministic chronological holdout (overall and per
+    site) and the 5-seed bootstrap confirmation on the same window.
+    """
+    import glob
+    import json
+
+    from sklearn.metrics import r2_score
+
+    from forecasting.tuned_config import get_eval_windows
+
+    window = get_eval_windows()
+    start, end = window["holdout_start"], window["holdout_end"]
+    tag = f"{start.replace('-', '')}_{end.replace('-', '')}"
+    results = Path(project_root) / "results"
+    chrono = json.loads(
+        (results / "chronological" / f"chronological_regression_ensemble_{tag}.json").read_text()
+    )
+
+    seed_r2 = []
+    for path in sorted(glob.glob(str(results / "multi_seed" / "*_predictions.parquet"))):
+        df = pd.read_parquet(path, columns=["date", "actual_da", "predicted_da"])
+        df["date"] = pd.to_datetime(df["date"])
+        held = df[(df["date"] >= start) & (df["date"] < end)]
+        seed_r2.append(float(r2_score(held["actual_da"], held["predicted_da"])))
+
+    return {
+        "holdout_window": {"start": start, "end": end},
+        "overall": chrono["overall"],
+        "per_site": chrono["per_site"],
+        "multi_seed": {
+            "n_seeds": len(seed_r2),
+            "r2_mean": float(np.mean(seed_r2)) if seed_r2 else None,
+            "r2_std": float(np.std(seed_r2)) if seed_r2 else None,
+        },
+    }
+
+
+@app.get("/api/metrics/summary")
+def get_metrics_summary():
+    """Headline holdout metrics (overall, per site, multi-seed) from results/."""
+    try:
+        return clean_for_json(_load_metrics_summary())
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Evaluation results not found: {e}") from e
+
+
 @app.get("/api/config")
-async def get_config():
+def get_config():
     """Get current system configuration."""
     return {
         "forecast_mode": config.FORECAST_MODE,
@@ -361,7 +412,7 @@ async def get_config():
 # Visualization endpoints
 # NOTE: More specific routes must come before generic parameter routes
 @app.get("/api/visualizations/correlation/all")
-async def get_correlation_heatmap_all():
+def get_correlation_heatmap_all():
     """Generate correlation heatmap for all sites combined."""
     try:
         data = get_data_copy()
@@ -371,7 +422,7 @@ async def get_correlation_heatmap_all():
         raise HTTPException(status_code=500, detail=f"Failed to generate correlation heatmap: {str(e)}")
 
 @app.get("/api/visualizations/correlation/{site}")
-async def get_correlation_heatmap_single(site: str):
+def get_correlation_heatmap_single(site: str):
     """Generate correlation heatmap for a single site."""
     try:
         data = get_data_copy()
@@ -387,7 +438,7 @@ async def get_correlation_heatmap_single(site: str):
         raise HTTPException(status_code=500, detail=f"Failed to generate correlation heatmap: {str(e)}")
 
 @app.get("/api/visualizations/sensitivity/all")
-async def get_sensitivity_analysis_all():
+def get_sensitivity_analysis_all():
     """Generate sensitivity analysis plots for all sites combined."""
     try:
         data = get_data_copy()
@@ -397,7 +448,7 @@ async def get_sensitivity_analysis_all():
         raise HTTPException(status_code=500, detail=f"Failed to generate sensitivity analysis: {str(e)}")
 
 @app.get("/api/visualizations/sensitivity/{site}")
-async def get_sensitivity_analysis_single(site: str):
+def get_sensitivity_analysis_single(site: str):
     """Generate sensitivity analysis plots for a single site."""
     try:
         data = get_data_copy()
@@ -410,7 +461,7 @@ async def get_sensitivity_analysis_single(site: str):
         raise HTTPException(status_code=500, detail=f"Failed to generate sensitivity analysis: {str(e)}")
 
 @app.get("/api/visualizations/comparison/{site}")
-async def get_time_series_comparison_single(site: str):
+def get_time_series_comparison_single(site: str):
     """Generate time series comparison for a single site."""
     try:
         data = get_data_copy()
@@ -422,7 +473,7 @@ async def get_time_series_comparison_single(site: str):
         raise HTTPException(status_code=500, detail=f"Failed to generate time series comparison: {str(e)}")
 
 @app.get("/api/visualizations/waterfall")
-async def get_waterfall_plot():
+def get_waterfall_plot():
     """Generate waterfall plot for all sites."""
     try:
         data = get_data_copy()
@@ -432,7 +483,7 @@ async def get_waterfall_plot():
         raise HTTPException(status_code=500, detail=f"Failed to generate waterfall plot: {str(e)}")
 
 @app.get("/api/visualizations/spectral/all")
-async def get_spectral_analysis_all():
+def get_spectral_analysis_all():
     """Generate spectral analysis for all sites combined (uses pre-computed cache)."""
     try:
         # First try pre-computed cache
@@ -450,7 +501,7 @@ async def get_spectral_analysis_all():
         raise HTTPException(status_code=500, detail=f"Failed to generate spectral analysis: {str(e)}")
 
 @app.get("/api/visualizations/spectral/{site}")
-async def get_spectral_analysis_single(site: str):
+def get_spectral_analysis_single(site: str):
     """Generate spectral analysis for a single site (uses pre-computed cache)."""
     try:
         data = get_data_copy()
@@ -530,7 +581,7 @@ def get_latest_da_from_raw_files():
     return latest_da_data
 
 @app.get("/api/visualizations/map")
-async def get_site_map():
+def get_site_map():
     """Generate map visualization of all 10 monitoring sites with risk level colors using latest raw data."""
     try:
         # Import here to avoid issues if plotly is not available during startup
@@ -634,7 +685,7 @@ async def get_site_map():
 
 
 @app.post("/api/forecast/enhanced")
-async def generate_enhanced_forecast(request: ForecastRequest):
+def generate_enhanced_forecast(request: ForecastRequest):
     """Generate enhanced forecast with both regression and classification for frontend."""
     try:
         actual_site = resolve_site(request.site)
@@ -731,7 +782,7 @@ async def generate_enhanced_forecast(request: ForecastRequest):
 
 
 @app.post("/api/retrospective")
-async def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequest()):
+def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequest()):
     """Retrospective results for the requested task and model (pre-computed cache in production)."""
     if request.task not in ("regression", "classification"):
         raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")

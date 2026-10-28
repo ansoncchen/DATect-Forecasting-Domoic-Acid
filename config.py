@@ -242,13 +242,14 @@ LAG_FEATURES = [] if _lag_env.lower() == "none" else [int(x) for x in _lag_env.s
 
 # DA Category Configuration
 
-# Risk thresholds for classification: Low (0-5), Moderate (5-20), High (20-40), Extreme (>40 μg/g)
+# Risk categories as left-closed bins (pd.cut(..., right=False)): Low [0,5), Moderate [5,20),
+# High [20,40), Extreme >= 40 μg/g. A value on a boundary belongs to the higher category.
 DA_CATEGORY_BINS = [-float("inf"), 5, 20, 40, float("inf")]
 DA_CATEGORY_LABELS = [0, 1, 2, 3]
 
 # Spike Detection Configuration (tuned values; DATECT_SPIKE_CLASSIFIER_JSON overlays apply)
 
-SPIKE_THRESHOLD = float(_tuned["spike_threshold_actual"])  # DA > 20 μg/g considered a spike event
+SPIKE_THRESHOLD = float(_tuned["spike_threshold_actual"])  # DA >= 20 μg/g is a spike event
 SPIKE_ALERT_PROB_THRESHOLD = float(_tuned["spike_alert_prob_threshold"])  # classifier operating point
 SPIKE_CLASSIFIER_ENABLED = True
 SPIKE_REGRESSION_ALERT_THRESHOLD = float(_tuned["spike_regression_alert_threshold"])

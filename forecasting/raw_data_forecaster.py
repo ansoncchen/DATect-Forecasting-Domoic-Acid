@@ -140,7 +140,7 @@ def build_raw_feature_frame(
     merged = merged.sort_values(["site", "date"])
     merged["last_observed_da_raw"] = merged.groupby("site")["da_raw"].ffill()
 
-    last_spike_date = merged["date"].where(merged["da_raw"] > config.SPIKE_THRESHOLD)
+    last_spike_date = merged["date"].where(merged["da_raw"] >= config.SPIKE_THRESHOLD)
     last_spike_date = last_spike_date.groupby(merged["site"]).ffill()
     merged["weeks_since_last_spike"] = (merged["date"] - last_spike_date).dt.days / 7.0
     merged["weeks_since_last_spike"] = merged["weeks_since_last_spike"].fillna(999.0)
@@ -232,7 +232,7 @@ def recompute_test_row_persistence_features(
     last_da = float(train_data["da_raw"].iloc[-1])
     test_row["last_observed_da_raw"] = last_da
     # Last spike date from training only
-    spike_mask = train_data["da_raw"] > spike_threshold
+    spike_mask = train_data["da_raw"] >= spike_threshold
     if spike_mask.any():
         last_spike_date = train_data.loc[spike_mask, "date"].max()
         test_row["weeks_since_last_spike"] = (test_row_date - last_spike_date).days / 7.0

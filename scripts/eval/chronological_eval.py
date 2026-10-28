@@ -109,8 +109,8 @@ def run_chronological(window_start: str, window_end: str, task: str, model_type:
             if len(ssub) < 5:
                 continue
             y, p = ssub["actual_da"].astype(float).values, ssub["predicted_da"].astype(float).values
-            yt = exceeds(y, config.SPIKE_THRESHOLD, inclusive=False)
-            yp = exceeds(p, config.SPIKE_REGRESSION_ALERT_THRESHOLD, inclusive=False)
+            yt = exceeds(y, config.SPIKE_THRESHOLD)
+            yp = exceeds(p, config.SPIKE_REGRESSION_ALERT_THRESHOLD)
             block = {
                 "n": int(len(ssub)),
                 "n_spikes": int(yt.sum()),

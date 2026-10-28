@@ -222,13 +222,13 @@ const Dashboard = () => {
       sum + Math.abs(val - predictions[i]), 0
     ) / actuals.length
     
-    // Spike detection metrics — match backend thresholds:
-    //   actual > 20 µg/g (SPIKE_THRESHOLD)
-    //   predicted > 12 µg/g (SPIKE_REGRESSION_ALERT_THRESHOLD)
+    // Spike detection metrics — match backend thresholds (reaching a threshold counts):
+    //   actual >= 20 µg/g (SPIKE_THRESHOLD)
+    //   predicted >= 12 µg/g (SPIKE_REGRESSION_ALERT_THRESHOLD)
     const SPIKE_ACTUAL = 20
     const SPIKE_PREDICTED = 12
-    const actualSpikes = actuals.map(val => val > SPIKE_ACTUAL ? 1 : 0)
-    const predictedSpikes = predictions.map(val => val > SPIKE_PREDICTED ? 1 : 0)
+    const actualSpikes = actuals.map(val => val >= SPIKE_ACTUAL ? 1 : 0)
+    const predictedSpikes = predictions.map(val => val >= SPIKE_PREDICTED ? 1 : 0)
 
     const truePositives = actualSpikes.reduce((sum, actual, i) =>
       sum + (actual === 1 && predictedSpikes[i] === 1 ? 1 : 0), 0
@@ -1212,7 +1212,7 @@ const Dashboard = () => {
                 <div>
                   <Plot
                     data={[{
-                      x: forecast.graphs.category_range.category_labels || ['Low (≤5)', 'Moderate (5-20]', 'High (20-40]', 'Extreme (>40)'],
+                      x: forecast.graphs.category_range.category_labels || ['Low (<5)', 'Moderate (5–<20)', 'High (20–<40)', 'Extreme (≥40)'],
                       y: forecast.graphs.category_range.class_probabilities || [0, 0, 0, 0],
                       type: 'bar',
                       marker: {
@@ -1438,8 +1438,8 @@ const Dashboard = () => {
                   {' '}F2 {(filteredResults.summary.spike_f2 ?? 0).toFixed(2)}
                 </div>
                 <div className="text-xs text-gray-400 mt-1">
-                  Regression-only: predicted &gt;{filteredResults.summary.spike_threshold_predicted ?? 12} →
-                  actual &gt;{filteredResults.summary.spike_threshold_actual ?? 20} µg/g
+                  Regression-only: predicted ≥{filteredResults.summary.spike_threshold_predicted ?? 12} →
+                  actual ≥{filteredResults.summary.spike_threshold_actual ?? 20} µg/g
                 </div>
               </div>
             )}

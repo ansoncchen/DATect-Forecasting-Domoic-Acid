@@ -741,7 +741,7 @@ async def generate_enhanced_forecast(request: ForecastRequest):
             response_data["graphs"]["category_range"] = {
                 "predicted_category": int(classification_result['predicted_category']),
                 "class_probabilities": class_probs,
-                "category_labels": ['Low (≤5)', 'Moderate (5-20]', 'High (20-40]', 'Extreme (>40)'],
+                "category_labels": ['Low (<5)', 'Moderate (5–<20)', 'High (20–<40)', 'Extreme (≥40)'],
                 "type": "category_range"
             }
 
@@ -887,13 +887,13 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
             summary["r2_score"] = float(r2_score(actual_vals, pred_vals))
             summary["mae"] = float(mean_absolute_error(actual_vals, pred_vals))
 
-            # Spike detection: actual DA > SPIKE_THRESHOLD vs predicted DA >
+            # Spike detection: actual DA >= SPIKE_THRESHOLD vs predicted DA >=
             # SPIKE_REGRESSION_ALERT_THRESHOLD. Use config constants so the
             # webapp stays coordinated with the spike-alert system.
             spike_threshold = config.SPIKE_THRESHOLD
             pred_alert_threshold = config.SPIKE_REGRESSION_ALERT_THRESHOLD
-            actual_binary = exceeds(actual_vals, spike_threshold, inclusive=False)
-            pred_binary = exceeds(pred_vals, pred_alert_threshold, inclusive=False)
+            actual_binary = exceeds(actual_vals, spike_threshold)
+            pred_binary = exceeds(pred_vals, pred_alert_threshold)
             n_spike_events = int(actual_binary.sum())
             n_alerts = int(pred_binary.sum())
             det = detection_scores(actual_binary, pred_binary)
@@ -911,8 +911,8 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
             # MAE stratified by whether the actual was a spike. Separates
             # "typical-day accuracy" from "extreme-event accuracy" — pooled MAE
             # mashes them together, but they're operationally different.
-            non_spike_pairs = [(a, p) for a, p in zip(actual_vals, pred_vals) if a <= spike_threshold]
-            spike_pairs     = [(a, p) for a, p in zip(actual_vals, pred_vals) if a >  spike_threshold]
+            non_spike_pairs = [(a, p) for a, p in zip(actual_vals, pred_vals) if a < spike_threshold]
+            spike_pairs     = [(a, p) for a, p in zip(actual_vals, pred_vals) if a >= spike_threshold]
             if non_spike_pairs:
                 summary["mae_nonspike"] = float(
                     mean_absolute_error([a for a, _ in non_spike_pairs],

@@ -129,8 +129,8 @@ def compute_spike_metrics(
     threshold: float = SPIKE_THRESHOLD,
 ) -> dict:
     """Compute binary spike detection metrics."""
-    actual_binary = exceeds(actual, threshold, inclusive=True)
-    predicted_binary = exceeds(predicted, threshold, inclusive=True)
+    actual_binary = exceeds(actual, threshold)
+    predicted_binary = exceeds(predicted, threshold)
     det = detection_scores(actual_binary, predicted_binary)
 
     # MAE stratified
@@ -197,8 +197,8 @@ def run_threshold_sensitivity(
     rows = []
     for thresh in thresholds:
         det = detection_scores(
-            exceeds(actual, SPIKE_THRESHOLD, inclusive=True),
-            exceeds(predicted, thresh, inclusive=True),
+            exceeds(actual, SPIKE_THRESHOLD),
+            exceeds(predicted, thresh),
         )
         rows.append({
             "pred_threshold": thresh,
@@ -505,8 +505,8 @@ def main():
         prob_threshold = config.SPIKE_ALERT_PROB_THRESHOLD
         valid_spike = results[results["spike_probability"].notna()].copy()
         # Convert probability to binary prediction
-        spike_pred_binary = exceeds(valid_spike["spike_probability"], prob_threshold, inclusive=True)
-        actual_binary = exceeds(valid_spike["actual_da"], SPIKE_THRESHOLD, inclusive=True)
+        spike_pred_binary = exceeds(valid_spike["spike_probability"], prob_threshold)
+        actual_binary = exceeds(valid_spike["actual_da"], SPIKE_THRESHOLD)
         det = detection_scores(actual_binary, spike_pred_binary)
         recall, f2 = det["recall"], det["f2"]
 
@@ -544,9 +544,9 @@ def main():
             site_data = valid_spike[valid_spike["site"] == site]
             if len(site_data) < 3:
                 continue
-            s_actual = exceeds(site_data["actual_da"], SPIKE_THRESHOLD, inclusive=True)
+            s_actual = exceeds(site_data["actual_da"], SPIKE_THRESHOLD)
             s_det = detection_scores(
-                s_actual, exceeds(site_data["spike_probability"], prob_threshold, inclusive=True)
+                s_actual, exceeds(site_data["spike_probability"], prob_threshold)
             )
             # Transition recall
             s_trans = site_data[site_data["is_spike_transition"]]

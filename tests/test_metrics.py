@@ -45,10 +45,19 @@ def test_detection_scores_edge_cases(actual, predicted):
     assert ours["tp"] + ours["fn"] + ours["fp"] + ours["tn"] == len(actual)
 
 
-def test_exceeds_inclusive_vs_strict():
-    values = [19.9, 20.0, 20.1]
-    assert exceeds(values, 20.0, inclusive=True).tolist() == [False, True, True]
-    assert exceeds(values, 20.0, inclusive=False).tolist() == [False, False, True]
+def test_exceeds_counts_values_at_the_threshold():
+    # Project convention: DA of exactly 20 ug/g is a spike; a 12 ug/g prediction alerts
+    assert exceeds([19.9, 20.0, 20.1], 20.0).tolist() == [False, True, True]
+    assert exceeds([11.99, 12.0], 12.0).tolist() == [False, True]
+
+
+def test_categories_are_left_closed():
+    from forecasting.classification_adapter import ClassificationAdapter
+    adapter = ClassificationAdapter()
+    boundaries = [0.0, 4.99, 5.0, 19.99, 20.0, 39.99, 40.0, 150.0]
+    assert [adapter.threshold_classify(v) for v in boundaries] == [0, 0, 1, 1, 2, 2, 3, 3]
+    import pandas as pd
+    assert adapter.threshold_classify_series(pd.Series(boundaries)).tolist() == [0, 0, 1, 1, 2, 2, 3, 3]
 
 
 def test_bootstrap_samples_keeps_pairs_and_rng_stream():

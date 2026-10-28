@@ -1314,8 +1314,8 @@ class RawForecastEngine:
                 r2 = r2_score(valid["actual_da"], valid["predicted_da"])
                 mae = mean_absolute_error(valid["actual_da"], valid["predicted_da"])
                 f1_val = detection_scores(
-                    exceeds(valid["actual_da"], config.SPIKE_THRESHOLD, inclusive=False),
-                    exceeds(valid["predicted_da"], config.SPIKE_THRESHOLD, inclusive=False),
+                    exceeds(valid["actual_da"], config.SPIKE_THRESHOLD),
+                    exceeds(valid["predicted_da"], config.SPIKE_REGRESSION_ALERT_THRESHOLD),
                 )["f1"]
                 logger.info(
                     "Regression — R2: %.4f  MAE: %.4f  Spike F1: %.4f",

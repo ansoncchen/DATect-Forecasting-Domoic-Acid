@@ -16,10 +16,13 @@ from collections.abc import Callable, Sequence
 import numpy as np
 
 
-def exceeds(values, threshold: float, inclusive: bool) -> np.ndarray:
-    """Boolean mask of values above ``threshold`` (``>=`` when inclusive, else ``>``)."""
-    values = np.asarray(values, dtype=float)
-    return values >= threshold if inclusive else values > threshold
+def exceeds(values, threshold: float) -> np.ndarray:
+    """Boolean mask of values at or above ``threshold``.
+
+    Project-wide convention: reaching a threshold counts. A DA measurement of
+    exactly 20 ug/g is a spike, and a 12 ug/g prediction fires the alert.
+    """
+    return np.asarray(values, dtype=float) >= threshold
 
 
 def detection_scores(actual_event, predicted_event) -> dict:

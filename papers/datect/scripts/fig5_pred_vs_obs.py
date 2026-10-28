@@ -5,7 +5,7 @@ for the DATect paper (Figure 5).
 Reads dev-set retrospective predictions (seed=42) for Copalis,
 the highest-skill site (R^2 = 0.789).
 
-Output: paper/figures/fig5_pred_vs_obs.png  (300 DPI, ~7 in wide)
+Output: papers/datect/figures/fig5_pred_vs_obs.png  (300 DPI, ~7 in wide)
 """
 
 import pathlib
@@ -17,9 +17,9 @@ import matplotlib.dates as mdates
 from scipy import stats
 
 # ── paths ────────────────────────────────────────────────────────────────
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[3]
 PARQUET = ROOT / "cache" / "retrospective" / "regression_ensemble.parquet"
-OUT = ROOT / "paper" / "figures" / "fig5_pred_vs_obs.png"
+OUT = ROOT / "papers" / "datect" / "figures" / "fig5_pred_vs_obs.png"
 OUT.parent.mkdir(parents=True, exist_ok=True)
 
 # ── style ────────────────────────────────────────────────────────────────

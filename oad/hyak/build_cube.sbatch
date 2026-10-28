@@ -18,7 +18,7 @@ set -euo pipefail
 # Or custom range/output:
 #   sbatch --export=ALL,CUBE_ARGS="--year 2003 --out data/cube_2003.zarr" hyak/build_cube.sbatch
 
-OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
+OAD_ROOT="${OAD_ROOT:-/gscratch/stf/ac283/oad_current}"  # must contain data/ and outputs/
 CUBE_ARGS="${CUBE_ARGS:-}"
 
 cd "$OAD_ROOT"

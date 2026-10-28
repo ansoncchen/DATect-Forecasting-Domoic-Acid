@@ -4,6 +4,9 @@
 
 set -e
 
+# Run from the repo root (this script lives in deploy/)
+cd "$(dirname "$0")/.."
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -82,7 +85,7 @@ gcloud services enable containerregistry.googleapis.com
 
 print_status "🏗️  Building and deploying with Cloud Build..."
 gcloud builds submit \
-    --config=cloudbuild.yaml \
+    --config=deploy/cloudbuild.yaml \
     --substitutions=_REGION=$REGION \
     --timeout=2400s
 

@@ -7,10 +7,10 @@ This script rebuilds them from the mae070 checkpoint, matching the corrected
 tables exactly, and is committed so the figures are reproducible going forward.
 
 Inputs (all local):
-  - ocean anomaly detection/outputs/scores/ae_3d_l32_c4_t4_s42_mae070.parquet
+  - oad/outputs/scores/ae_3d_l32_c4_t4_s42_mae070.parquet
   - /Users/ansonchen/Downloads/ChaBa ESP database.xlsx  (cELISA=pDA, SHA=Pn cells)
 
-Outputs written into BOTH paper figure dirs (paper_oad/figures, paper_oad_cvpr/figures):
+Outputs written into BOTH paper figure dirs (papers/oad_mdpi/figures, papers/oad_cvpr/figures):
   - fig4_climatology_timeseries.png
   - fig5_esp_validation.png
   - fig9_oad_esp_timeseries.png  (+ _wide for CVPR)
@@ -27,9 +27,9 @@ import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
 REPO = Path(__file__).resolve().parents[2]
-SCORES = REPO / "ocean anomaly detection/outputs/scores/ae_3d_l32_c4_t4_s42_mae070.parquet"
+SCORES = REPO / "oad/outputs/scores/ae_3d_l32_c4_t4_s42_mae070.parquet"
 ESP_XLSX = Path("/Users/ansonchen/Downloads/ChaBa ESP database.xlsx")
-OUT_DIRS = [REPO / "paper_oad/figures", REPO / "paper_oad_cvpr/figures"]
+OUT_DIRS = [REPO / "papers/oad_mdpi/figures", REPO / "papers/oad_cvpr/figures"]
 
 NAVY = "#1d3557"
 PURPLE = "#5b2a86"

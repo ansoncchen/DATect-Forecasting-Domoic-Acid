@@ -17,7 +17,7 @@ set -euo pipefail
 # Inference: runs all AE checkpoints + 2D baselines + 3D temporal baselines.
 # Override:  sbatch --export=ALL,FLAGS="--baselines-only" hyak/infer.sbatch
 
-OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
+OAD_ROOT="${OAD_ROOT:-/gscratch/stf/ac283/oad_current}"  # must contain data/ and outputs/
 FLAGS="${FLAGS:---all-ae --baselines-only --baselines-3d}"
 
 cd "$OAD_ROOT" || { echo "OAD_ROOT not found"; exit 1; }

@@ -10,7 +10,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # 1. Load data and aggregate feature importances
 # ---------------------------------------------------------------------------
-DATA = Path(__file__).resolve().parents[1] / "cache/retrospective/regression_ensemble.parquet"
+DATA = Path(__file__).resolve().parents[3] / "cache/retrospective/regression_ensemble.parquet"
 df = pd.read_parquet(DATA)
 
 agg: dict[str, list[float]] = defaultdict(list)
@@ -159,7 +159,7 @@ plt.tight_layout()
 # ---------------------------------------------------------------------------
 # 6. Save
 # ---------------------------------------------------------------------------
-out = Path(__file__).resolve().parents[1] / "paper/figures/fig6_feature_importance.png"
+out = Path(__file__).resolve().parents[1] / "figures/fig6_feature_importance.png"
 out.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(out, dpi=300, bbox_inches="tight", facecolor="white")
 print(f"Saved to {out}")

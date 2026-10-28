@@ -11,7 +11,7 @@ Does not use panel imputation / dense parquet ``da`` fill quality as a metric.
 Usage (repo root):
     python3 scripts/eval/quick_raw_retrospective_compare.py
     python3 scripts/eval/quick_raw_retrospective_compare.py --fraction 0.05 --seed 42
-    python3 scripts/eval/quick_raw_retrospective_compare.py --output-json eval_results/quick_retro_compare.json
+    python3 scripts/eval/quick_raw_retrospective_compare.py --output-json results/quick_retro_compare.json
 """
 
 from __future__ import annotations

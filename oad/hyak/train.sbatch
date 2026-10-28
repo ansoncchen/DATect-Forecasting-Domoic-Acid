@@ -24,7 +24,7 @@ set -euo pipefail
 #                        snapshot_ablate, temporal_ablate, smoke}
 # ----------------------------------------------------------------------------
 
-OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
+OAD_ROOT="${OAD_ROOT:-/gscratch/stf/ac283/oad_current}"  # must contain data/ and outputs/
 MODE="${MODE:-snapshot}"
 
 cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }

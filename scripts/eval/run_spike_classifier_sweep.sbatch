@@ -14,7 +14,7 @@
 
 set -euo pipefail
 cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
-mkdir -p logs spike_clf_sweep_results
+mkdir -p logs results/tuning_provenance/spike_clf_sweep_results
 
 PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
@@ -42,5 +42,5 @@ json.dump({
 export DATECT_SPIKE_CLASSIFIER_JSON=$TMPJSON
 
 echo "== Started: $(date) — depth=$D n_est=$N spw=$SPW =="
-$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir spike_clf_sweep_results/d${D}_n${N}_spw${SPW}
+$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir results/tuning_provenance/spike_clf_sweep_results/d${D}_n${N}_spw${SPW}
 echo "== Done: $(date) =="

@@ -14,7 +14,7 @@
 
 set -euo pipefail
 cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
-mkdir -p logs xgb_sweep_results
+mkdir -p logs results/tuning_provenance/xgb_sweep_results
 
 PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
@@ -43,5 +43,5 @@ json.dump(o, open('$TMPJSON','w'))
 export DATECT_HPARAM_OVERRIDE_JSON=$TMPJSON
 
 echo "== Started: $(date) — depth=$DEPTH n_est=$NEST lr=$LR =="
-$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir xgb_sweep_results/d${DEPTH}_n${NEST}_lr${LR}
+$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir results/tuning_provenance/xgb_sweep_results/d${DEPTH}_n${NEST}_lr${LR}
 echo "== Done: $(date) =="

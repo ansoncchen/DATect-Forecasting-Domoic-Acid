@@ -11,7 +11,7 @@ paper tables:
 
 Usage (from repository root):
     python3 scripts/eval/eval_paper_metrics.py [--seed 123] [--force-rerun] \
-        [--output-dir eval_results/paper_metrics]
+        [--output-dir results/paper_metrics]
 """
 
 from __future__ import annotations
@@ -526,11 +526,11 @@ def main():
                         help="Fraction of valid points to sample per site (default: 0.40)")
     parser.add_argument("--force-rerun", action="store_true",
                         help="Force re-run retrospective evaluations even if parquets exist")
-    parser.add_argument("--output-dir", default="eval_results/paper_metrics",
+    parser.add_argument("--output-dir", default="results/paper_metrics",
                         help="Output directory for CSV/JSON results")
     parser.add_argument("--temporal-holdout", action="store_true",
                         help="Restrict test points to 2019-01-01 and later (temporal holdout). "
-                             "Output goes to eval_results/paper_metrics_temporal/. "
+                             "Output goes to results/paper_metrics_temporal/. "
                              "Provides an unbiased generalization estimate: no tuning decisions "
                              "informed by post-2019 data.")
     args = parser.parse_args()
@@ -544,14 +544,14 @@ def main():
     if temporal_holdout:
         holdout_cutoff = getattr(__import__("config"), "TEMPORAL_HOLDOUT_CUTOFF", "2019-01-01")
         output_dir = args.output_dir.replace("paper_metrics", "paper_metrics_temporal") \
-            if args.output_dir == "eval_results/paper_metrics" else args.output_dir + "_temporal"
+            if args.output_dir == "results/paper_metrics" else args.output_dir + "_temporal"
         seed_suffix = f"_seed{seed}" if seed != 42 else ""
-        retro_dir = os.path.join("eval_results", f"retro{seed_suffix}_temporal")
+        retro_dir = os.path.join("results", f"retro{seed_suffix}_temporal")
     else:
         holdout_cutoff = None
         output_dir = args.output_dir
         seed_suffix = f"_seed{seed}" if seed != 42 else ""
-        retro_dir = os.path.join("eval_results", f"retro{seed_suffix}")
+        retro_dir = os.path.join("results", f"retro{seed_suffix}")
 
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(retro_dir, exist_ok=True)
@@ -733,11 +733,11 @@ def main():
     print(f"  manual  R²={manual_metrics['r2']:.4f}  MAE={manual_metrics['mae']:.3f}  "
           f"RMSE={manual_metrics['rmse']:.3f}")
 
-    # Check for alternative weight strategies in eval_results/
+    # Check for alternative weight strategies in results/
     alt_candidates = []
-    for fname in sorted(os.listdir("eval_results")) if os.path.isdir("eval_results") else []:
+    for fname in sorted(os.listdir("results")) if os.path.isdir("results") else []:
         if fname.startswith("retro") and fname != f"retro{seed_suffix}":
-            alt_dir = os.path.join("eval_results", fname)
+            alt_dir = os.path.join("results", fname)
             alt_path = os.path.join(alt_dir, "retro_regression_xgb.parquet")
             if os.path.exists(alt_path):
                 alt_candidates.append((fname, alt_path))

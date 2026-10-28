@@ -226,7 +226,7 @@ def grid_search_one_site(site: str, out_dir: Path) -> None:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--site", type=str, default=None)
-    p.add_argument("--out-dir", type=str, default="grid_search_results")
+    p.add_argument("--out-dir", type=str, default="results/tuning_provenance/grid_search_results")
     args = p.parse_args()
     if args.site is None:
         idx = int(os.environ.get("SLURM_ARRAY_TASK_ID", "0"))

@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
+OAD_ROOT="${OAD_ROOT:-/gscratch/stf/ac283/oad_current}"  # must contain data/ and outputs/
 cd "$OAD_ROOT"
 
 # Coverage threshold expressed as DISTINCT MONTHS-covered, not file count.

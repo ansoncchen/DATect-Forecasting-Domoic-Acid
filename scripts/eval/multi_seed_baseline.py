@@ -83,7 +83,7 @@ def run_one_seed(seed: int, out_dir: Path) -> None:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--seed", type=int, default=None)
-    p.add_argument("--out-dir", type=str, default="multi_seed_results")
+    p.add_argument("--out-dir", type=str, default="results/multi_seed")
     args = p.parse_args()
     if args.seed is None:
         # Array task: seeds 42, 43, 44, 45, 46

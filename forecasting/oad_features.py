@@ -24,7 +24,7 @@ import pandas as pd
 
 LEAK_SHIFT_DAYS = 5
 
-# Exact region-name strings as produced by ocean anomaly detection/src/regions.py
+# Exact region-name strings as produced by oad/src/regions.py
 # (en-dash in "Overall" is intentional; matches the OAD parquet).
 REGION_OLYMPIC = "Olympic Coast (WA)"
 REGION_SW_WA = "SW Washington / Long Beach"

@@ -15,7 +15,7 @@ Usage (from repository root; run on Hyak):
     python3 scripts/eval/paper_ablation_study.py              # dev set (seed 42)
     python3 scripts/eval/paper_ablation_study.py --seed 123   # custom seed
 
-Output: paper_ablation_results.json
+Output: results/ablation/paper_ablation_results.json
 """
 
 import argparse
@@ -258,7 +258,7 @@ def main():
     if abl_oad_small_n is not None:
         all_results["with_oad_on_small_n"] = abl_oad_small_n
 
-    with open("paper_ablation_results.json", "w") as f:
+    with open("results/ablation/paper_ablation_results.json", "w") as f:
         json.dump(all_results, f, indent=2)
 
     # ── Summary table ─────────────────────────────────────────────────────
@@ -283,7 +283,7 @@ def main():
 
     print()
     print(f"Seed: {seed}")
-    print("Saved to paper_ablation_results.json")
+    print("Saved to results/ablation/paper_ablation_results.json")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@
 set -euo pipefail
 REPO_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid"
 cd "$REPO_ROOT"
-mkdir -p logs multi_seed_results
+mkdir -p logs results/multi_seed
 
 PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH

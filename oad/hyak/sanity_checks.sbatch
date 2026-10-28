@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
+OAD_ROOT="${OAD_ROOT:-/gscratch/stf/ac283/oad_current}"  # must contain data/ and outputs/
 PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
 

@@ -18,7 +18,7 @@
 
 set -euo pipefail
 cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
-mkdir -p logs config eval_outputs
+mkdir -p logs config results/tuning_provenance
 
 PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH

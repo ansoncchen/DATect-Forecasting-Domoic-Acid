@@ -1324,7 +1324,7 @@ const Dashboard = () => {
               <option value="all">All Sites</option>
               {sites.map(site => {
                 // Quality tier from deterministic 2022-2023 holdout
-                // (eval_outputs/chronological_regression_ensemble_*.json).
+                // (results/chronological/chronological_regression_ensemble_*.json).
                 // Per-site R² uses N≈40 per site (all real DA, no sampling).
                 const qualityTier = {
                   'Twin Harbors':   '🟢',   // R² 0.633 [0.327, 0.798]

@@ -23,7 +23,7 @@ set -euo pipefail
 # Custom range:   sbatch --export=ALL,START=2003-01-01,END=2010-12-31 hyak/full_pipeline.sbatch
 # ----------------------------------------------------------------------------
 
-OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
+OAD_ROOT="${OAD_ROOT:-/gscratch/stf/ac283/oad_current}"  # must contain data/ and outputs/
 START="${START:-2003-01-01}"
 END="${END:-2024-12-31}"
 CHANNELS="${CHANNELS:-chla,k490,nflh,sst}"

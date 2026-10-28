@@ -29,8 +29,8 @@ import config
 from forecasting.raw_data_forecaster import load_raw_da_measurements
 
 SPIKE_THRESHOLD = config.SPIKE_THRESHOLD  # 20.0
-OUTPUT_DIR = os.path.join("eval_results", "spike_metrics")
-RETRO_CACHE_DIR = os.path.join("eval_results", "retro")
+OUTPUT_DIR = os.path.join("results", "spike_metrics")
+RETRO_CACHE_DIR = os.path.join("results", "retro")
 WA_SITES = {"Copalis", "Kalaloch", "Quinault", "Twin Harbors", "Long Beach"}
 
 # Model prediction columns available after retrospective runs
@@ -442,8 +442,8 @@ def main():
 
     # Use seed-specific output and cache directories
     global OUTPUT_DIR, RETRO_CACHE_DIR
-    OUTPUT_DIR = os.path.join("eval_results", f"spike_metrics{seed_suffix}")
-    RETRO_CACHE_DIR = os.path.join("eval_results", f"retro{seed_suffix}")
+    OUTPUT_DIR = os.path.join("results", f"spike_metrics{seed_suffix}")
+    RETRO_CACHE_DIR = os.path.join("results", f"retro{seed_suffix}")
 
     warnings.filterwarnings("ignore", category=RuntimeWarning)
     os.makedirs(OUTPUT_DIR, exist_ok=True)

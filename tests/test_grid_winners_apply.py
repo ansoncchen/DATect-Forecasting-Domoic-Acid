@@ -21,7 +21,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 
 # Expected per-site grid-winner configs as of the 2026-05-23 leak-free CV.
-# These came directly from eval_outputs/grid_search_results/*_summary.json
+# These came directly from results/tuning_provenance/grid_search_results/*_summary.json
 # and were promoted to config/tuned_hyperparameters.json in commit cdc2a32c.
 # If a future grid search produces different winners, update both this
 # fixture AND the JSON in the same commit.

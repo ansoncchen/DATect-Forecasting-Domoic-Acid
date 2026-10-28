@@ -45,7 +45,7 @@ VAL_START = pd.Timestamp(_w["validation_start"])
 VAL_END   = pd.Timestamp(_w["validation_end"])  # holdout starts here
 
 
-def run_eval(label: str, output_dir: str = "holdout_validation") -> str:
+def run_eval(label: str, output_dir: str = "results/holdout_validation") -> str:
     import config
     from forecasting.raw_forecast_engine import RawForecastEngine
 
@@ -163,8 +163,8 @@ def main() -> int:
     p.add_argument("--label", type=str, default=None,
                    help="Run eval and save predictions under this label")
     p.add_argument("--compare", nargs=2, metavar=("BASELINE", "TUNED"),
-                   help="Compare two labels (uses holdout_validation/<label>_predictions.parquet)")
-    p.add_argument("--output-dir", type=str, default="holdout_validation")
+                   help="Compare two labels (uses results/holdout_validation/<label>_predictions.parquet)")
+    p.add_argument("--output-dir", type=str, default="results/holdout_validation")
     args = p.parse_args()
 
     if args.compare:

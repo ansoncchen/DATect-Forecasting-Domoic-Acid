@@ -14,7 +14,7 @@
 
 set -euo pipefail
 cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
-mkdir -p logs xgb_verify_results
+mkdir -p logs results/tuning_provenance/xgb_verify_results
 
 PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
@@ -51,5 +51,5 @@ LABELS=("baseline" "depth+1" "depth-1" "mcw_x1.5" "mcw_x0.67")
 LABEL=${LABELS[$PERT]}
 
 echo "== Started: $(date) — perturbation=$LABEL =="
-$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir xgb_verify_results/p${PERT}_${LABEL}
+$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir results/tuning_provenance/xgb_verify_results/p${PERT}_${LABEL}
 echo "== Done: $(date) =="

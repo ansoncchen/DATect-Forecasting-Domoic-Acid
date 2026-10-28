@@ -24,19 +24,19 @@ Usage:
 The workflow:
 
   Stage 1 — leak-free per-site grid search (3-fold chronological CV on pre-2022)
-            → produces eval_outputs/grid_search_results/*_summary.json
+            → produces results/tuning_provenance/grid_search_results/*_summary.json
             → defines per-site ensemble_weights, prediction_clip_q, clip_max
   Stage 2 — per-site xgb_params perturbation verification (5 perturbations)
-            → produces eval_outputs/xgb_verify_results/p{0..4}_*/
+            → produces results/tuning_provenance/xgb_verify_results/p{0..4}_*/
             → confirms hand-tuned xgb_params are stable (paper claim)
   Stage 3 — global XGB defaults sweep (8 configs)
-            → produces eval_outputs/xgb_sweep_results/d{4,6}_n{400,600}_lr{05,10}/
+            → produces results/tuning_provenance/xgb_sweep_results/d{4,6}_n{400,600}_lr{05,10}/
             → confirms global xgb_base_params are well-calibrated
   Stage 4 — MIN_TRAINING_FOR_TUNING sweep (5 cutoff values)
-            → produces eval_outputs/mintrain_sweep_results/min{40..160}/
+            → produces results/tuning_provenance/mintrain_sweep_results/min{40..160}/
             → confirms the magic number has near-zero effect
   Stage 5 — spike classifier hyperparameter sweep (6 configs)
-            → produces eval_outputs/spike_clf_sweep_results/d{3,4,5}_*/
+            → produces results/tuning_provenance/spike_clf_sweep_results/d{3,4,5}_*/
             → confirms current SPIKE_CLASSIFIER_PARAMS are near optimum
 
 After all stages complete, ``assemble_json()`` reads each sweep's winners,
@@ -65,11 +65,11 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 # Stage definitions: (label, sbatch_path, output_dir_to_check)
 STAGES = [
-    ("grid_search",     "scripts/eval/grid_search_weights_clip.sbatch",   "eval_outputs/grid_search_results"),
-    ("xgb_verify",      "scripts/eval/run_per_site_xgb_verify.sbatch",   "eval_outputs/xgb_verify_results"),
-    ("xgb_sweep",       "scripts/eval/run_global_xgb_sweep.sbatch",      "eval_outputs/xgb_sweep_results"),
-    ("mintrain_sweep",  "scripts/eval/run_mintrain_sweep.sbatch",        "eval_outputs/mintrain_sweep_results"),
-    ("spike_clf_sweep", "scripts/eval/run_spike_classifier_sweep.sbatch", "eval_outputs/spike_clf_sweep_results"),
+    ("grid_search",     "scripts/eval/grid_search_weights_clip.sbatch",   "results/tuning_provenance/grid_search_results"),
+    ("xgb_verify",      "scripts/eval/run_per_site_xgb_verify.sbatch",   "results/tuning_provenance/xgb_verify_results"),
+    ("xgb_sweep",       "scripts/eval/run_global_xgb_sweep.sbatch",      "results/tuning_provenance/xgb_sweep_results"),
+    ("mintrain_sweep",  "scripts/eval/run_mintrain_sweep.sbatch",        "results/tuning_provenance/mintrain_sweep_results"),
+    ("spike_clf_sweep", "scripts/eval/run_spike_classifier_sweep.sbatch", "results/tuning_provenance/spike_clf_sweep_results"),
 ]
 
 JSON_PATH = _REPO_ROOT / "config" / "tuned_hyperparameters.json"
@@ -113,9 +113,9 @@ def wait_for_jobs(job_ids: list[str], poll_interval: int = 60) -> None:
 
 
 def assemble_grid_winners() -> Dict[str, Dict[str, Any]]:
-    """Parse eval_outputs/grid_search_results/*_summary.json → per-site overrides."""
+    """Parse results/tuning_provenance/grid_search_results/*_summary.json → per-site overrides."""
     out: Dict[str, Dict[str, Any]] = {}
-    pattern = str(_REPO_ROOT / "eval_outputs" / "grid_search_results" / "*_summary.json")
+    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "grid_search_results" / "*_summary.json")
     for path in sorted(glob.glob(pattern)):
         with open(path) as f:
             s = json.load(f)
@@ -133,7 +133,7 @@ def assemble_grid_winners() -> Dict[str, Dict[str, Any]]:
 
 def assemble_xgb_verify_status() -> str:
     """Compute the perturbation-vs-baseline summary for provenance."""
-    pattern = str(_REPO_ROOT / "eval_outputs" / "xgb_verify_results" / "p*")
+    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "xgb_verify_results" / "p*")
     dirs = sorted(glob.glob(pattern))
     if len(dirs) < 5:
         return "incomplete (expected 5 perturbation dirs)"
@@ -142,7 +142,7 @@ def assemble_xgb_verify_status() -> str:
 
 def assemble_global_xgb_status() -> str:
     """Summarize the global XGB sweep finding."""
-    pattern = str(_REPO_ROOT / "eval_outputs" / "xgb_sweep_results" / "d*")
+    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "xgb_sweep_results" / "d*")
     dirs = sorted(glob.glob(pattern))
     if not dirs:
         return "not yet run"
@@ -151,7 +151,7 @@ def assemble_global_xgb_status() -> str:
 
 
 def assemble_mintrain_status() -> str:
-    pattern = str(_REPO_ROOT / "eval_outputs" / "mintrain_sweep_results" / "min*")
+    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "mintrain_sweep_results" / "min*")
     dirs = sorted(glob.glob(pattern))
     if not dirs:
         return "not yet run"
@@ -159,7 +159,7 @@ def assemble_mintrain_status() -> str:
 
 
 def assemble_spike_clf_status() -> str:
-    pattern = str(_REPO_ROOT / "eval_outputs" / "spike_clf_sweep_results" / "d*")
+    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "spike_clf_sweep_results" / "d*")
     dirs = sorted(glob.glob(pattern))
     if not dirs:
         return "not yet run"

@@ -14,7 +14,7 @@
 
 set -euo pipefail
 cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
-mkdir -p logs mintrain_sweep_results
+mkdir -p logs results/tuning_provenance/mintrain_sweep_results
 
 PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
@@ -24,5 +24,5 @@ MIN_TRAIN=${VALUES[$SLURM_ARRAY_TASK_ID]}
 export DATECT_MIN_TRAINING_FOR_TUNING=$MIN_TRAIN
 
 echo "== Started: $(date) — MIN_TRAINING_FOR_TUNING=$MIN_TRAIN =="
-$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir mintrain_sweep_results/min${MIN_TRAIN}
+$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir results/tuning_provenance/mintrain_sweep_results/min${MIN_TRAIN}
 echo "== Done: $(date) =="

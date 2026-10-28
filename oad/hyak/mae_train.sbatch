@@ -24,7 +24,7 @@ set -euo pipefail
 #   sbatch --export=ALL,MASK_RATIO=0.40,EPOCHS=100,LATENT=32 hyak/mae_train.sbatch
 # ----------------------------------------------------------------------------
 
-OAD_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid/ocean anomaly detection"
+OAD_ROOT="${OAD_ROOT:-/gscratch/stf/ac283/oad_current}"  # must contain data/ and outputs/
 MASK_RATIO="${MASK_RATIO:?must set MASK_RATIO (e.g. 0.30)}"
 EPOCHS="${EPOCHS:-100}"
 LATENT="${LATENT:-32}"

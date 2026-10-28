@@ -3,7 +3,7 @@
 Generate all publication-quality figures for the DATect MDPI Toxins paper.
 
 Usage:
-    python3 paper/generate_figures.py
+    python3 papers/datect/generate_figures.py
 
 Reads from:
     cache/retrospective/*.parquet     (seed=123 held-out test set; used where available)
@@ -17,16 +17,16 @@ Notes:
     even when the retrospective cache is unavailable locally.
 
 Outputs to:
-    paper/figures/fig1_study_area.png
-    paper/figures/fig2_site_performance.png
-    paper/figures/fig3_architecture.png
-    paper/figures/fig3b_ml_pipeline.png
-    paper/figures/fig4_spike_detection_summary.png
-    paper/figures/fig4_waterfall_timeseries.png
-    paper/figures/fig5_feature_importance.png
-    paper/figures/fig6_feature_heatmap.png
-    paper/figures/fig7_correlation_heatmap.png
-    paper/figures/fig8_spectral_density.png
+    papers/datect/figures/fig1_study_area.png
+    papers/datect/figures/fig2_site_performance.png
+    papers/datect/figures/fig3_architecture.png
+    papers/datect/figures/fig3b_ml_pipeline.png
+    papers/datect/figures/fig4_spike_detection_summary.png
+    papers/datect/figures/fig4_waterfall_timeseries.png
+    papers/datect/figures/fig5_feature_importance.png
+    papers/datect/figures/fig6_feature_heatmap.png
+    papers/datect/figures/fig7_correlation_heatmap.png
+    papers/datect/figures/fig8_spectral_density.png
 """
 
 import sys
@@ -905,7 +905,7 @@ def main():
             traceback.print_exc()
         print()
 
-    print("Done! All figures saved to paper/figures/")
+    print("Done! All figures saved to papers/datect/figures/")
 
 
 if __name__ == '__main__':

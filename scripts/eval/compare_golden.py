@@ -21,18 +21,45 @@ from pathlib import Path
 import pandas as pd
 
 GOLDEN_GLOBS = [
-    "eval_outputs/chronological/chronological_regression_ensemble_*.parquet",
-    "eval_outputs/chronological/chronological_regression_ensemble_*.json",
+    "results/chronological/chronological_regression_ensemble_*.parquet",
+    "results/chronological/chronological_regression_ensemble_*.json",
     "golden_multi_seed/*.parquet",
-    "eval_results/retro_seed123/*.parquet",
-    "eval_results/paper_metrics/*.csv",
-    "eval_results/paper_metrics/paper_metrics.json",
-    "eval_results/spike_metrics_seed123/*.csv",
+    "results/retro_seed123/*.parquet",
+    "results/paper_metrics/*.csv",
+    "results/paper_metrics/paper_metrics.json",
+    "results/spike_metrics_seed123/*.csv",
 ]
 
+# Golden runs of commits before the results/ consolidation wrote these paths
+# (legacy prefix -> current prefix; first match wins, so order matters).
+LEGACY_PREFIXES = {
+    "eval_outputs/chronological/": "results/chronological/",
+    "eval_results/": "results/",
+}
 
-def _collect(root: Path) -> set[str]:
-    return {str(p.relative_to(root)) for g in GOLDEN_GLOBS for p in root.glob(g)}
+
+def _to_legacy(rel: str) -> str:
+    for old, new in LEGACY_PREFIXES.items():
+        if rel.startswith(new):
+            return old + rel[len(new):]
+    return rel
+
+
+def _to_current(rel: str) -> str:
+    for old, new in LEGACY_PREFIXES.items():
+        if rel.startswith(old):
+            return new + rel[len(old):]
+    return rel
+
+
+def _collect(root: Path) -> dict[str, Path]:
+    """Map current-layout relative paths to files under ``root`` (either layout)."""
+    found = {}
+    for pattern in GOLDEN_GLOBS:
+        for g in {pattern, _to_legacy(pattern)}:
+            for p in root.glob(g):
+                found[_to_current(str(p.relative_to(root)))] = p
+    return found
 
 
 def _frame_diff(a: pd.DataFrame, b: pd.DataFrame) -> str | None:
@@ -56,13 +83,13 @@ def compare(base: Path, cand: Path) -> int:
     base_files, cand_files = _collect(base), _collect(cand)
     failures = identical = 0
 
-    for missing in sorted(base_files ^ cand_files):
+    for missing in sorted(base_files.keys() ^ cand_files.keys()):
         side = "candidate" if missing in base_files else "baseline"
         print(f"MISSING in {side}: {missing}")
         failures += 1
 
-    for rel in sorted(base_files & cand_files):
-        a, b = base / rel, cand / rel
+    for rel in sorted(base_files.keys() & cand_files.keys()):
+        a, b = base_files[rel], cand_files[rel]
         if rel.endswith(".json"):
             same = json.loads(a.read_text()) == json.loads(b.read_text())
             reason = None if same else "JSON content differs"

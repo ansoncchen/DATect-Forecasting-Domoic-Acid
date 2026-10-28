@@ -327,7 +327,7 @@ class DATectLauncher:
 
 
 def main() -> None:
-    """Entry point for `python -m run_datect` and the `datect` console script."""
+    """Entry point for `python run_datect.py`."""
     success = DATectLauncher().run()
     raise SystemExit(0 if success else 1)
 

@@ -19,11 +19,11 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 
 HOLDOUT_PARQUETS = [
-    _REPO_ROOT / "eval_outputs" / "chronological" / "chronological_regression_ensemble_20220101_20240101.parquet",
-    _REPO_ROOT / "eval_outputs" / "chronological" / "chronological_regression_ensemble_20190101_20220101.parquet",
+    _REPO_ROOT / "results" / "chronological" / "chronological_regression_ensemble_20220101_20240101.parquet",
+    _REPO_ROOT / "results" / "chronological" / "chronological_regression_ensemble_20190101_20220101.parquet",
 ]
 
-CHRONO_JSON = (_REPO_ROOT / "eval_outputs" / "chronological" /
+CHRONO_JSON = (_REPO_ROOT / "results" / "chronological" /
                "chronological_regression_ensemble_20220101_20240101.json")
 
 

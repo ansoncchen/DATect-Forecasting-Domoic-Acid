@@ -16,7 +16,7 @@ Because `config.py` and `per_site_models.py` read `DATECT_*` variables at import
 
 ## 1. Inputs
 
-- **Raw DA measurements** — `raw_data_forecaster.load_raw_da_measurements()` reads the 10 CSVs in `config.ORIGINAL_DA_FILES` (`data/raw/da-input/`). Two schemas are detected per file: `CollectDate` + `Domoic Result`, or `Harvest Month/Date/Year` + `Domoic Acid`. Values and dates are parsed by `forecasting/measurements.py` (below-detection `"<1"` becomes LOD/2 = 0.5; see the data pipeline doc). Output: `[date, site, da_raw]`. These are the only evaluation targets.
+- **Raw DA measurements** — `raw_data_forecaster.load_raw_da_measurements()` reads the 10 CSVs in `config.ORIGINAL_DA_FILES` (`data/raw/da-input/`). Two schemas are detected per file: `CollectDate` + `Domoic Result`, or `Harvest Month/Date/Year` + `Domoic Acid`. Values and dates are parsed by `forecasting/measurements.py` (below-detection `"<1"` becomes LOD/2 = 0.5; see the data pipeline doc). Several samples on one site-day (about 1,200 site-days; the CSVs record no species or station) collapse to their maximum, like the weekly MAX used for training targets. Output: `[date, site, da_raw]`, one row per site-day. These are the only evaluation targets.
 - **Processed weekly dataset** — `data/processed/final_output.parquet` (Monday rows, environmental + satellite + OAD columns, and the gap-filled `da`/`pn`).
 
 ## 2. Feature frame (`_load_feature_frame` → `build_raw_feature_frame`)

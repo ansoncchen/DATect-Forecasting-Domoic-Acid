@@ -56,6 +56,11 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
 - **Measurement parsing** is in `forecasting/measurements.py`: `"<1"` (below detection) is
   LOD/2 = 0.5; PN counts with thousands separators (`"12,345"`) are parsed; dates are
   stripped of whitespace. All three readers (dataset build, evaluation targets, API) use it.
+- **Same-day DA samples:** ~1,200 site-days have several samples that often disagree
+  (Gold Beach 2019-01-24 = [0, 190]; the CSVs record no species or station).
+  `load_raw_da_measurements` returns one row per site-day at the **max**, like the weekly
+  MAX used everywhere else. Never pick "the first" duplicate: it made the evaluation
+  target depend on sort order and inflated the published holdout R² (0.485 vs 0.419).
 - **Seeds:** `config.RANDOM_SEED` only chooses retrospective test points;
   `config.MODEL_SEED` (42) seeds every model. Joblib/Spark workers re-import `config`, so
   patching `config` in the parent never reaches them; vary behavior through env vars.

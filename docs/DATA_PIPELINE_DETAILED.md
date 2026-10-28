@@ -53,7 +53,7 @@ One implementation shared by `dataset-creation.py` (weekly `da`/`pn`), `raw_data
 | `parse_pn_values` | Accepts thousands separators (`"12,345"`, `"1,234,567"`). Ambiguous strings such as `"999,99"` stay NaN. |
 | `parse_dates` | Strips surrounding whitespace before parsing; unparseable dates (e.g. typos) → NaT and the row is dropped. |
 
-DA files use one of two schemas: `CollectDate` + `Domoic Result`, or `Harvest Month` / `Harvest Date` / `Harvest Year` + `Domoic Acid`. PN files need a `Date` column and exactly one column whose name contains both "pseudo" and "nitzschia". CSVs are read with pandas (Polars rejected several raw files).
+DA files use one of two schemas: `CollectDate` + `Domoic Result`, or `Harvest Month` / `Harvest Date` / `Harvest Year` + `Domoic Acid`. PN files need a `Date` column and exactly one column whose name contains both "pseudo" and "nitzschia". CSVs are read with pandas (Polars rejected several raw files). Same-day DA samples are kept as separate rows in the CSVs; every consumer aggregates them with **max** (weekly `da` here, weekly training targets and the one-row-per-site-day evaluation targets in `raw_data_forecaster`).
 
 ## Full pipeline (`dataset-creation.py` `main()`)
 

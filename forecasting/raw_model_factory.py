@@ -36,7 +36,7 @@ def build_xgb_regressor(param_overrides: Optional[dict] = None) -> XGBRegressor:
     params = {**base_params, **(param_overrides or {})}
     params.pop("tree_method", None)
     params.update(_resolve_xgb_device_params())
-    return XGBRegressor(**params, random_state=config.RANDOM_SEED, verbosity=0)
+    return XGBRegressor(**params, random_state=config.MODEL_SEED, verbosity=0)
 
 
 def build_rf_regressor(param_overrides: Optional[dict] = None) -> RandomForestRegressor:
@@ -46,7 +46,7 @@ def build_rf_regressor(param_overrides: Optional[dict] = None) -> RandomForestRe
     base_params = dict(config.RF_REGRESSION_PARAMS)
     params = {**base_params, **(param_overrides or {})}
     params["n_jobs"] = 1  # Avoid nested parallelism with joblib
-    return RandomForestRegressor(**params, random_state=config.RANDOM_SEED)
+    return RandomForestRegressor(**params, random_state=config.MODEL_SEED)
 
 
 def build_xgb_classifier(param_overrides: Optional[dict] = None) -> XGBClassifier:
@@ -57,13 +57,13 @@ def build_xgb_classifier(param_overrides: Optional[dict] = None) -> XGBClassifie
     params = {**base_params, **(param_overrides or {})}
     params.pop("tree_method", None)
     params.update(_resolve_xgb_device_params())
-    return XGBClassifier(**params, random_state=config.RANDOM_SEED, verbosity=0)
+    return XGBClassifier(**params, random_state=config.MODEL_SEED, verbosity=0)
 
 
 def build_linear_regressor() -> Ridge:
     """Ridge regression for an interpretable baseline with regularization."""
     alpha = config.LINEAR_REGRESSION_ALPHA
-    return Ridge(alpha=alpha, random_state=config.RANDOM_SEED)
+    return Ridge(alpha=alpha, random_state=config.MODEL_SEED)
 
 
 def build_logistic_classifier() -> LogisticRegression:
@@ -72,6 +72,6 @@ def build_logistic_classifier() -> LogisticRegression:
         solver="lbfgs",
         max_iter=1000,
         C=1.0,
-        random_state=config.RANDOM_SEED,
+        random_state=config.MODEL_SEED,
         n_jobs=1,
     )

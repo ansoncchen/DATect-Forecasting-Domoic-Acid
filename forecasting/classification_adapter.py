@@ -219,7 +219,7 @@ class ClassificationAdapter:
         spike_params = dict(config.SPIKE_CLASSIFIER_PARAMS)
         model = XGBClassifier(
             **spike_params,
-            random_state=config.RANDOM_SEED,
+            random_state=config.MODEL_SEED,
             verbosity=0,
             use_label_encoder=False,
         )

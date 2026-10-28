@@ -221,7 +221,13 @@ XGB_CLASSIFICATION_PARAMS = {
 
 # Model Performance
 MIN_TRAINING_SAMPLES = 10
+# Seed for choosing retrospective test points (evaluation scripts vary it per run).
 RANDOM_SEED = 42
+# Seed for every fitted model (XGBoost, Random Forest, Ridge, classifiers). Separate
+# from RANDOM_SEED so a different sampling seed never changes how models train, and
+# serial, joblib-parallel and distributed runs agree (worker processes re-import
+# config, so a RANDOM_SEED patched in the parent never reached them anyway).
+MODEL_SEED = 42
 
 # Bootstrap confidence intervals
 ENABLE_BOOTSTRAP_INTERVALS = True  # Disable to skip bootstrap uncertainty

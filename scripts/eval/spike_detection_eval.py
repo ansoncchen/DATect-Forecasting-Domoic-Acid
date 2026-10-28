@@ -182,6 +182,48 @@ def compute_transition_metrics(
     }
 
 
+def binary_alert_metrics(
+    valid: pd.DataFrame, alert, model_name: str,
+) -> tuple[dict, list[dict]]:
+    """Overall and per-site spike metrics for a yes/no alert (no magnitude)."""
+    alert = np.asarray(alert, dtype=bool)
+    actual = exceeds(valid["actual_da"], SPIKE_THRESHOLD)
+    trans = valid["is_spike_transition"].to_numpy(dtype=bool)
+    det = detection_scores(actual, alert)
+    overall = {
+        "model": model_name,
+        "tp": det["tp"], "fn": det["fn"], "fp": det["fp"], "tn": det["tn"],
+        "n_actual_spikes": int(actual.sum()),
+        "n_predicted_spikes": int(alert.sum()),
+        "recall": det["recall"], "precision": det["precision"], "f1": det["f1"], "f2": det["f2"],
+        "fnr": det["fnr"],
+        "fpr": det["fpr"],
+        "mae_on_spikes": np.nan, "mae_on_non_spikes": np.nan,
+        "transition_n": int(trans.sum()),
+        "transition_recall": float(alert[trans].mean()) if trans.any() else np.nan,
+        "transition_mean_predicted": np.nan,
+        "transition_mean_actual": float(valid["actual_da"][trans].mean()) if trans.any() else np.nan,
+        "transition_mae": np.nan,
+        "n_test_points": len(valid),
+    }
+    per_site = []
+    for site in sorted(valid["site"].unique()):
+        m = (valid["site"] == site).to_numpy()
+        if m.sum() < 3:
+            continue
+        s_det = detection_scores(actual[m], alert[m])
+        s_trans = trans & m
+        per_site.append({
+            "model": model_name, "site": site,
+            "tp": s_det["tp"], "fp": s_det["fp"], "fn": s_det["fn"], "tn": s_det["tn"],
+            "n_actual_spikes": int(actual[m].sum()),
+            "recall": s_det["recall"], "precision": s_det["precision"], "f2": s_det["f2"],
+            "transition_recall": float(alert[s_trans].mean()) if s_trans.any() else np.nan,
+            "transition_n": int(s_trans.sum()),
+        })
+    return overall, per_site
+
+
 def run_threshold_sensitivity(
     results_df: pd.DataFrame,
     pred_col: str,
@@ -499,69 +541,30 @@ def main():
             site_metrics["site"] = site
             per_site_metrics.append(site_metrics)
 
-    # Evaluate integrated spike binary classifier (if present in results)
+    # Yes/no alerts: the classifier alone, and the deployed hybrid alert
+    # (classifier fires OR ensemble regression >= SPIKE_REGRESSION_ALERT_THRESHOLD).
     if "spike_probability" in results.columns and results["spike_probability"].notna().sum() > 0:
         print("\n  Evaluating integrated spike classifier...")
         prob_threshold = config.SPIKE_ALERT_PROB_THRESHOLD
-        valid_spike = results[results["spike_probability"].notna()].copy()
-        # Convert probability to binary prediction
-        spike_pred_binary = exceeds(valid_spike["spike_probability"], prob_threshold)
-        actual_binary = exceeds(valid_spike["actual_da"], SPIKE_THRESHOLD)
-        det = detection_scores(actual_binary, spike_pred_binary)
-        recall, f2 = det["recall"], det["f2"]
+        valid_spike = results[results["spike_probability"].notna()]
+        row, sites = binary_alert_metrics(
+            valid_spike,
+            exceeds(valid_spike["spike_probability"], prob_threshold),
+            f"spike_classifier_p{int(prob_threshold*100):02d}",
+        )
+        all_metrics.append(row)
+        per_site_metrics.extend(sites)
+        print(f"    Spike classifier (prob>={prob_threshold:.2f}): recall={row['recall']:.3f}, "
+              f"transition_recall={row['transition_recall']:.3f}, F2={row['f2']:.3f}")
 
-        # Transition recall for spike classifier
-        transitions = valid_spike[valid_spike["is_spike_transition"]].copy()
-        if len(transitions) > 0:
-            trans_pred = (transitions["spike_probability"] >= prob_threshold).astype(int)
-            trans_recall = float(trans_pred.sum()) / len(transitions)
-        else:
-            trans_recall = np.nan
-
-        spike_cls_metrics = {
-            "model": f"spike_classifier_p{int(prob_threshold*100):02d}",
-            "tp": det["tp"], "fn": det["fn"], "fp": det["fp"], "tn": det["tn"],
-            "n_actual_spikes": int(actual_binary.sum()),
-            "n_predicted_spikes": int(spike_pred_binary.sum()),
-            "recall": det["recall"], "precision": det["precision"], "f1": det["f1"], "f2": det["f2"],
-            "fnr": det["fnr"],
-            "fpr": det["fpr"],
-            "mae_on_spikes": np.nan, "mae_on_non_spikes": np.nan,
-            "transition_n": len(transitions),
-            "transition_recall": trans_recall,
-            "transition_mean_predicted": np.nan,
-            "transition_mean_actual": float(transitions["actual_da"].mean()) if len(transitions) > 0 else np.nan,
-            "transition_mae": np.nan,
-            "n_test_points": len(valid_spike),
-        }
-        all_metrics.append(spike_cls_metrics)
-        print(f"    Spike classifier (prob>={prob_threshold:.2f}): recall={recall:.3f}, "
-              f"transition_recall={trans_recall:.3f}, F2={f2:.3f}")
-
-        # Per-site metrics for spike classifier
-        sc_model_name = f"spike_classifier_p{int(prob_threshold*100):02d}"
-        for site in sorted(valid_spike["site"].unique()):
-            site_data = valid_spike[valid_spike["site"] == site]
-            if len(site_data) < 3:
-                continue
-            s_actual = exceeds(site_data["actual_da"], SPIKE_THRESHOLD)
-            s_det = detection_scores(
-                s_actual, exceeds(site_data["spike_probability"], prob_threshold)
-            )
-            # Transition recall
-            s_trans = site_data[site_data["is_spike_transition"]]
-            if len(s_trans) > 0:
-                s_trans_recall = float((s_trans["spike_probability"] >= prob_threshold).sum()) / len(s_trans)
-            else:
-                s_trans_recall = np.nan
-            per_site_metrics.append({
-                "model": sc_model_name, "site": site,
-                "tp": s_det["tp"], "fp": s_det["fp"], "fn": s_det["fn"], "tn": s_det["tn"],
-                "n_actual_spikes": int(s_actual.sum()),
-                "recall": s_det["recall"], "precision": s_det["precision"], "f2": s_det["f2"],
-                "transition_recall": s_trans_recall,
-                "transition_n": len(s_trans),
-            })
+    if "spike_alert" in results.columns:
+        # spike_alert is None when neither part fired
+        alert = results["spike_alert"].fillna(False).astype(bool)
+        row, sites = binary_alert_metrics(results, alert, "hybrid_alert")
+        all_metrics.append(row)
+        per_site_metrics.extend(sites)
+        print(f"    Hybrid alert: recall={row['recall']:.3f}, "
+              f"transition_recall={row['transition_recall']:.3f}, F2={row['f2']:.3f}")
 
     all_metrics_df = pd.DataFrame(all_metrics)
     per_site_df = pd.DataFrame(per_site_metrics)

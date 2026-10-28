@@ -6,15 +6,12 @@ Usage:
     python3 papers/datect/generate_figures.py
 
 Reads from:
-    cache/retrospective/*.parquet     (seed=123 held-out test set; used where available)
+    results/paper_metrics/table2_per_site.csv          (Figure 2; same run as Table 2)
+    results/spike_metrics_seed123/spike_metrics_by_model.csv  (Figure 4; same run as Table 5)
+    cache/retrospective/*.parquet     (dashboard cache, seed 42 development sample)
     cache/spectral/all_sites.json     (power spectral density)
     cache/visualizations/*_correlation.json  (feature correlations)
     config.py                          (site coordinates)
-
-Notes:
-    Figure 2 and Figure 4 are manuscript-synced summary panels built from
-    paper-reported metrics/constants so they stay aligned with the final tables
-    even when the retrospective cache is unavailable locally.
 
 Outputs to:
     papers/datect/figures/fig1_study_area.png
@@ -42,8 +39,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
 
-# Add project root to path for config import
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, REPO_ROOT)
 import config
 
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -67,7 +64,8 @@ plt.rcParams.update({
 OUTDIR = os.path.join(os.path.dirname(__file__), 'figures')
 os.makedirs(OUTDIR, exist_ok=True)
 
-CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'cache')
+CACHE_DIR = os.path.join(REPO_ROOT, 'cache')
+RESULTS_DIR = os.path.join(REPO_ROOT, 'results')
 
 # DA risk category colors
 CAT_COLORS = {0: '#2ca02c', 1: '#f0c929', 2: '#ff7f0e', 3: '#d62728'}
@@ -225,13 +223,11 @@ def generate_fig1_study_area():
 
 def generate_fig2_scatter():
     """Per-site held-out R^2 plot supporting the WA/OR performance split."""
-    sites = [
-        'Copalis', 'Long Beach', 'Twin Harbors', 'Quinault', 'Kalaloch',
-        'Clatsop Beach', 'Gold Beach', 'Cannon Beach', 'Coos Bay', 'Newport',
-    ]
-    # Updated from post-infrastructure standard eval (seed=123, N=2181)
-    r2_values = np.array([0.7889, 0.6323, 0.5939, 0.5816, 0.4795, 0.2921, 0.0508, -0.0446, -0.0384, -0.2426])
-    n_values = [277, 209, 225, 181, 235, 354, 257, 116, 109, 218]
+    table = pd.read_csv(os.path.join(RESULTS_DIR, 'paper_metrics', 'table2_per_site.csv'))
+    table = table.sort_values('r2', ascending=False)
+    sites = table['site'].tolist()
+    r2_values = table['r2'].to_numpy()
+    n_values = table['n'].tolist()
     colors = ['#2874a6' if site in SITE_ORDER[:5] else '#c0392b' for site in sites]
 
     y_pos = np.arange(len(sites))
@@ -245,7 +241,7 @@ def generate_fig2_scatter():
     ax.invert_yaxis()
     ax.set_xlabel(r'Held-out $R^2$')
     ax.set_title('Per-site held-out regression performance')
-    ax.set_xlim(-0.4, 0.85)
+    ax.set_xlim(min(-0.4, r2_values.min() - 0.1), 0.95)
     ax.xaxis.grid(True, alpha=0.25)
     ax.set_axisbelow(True)
     ax.spines['top'].set_visible(False)
@@ -511,14 +507,14 @@ def generate_fig3b_ml_pipeline():
 
 def generate_fig4_spike_summary():
     """Bar-chart summary of held-out spike-detection performance."""
-    approaches = ["Naive", "Regression\n(>=20)", "Spike\nclassifier"]
-    # Updated from post-infrastructure eval (seed=123): hybrid alert (spike_alert column)
-    # transition_recall: below-to-above threshold (12-20 µg/g zone)
-    # spike_recall: DA >= 20 µg/g events
-    # precision: 1 - hybrid FP rate
-    transition_recall = np.array([0.236, 0.124, 0.734])
-    spike_recall = np.array([0.754, 0.558, 0.859])
-    precision = np.array([0.546, 0.618, 0.344])
+    metrics_by_model = pd.read_csv(
+        os.path.join(RESULTS_DIR, 'spike_metrics_seed123', 'spike_metrics_by_model.csv')
+    ).set_index('model')
+    rows = metrics_by_model.loc[['naive', 'ensemble', 'hybrid_alert']]
+    approaches = ["Naive\n(>=20)", "Regression\n(>=20)", "Hybrid\nalert"]
+    transition_recall = rows['transition_recall'].to_numpy()
+    spike_recall = rows['recall'].to_numpy()
+    precision = rows['precision'].to_numpy()
     colors = ['#7f8c8d', '#2874a6', '#c0392b']
 
     fig, axes = plt.subplots(1, 3, figsize=(8.4, 3.2), sharey=False)
@@ -530,7 +526,7 @@ def generate_fig4_spike_summary():
 
     for ax, (title, values, subtitle) in zip(axes, metrics):
         bars = ax.bar(approaches, values, color=colors, edgecolor='white', linewidth=0.7)
-        ax.set_ylim(0, 0.9)
+        ax.set_ylim(0, 1.05)
         ax.set_title(title, fontsize=10, pad=18)
         ax.text(0.5, 1.02, subtitle, transform=ax.transAxes,
                 ha='center', va='bottom', fontsize=7, color='#555555')
@@ -544,8 +540,10 @@ def generate_fig4_spike_summary():
             ax.text(bar.get_x() + bar.get_width() / 2, value + 0.02,
                     f"{value:.3f}", ha='center', va='bottom', fontsize=7)
 
+    n_points = int(rows['n_test_points'].iloc[0])
+    n_transitions = int(rows['transition_n'].iloc[0])
     fig.suptitle(
-        'Held-out spike-detection summary (seed=123, n=2,181, transitions=89)',
+        f'Held-out spike-detection summary (seed=123, n={n_points:,}, transitions={n_transitions})',
         fontsize=10,
         y=1.03,
     )

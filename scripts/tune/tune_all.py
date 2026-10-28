@@ -81,7 +81,7 @@ def run_stage(label: str, sbatch_path: str, dry_run: bool = False) -> str | None
         print(f"  [DRY RUN] would submit: sbatch {sbatch_path}")
         return None
     cmd = ["sbatch", sbatch_path]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False, cwd=_REPO_ROOT)
     if result.returncode != 0:
         print(f"  ✗ sbatch failed: {result.stderr.strip()}", file=sys.stderr)
         return None

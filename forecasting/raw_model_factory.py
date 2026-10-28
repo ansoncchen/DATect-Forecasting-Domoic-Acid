@@ -20,7 +20,7 @@ def _resolve_xgb_device_params() -> dict:
     """
     Enforce CPU/GPU selection based on config.USE_GPU.
     """
-    use_gpu = getattr(config, 'USE_GPU', False)
+    use_gpu = config.USE_GPU
     if use_gpu is True:
         return {"tree_method": "gpu_hist", "device": "cuda"}
     if use_gpu is False:
@@ -62,7 +62,7 @@ def build_xgb_classifier(param_overrides: Optional[dict] = None) -> XGBClassifie
 
 def build_linear_regressor() -> Ridge:
     """Ridge regression for an interpretable baseline with regularization."""
-    alpha = getattr(config, "LINEAR_REGRESSION_ALPHA", 1.0)
+    alpha = config.LINEAR_REGRESSION_ALPHA
     return Ridge(alpha=alpha, random_state=config.RANDOM_SEED)
 
 

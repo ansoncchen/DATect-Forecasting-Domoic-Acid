@@ -15,6 +15,12 @@ Each site can override:
 from typing import Any, Dict, List, Optional, Tuple
 
 from forecasting.oad_features import OAD_FEATURES_ALL
+from forecasting.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+# (site, missing-columns) pairs already reported, so each problem is logged once
+_WARNED_MISSING_FEATURES: set = set()
 
 
 # --------------------------------------------------------------------------
@@ -169,6 +175,10 @@ def compute_site_drop_cols(
 
     drops = set(base_drop_cols)
     subset_set = set(subset)
+    missing = tuple(sorted(subset_set - set(all_columns)))
+    if missing and (site, missing) not in _WARNED_MISSING_FEATURES:
+        _WARNED_MISSING_FEATURES.add((site, missing))
+        logger.warning("feature_subset for %s lists columns not in the data: %s", site, missing)
     for col in all_columns:
         if col not in subset_set and col not in drops:
             drops.add(col)

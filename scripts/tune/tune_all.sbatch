@@ -17,11 +17,11 @@
 # squeue. The actual compute happens in the 5 sweep jobs it submits.
 
 set -euo pipefail
-cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
+cd "${SLURM_SUBMIT_DIR:?submit from the repo root}"  # run the checkout this was submitted from
 mkdir -p logs config results/tuning_provenance
 
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
-export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
+export PATH="$(dirname "$PYBIN"):$PATH"
 
 echo "== Started: $(date) =="
 $PYBIN scripts/tune/tune_all.py

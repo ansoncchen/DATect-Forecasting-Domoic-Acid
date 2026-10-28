@@ -13,11 +13,11 @@
 #SBATCH --error=logs/xgb-verify-%A_%a.err
 
 set -euo pipefail
-cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
+cd "${SLURM_SUBMIT_DIR:?submit from the repo root}"  # run the checkout this was submitted from
 mkdir -p logs results/tuning_provenance/xgb_verify_results
 
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
-export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
+export PATH="$(dirname "$PYBIN"):$PATH"
 export DATECT_MIN_TRAINING_FOR_TUNING=99999
 
 # 5 perturbations applied to ALL sites: 0=baseline, 1=depth+1, 2=depth-1, 3=mcw×1.5, 4=mcw×0.67

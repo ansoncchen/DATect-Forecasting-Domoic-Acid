@@ -172,8 +172,8 @@ def load_or_run_retro(
         # Patch config before importing the engine so seed/fraction take effect
         import config as cfg
         original_seed = cfg.RANDOM_SEED
-        original_frac = getattr(cfg, "TEST_SAMPLE_FRACTION", 0.20)
-        original_min_date = getattr(cfg, "MIN_TEST_DATE", "2003-01-01")
+        original_frac = cfg.TEST_SAMPLE_FRACTION
+        original_min_date = cfg.MIN_TEST_DATE
 
         cfg.RANDOM_SEED = seed
         cfg.TEST_SAMPLE_FRACTION = sample_fraction

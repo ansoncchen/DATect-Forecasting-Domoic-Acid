@@ -2,14 +2,11 @@
 Unit tests for backend/visualizations.py math robustness and edge cases.
 """
 
-import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
 from backend.visualizations import (
     generate_gradient_uncertainty_plot,

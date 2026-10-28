@@ -356,11 +356,11 @@ async def get_historical_data(
 async def get_config():
     """Get current system configuration."""
     return {
-        "forecast_mode": getattr(config, 'FORECAST_MODE', 'realtime'),
-        "forecast_task": getattr(config, 'FORECAST_TASK', 'regression'),
-        "forecast_model": getattr(config, 'FORECAST_MODEL', 'ensemble'),
-        "forecast_horizon_weeks": getattr(config, 'FORECAST_HORIZON_WEEKS', 1),
-        "forecast_horizon_days": getattr(config, 'FORECAST_HORIZON_DAYS', 7),
+        "forecast_mode": config.FORECAST_MODE,
+        "forecast_task": config.FORECAST_TASK,
+        "forecast_model": config.FORECAST_MODEL,
+        "forecast_horizon_weeks": config.FORECAST_HORIZON_WEEKS,
+        "forecast_horizon_days": config.FORECAST_HORIZON_DAYS,
         "spike_threshold": config.SPIKE_THRESHOLD,
     }
 

@@ -8,14 +8,12 @@ window slicing + metric values.
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
 
 HOLDOUT_PARQUETS = [
@@ -66,13 +64,22 @@ def test_chronological_metrics_match_paper():
     reason="Chronological eval artifacts not present",
 )
 def test_chronological_eval_uses_grid_winner_config():
-    """Holdout predictions must reflect the grid-winner config (e.g. Copalis XGB-only)."""
+    """Holdout predictions must reflect each site's grid-winner ensemble weights.
+
+    The parquet stores the blended prediction and the RF component, so RF-only
+    sites must match the RF prediction exactly and XGB-only sites must not.
+    """
+    import numpy as np
+    from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
+
     df = pd.read_parquet(HOLDOUT_PARQUETS[0])
-    cop = df[df["site"] == "Copalis"]
-    if len(cop) > 5 and "ensemble_weights" in cop.columns:
-        # Grid winner for Copalis is (1.0, 0.0, 0.0) — XGB-only
-        first_w = cop["ensemble_weights"].iloc[0]
-        # The column may be stringified tuples or lists; just verify XGB dominates
-        assert "1.0" in str(first_w) or first_w[0] >= 0.95, (
-            f"Copalis appears not to be XGB-only in the eval output: {first_w}"
-        )
+    for site, cfg in SITE_SPECIFIC_CONFIGS.items():
+        w_xgb, w_rf, _ = cfg["ensemble_weights"]
+        sub = df[df["site"] == site]
+        if sub.empty:
+            continue
+        matches_rf = np.isclose(sub["predicted_da"], sub["predicted_da_rf"]).mean()
+        if (w_xgb, w_rf) == (0.0, 1.0):
+            assert matches_rf == 1.0, f"{site} is RF-only but ensemble != RF prediction"
+        elif (w_xgb, w_rf) == (1.0, 0.0):
+            assert matches_rf < 0.5, f"{site} is XGB-only but ensemble tracks the RF prediction"

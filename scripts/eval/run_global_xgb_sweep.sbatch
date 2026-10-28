@@ -13,11 +13,11 @@
 #SBATCH --error=logs/xgb-sweep-%A_%a.err
 
 set -euo pipefail
-cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
+cd "${SLURM_SUBMIT_DIR:?submit from the repo root}"  # run the checkout this was submitted from
 mkdir -p logs results/tuning_provenance/xgb_sweep_results
 
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
-export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
+export PATH="$(dirname "$PYBIN"):$PATH"
 export DATECT_MIN_TRAINING_FOR_TUNING=99999
 
 # 2x2x2 grid: max_depth × n_estimators × learning_rate

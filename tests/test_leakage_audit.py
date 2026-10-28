@@ -13,9 +13,9 @@ pandas and numpy, which are always available.
 
 from __future__ import annotations
 
+import importlib
 import sys
 import types
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -23,10 +23,10 @@ import pandas as pd
 import pytest
 
 # ---------------------------------------------------------------------------
-# Stub heavy dependencies before the forecasting package is imported.
-# forecasting/__init__.py eagerly imports RawForecastEngine which pulls in
-# xgboost, sklearn, tqdm, joblib. These stubs satisfy those imports without
-# needing a full ML environment installed.
+# The leakage checks only exercise pandas logic, so they can run without the ML
+# stack: stub any heavy dependency that is not installed. Real packages are
+# always preferred, because a stub left in sys.modules would leak into every
+# test module collected afterwards.
 # ---------------------------------------------------------------------------
 
 def _stub_module(name: str) -> types.ModuleType:
@@ -45,11 +45,12 @@ _HEAVY_DEPS = [
     "sklearn.utils.validation", "scipy", "scipy.stats",
 ]
 for _dep in _HEAVY_DEPS:
-    if _dep not in sys.modules:
+    try:
+        importlib.import_module(_dep)
+    except ImportError:
         _stub_module(_dep)
 
 # Now we can safely import from the forecasting package
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from forecasting.raw_data_forecaster import (  # noqa: E402
     get_site_training_frame,

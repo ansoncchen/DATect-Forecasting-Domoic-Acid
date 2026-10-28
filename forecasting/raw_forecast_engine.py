@@ -14,6 +14,7 @@ FastAPI backend (``api.py``) works without interface changes.
 
 from __future__ import annotations
 
+import functools
 import random
 import warnings
 from typing import Optional
@@ -59,9 +60,21 @@ from .classification_adapter import ClassificationAdapter
 from .validation import validate_system_startup
 from .logging_config import get_logger
 
-warnings.filterwarnings("ignore")
-
 logger = get_logger(__name__)
+
+
+def _quiet_warnings(fn):
+    """Silence third-party (sklearn/xgboost/pandas) warnings during model fitting.
+
+    Scoped per call so importing the engine no longer disables warnings for the
+    whole process (tests, API, scripts).
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return fn(*args, **kwargs)
+    return wrapper
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +121,7 @@ class RawForecastEngine:
         self.classification_adapter = ClassificationAdapter()
 
         self.min_training_samples = max(
-            1, int(getattr(config, "MIN_TRAINING_SAMPLES", 10))
+            1, int(config.MIN_TRAINING_SAMPLES)
         )
         self.random_seed = config.RANDOM_SEED
 
@@ -184,7 +197,7 @@ class RawForecastEngine:
 
         # Standard drops: meta cols + zero-importance features
         # NO per-site drops — spike classifier uses uniform features
-        zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
+        zero_imp = config.ZERO_IMPORTANCE_FEATURES
         drop_cols = [
             "date", "site", "da_raw", "da", "_is_interpolated",
         ] + list(zero_imp)
@@ -198,6 +211,7 @@ class RawForecastEngine:
     # Single forecast (realtime)
     # ------------------------------------------------------------------
 
+    @_quiet_warnings
     def generate_single_forecast(
         self,
         data_path: str,
@@ -279,8 +293,8 @@ class RawForecastEngine:
         test_row = add_temporal_features(test_row)
 
         # --- Feature preparation ---
-        use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
-        zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
+        use_per_site = config.USE_PER_SITE_MODELS
+        zero_imp = config.ZERO_IMPORTANCE_FEATURES
 
         drop_cols = ["date", "site", "da_raw", "da", "_is_interpolated"] + list(zero_imp)
 
@@ -307,7 +321,7 @@ class RawForecastEngine:
             return None
 
         # --- Prediction post-processing helper ---
-        clip_q_global = getattr(config, "PREDICTION_CLIP_Q", 0.99)
+        clip_q_global = config.PREDICTION_CLIP_Q
 
         def _postprocess(value: float) -> float:
             value = max(0.0, value)
@@ -335,7 +349,7 @@ class RawForecastEngine:
         xgb_prediction = _postprocess(xgb_raw)
 
         # --- Random Forest prediction ---
-        rf_params = dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
+        rf_params = dict(config.RF_REGRESSION_PARAMS)
         if use_per_site:
             rf_params = apply_site_rf_params(rf_params, site)
         rf_model = build_rf_regressor(rf_params)
@@ -347,7 +361,7 @@ class RawForecastEngine:
         naive_prediction = get_last_known_raw_da(
             real_train,
             anchor_date=anchor_date,
-            max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
+            max_age_days=config.PERSISTENCE_MAX_DAYS,
         )
         if naive_prediction is None:
             naive_prediction = 0.0
@@ -543,11 +557,12 @@ class RawForecastEngine:
         (preferred) with bootstrap fallback.
         """
         quantiles = {}
-        enable_quantile = getattr(config, "ENABLE_QUANTILE_INTERVALS", True)
-        enable_bootstrap = getattr(config, "ENABLE_BOOTSTRAP_INTERVALS", True)
+        enable_quantile = config.ENABLE_QUANTILE_INTERVALS
+        enable_bootstrap = config.ENABLE_BOOTSTRAP_INTERVALS
 
         if enable_quantile and model_type in ("xgboost", "xgb", "ensemble", "threshold"):
             try:
+                rf_q_pred = None  # RF has no quantile objective; one fit serves every quantile
                 for q in (0.05, 0.50, 0.95):
                     # XGBoost quantile regression for the XGB component
                     q_params = {
@@ -562,9 +577,10 @@ class RawForecastEngine:
                     key = f"q{int(q * 100):02d}"
                     if model_type in ("ensemble", "threshold"):
                         # Blend XGB quantile with RF + naive for ensemble CI
-                        rf_model = build_rf_regressor(rf_params)
-                        rf_model.fit(X_train_processed, y_train)
-                        rf_q_pred = postprocess_fn(float(rf_model.predict(X_test_processed)[0]))
+                        if rf_q_pred is None:
+                            rf_model = build_rf_regressor(rf_params)
+                            rf_model.fit(X_train_processed, y_train)
+                            rf_q_pred = postprocess_fn(float(rf_model.predict(X_test_processed)[0]))
                         w_xgb, w_rf, w_naive = ensemble_weights
                         quantiles[key] = (
                             w_xgb * xgb_q_pred
@@ -610,11 +626,11 @@ class RawForecastEngine:
             n_bootstrap = config.N_BOOTSTRAP_ITERATIONS
 
         predictions = []
-        subsample_frac = getattr(config, "BOOTSTRAP_SUBSAMPLE_FRACTION", 0.75)
+        subsample_frac = config.BOOTSTRAP_SUBSAMPLE_FRACTION
         if postprocess_fn is None:
             postprocess_fn = lambda val: max(0.0, float(val))
 
-        rf_params = rf_params or dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
+        rf_params = rf_params or dict(config.RF_REGRESSION_PARAMS)
         if ensemble_weights is None:
             # naive_weight must always be 0.0 — naive persistence is an external baseline,
             # never blended into the ensemble. Default splits evenly between XGB and RF.
@@ -676,7 +692,7 @@ class RawForecastEngine:
                 predictions.append(float(xgb_pred))
 
         predictions = np.array(predictions)
-        percentiles = getattr(config, "CONFIDENCE_PERCENTILES", [5, 50, 95])
+        percentiles = config.CONFIDENCE_PERCENTILES
         return {
             "q05": float(np.percentile(predictions, percentiles[0])),
             "q50": float(np.percentile(predictions, percentiles[1])),
@@ -688,6 +704,7 @@ class RawForecastEngine:
     # Retrospective evaluation
     # ------------------------------------------------------------------
 
+    @_quiet_warnings
     def run_retrospective_evaluation(
         self,
         task: str = "regression",
@@ -713,7 +730,7 @@ class RawForecastEngine:
         min_test_ts = pd.Timestamp(config.MIN_TEST_DATE)
         min_training = self.min_training_samples
         forecast_horizon = config.FORECAST_HORIZON_DAYS
-        history_frac = getattr(config, "HISTORY_REQUIREMENT_FRACTION", 0.33)
+        history_frac = config.HISTORY_REQUIREMENT_FRACTION
 
         # Filter to valid test dates
         candidate_raw = raw_data[raw_data["date"] >= min_test_ts].copy()
@@ -759,7 +776,7 @@ class RawForecastEngine:
             site_df = site_df.sort_values("date")
             n_candidates = len(site_df)
             total_site = site_total_counts.get(site, n_candidates)
-            test_frac = getattr(config, "TEST_SAMPLE_FRACTION", 0.20)
+            test_frac = config.TEST_SAMPLE_FRACTION
             target = min(int(np.ceil(test_frac * total_site)), n_candidates)
             if target <= 0:
                 continue
@@ -789,10 +806,10 @@ class RawForecastEngine:
         ]
 
         # Run validation
-        enable_parallel = getattr(config, "ENABLE_PARALLEL", True)
-        n_jobs = getattr(config, "N_JOBS", -1)
+        enable_parallel = config.ENABLE_PARALLEL
+        n_jobs = config.N_JOBS
 
-        parallel_backend = getattr(config, "PARALLEL_BACKEND", "loky")
+        parallel_backend = config.PARALLEL_BACKEND
         if enable_parallel:
             results = Parallel(n_jobs=n_jobs, backend=parallel_backend)(
                 delayed(self._run_single_retrospective)(
@@ -824,7 +841,7 @@ class RawForecastEngine:
         results_df = pd.DataFrame(results)
 
         # --- Ensemble prediction ---
-        use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
+        use_per_site = config.USE_PER_SITE_MODELS
         if (
             not results_df.empty
             and "predicted_da" in results_df.columns
@@ -916,6 +933,7 @@ class RawForecastEngine:
 
         return results_df
 
+    @_quiet_warnings
     def _run_single_retrospective(
         self,
         raw_measurement: dict,
@@ -932,11 +950,11 @@ class RawForecastEngine:
         forecast_horizon = config.FORECAST_HORIZON_DAYS
         anchor_date = test_date - pd.Timedelta(days=forecast_horizon)
 
-        use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
-        calibration_frac = getattr(config, "CALIBRATION_FRACTION", 0.3)
-        max_calib = getattr(config, "MAX_CALIBRATION_ROWS", 20)
-        min_tuning = getattr(config, "MIN_TUNING_SAMPLES", 10)
-        param_grid = getattr(config, "PARAM_GRID", [])
+        use_per_site = config.USE_PER_SITE_MODELS
+        calibration_frac = config.CALIBRATION_FRACTION
+        max_calib = config.MAX_CALIBRATION_ROWS
+        min_tuning = config.MIN_TUNING_SAMPLES
+        param_grid = config.PARAM_GRID
 
         # Per-site XGB param overrides
         effective_params = (
@@ -968,7 +986,7 @@ class RawForecastEngine:
 
         # Skip tuning when the full training set is too small — every row matters
         # more than marginal param selection between near-identical grid entries.
-        min_train_for_tuning = getattr(config, "MIN_TRAINING_FOR_TUNING", 80)
+        min_train_for_tuning = config.MIN_TRAINING_FOR_TUNING
 
         if (
             not calib_candidates.empty
@@ -1021,9 +1039,9 @@ class RawForecastEngine:
 
         forecast_horizon = config.FORECAST_HORIZON_DAYS
         anchor_date = test_date - pd.Timedelta(days=forecast_horizon)
-        use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
-        zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
-        clip_q = getattr(config, "PREDICTION_CLIP_Q", 0.99)
+        use_per_site = config.USE_PER_SITE_MODELS
+        zero_imp = config.ZERO_IMPORTANCE_FEATURES
+        clip_q = config.PREDICTION_CLIP_Q
 
         train_data = get_site_training_frame(
             feature_frame, site, anchor_date, self.min_training_samples
@@ -1087,8 +1105,8 @@ class RawForecastEngine:
 
         # XGBoost — optionally add monotonic constraints on persistence features
         xgb_params_final = dict(model_params)
-        if getattr(config, "USE_MONOTONIC_CONSTRAINTS", False):
-            constraint_map = getattr(config, "MONOTONIC_FEATURE_CONSTRAINTS", {})
+        if config.USE_MONOTONIC_CONSTRAINTS:
+            constraint_map = config.MONOTONIC_FEATURE_CONSTRAINTS
             if constraint_map and hasattr(X_train_processed, "columns"):
                 cols = list(X_train_processed.columns)
                 mono_tuple = tuple(constraint_map.get(c, 0) for c in cols)
@@ -1103,7 +1121,7 @@ class RawForecastEngine:
         rf_prediction = None
         if not skip_rf:
             try:
-                rf_base = dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
+                rf_base = dict(config.RF_REGRESSION_PARAMS)
                 if use_per_site:
                     rf_base = apply_site_rf_params(rf_base, site)
                 rf_model = build_rf_regressor(rf_base)
@@ -1118,7 +1136,7 @@ class RawForecastEngine:
         naive_prediction = get_last_known_raw_da(
             real_train,
             anchor_date=anchor_date,
-            max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
+            max_age_days=config.PERSISTENCE_MAX_DAYS,
         )
         if naive_prediction is None:
             return None
@@ -1153,7 +1171,7 @@ class RawForecastEngine:
 
         # Quantile intervals
         quantile_predictions = {}
-        enable_qi = getattr(config, "ENABLE_QUANTILE_INTERVALS", True)
+        enable_qi = config.ENABLE_QUANTILE_INTERVALS
         if enable_qi and not skip_quantiles:
             try:
                 for q in (0.1, 0.5, 0.9):

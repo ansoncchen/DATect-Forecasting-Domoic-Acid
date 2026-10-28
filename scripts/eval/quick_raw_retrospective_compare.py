@@ -85,9 +85,9 @@ def main() -> int:
 
     orig = {
         "seed": cfg.RANDOM_SEED,
-        "frac": getattr(cfg, "TEST_SAMPLE_FRACTION", 0.20),
-        "parallel": getattr(cfg, "ENABLE_PARALLEL", True),
-        "min_date": getattr(cfg, "MIN_TEST_DATE", "2003-01-01"),
+        "frac": cfg.TEST_SAMPLE_FRACTION,
+        "parallel": cfg.ENABLE_PARALLEL,
+        "min_date": cfg.MIN_TEST_DATE,
     }
     cfg.RANDOM_SEED = args.seed
     cfg.TEST_SAMPLE_FRACTION = args.fraction

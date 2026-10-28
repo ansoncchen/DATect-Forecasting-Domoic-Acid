@@ -2,15 +2,12 @@
 Unit tests for backend/api.py endpoint robustness and JSON serialization.
 """
 
-import sys
 from pathlib import Path
 import numpy as np
-import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
 from backend.api import app, clean_for_json, resolve_site
 

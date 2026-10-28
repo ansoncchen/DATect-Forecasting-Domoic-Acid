@@ -191,7 +191,7 @@ def get_site_training_frame(
     site_data = site_data.sort_values("date")
     train_data = site_data[site_data["date"] <= anchor_date].copy()
 
-    if getattr(config, "USE_INTERPOLATED_TRAINING", False):
+    if config.USE_INTERPOLATED_TRAINING:
         # Keep rows that have either real or interpolated DA
         train_data = train_data.dropna(subset=["da"])
         # Mark which rows are interpolated (before we fill da_raw)

@@ -181,7 +181,7 @@ class DATectCacheGenerator:
             'config': {
                 'RANDOM_SEED': config.RANDOM_SEED,
                 'FORECAST_HORIZON_DAYS': config.FORECAST_HORIZON_DAYS,
-                'MIN_TRAINING_SAMPLES': getattr(config, 'MIN_TRAINING_SAMPLES', 5)
+                'MIN_TRAINING_SAMPLES': config.MIN_TRAINING_SAMPLES
             },
             'files': {}
         }

@@ -7,17 +7,11 @@ rather than silently corrupting per-site model behavior.
 """
 from __future__ import annotations
 
-import importlib
 import json
-import os
-import sys
 from pathlib import Path
-from typing import Any
 
-import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
 
 # --------------------------------------------------------------------------
@@ -145,12 +139,9 @@ def test_load_tuned_is_cached():
     )
 
 
-def test_config_py_loads_from_json():
+def test_config_py_loads_from_json(fresh_import):
     """config.py reads global tunables from the JSON, not hardcoded."""
-    # Force-reload to make sure we get a clean import
-    for mod in list(sys.modules):
-        if mod == "config" or "tuned_config" in mod:
-            del sys.modules[mod]
+    fresh_import(lambda name: name == "config" or "tuned_config" in name)
     import config
     from forecasting.tuned_config import get_global
     g = get_global()
@@ -163,11 +154,9 @@ def test_config_py_loads_from_json():
     assert list(config.ZERO_IMPORTANCE_FEATURES) == list(g["zero_importance_features"])
 
 
-def test_per_site_models_loads_from_json():
+def test_per_site_models_loads_from_json(fresh_import):
     """per_site_models.SITE_SPECIFIC_CONFIGS comes from the JSON loader."""
-    for mod in list(sys.modules):
-        if "per_site_models" in mod or "tuned_config" in mod:
-            del sys.modules[mod]
+    fresh_import(lambda name: "per_site_models" in name or "tuned_config" in name)
     from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
     from forecasting.tuned_config import get_per_site
     json_sites = get_per_site()
@@ -181,23 +170,12 @@ def test_per_site_models_loads_from_json():
 # Env-var overlay behavior
 # --------------------------------------------------------------------------
 
-def test_spike_classifier_env_var_overlay(tmp_path):
+def test_spike_classifier_env_var_overlay(tmp_path, monkeypatch, fresh_import):
     """DATECT_SPIKE_CLASSIFIER_JSON should override JSON-loaded params."""
-    # Write a temp override file
     override_path = tmp_path / "spike_override.json"
     override_path.write_text(json.dumps({"max_depth": 99, "n_estimators": 999}))
-    os.environ["DATECT_SPIKE_CLASSIFIER_JSON"] = str(override_path)
-    try:
-        # Force re-import
-        for mod in list(sys.modules):
-            if mod == "config" or "tuned_config" in mod:
-                del sys.modules[mod]
-        import config
-        assert config.SPIKE_CLASSIFIER_PARAMS["max_depth"] == 99
-        assert config.SPIKE_CLASSIFIER_PARAMS["n_estimators"] == 999
-    finally:
-        del os.environ["DATECT_SPIKE_CLASSIFIER_JSON"]
-        # Clear cache so subsequent tests get clean values
-        for mod in list(sys.modules):
-            if mod == "config" or "tuned_config" in mod:
-                del sys.modules[mod]
+    monkeypatch.setenv("DATECT_SPIKE_CLASSIFIER_JSON", str(override_path))
+    fresh_import(lambda name: name == "config" or "tuned_config" in name)
+    import config
+    assert config.SPIKE_CLASSIFIER_PARAMS["max_depth"] == 99
+    assert config.SPIKE_CLASSIFIER_PARAMS["n_estimators"] == 999

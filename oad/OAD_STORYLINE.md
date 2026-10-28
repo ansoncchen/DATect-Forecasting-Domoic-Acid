@@ -73,7 +73,7 @@ in all downstream analyses.
 ## Chapter 3 — Data: the 22-year MODIS Aqua cube
 
 The training data is a custom-built spatiotemporal cube
-(`oad/data/cube.zarr`, Hyak-only, ~50 GB):
+(`oad/data/cube.zarr`, Hyak-only; 5.1 GB on disk, 9.9 GB uncompressed, measured 2026-10-12):
 
 | Property | Value |
 |---|---|

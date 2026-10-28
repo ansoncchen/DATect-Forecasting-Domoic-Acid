@@ -1,0 +1,73 @@
+Loading raw DA measurements...
+Loading environmental features...
+Identifying spike events...
+Found 224 spike events across 10 sites
+Extracting pre-spike environmental features...
+Extracted 7581 feature observations
+Computing site baselines and z-scores...
+Running statistical tests...
+Generating visualizations...
+Saved spike-aligned feature plot to results/env_lead/feature_lead_plots.png
+Saved WA vs OR comparison to results/env_lead/wa_vs_or_comparison.png
+
+======================================================================
+PHASE 1: ENVIRONMENTAL FEATURE LEAD ANALYSIS — SUMMARY
+======================================================================
+
+Total spike events analyzed: 224
+Events with >14-day gap: 71 (31.7%)
+
+Spike events per site:
+  Newport: 43
+  Gold Beach: 41
+  Coos Bay: 31
+  Clatsop Beach: 28
+  Kalaloch: 24
+  Quinault: 17
+  Long Beach: 15
+  Twin Harbors: 12
+  Copalis: 9
+  Cannon Beach: 4
+
+--- Pooled Statistical Tests (all sites combined) ---
+
+Feature         Lead   N      Med Z    p-value    Effect r   Sig?
+-----------------------------------------------------------------
+beuti           t-1    218    +0.066  0.0034    +0.229     **
+beuti           t-2    218    +0.048  0.2832    +0.084     
+beuti           t-3    218    +0.059  0.0466    +0.155     *
+beuti           t-4    218    +0.081  0.0020    +0.241     **
+discharge       t-1    218    -0.457  0.0000    +0.346     **
+discharge       t-2    218    -0.415  0.0000    +0.328     **
+discharge       t-3    218    -0.451  0.0000    +0.349     **
+discharge       t-4    218    -0.457  0.0000    +0.335     **
+modis-sst       t-1    206    +0.218  0.0005    +0.279     **
+modis-sst       t-2    205    +0.253  0.0002    +0.303     **
+modis-sst       t-3    209    +0.275  0.0003    +0.286     **
+modis-sst       t-4    211    +0.250  0.0003    +0.289     **
+oni             t-1    218    +0.151  0.4302    +0.062     
+oni             t-2    218    +0.071  0.6582    +0.035     
+oni             t-3    218    +0.030  0.6335    +0.037     
+oni             t-4    218    +0.014  0.6374    +0.037     
+pdo             t-1    218    +0.640  0.0000    +0.427     **
+pdo             t-2    218    +0.595  0.0000    +0.406     **
+pdo             t-3    218    +0.595  0.0000    +0.405     **
+pdo             t-4    218    +0.502  0.0000    +0.417     **
+pn              t-1    218    -0.190  0.0001    +0.309     **
+pn              t-2    218    -0.190  0.0000    +0.449     **
+pn              t-3    218    -0.196  0.0000    +0.564     **
+pn              t-4    218    -0.191  0.0000    +0.464     **
+sst-anom        t-1    218    +0.265  0.0000    +0.420     **
+sst-anom        t-2    218    +0.257  0.0000    +0.417     **
+sst-anom        t-3    218    +0.290  0.0000    +0.446     **
+sst-anom        t-4    218    +0.281  0.0000    +0.452     **
+
+--- SIGNIFICANT LEAD SIGNALS (p < 0.05) ---
+  SST (°C): elevated at t-1, t-2, t-3, t-4 weeks before spikes
+  BEUTI (upwelling): elevated at t-1, t-3, t-4 weeks before spikes
+  PDO index: elevated at t-1, t-2, t-3, t-4 weeks before spikes
+  SST anomaly: elevated at t-1, t-2, t-3, t-4 weeks before spikes
+  River discharge: depressed at t-1, t-2, t-3, t-4 weeks before spikes
+  Pseudo-nitzschia (cells): depressed at t-1, t-2, t-3, t-4 weeks before spikes
+
+======================================================================

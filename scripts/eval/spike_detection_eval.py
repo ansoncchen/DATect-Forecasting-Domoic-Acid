@@ -26,6 +26,7 @@ from _repo import ensure_repo_root
 ensure_repo_root()
 
 import config
+from forecasting.metrics import detection_scores, exceeds
 from forecasting.raw_data_forecaster import load_raw_da_measurements
 
 SPIKE_THRESHOLD = config.SPIKE_THRESHOLD  # 20.0
@@ -128,43 +129,28 @@ def compute_spike_metrics(
     threshold: float = SPIKE_THRESHOLD,
 ) -> dict:
     """Compute binary spike detection metrics."""
-    actual_binary = (actual >= threshold).astype(int)
-    predicted_binary = (predicted >= threshold).astype(int)
-
-    tp = int(((actual_binary == 1) & (predicted_binary == 1)).sum())
-    fn = int(((actual_binary == 1) & (predicted_binary == 0)).sum())
-    fp = int(((actual_binary == 0) & (predicted_binary == 1)).sum())
-    tn = int(((actual_binary == 0) & (predicted_binary == 0)).sum())
-
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-    # F2 weights recall 2x higher
-    f2_beta = 2.0
-    f2 = (
-        (1 + f2_beta**2) * precision * recall / (f2_beta**2 * precision + recall)
-        if (f2_beta**2 * precision + recall) > 0
-        else 0.0
-    )
+    actual_binary = exceeds(actual, threshold, inclusive=True)
+    predicted_binary = exceeds(predicted, threshold, inclusive=True)
+    det = detection_scores(actual_binary, predicted_binary)
 
     # MAE stratified
-    spike_mask = actual >= threshold
+    spike_mask = actual_binary
     mae_spikes = float(np.abs(actual[spike_mask] - predicted[spike_mask]).mean()) if spike_mask.sum() > 0 else np.nan
     mae_non_spikes = float(np.abs(actual[~spike_mask] - predicted[~spike_mask]).mean()) if (~spike_mask).sum() > 0 else np.nan
 
     return {
-        "tp": tp,
-        "fn": fn,
-        "fp": fp,
-        "tn": tn,
+        "tp": det["tp"],
+        "fn": det["fn"],
+        "fp": det["fp"],
+        "tn": det["tn"],
         "n_actual_spikes": int(actual_binary.sum()),
         "n_predicted_spikes": int(predicted_binary.sum()),
-        "recall": recall,
-        "precision": precision,
-        "f1": f1,
-        "f2": f2,
-        "fnr": 1.0 - recall,
-        "fpr": fp / (fp + tn) if (fp + tn) > 0 else 0.0,
+        "recall": det["recall"],
+        "precision": det["precision"],
+        "f1": det["f1"],
+        "f2": det["f2"],
+        "fnr": det["fnr"],
+        "fpr": det["fpr"],
         "mae_on_spikes": mae_spikes,
         "mae_on_non_spikes": mae_non_spikes,
     }
@@ -210,33 +196,13 @@ def run_threshold_sensitivity(
 
     rows = []
     for thresh in thresholds:
-        # But override the prediction threshold
-        pred_binary = (predicted >= thresh).astype(int)
-        actual_binary = (actual >= SPIKE_THRESHOLD).astype(int)
-
-        tp = int(((actual_binary == 1) & (pred_binary == 1)).sum())
-        fn = int(((actual_binary == 1) & (pred_binary == 0)).sum())
-        fp = int(((actual_binary == 0) & (pred_binary == 1)).sum())
-
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-        f2_beta = 2.0
-        f2 = (
-            (1 + f2_beta**2) * precision * recall / (f2_beta**2 * precision + recall)
-            if (f2_beta**2 * precision + recall) > 0
-            else 0.0
+        det = detection_scores(
+            exceeds(actual, SPIKE_THRESHOLD, inclusive=True),
+            exceeds(predicted, thresh, inclusive=True),
         )
-
         rows.append({
             "pred_threshold": thresh,
-            "recall": recall,
-            "precision": precision,
-            "f1": f1,
-            "f2": f2,
-            "tp": tp,
-            "fn": fn,
-            "fp": fp,
+            **{k: det[k] for k in ("recall", "precision", "f1", "f2", "tp", "fn", "fp")},
         })
 
     return pd.DataFrame(rows)
@@ -539,21 +505,10 @@ def main():
         prob_threshold = config.SPIKE_ALERT_PROB_THRESHOLD
         valid_spike = results[results["spike_probability"].notna()].copy()
         # Convert probability to binary prediction
-        spike_pred_binary = (valid_spike["spike_probability"] >= prob_threshold).astype(int)
-        actual_binary = (valid_spike["actual_da"] >= SPIKE_THRESHOLD).astype(int)
-
-        tp = int(((actual_binary == 1) & (spike_pred_binary == 1)).sum())
-        fn = int(((actual_binary == 1) & (spike_pred_binary == 0)).sum())
-        fp = int(((actual_binary == 0) & (spike_pred_binary == 1)).sum())
-        tn = int(((actual_binary == 0) & (spike_pred_binary == 0)).sum())
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-        f2_beta = 2.0
-        f2 = (
-            (1 + f2_beta**2) * precision * recall / (f2_beta**2 * precision + recall)
-            if (f2_beta**2 * precision + recall) > 0 else 0.0
-        )
+        spike_pred_binary = exceeds(valid_spike["spike_probability"], prob_threshold, inclusive=True)
+        actual_binary = exceeds(valid_spike["actual_da"], SPIKE_THRESHOLD, inclusive=True)
+        det = detection_scores(actual_binary, spike_pred_binary)
+        recall, f2 = det["recall"], det["f2"]
 
         # Transition recall for spike classifier
         transitions = valid_spike[valid_spike["is_spike_transition"]].copy()
@@ -565,12 +520,12 @@ def main():
 
         spike_cls_metrics = {
             "model": f"spike_classifier_p{int(prob_threshold*100):02d}",
-            "tp": tp, "fn": fn, "fp": fp, "tn": tn,
+            "tp": det["tp"], "fn": det["fn"], "fp": det["fp"], "tn": det["tn"],
             "n_actual_spikes": int(actual_binary.sum()),
             "n_predicted_spikes": int(spike_pred_binary.sum()),
-            "recall": recall, "precision": precision, "f1": f1, "f2": f2,
-            "fnr": 1.0 - recall,
-            "fpr": fp / (fp + tn) if (fp + tn) > 0 else 0.0,
+            "recall": det["recall"], "precision": det["precision"], "f1": det["f1"], "f2": det["f2"],
+            "fnr": det["fnr"],
+            "fpr": det["fpr"],
             "mae_on_spikes": np.nan, "mae_on_non_spikes": np.nan,
             "transition_n": len(transitions),
             "transition_recall": trans_recall,
@@ -589,16 +544,10 @@ def main():
             site_data = valid_spike[valid_spike["site"] == site]
             if len(site_data) < 3:
                 continue
-            s_pred = (site_data["spike_probability"] >= prob_threshold).astype(int)
-            s_actual = (site_data["actual_da"] >= SPIKE_THRESHOLD).astype(int)
-            s_tp = int(((s_actual == 1) & (s_pred == 1)).sum())
-            s_fn = int(((s_actual == 1) & (s_pred == 0)).sum())
-            s_fp = int(((s_actual == 0) & (s_pred == 1)).sum())
-            s_tn = int(((s_actual == 0) & (s_pred == 0)).sum())
-            s_recall = s_tp / (s_tp + s_fn) if (s_tp + s_fn) > 0 else 0.0
-            s_prec = s_tp / (s_tp + s_fp) if (s_tp + s_fp) > 0 else 0.0
-            s_f2 = (5 * s_prec * s_recall / (4 * s_prec + s_recall)
-                    if (4 * s_prec + s_recall) > 0 else 0.0)
+            s_actual = exceeds(site_data["actual_da"], SPIKE_THRESHOLD, inclusive=True)
+            s_det = detection_scores(
+                s_actual, exceeds(site_data["spike_probability"], prob_threshold, inclusive=True)
+            )
             # Transition recall
             s_trans = site_data[site_data["is_spike_transition"]]
             if len(s_trans) > 0:
@@ -607,9 +556,9 @@ def main():
                 s_trans_recall = np.nan
             per_site_metrics.append({
                 "model": sc_model_name, "site": site,
-                "tp": s_tp, "fp": s_fp, "fn": s_fn, "tn": s_tn,
+                "tp": s_det["tp"], "fp": s_det["fp"], "fn": s_det["fn"], "tn": s_det["tn"],
                 "n_actual_spikes": int(s_actual.sum()),
-                "recall": s_recall, "precision": s_prec, "f2": s_f2,
+                "recall": s_det["recall"], "precision": s_det["precision"], "f2": s_det["f2"],
                 "transition_recall": s_trans_recall,
                 "transition_n": len(s_trans),
             })

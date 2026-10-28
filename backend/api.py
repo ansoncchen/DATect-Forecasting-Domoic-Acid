@@ -878,10 +878,9 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
 
     # Regression metrics
     if task != "classification" and valid_regression:
-        from sklearn.metrics import (
-            r2_score, mean_absolute_error, f1_score,
-            precision_score, recall_score, fbeta_score,
-        )
+        from sklearn.metrics import mean_absolute_error, r2_score
+
+        from forecasting.metrics import detection_scores, exceeds
         actual_vals = [r[0] for r in valid_regression]
         pred_vals = [r[1] for r in valid_regression]
         try:
@@ -893,26 +892,17 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
             # webapp stays coordinated with the spike-alert system.
             spike_threshold = config.SPIKE_THRESHOLD
             pred_alert_threshold = config.SPIKE_REGRESSION_ALERT_THRESHOLD
-            actual_binary = [1 if val > spike_threshold else 0 for val in actual_vals]
-            pred_binary = [
-                1 if val > pred_alert_threshold else 0 for val in pred_vals
-            ]
-            n_spike_events = int(sum(actual_binary))
-            n_alerts = int(sum(pred_binary))
-            summary["f1_score"] = float(
-                f1_score(actual_binary, pred_binary, zero_division=0)
-            )
-            summary["spike_recall"] = float(
-                recall_score(actual_binary, pred_binary, zero_division=0)
-            )
-            summary["spike_precision"] = float(
-                precision_score(actual_binary, pred_binary, zero_division=0)
-            )
+            actual_binary = exceeds(actual_vals, spike_threshold, inclusive=False)
+            pred_binary = exceeds(pred_vals, pred_alert_threshold, inclusive=False)
+            n_spike_events = int(actual_binary.sum())
+            n_alerts = int(pred_binary.sum())
+            det = detection_scores(actual_binary, pred_binary)
+            summary["f1_score"] = det["f1"]
+            summary["spike_recall"] = det["recall"]
+            summary["spike_precision"] = det["precision"]
             # F2 weights recall 4x precision — operational metric for public-health
             # alerting where missing a spike is worse than a false alarm.
-            summary["spike_f2"] = float(
-                fbeta_score(actual_binary, pred_binary, beta=2.0, zero_division=0)
-            )
+            summary["spike_f2"] = det["f2"]
             summary["n_spike_events"] = n_spike_events
             summary["n_alerts_fired"] = n_alerts
             summary["spike_threshold_actual"] = spike_threshold

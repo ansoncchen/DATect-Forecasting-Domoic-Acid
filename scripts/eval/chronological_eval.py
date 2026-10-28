@@ -42,7 +42,6 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import (
     r2_score, mean_absolute_error, mean_squared_error,
-    recall_score, precision_score, fbeta_score,
 )
 
 # Repo root on sys.path so ``import config`` works from anywhere
@@ -53,20 +52,16 @@ except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import config  # noqa: E402
+from forecasting.metrics import bootstrap_samples, detection_scores, exceeds  # noqa: E402
 from forecasting.raw_forecast_engine import RawForecastEngine  # noqa: E402
 
 
 def _bootstrap_ci(y_true: np.ndarray, y_pred: np.ndarray, metric_fn, B: int = 10_000,
                   alpha: float = 0.05, rng_seed: int = 42) -> tuple[float, float, float]:
     """Row-level percentile bootstrap CI for a regression metric."""
-    rng = np.random.default_rng(rng_seed)
-    n = len(y_true)
-    if n < 5:
+    if len(y_true) < 5:
         return float("nan"), float("nan"), float("nan")
-    samples = np.empty(B, dtype=float)
-    for i in range(B):
-        idx = rng.integers(0, n, size=n)
-        samples[i] = metric_fn(y_true[idx], y_pred[idx])
+    samples = bootstrap_samples((y_true, y_pred), metric_fn, B, np.random.default_rng(rng_seed))
     lo = float(np.percentile(samples, 100 * (alpha / 2)))
     hi = float(np.percentile(samples, 100 * (1 - alpha / 2)))
     return float(metric_fn(y_true, y_pred)), lo, hi
@@ -114,8 +109,8 @@ def run_chronological(window_start: str, window_end: str, task: str, model_type:
             if len(ssub) < 5:
                 continue
             y, p = ssub["actual_da"].astype(float).values, ssub["predicted_da"].astype(float).values
-            yt = (y > config.SPIKE_THRESHOLD).astype(int)
-            yp = (p > config.SPIKE_REGRESSION_ALERT_THRESHOLD).astype(int)
+            yt = exceeds(y, config.SPIKE_THRESHOLD, inclusive=False)
+            yp = exceeds(p, config.SPIKE_REGRESSION_ALERT_THRESHOLD, inclusive=False)
             block = {
                 "n": int(len(ssub)),
                 "n_spikes": int(yt.sum()),
@@ -124,10 +119,11 @@ def run_chronological(window_start: str, window_end: str, task: str, model_type:
                 "rmse": _bootstrap_ci(y, p, lambda a, b: float(np.sqrt(mean_squared_error(a, b)))),
             }
             if yt.sum() >= 1:
+                det = detection_scores(yt, yp)
                 block.update({
-                    "spike_recall": float(recall_score(yt, yp, zero_division=0)),
-                    "spike_precision": float(precision_score(yt, yp, zero_division=0)),
-                    "spike_f2": float(fbeta_score(yt, yp, beta=2, zero_division=0)),
+                    "spike_recall": det["recall"],
+                    "spike_precision": det["precision"],
+                    "spike_f2": det["f2"],
                 })
             if label == "overall":
                 out["overall"] = block

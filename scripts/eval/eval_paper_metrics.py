@@ -61,13 +61,11 @@ def bootstrap_metric(
     rng: np.random.Generator | None = None,
 ) -> tuple[float, float]:
     """Return (ci_lo, ci_hi) percentile bootstrap 95% CI for metric_fn."""
+    from forecasting.metrics import bootstrap_samples
+
     if rng is None:
         rng = np.random.default_rng(42)
-    n = len(actual)
-    scores = np.empty(B)
-    for i in range(B):
-        idx = rng.integers(0, n, size=n)
-        scores[i] = metric_fn(actual[idx], predicted[idx])
+    scores = bootstrap_samples((actual, predicted), metric_fn, B, rng)
     return float(np.percentile(scores, 2.5)), float(np.percentile(scores, 97.5))
 
 
@@ -82,17 +80,16 @@ def bootstrap_delta_r2(
     Paired bootstrap for delta R² = R²(ensemble) - R²(other).
     Returns (observed_delta, ci_lo, ci_hi).
     """
+    from forecasting.metrics import bootstrap_samples
+
     if rng is None:
         rng = np.random.default_rng(42)
-    n = len(actual)
     obs_delta = r2_score(actual, pred_ensemble) - r2_score(actual, pred_other)
-    deltas = np.empty(B)
-    for i in range(B):
-        idx = rng.integers(0, n, size=n)
-        a = actual[idx]
-        e = pred_ensemble[idx]
-        o = pred_other[idx]
-        deltas[i] = r2_score(a, e) - r2_score(a, o)
+    deltas = bootstrap_samples(
+        (actual, pred_ensemble, pred_other),
+        lambda a, e, o: r2_score(a, e) - r2_score(a, o),
+        B, rng,
+    )
     return (
         float(obs_delta),
         float(np.percentile(deltas, 2.5)),

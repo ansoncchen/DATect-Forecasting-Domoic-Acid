@@ -26,7 +26,6 @@ from sklearn.metrics import (
     r2_score,
     mean_absolute_error,
     accuracy_score,
-    f1_score,
 )
 from tqdm import tqdm
 
@@ -59,6 +58,7 @@ from .ensemble_model_factory import EnsembleModelFactory
 from .classification_adapter import ClassificationAdapter
 from .validation import validate_system_startup
 from .logging_config import get_logger
+from .metrics import detection_scores, exceeds
 
 logger = get_logger(__name__)
 
@@ -1312,9 +1312,10 @@ class RawForecastEngine:
             if not valid.empty:
                 r2 = r2_score(valid["actual_da"], valid["predicted_da"])
                 mae = mean_absolute_error(valid["actual_da"], valid["predicted_da"])
-                yt = (valid["actual_da"] > config.SPIKE_THRESHOLD).astype(int)
-                yp = (valid["predicted_da"] > config.SPIKE_THRESHOLD).astype(int)
-                f1_val = f1_score(yt, yp, zero_division=0)
+                f1_val = detection_scores(
+                    exceeds(valid["actual_da"], config.SPIKE_THRESHOLD, inclusive=False),
+                    exceeds(valid["predicted_da"], config.SPIKE_THRESHOLD, inclusive=False),
+                )["f1"]
                 logger.info(
                     "Regression — R2: %.4f  MAE: %.4f  Spike F1: %.4f",
                     r2,

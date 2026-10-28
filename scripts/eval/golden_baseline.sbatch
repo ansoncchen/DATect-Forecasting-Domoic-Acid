@@ -12,9 +12,9 @@
 #SBATCH --error=golden-%j.err
 #
 # Runs every evaluation that backs a reported number, with the headline
-# (results do not depend on the core count: every forecast is independent and seeded)
 # config (per-anchor tuning disabled). Submit via golden_baseline.sh so the
 # job runs in a disposable worktree; outputs land at their usual relative paths.
+# Results do not depend on the core count: every forecast is independent and seeded.
 set -euo pipefail
 
 PY=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}

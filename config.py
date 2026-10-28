@@ -295,11 +295,14 @@ USE_ROLLING_FEATURES = True  # Enable rolling statistics features for raw pipeli
 # Used for filling gaps in DA/PN measurements with exponential decay
 
 # DA (Domoic Acid) parameters - conservative due to frequent zeros in data
-DA_MAX_GAP_WEEKS = 2  # Maximum gap to interpolate (larger gaps filled with 0)
+# The decay fill treats each filled week as the start of the next gap, so a gap of any length
+# decays continuously and *_MAX_GAP_WEEKS has no effect on the output; only weeks before a
+# site's first measurement are filled with 0. Kept as-is so the dataset stays reproducible.
+DA_MAX_GAP_WEEKS = 2  # Fill-chunk length in weeks (see note above)
 DA_DECAY_RATE = 0.2   # Per week decay rate (half-life ~3.5 weeks)
 
 # PN (Pseudo-nitzschia) parameters - more aggressive due to sparser data
-PN_MAX_GAP_WEEKS = 4  # Maximum gap to interpolate
+PN_MAX_GAP_WEEKS = 4  # Fill-chunk length in weeks (see note above)
 PN_DECAY_RATE = 0.3   # Per week decay rate (half-life ~2.3 weeks)
 
 

@@ -460,7 +460,7 @@ export const buildRetrospectiveScatter = (filteredResults, config) => {
     traces.push({
       x: [20, 20], y: range, mode: 'lines',
       line: { color: '#ef4444', width: 1, dash: 'dot' },
-      name: 'Spike threshold (actual >20)',
+      name: 'Spike threshold (actual ≥20)',
       hoverinfo: 'skip'
     })
     traces.push({

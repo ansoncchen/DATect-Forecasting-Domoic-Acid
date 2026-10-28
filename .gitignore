@@ -11,7 +11,9 @@ build/
 
 # Logs (evaluation logs that back a reported number are committed as .txt)
 *.log
-logs/
+# logs/ is kept in git: Slurm opens --output=logs/... before a job can mkdir it
+logs/*
+!logs/.gitkeep
 outputs/logs/
 .claudeignore
 .cursorignore

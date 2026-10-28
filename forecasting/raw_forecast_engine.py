@@ -421,7 +421,10 @@ class RawForecastEngine:
 
         if enable_quantile and model_type in ("xgboost", "xgb", "ensemble", "threshold"):
             try:
-                rf_q_pred = None  # RF has no quantile objective; one fit serves every quantile
+                # RF has no quantile objective: use the spread of its trees' predictions
+                # (one fit serves every quantile). A single RF point would give RF-only
+                # sites a zero-width interval.
+                rf_tree_preds = None
                 for q in (0.05, 0.50, 0.95):
                     # XGBoost quantile regression for the XGB component
                     q_params = {
@@ -436,10 +439,14 @@ class RawForecastEngine:
                     key = f"q{int(q * 100):02d}"
                     if model_type in ("ensemble", "threshold"):
                         # Blend XGB quantile with RF + naive for ensemble CI
-                        if rf_q_pred is None:
+                        if rf_tree_preds is None:
                             rf_model = build_rf_regressor(rf_params)
                             rf_model.fit(X_train_processed, y_train)
-                            rf_q_pred = postprocess_fn(float(rf_model.predict(X_test_processed)[0]))
+                            x_test = np.asarray(X_test_processed)
+                            rf_tree_preds = np.array(
+                                [tree.predict(x_test)[0] for tree in rf_model.estimators_]
+                            )
+                        rf_q_pred = postprocess_fn(float(np.quantile(rf_tree_preds, q)))
                         w_xgb, w_rf, w_naive = ensemble_weights
                         quantiles[key] = (
                             w_xgb * xgb_q_pred

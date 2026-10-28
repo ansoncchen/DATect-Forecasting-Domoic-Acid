@@ -46,20 +46,12 @@ echo "Project ID: $PROJECT_ID"
 echo "Region: $REGION"
 echo "=================================================="
 
-print_status "📊 Pre-computing cache locally..."
+# The pre-computed cache is generated on Hyak (precompute_cache.py is too heavy
+# for a laptop) and copied here; the image bakes it in.
 if [ ! -d "./cache" ] || [ -z "$(ls -A ./cache)" ]; then
-    print_status "Cache not found, generating..."
-    python3 precompute_cache.py
-    print_success "Cache pre-computation complete"
-else
-    print_warning "Cache directory exists, skipping pre-computation"
-    read -p "Re-generate cache? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        rm -rf ./cache
-        python3 precompute_cache.py
-        print_success "Cache regenerated"
-    fi
+    print_error "./cache is missing or empty. Generate it on Hyak (python precompute_cache.py)"
+    echo "and copy it here, e.g.: scp -r klone-login:/gscratch/stf/ac283/<checkout>/cache ./cache"
+    exit 1
 fi
 
 CACHE_SIZE=$(du -sh ./cache | cut -f1)
@@ -102,7 +94,7 @@ print_success "🎉 DATect deployed successfully!"
 echo "=================================================="
 echo -e "${GREEN}🔗 Application URL: $SERVICE_URL${NC}"
 echo -e "${GREEN}🔗 API Documentation: $SERVICE_URL/docs${NC}"
-echo -e "${GREEN}📊 Cache Status: $SERVICE_URL/api/cache${NC}"
+echo -e "${GREEN}💚 Health: $SERVICE_URL/health${NC}"
 echo "=================================================="
 
 read -p "Open in browser? (y/N): " -n 1 -r

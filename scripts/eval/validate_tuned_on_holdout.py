@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Validate tuned hyperparameters on the 2019+ temporal holdout (final unbiased test).
+Validate tuned hyperparameters on the 2022+ temporal holdout (final unbiased test).
 
 Runs the retrospective forecast with proposed_overrides.json applied, then
 splits results into:
-  - TUNING window (< 2019-01-01): the data Optuna saw.
-  - HOLDOUT window (>= 2019-01-01): completely untouched by tuning.
+  - pre-2019: training-era test points.
+  - VALIDATION window [2019-01-01, 2022-01-01): the tuning objective.
+  - HOLDOUT window (>= 2022-01-01): never inspected during tuning.
 
 A tuned config is considered "real" only if it improves on BOTH windows.
 If it improves only on tuning and degrades on holdout → overfitting; discard.

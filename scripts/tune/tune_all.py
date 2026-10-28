@@ -3,7 +3,7 @@
 tune_all.py — single-command end-to-end re-tune of DATect.
 
 Regenerates ``config/tuned_hyperparameters.json`` from scratch by running
-the five leak-free sweeps documented in ``docs/EXPERIMENT_SUMMARY.md``,
+the four leak-free sweeps described below (results: ``docs/CORRECTED_NUMBERS.md``),
 parsing their winners, and writing the updated JSON with provenance.
 
 Designed to be invoked once per "tuning refresh" — when new data arrives,

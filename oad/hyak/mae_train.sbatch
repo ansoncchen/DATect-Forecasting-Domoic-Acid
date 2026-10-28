@@ -33,7 +33,7 @@ SEED="${SEED:-42}"
 cd "$OAD_ROOT"
 mkdir -p logs
 
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
 
 echo "============================================================="

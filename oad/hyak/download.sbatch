@@ -35,7 +35,7 @@ cd "$OAD_ROOT" || { echo "OAD_ROOT not found: $OAD_ROOT"; exit 1; }
 mkdir -p logs
 
 # Use env's python directly (most robust)
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
 
 echo "== Downloading channels=$CHANNELS  range=$START → $END =="

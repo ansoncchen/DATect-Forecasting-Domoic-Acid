@@ -40,7 +40,7 @@ mkdir -p logs
 
 # CUDA provided by conda env
 # Use env's python directly (most robust)
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
 export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
 
 echo "============================================================="

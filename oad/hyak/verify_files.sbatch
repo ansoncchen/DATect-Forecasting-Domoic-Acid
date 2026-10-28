@@ -20,7 +20,7 @@ cd "$OAD_ROOT"
 # or per-day (chla_20030715.nc); we extract the YYYY-MM from any matching file.
 MIN_MONTHS="${MIN_MONTHS:-258}"   # of 264 = 22yr × 12mo
 
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
 
 echo "=== Verifying each of 4 channels covers ≥ $MIN_MONTHS distinct months ==="
 ALL_OK=1

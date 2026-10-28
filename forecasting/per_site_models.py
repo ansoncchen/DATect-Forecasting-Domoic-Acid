@@ -15,7 +15,6 @@ Each site can override:
 from typing import Any, Dict, List, Optional, Tuple
 
 import config
-from forecasting.oad_features import OAD_FEATURES_ALL
 from forecasting.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -64,19 +63,6 @@ elif _feature_mode == "minimal":
     _MINIMAL = ['last_observed_da_raw', 'da_raw_prev_obs_1', 'month', 'modis-sst']
     for _sc in SITE_SPECIFIC_CONFIGS.values():
         _sc['feature_subset'] = _MINIMAL
-
-# DATECT_OAD_ON_SMALL_N=true appends OAD_FEATURES_ALL to the 4 small-N sites'
-# feature_subsets (Coos Bay, Cannon Beach, Gold Beach, Newport). Default leaves
-# them as handcrafted minimal subsets. Used by the "with_oad_on_small_n"
-# ablation slot to test whether OAD acts as synthetic data that helps despite
-# tiny per-site sample counts (N=61-144 vs N>>140 for high-N sites).
-_oad_small_n = _os.environ.get("DATECT_OAD_ON_SMALL_N", "").lower() in ("1", "true", "yes")
-if _oad_small_n:
-    _SMALL_N_SITES = ["Coos Bay", "Cannon Beach", "Gold Beach", "Newport"]
-    for _site in _SMALL_N_SITES:
-        _cfg = SITE_SPECIFIC_CONFIGS.get(_site)
-        if _cfg and _cfg.get("feature_subset") is not None:
-            _cfg["feature_subset"] = list(_cfg["feature_subset"]) + list(OAD_FEATURES_ALL)
 
 # DATECT_HPARAM_OVERRIDE_JSON: path to a JSON file with structure
 # {"<site>": {"xgb_params": {...}, "rf_params": {...},

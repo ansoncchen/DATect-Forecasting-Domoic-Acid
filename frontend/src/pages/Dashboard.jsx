@@ -690,7 +690,7 @@ const Dashboard = () => {
 
                         return {
                           title: "DA Level Forecast with Bootstrap Confidence Intervals",
-                          xaxis: { title: "DA Level (μg/L)", range: [xMin, xMax] },
+                          xaxis: { title: "DA Level (μg/g)", range: [xMin, xMax] },
                           yaxis: { visible: false, range: [0, 1] },
                           showlegend: true,
                           height: 350,
@@ -1067,7 +1067,7 @@ const Dashboard = () => {
                 <ul className="text-sm space-y-2 text-gray-700">
                   <li>• Points closer to the diagonal line indicate better predictions</li>
                   <li>• Color represents time window (gray=pre-2019 training context, amber=2019-22 validation, green=2022-24 untouched holdout)</li>
-                  <li>• Red dotted vertical = spike threshold (actual &gt;20 µg/g)</li>
+                  <li>• Red dotted vertical = spike threshold (actual ≥20 µg/g)</li>
                   <li>• Orange dotted horizontal = alert threshold (predicted &gt;12 µg/g)</li>
                   <li>• Quadrants: top-right = caught spikes, bottom-right = MISSED spikes, top-left = false alarms</li>
                 </ul>

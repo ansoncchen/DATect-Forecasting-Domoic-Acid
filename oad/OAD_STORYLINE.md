@@ -46,7 +46,7 @@ Chapter 9 and the companion DATect integration writeup.
 ## Chapter 2 — Method: 3D convolutional autoencoder with masked-autoencoder training
 
 OAD is a 3D convolutional autoencoder (ConvAE3D) operating on time × space ×
-channels tensors. Architecture details (`ocean anomaly detection/src/model3d.py`):
+channels tensors. Architecture details (`oad/src/model3d.py`):
 
 | Element | Value | Notes |
 |---|---|---|
@@ -73,7 +73,7 @@ in all downstream analyses.
 ## Chapter 3 — Data: the 22-year MODIS Aqua cube
 
 The training data is a custom-built spatiotemporal cube
-(`ocean anomaly detection/data/cube.zarr`, Hyak-only, ~50 GB):
+(`oad/data/cube.zarr`, Hyak-only, ~50 GB):
 
 | Property | Value |
 |---|---|
@@ -103,7 +103,8 @@ regions are an overall coastwide envelope plus four alongshore sub-bands
 ## Chapter 4 — Training (three phases)
 
 The training story has three phases corresponding to design iterations
-documented in `IMPLEMENTATION_PLAN.md`:
+documented in `IMPLEMENTATION_PLAN.md` (removed once all phases were done;
+it is at git tag `archive/pre-cleanup`):
 
 | Phase | Objective | Outcome |
 |---|---|---|
@@ -129,7 +130,7 @@ skill loss.
 
 Training itself runs on Hyak GPUs (see `hyak/` directory for the sbatch
 drivers). Multiple checkpoints are saved per variant in
-`ocean anomaly detection/models/` and `outputs/scores/`.
+`oad/models/` and `oad/outputs/scores/`.
 
 ---
 
@@ -345,8 +346,8 @@ any downstream integration:
 - [`RESULTS.md`](RESULTS.md) — Validated numbers: per-region E4-forecastability
   tables, MAE-ratio comparison, annual-cycle plots, sanity-check caveats on
   the 1-day lead inflation
-- [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) — Design history of the
-  three training phases (A → B → C masked-autoencoder)
+- `IMPLEMENTATION_PLAN.md` (at git tag `archive/pre-cleanup`) — Design history
+  of the three training phases (A → B → C masked-autoencoder)
 - [`../docs/OAD_INTEGRATION_RESULTS.md`](../docs/OAD_INTEGRATION_RESULTS.md) —
   Full DATect-side integration writeup (when, why, and how OAD was tested as
   a feature for beach DA forecasting, and why it was null)

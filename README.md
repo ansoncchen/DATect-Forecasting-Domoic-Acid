@@ -7,229 +7,246 @@
 
 ## Overview
 
-DATect is a machine learning system for forecasting harmful algal bloom toxin concentrations (domoic acid) along the Pacific Coast. It integrates satellite oceanographic data, climate indices, and environmental measurements with strict temporal safeguards to ensure scientifically valid predictions.
+DATect forecasts domoic acid (DA), the harmful-algal-bloom toxin, in shellfish at 10 monitoring beaches on the Washington and Oregon coast, one week ahead. It combines satellite ocean data, climate indices, river discharge and past toxin measurements, with strict safeguards against using future data.
 
-**Key features:**
-- 10 monitoring sites from Oregon to Washington
-- 21 years of integrated data (2003–2023)
-- Two-model ML ensemble (XGBoost + Random Forest) with per-site hyperparameter customization
-- Observation-order lag features for sparse/irregular measurement data
-- No-data-leakage guarantees — `_verify_no_data_leakage()` runs on every prediction
-- Three-window chronological evaluation protocol (pre-2019 / 2019–2022 validation / 2022–2023 holdout)
-- Multi-seed bootstrap (seeds 42–46) for honest noise estimates on the holdout
-- Quantile regression + bootstrap confidence intervals
-- **Single source of truth for all tunable hyperparameters** in `config/tuned_hyperparameters.json` with per-key provenance, enabling fully reproducible re-tuning
+- 10 monitoring sites, 2003–2023
+- Two-model ensemble (XGBoost + Random Forest) with per-site weights, feature subsets and prediction clipping; naive persistence is reported as a separate baseline
+- Observation-order lag features for sparse, irregular measurements
+- Leak-free evaluation: `_verify_no_data_leakage()` runs on every prediction, and models are scored only on real DA measurements
+- Three-window chronological protocol: training before each anchor, validation 2019–2021, untouched holdout 2022–2023; a 5-seed bootstrap (seeds 42–46) confirms the holdout result
+- All tuned values in one file, `config/tuned_hyperparameters.json`, with provenance for each key
 
-**Headline performance** (2022–2023 temporal holdout, 5-seed bootstrap):
-- R² = 0.433 ± 0.092
-- MAE = 5.93 ± 0.34 µg/g
-- Spike recall = 0.848 ± 0.044
+## Performance
+
+<!-- NUMBERS: filled from docs/CORRECTED_NUMBERS.md after the post-cleanup re-run -->
+All reported metrics, with their sources and history, are in [docs/CORRECTED_NUMBERS.md](docs/CORRECTED_NUMBERS.md).
 
 ## Quick Start
 
-```bash
-# Clone repository
-git clone https://github.com/ansoncchen/DATect-Forecasting-Domoic-Acid.git
-cd DATect-Forecasting-Domoic-Acid
+### Prerequisites
 
-# Run locally (auto-installs dependencies)
-python3 run_datect.py
+| Software | Version |
+|----------|---------|
+| Python | 3.10+ |
+| Node.js | 18+ |
+| Git | any |
+
+```bash
+# macOS
+brew install python node git
+
+# Ubuntu / Debian (NodeSource provides a current Node.js)
+sudo apt update && sudo apt install -y python3 python3-venv python3-pip git
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
 ```
 
-Opens at http://localhost:3000. Backend API at http://localhost:8000 | API docs at http://localhost:8000/docs.
+On Windows, install Python (tick "Add Python to PATH"), Node.js and Git from their websites.
 
-`run_datect.py` picks the fastest tools present: `uv` or `pip` for Python (`requirements.txt`), `bun` or `npm` for the frontend, `granian` or `uvicorn` for the API.
+### Run locally
+
+```bash
+git clone https://github.com/ansoncchen/DATect-Forecasting-Domoic-Acid.git
+cd DATect-Forecasting-Domoic-Acid
+python3 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python run_datect.py
+```
+
+The dataset (`data/processed/final_output.parquet`) ships with the repo, so no data download is needed. `run_datect.py` installs the Python and frontend dependencies, starts the API and the dashboard, and opens the browser:
+
+- Dashboard: http://localhost:3000
+- API: http://localhost:8000 (health check: `curl http://localhost:8000/health`)
+- API docs: http://localhost:8000/docs
+
+It uses the fastest tools it finds: `uv` or `pip` for Python, `bun` or `npm` for the frontend, `granian` or `uvicorn` for the API. It stops anything already listening on ports 8000 and 3000 (via `lsof`, so not on Windows).
+
+### Pre-computed cache (optional)
+
+Retrospective views are slow to compute on a laptop. The cache is built on Hyak, never locally (see [docs/HYAK_SETUP.md](docs/HYAK_SETUP.md)):
+
+```bash
+# On a Hyak compute node, from the repo root:
+python precompute_cache.py
+
+# On your machine:
+scp -r klone-login:/gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/ ./cache/
+ENABLE_PRECOMPUTED_CACHE=true python run_datect.py
+```
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `python3 run_datect.py` | Start system (backend + frontend + browser) |
-| `python3 precompute_cache.py` | Pre-compute cache — **run on Hyak, not locally** |
-| `python3 dataset-creation.py` | Regenerate dataset (30–60 min, only when data changes) |
-| `bash run_full_validation.sh` | Parallel paper metrics, ablation, stability, spike eval, cache (Hyak) |
-| `./deploy_gcloud.sh` | Deploy to Google Cloud Run |
+| Command | What it does |
+|---------|--------------|
+| `python run_datect.py` | Start API + dashboard locally |
+| `pip install -r requirements-dev.txt && pytest tests/` | Run the test suite |
+| `cd frontend && npm run dev` / `npm run build` / `npm run lint` | Frontend development |
+| `python precompute_cache.py` | Build the dashboard cache (Hyak only) |
+| `python scripts/data/rebuild_final_output.py --recompute measurements` | Rebuild `da`/`pn` columns of the dataset offline after a change to the raw CSVs or their parsing |
+| `python scripts/data/export_oad_features.py <checkpoint>` then `rebuild_final_output.py --recompute oad` | Switch or refresh the OAD input and features |
+| `python dataset-creation.py` | Full dataset rebuild from source (re-downloads every satellite and climate series from NOAA ERDDAP; slow and often fails). Use the offline rebuild above for anything else |
+| `bash scripts/eval/golden_baseline.sh <git-ref>` | Re-run every evaluation behind a reported number (Hyak) |
+| `sbatch scripts/tune/tune_all.sbatch` | Re-tune `config/tuned_hyperparameters.json` end to end (Hyak) |
+| `PROJECT_ID=<gcp-project> ./deploy/deploy_gcloud.sh` | Deploy to Google Cloud Run |
 
 ## Environment Variables
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ENABLE_PRECOMPUTED_CACHE` | `false` | Set `"true"` to use pre-computed cache locally |
-| `CACHE_DIR` | `./cache` | Path to pre-computed cache directory |
-| `REDIS_URL` | unset | Redis URL for 100× faster cache reads (e.g. `redis://localhost:6379/0`) |
-| `ALLOWED_ORIGINS` | unset | Comma-separated CORS origins for production (defaults allow localhost dev only) |
+| `ENABLE_PRECOMPUTED_CACHE` | `false` | `true` serves retrospective results from the pre-computed cache |
+| `CACHE_DIR` | `./cache` | Location of the pre-computed cache |
+| `REDIS_URL` | unset | Optional Redis cache backend (e.g. `redis://localhost:6379/0`) |
+| `ALLOWED_ORIGINS` | unset | Comma-separated CORS origins; unset allows only localhost dev servers, so set it in production |
+| `DATECT_PER_ANCHOR_TUNING` | `false` | `true` runs a per-forecast XGBoost grid search (1–3 min per forecast). Off by default, which matches how every reported number was produced |
 
-## System Architecture
+Further `DATECT_*` variables for experiments (feature drops, per-site overrides, ablations) are documented in [CLAUDE.md](CLAUDE.md).
+
+## Repository Layout
 
 ```
 DATect-Forecasting-Domoic-Acid/
-├── run_datect.py                   # System launcher (uv/bun/granian when available)
-├── dataset-creation.py             # Data pipeline (satellite, climate, toxins)
-├── precompute_cache.py             # Cache pre-computation (run on Hyak)
-├── run_full_validation.sh          # Parallel paper / cache jobs (Hyak)
-├── scripts/eval/                   # Paper metrics, ablation, stability, spike eval
-├── scripts/fig*.py                 # Optional paper figures (not used by the dashboard)
-├── tests/                          # Pytest (e.g. leakage audit)
-├── paper/                          # Manuscript (LaTeX + MDPI class files)
-├── config.py                       # Operational configuration (sites, URLs, structural constants)
+├── run_datect.py                   # Local launcher (API + dashboard + browser)
+├── dataset-creation.py             # Full dataset build from source downloads
+├── precompute_cache.py             # Dashboard cache pre-computation (Hyak)
+├── config.py                       # Sites, data sources, structural constants
 ├── config/
-│   └── tuned_hyperparameters.json  # **All tunable values + provenance** (single source of truth)
-├── forecasting/                    # ML forecasting engine
-│   ├── raw_forecast_engine.py      # Main engine — ensemble pipeline with per-site dispatch
-│   ├── raw_data_forecaster.py      # Raw DA loading, feature frame building, leak-free test rows
-│   ├── raw_data_processor.py       # Observation-order lag features (not grid-shift)
-│   ├── per_site_models.py          # Per-site config loader (reads from tuned_hyperparameters.json)
-│   ├── tuned_config.py             # JSON loader + accessors (get_per_site, get_global, get_eval_windows)
-│   ├── oad_features.py             # Optional OAD ocean-anomaly features (16 per row, leak-safe)
-│   ├── ensemble_model_factory.py   # Class-based wrapper matching API's ModelFactory interface
-│   ├── raw_model_factory.py        # Standalone model builders (XGB, RF, classifier)
-│   ├── classification_adapter.py   # Threshold + dedicated XGBoost classifier for 4 DA categories
-│   ├── feature_utils.py            # Shared temporal features + transformer creation
-│   ├── logging_config.py           # Logging configuration
-│   └── validation.py               # System startup validation
-├── backend/                        # FastAPI web server
-│   ├── api.py                      # REST endpoints
-│   ├── visualizations.py           # Chart generation (correlation, time series, spectral)
-│   ├── cache_manager.py            # Pre-computed cache access (file-based + Redis)
-│   └── redis_cache.py              # Optional Redis caching (set REDIS_URL to enable)
+│   └── tuned_hyperparameters.json  # All tuned values + provenance
+├── forecasting/                    # Forecasting engine
+│   ├── raw_forecast_engine.py      # Ensemble pipeline, leakage checks, retrospective evaluation
+│   ├── raw_data_forecaster.py      # Raw DA loading, feature frames, leak-free test rows
+│   ├── raw_data_processor.py       # Observation-order lag features
+│   ├── per_site_models.py          # Per-site configuration (read from the tuned JSON)
+│   ├── tuned_config.py             # Loader for config/tuned_hyperparameters.json
+│   ├── measurements.py             # Raw DA / PN / date parsing (shared by data, eval and API)
+│   ├── metrics.py                  # Spike detection and bootstrap metrics
+│   ├── oad_features.py             # OAD ocean-anomaly features (16 per row, leak-safe)
+│   ├── classification_adapter.py   # Risk categories and the spike classifier
+│   ├── raw_model_factory.py        # Model builders (XGBoost, RF, classifier)
+│   ├── ensemble_model_factory.py   # Model factory used by the API
+│   ├── feature_utils.py            # Temporal features + transformers
+│   ├── logging_config.py
+│   └── validation.py               # Startup checks
+├── backend/                        # FastAPI server (api.py, visualizations.py, cache_manager.py, redis_cache.py)
 ├── frontend/                       # React + Vite dashboard
-├── data/processed/                 # Shipped: final_output.parquet (forecast features)
-├── data/intermediate/              # Local only: satellite cache from dataset-creation (not in git)
-├── eval_outputs/                   # All retrospective eval results (multi-seed, sweeps, chronological)
-├── docs/                           # Methodology deep-dives, audit notes, paper-update plans
-├── paper/                          # Manuscript (LaTeX + MDPI class files + figure generation)
-├── CITATION.cff                    # Citation metadata (GitHub auto-renders as citation widget)
-├── Dockerfile.production           # Production container
-└── cloudbuild.yaml                 # Google Cloud Build config
+├── data/
+│   ├── raw/da-input/, raw/pn-input/  # Raw toxin and Pseudo-nitzschia measurements (one CSV per site)
+│   └── processed/                  # final_output.parquet, oad_scores.parquet, oad_cloud_fractions.parquet
+├── scripts/
+│   ├── eval/                       # Evaluation, ablation, golden baseline
+│   ├── tune/                       # tune_all.py re-tuning orchestrator
+│   └── data/                       # Offline dataset rebuild, OAD feature export
+├── results/                        # Committed outputs behind reported numbers
+│                                   # (chronological, multi_seed, paper_metrics, final_verification,
+│                                   #  holdout_validation, ablation, tuning_provenance)
+├── oad/                            # Ocean Anomaly Detection subproject (MODIS autoencoder)
+├── papers/                         # datect/, oad_mdpi/, oad_cvpr/, poster/
+├── deploy/                         # cloudbuild.yaml, deploy_gcloud.sh
+├── docs/                           # Documentation (below)
+├── tests/                          # Pytest suite
+├── Dockerfile.production
+├── requirements.txt                # Runtime dependencies
+├── requirements-dev.txt            # Tests, linting, figure scripts
+└── CITATION.cff
 ```
 
-## Re-tuning hyperparameters
-
-All tunable values live in `config/tuned_hyperparameters.json` with per-key provenance documenting how each value was selected. To re-tune:
-
-```bash
-# Re-run the grid search on Hyak (~3 hr, 3-fold chronological CV on pre-2022 data)
-sbatch scripts/eval/grid_search_weights_clip.sbatch
-
-# Re-run multi-seed bootstrap on the resulting config (~2 hr, 5 array tasks parallel)
-sbatch scripts/eval/multi_seed_baseline.sbatch
-
-# Deterministic chronological eval on the unbiased holdout (~2 hr)
-sbatch scripts/eval/run_chronological.sbatch
-
-# Aggregate the JSON updates from sweep winners — manual review step
-# (no auto-orchestrator yet; see docs/EXPERIMENT_SUMMARY.md for the workflow)
-```
-
-Env-var overlays (`DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_SPIKE_CLASSIFIER_JSON`, etc.) still apply on top of the JSON for ad-hoc experiments without modifying source files.
-
-`dataset-creation.py` writes `data/intermediate/satellite_data_intermediate.parquet` (see `SATELLITE_CACHE_PATH` in `config.py`) on first run or when you force reprocessing. That file is large and reproducible, so it is **not** committed; only `data/processed/final_output.parquet` is versioned for a quick start.
+`dataset-creation.py` caches satellite data in `data/intermediate/` (not committed).
 
 ## Using the Dashboard
 
-1. **Select date** (2003–2023 range)
-2. **Select site** (10 Pacific Coast locations)
-3. **Select model** (`ensemble` recommended; also: `naive`, `linear`)
-4. **Click "Forecast"**
+1. Choose the forecast mode: a single forecast for one date and site, or a retrospective evaluation over historical points.
+2. Pick the site, date and model: `ensemble` (recommended), `naive` (persistence) or `linear` (Ridge / logistic).
+3. Run it. Single forecasts show the predicted DA, its interval and its risk category.
 
-**Risk categories:**
+**Risk categories** (left-closed bins; a value on a boundary belongs to the higher category):
 
-| Category | DA Level (µg/g) | Meaning |
-|----------|-----------------|---------|
-| Low | 0–5 | Safe for consumption |
-| Moderate | 5–20 | Caution advised |
-| High | 20–40 | Avoid (above FDA action level) |
-| Extreme | >40 | Health hazard |
+| Category | DA (µg/g) |
+|----------|-----------|
+| Low | 0 to < 5 |
+| Moderate | 5 to < 20 |
+| High | 20 to < 40 (at or above the 20 µg/g regulatory action level) |
+| Extreme | 40 and above |
 
-**Retrospective mode:** Evaluate model performance across historical anchor points per site.
+A spike is an actual DA of 20 µg/g or more; the regression alert fires when the forecast reaches 12 µg/g.
 
-## Model Performance
+## Re-tuning and Re-evaluating
 
-All values from the **2022-2023 temporal holdout**, downstream of the latest configuration adjustment and never inspected during tuning. See `paper/datect_paper_mdpi.tex` Table 3 and `docs/EXPERIMENT_SUMMARY.md`.
+All tunable values live in `config/tuned_hyperparameters.json`. Re-tuning runs on Hyak; submit from the repo root:
 
-| Metric | Deterministic [95% CI] | 5-seed bootstrap |
-|--------|-----------------------:|----------------:|
-| **Ensemble R²** | **0.485 [0.330, 0.604]** | 0.433 ± 0.092 |
-| Ensemble MAE | 6.76 µg/g [5.48, 8.20] | 6.03 ± 0.63 µg/g |
-| Spike recall (regression-only) | 0.857 | 0.848 ± 0.044 |
-| Spike F2 (regression-only) | 0.699 | 0.648 ± 0.044 |
-| Hybrid alert recall (classifier ∪ regression trigger) | 0.876 | — |
+```bash
+sbatch scripts/tune/tune_all.sbatch
+```
 
-**Per-site holdout R²:** 9 of 10 sites measurably positive (5 WA + Clatsop + Kalaloch + Coos Bay + Newport between +0.17 and +0.63). Only Gold Beach genuinely negative (R² = −0.235), reflecting its near-zero lag-1 autocorrelation. Cannon Beach has no spike events in the 2022-2023 window.
+`tune_all.py` submits four sweeps (per-site grid search over ensemble weights and clipping with leak-free 3-fold chronological CV on pre-2022 data; per-site XGBoost perturbation check; global XGBoost sweep; spike-classifier sweep), waits for them, and writes a new JSON with provenance. `python scripts/tune/tune_all.py --assemble-only` rebuilds the JSON from existing sweep outputs. Individual stages and evaluations are listed in [docs/QUICKSTART_FOR_REVIEWERS.md](docs/QUICKSTART_FOR_REVIEWERS.md).
 
-Sources: `eval_outputs/chronological/` (deterministic), `eval_outputs/multi_seed_results/` (bootstrap). Reproduce via `scripts/eval/chronological_eval.py` and `scripts/eval/multi_seed_baseline.py`.
+To re-run every evaluation behind a reported number for a commit, use the golden baseline (`scripts/eval/golden_baseline.sh`, then `scripts/eval/compare_golden.py` to diff two runs).
+
+Env-var overlays (`DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_SPIKE_CLASSIFIER_JSON`, etc.) apply on top of the JSON for experiments without editing it.
 
 ## Data Sources
 
-- **Satellite**: MODIS-Aqua chlorophyll-a, SST, PAR, fluorescence (FLH), K490 (8-day composites)
+- **Satellite** (NOAA CoastWatch ERDDAP): MODIS-Aqua chlorophyll-a, SST, PAR, fluorescence line height, K490 (8-day composites), plus chlorophyll and SST anomalies
 - **Climate indices**: PDO, ONI, BEUTI (2-month reporting delay enforced)
 - **Streamflow**: USGS Columbia River discharge (gauge 14246900)
-- **Toxin data**: WA DOH and OR DFW state monitoring programs
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [docs/PIPELINE_DEEP_DIVE.md](docs/PIPELINE_DEEP_DIVE.md) | Forecast pipeline, temporal safeguards, leakage prevention, and API flow |
-| [docs/DATA_PIPELINE_DETAILED.md](docs/DATA_PIPELINE_DETAILED.md) | `dataset-creation.py` — ingestion, ERDDAP, buffers, Parquet output |
-| [docs/dataset-creation-scientific-decisions.md](docs/dataset-creation-scientific-decisions.md) | Scientific rationale for data decisions |
-| [docs/EVALUATION_AND_RESEARCH.md](docs/EVALUATION_AND_RESEARCH.md) | Paper and Hyak evaluation scripts (ablation, stability, metrics, spikes) |
-| [docs/VISUALIZATIONS_GUIDE.md](docs/VISUALIZATIONS_GUIDE.md) | Chart and visualization interpretation |
-| [docs/QUICK_START.md](docs/QUICK_START.md) | OS-specific local setup |
-| [docs/HYAK_SETUP.md](docs/HYAK_SETUP.md) | Hyak (UW Klone) cluster workflow for cache pre-computation |
-| [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Cache refresh on Hyak and Google Cloud Run deploy |
+- **Toxin and Pseudo-nitzschia data**: Washington and Oregon state monitoring programs
+- **Ocean anomaly scores**: the `oad/` subproject's MODIS autoencoder (checkpoint `ae_3d_l32_c4_t4_s42_mae070`)
 
 ## Temporal Safeguards
 
-The system enforces strict temporal integrity to prevent data leakage:
+1. **Chronological training**: each forecast trains only on rows with `date <= anchor_date` (anchor = target date − 7 days)
+2. **Forward-only gap-filling**: training targets between real measurements decay from past observations only
+3. **Satellite buffer**: 7-day processing delay
+4. **Climate buffer**: 2-month reporting delay
+5. **OAD buffer**: OAD features end 5 days before each weekly row, so the centered 8-day MODIS composites never reach the forecast window
+6. **Observation-order lags**: past-only shifts over real measurements
+7. **Persistence features**: recomputed from real observations only, not gap-filled values
+8. **Fresh model per test point**: no shared state between forecasts
+9. **`_verify_no_data_leakage()`**: raises `AssertionError` on every violation
 
-1. **Chronological splits** — training only uses `date <= anchor_date`
-2. **Forward-only gap-filling** — exponential decay from past observations only (no future data in gap-filled targets)
-3. **Satellite buffer** — 7-day processing delay
-4. **Climate buffer** — 2-month reporting delay
-5. **Observation-order lags** — past-only shifts on raw measurements
-6. **Per-forecast categories** — DA risk levels computed from training data only
-7. **Persistence features recomputed** — from real observations only, not gap-filled values
-8. **Fresh model per test point** — no lookahead via shared state
-9. **`_verify_no_data_leakage()`** — called for every prediction, raises `AssertionError` on violation
+## Documentation
 
-## Hyak Workflow
-
-Heavy computation (pre-computing the retrospective cache) must run on the Hyak cluster:
-
-```bash
-# On Hyak compute node:
-python3 precompute_cache.py
-
-# Transfer cache to local machine:
-scp -r klone-node:/gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/ ./cache/
-
-# Run dashboard locally with pre-computed cache:
-ENABLE_PRECOMPUTED_CACHE=true python3 run_datect.py
-```
-
-See [docs/HYAK_SETUP.md](docs/HYAK_SETUP.md) for full SSH and environment setup.
+| Document | Contents |
+|----------|----------|
+| [CLAUDE.md](CLAUDE.md) | Project conventions, environment variables, mechanical gotchas |
+| [AGENTS.md](AGENTS.md) | Pointer for coding agents |
+| [docs/CORRECTED_NUMBERS.md](docs/CORRECTED_NUMBERS.md) | All reported numbers and their history |
+| [docs/QUICKSTART_FOR_REVIEWERS.md](docs/QUICKSTART_FOR_REVIEWERS.md) | Reproducing the paper's claims; evaluation and tuning script index |
+| [docs/PIPELINE_DEEP_DIVE.md](docs/PIPELINE_DEEP_DIVE.md) | Forecast pipeline, temporal safeguards, API flow |
+| [docs/DATA_PIPELINE_DETAILED.md](docs/DATA_PIPELINE_DETAILED.md) | `dataset-creation.py` |
+| [docs/OAD_INTEGRATION_RESULTS.md](docs/OAD_INTEGRATION_RESULTS.md) | How OAD features enter DATect and what was learned |
+| [docs/HYAK_SETUP.md](docs/HYAK_SETUP.md) | Hyak (UW Klone) cluster workflow |
+| [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Cache refresh on Hyak and Cloud Run deploy |
+| [docs/VISUALIZATIONS_GUIDE.md](docs/VISUALIZATIONS_GUIDE.md) | Reading the dashboard charts |
+| [docs/superpowers/](docs/superpowers/) | Design spec and plan for the upcoming transport-aware forecasting work |
+| [oad/README.md](oad/README.md), [oad/RESULTS.md](oad/RESULTS.md), [oad/OAD_STORYLINE.md](oad/OAD_STORYLINE.md) | OAD subproject: workflow, results, narrative |
 
 ## Google Cloud Deployment
 
+Sync the Hyak-built cache into `./cache` first. The deploy script bakes it into the image; if `./cache` is missing or empty it runs `precompute_cache.py` locally, and if it exists it asks whether to re-generate it (answer N). Then:
+
 ```bash
 gcloud auth login
-gcloud config set project YOUR-PROJECT-ID
-./deploy_gcloud.sh
+export PROJECT_ID=your-gcp-project-id
+export REGION=us-west1               # optional; this is the default
+./deploy/deploy_gcloud.sh
 ```
+
+The script enables the required APIs, builds with Cloud Build (`deploy/cloudbuild.yaml`) and deploys the `datect-api` Cloud Run service. See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md).
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| Port already in use | `run_datect.py` auto-kills existing processes on 8000/3000 |
-| Missing dataset | Run `python3 dataset-creation.py` (30–60 min) |
-| Node.js not found | Install from [nodejs.org](https://nodejs.org/) |
-| `precompute_cache.py` is slow | Run on Hyak, not locally — see docs/HYAK_SETUP.md |
+| `ModuleNotFoundError: requests` when starting | Activate the virtual environment and `pip install -r requirements.txt` |
+| `python: command not found` | Use `python3` |
+| Port 8000 or 3000 in use | The launcher frees them on macOS/Linux; otherwise `lsof -ti:8000,3000 \| xargs kill` |
+| Node.js missing or older than 18 | Install a current version from [nodejs.org](https://nodejs.org/) or `brew upgrade node` |
+| Retrospective runs are slow | Use the Hyak-built cache (`ENABLE_PRECOMPUTED_CACHE=true`) |
+| Deploy fails on authentication | `gcloud auth list`, `gcloud auth application-default login`, check `PROJECT_ID` |
 
 ## License
 
-Code is released under the [MIT License](LICENSE). If you use DATect in published research, please cite the manuscript (`paper/datect_paper_mdpi.tex` / the PDF in `paper/`) and acknowledge the data providers listed above.
+Code is released under the [MIT License](LICENSE). If you use DATect in published research, please cite the manuscript (`papers/datect/datect_paper_mdpi.tex`, PDF alongside) and acknowledge the data providers listed above.
 
 ## Acknowledgments
 

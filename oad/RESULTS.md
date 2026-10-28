@@ -1,4 +1,8 @@
-# Real-data smoke results
+# OAD results
+
+Validated numbers for the OAD autoencoder: sanity-check caveats, the Phase C
+mask-ratio sweep and the full 22-year Hyak run, followed by the early smoke runs
+that first exercised the pipeline.
 
 ## ⚠️ SANITY-CHECK CAVEATS (added after Phase C — read this before quoting numbers)
 
@@ -87,7 +91,9 @@ but it should be disclosed.
 
 ### Implications for DATect integration
 
-1. **Use `AE_3d_l32_t4_mae070` as the integration default** — it's the only
+1. **DATect uses `ae_3d_l32_c4_t4_s42_mae070`** (exported to
+   `data/processed/oad_scores.parquet` by `scripts/data/export_oad_features.py`;
+   before October 2026 it used `mae050`). It's the only
    method retaining skill at lead=7+ days, which is the regime DATect actually
    needs given its `anchor = test_date − 7` convention plus the centered-composite
    lag (`test_date − 12`). The cleaner-cloud variant `mae050` collapses faster
@@ -96,11 +102,13 @@ but it should be disclosed.
 2. **Set integration lag = `test_date − 12`** (required by the centered-composite
    leakage caveat; this analysis confirms lead=7+ is also where the "real"
    signal lives, so the leakage-safe lag is also the informative-skill lag).
-3. **Add `oad_valid_pixel_fraction` as a parallel feature** so the XGBoost model
-   can learn to discount cloudy weeks — easier than pre-regressing.
+3. **Add the valid-pixel fraction as a parallel feature** so the XGBoost model
+   can learn to discount cloudy weeks — easier than pre-regressing. DATect does
+   this with `oad_valid_frac` and `oad_overall_valid_frac`.
 4. **Don't oversell**: the expected DATect R² lift from adding OAD features is
-   probably modest, not transformative. The empirical baseline-vs-+OAD comparison
-   in `eval_paper_metrics.py` will tell the real story.
+   probably modest, not transformative. The measured effect (no-OAD ablation in
+   `scripts/eval/paper_ablation_study.py`) is described in
+   `../docs/OAD_INTEGRATION_RESULTS.md`, with numbers in `../docs/CORRECTED_NUMBERS.md`.
 
 Artifacts (generated into `outputs/figures/` on Hyak; not tracked — the committed
 copies from this analysis are in git tag `archive/pre-cleanup`, `outputs/figures_FINAL_v4/`):

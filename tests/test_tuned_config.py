@@ -58,7 +58,7 @@ def test_global_block_required_keys():
     from forecasting.tuned_config import get_global
     g = get_global()
     required = (
-        "xgb_base_params", "rf_base_params", "rf_conservative_params",
+        "xgb_base_params", "rf_base_params",
         "spike_classifier_params", "param_grid",
         "min_training_for_tuning", "calibration_fraction",
         "max_calibration_rows", "min_tuning_samples",

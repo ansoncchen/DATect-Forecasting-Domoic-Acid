@@ -48,11 +48,6 @@ def get_global() -> Dict[str, Any]:
     return load_tuned()["global"]
 
 
-def get_provenance() -> Dict[str, str]:
-    """How each tunable group was selected — for paper Methods sections."""
-    return load_tuned().get("provenance", {})
-
-
 def get_eval_windows() -> Dict[str, str]:
     """Canonical train/val/test chronological split dates."""
     return load_tuned()["eval_windows"]

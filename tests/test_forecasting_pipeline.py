@@ -146,8 +146,6 @@ class TestForecastingPipeline:
         eval_df = self.engine.run_retrospective_evaluation(
             task="regression",
             model_type="ensemble",
-            n_anchors=2,
-            min_test_date="2018-01-01"
         )
         
         if eval_df is not None:

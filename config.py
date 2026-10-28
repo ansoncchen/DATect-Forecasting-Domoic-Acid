@@ -193,22 +193,12 @@ FORECAST_MODEL = "ensemble"
 FORECAST_HORIZON_WEEKS = 1
 FORECAST_HORIZON_DAYS = FORECAST_HORIZON_WEEKS * 7  # Derived days value for internal calculations
 
-# XGBoost Hyperparameters (configurable)
-# These override defaults in ModelFactory for reproducible tuning and easy experimentation.
-# Regression parameters
-XGB_REGRESSION_PARAMS = {
-    "n_estimators": 400,
-    "max_depth": 6,
-    "learning_rate": 0.05,
-    "subsample": 0.85,
-    "colsample_bytree": 0.85,
-    "colsample_bylevel": 0.8,
-    "reg_alpha": 0.1,
-    "reg_lambda": 1.0,
-    "gamma": 0.1,
-    "min_child_weight": 3,
-    "tree_method": "hist",
-}
+# Tuned values are loaded from config/tuned_hyperparameters.json (single source of truth).
+from forecasting.tuned_config import get_global as _get_tuned_global
+_tuned = _get_tuned_global()
+
+# XGBoost regression base parameters (per-site overrides live in SITE_SPECIFIC_CONFIGS)
+XGB_REGRESSION_PARAMS = dict(_tuned["xgb_base_params"])
 
 # Classification parameters
 XGB_CLASSIFICATION_PARAMS = {
@@ -250,11 +240,7 @@ LAG_FEATURES = [] if _lag_env.lower() == "none" else [int(x) for x in _lag_env.s
 DA_CATEGORY_BINS = [-float("inf"), 5, 20, 40, float("inf")]
 DA_CATEGORY_LABELS = [0, 1, 2, 3]
 
-# Spike Detection Configuration
-# Tuned values loaded from config/tuned_hyperparameters.json (single source of truth).
-# Env-var overlays (DATECT_SPIKE_CLASSIFIER_JSON) still apply on top.
-from forecasting.tuned_config import get_global as _get_tuned_global
-_tuned = _get_tuned_global()
+# Spike Detection Configuration (tuned values; DATECT_SPIKE_CLASSIFIER_JSON overlays apply)
 
 SPIKE_THRESHOLD = float(_tuned["spike_threshold_actual"])  # DA > 20 μg/g considered a spike event
 SPIKE_ALERT_PROB_THRESHOLD = float(_tuned["spike_alert_prob_threshold"])  # classifier operating point
@@ -402,7 +388,6 @@ TEMPORAL_HOLDOUT_CUTOFF = os.environ.get(
     "DATECT_TEMPORAL_HOLDOUT_CUTOFF",
     _get_eval_windows()["validation_start"],
 )
-TEMPORAL_HOLDOUT_FRACTION = float(os.environ.get("DATECT_TEMPORAL_HOLDOUT_FRACTION", "1.0"))
 
 # Parallelization backend (used by joblib in retrospective evaluation)
 PARALLEL_BACKEND = os.environ.get("DATECT_PARALLEL_BACKEND", "loky")

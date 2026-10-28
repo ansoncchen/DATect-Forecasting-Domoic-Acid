@@ -90,12 +90,11 @@ fold_start = pd.Timestamp(os.environ["FOLD_START"])
 fold_end   = pd.Timestamp(os.environ["FOLD_END"])
 
 engine = RawForecastEngine(validate_on_init=False)
-# Only evaluate within this fold's test window — saves compute by skipping
-# years we don't score. (Inner per-anchor tuning stays at whatever the env says.)
+# The engine evaluates every sampled date >= config.MIN_TEST_DATE; the fold is
+# scored on [fold_start, fold_end) below. (Inner per-anchor tuning stays at
+# whatever the env says.)
 results_df = engine.run_retrospective_evaluation(
     task="regression", model_type="ensemble",
-    n_anchors=getattr(config, "N_RANDOM_ANCHORS", 500),
-    min_test_date=fold_start.strftime("%Y-%m-%d"),
 )
 if results_df is None or results_df.empty:
     print(json.dumps({"r2": -999.0, "mae": 999.0, "n": 0}))

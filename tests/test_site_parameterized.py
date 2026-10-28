@@ -37,7 +37,6 @@ from backend.visualizations import (
     generate_time_series_comparison,
     generate_spectral_analysis,
 )
-from forecasting.validation import validate_runtime_parameters
 from forecasting.raw_forecast_engine import _verify_no_data_leakage
 
 # All 10 canonical monitoring sites
@@ -224,13 +223,3 @@ class TestSiteParameterized:
         with pytest.raises(AssertionError, match="TEMPORAL LEAK"):
             _verify_no_data_leakage(train_df, test_date, anchor_date)
 
-    # 6. Runtime Argument Validation Boundaries (20 tests)
-    @pytest.mark.parametrize("n_anchors", [-5, 0, 1000000])
-    def test_validate_runtime_parameters_n_anchors(self, n_anchors):
-        """Verify bad anchor parameters raise ValueError in validation."""
-        if n_anchors <= 0:
-            with pytest.raises(ValueError):
-                validate_runtime_parameters(n_anchors, "2018-01-01")
-        else:
-            # high n_anchors should pass validation bounds check
-            validate_runtime_parameters(n_anchors, "2018-01-01")

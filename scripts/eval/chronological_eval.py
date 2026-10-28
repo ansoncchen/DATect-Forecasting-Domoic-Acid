@@ -88,8 +88,6 @@ def run_chronological(window_start: str, window_end: str, task: str, model_type:
         config.TEST_SAMPLE_FRACTION = 1.0
         results = engine.run_retrospective_evaluation(
             task=task, model_type=model_type,
-            n_anchors=getattr(config, "N_RANDOM_ANCHORS", 9999),
-            min_test_date=window_start,
         )
     finally:
         config.TEST_SAMPLE_FRACTION = saved

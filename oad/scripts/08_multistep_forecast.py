@@ -53,9 +53,6 @@ def _make_h_step_features(series: np.ndarray, lags: list[int], h: int):
     last = n - h  # last valid prediction target index
     if last <= max_lag:
         return None, None
-    X_cols = [series[max_lag - l : last - h + (max_lag - l) + 1 - (max_lag - l)]
-              for l in lags]
-    # Simpler windowed construction:
     starts = []
     targets = []
     for i in range(max_lag, last):

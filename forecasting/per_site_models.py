@@ -18,97 +18,12 @@ from forecasting.oad_features import OAD_FEATURES_ALL
 
 
 # --------------------------------------------------------------------------
-# Feature group definitions (for readable subset selection)
-# --------------------------------------------------------------------------
-
-PERSISTENCE_FEATURES = [
-    'last_observed_da_raw',
-    'weeks_since_last_spike',
-]
-
-# Observation-order lag features (replacing grid-shift lags)
-LAG_FEATURES_SHORT = [
-    'da_raw_prev_obs_1',
-    'da_raw_prev_obs_2',
-    'da_raw_prev_obs_diff_1_2',
-]
-
-LAG_FEATURES_FULL = [
-    'da_raw_prev_obs_1',
-    'da_raw_prev_obs_2',
-    'da_raw_prev_obs_3',
-    'da_raw_prev_obs_4',
-    'da_raw_prev_obs_2_weeks_ago',
-    'da_raw_prev_obs_3_weeks_ago',
-    'da_raw_prev_obs_diff_1_2',
-]
-
-ROLLING_FEATURES_SHORT = [
-    'raw_obs_roll_mean_4',
-    'raw_obs_roll_max_4',
-]
-
-ROLLING_FEATURES_FULL = [
-    'raw_obs_roll_mean_4',
-    'raw_obs_roll_std_4',
-    'raw_obs_roll_max_4',
-    'raw_obs_roll_std_8',
-    'raw_obs_roll_max_8',
-    'raw_obs_roll_std_12',
-    'raw_obs_roll_max_12',
-]
-
-ENV_FEATURES_CORE = [
-    'modis-sst',
-    'pdo',
-    'beuti',
-]
-
-TEMPORAL_FEATURES_CORE = [
-    'sin_day_of_year',
-    'cos_day_of_year',
-    'month',
-]
-
-# Conservative RF params for sites where RF R2 < 0.1
-RF_CONSERVATIVE = {
-    'n_estimators': 200,
-    'max_depth': 6,
-    'min_samples_split': 10,
-    'min_samples_leaf': 5,
-    'max_features': 0.5,
-}
-
-# --------------------------------------------------------------------------
-# Climate & anomaly feature groups
-# --------------------------------------------------------------------------
-
-CLIMATE_FEATURES_CORE = [
-    'oni',
-    'sst-anom',
-]
-
-# Columbia River discharge (global gauge, negative proxy for DA flushing)
-# Strongest signal at northern sites (lat > 46.5°N)
-DISCHARGE_FEATURES = [
-    'discharge',
-]
-
-# Pseudo-nitzschia log transform (compresses heavy-tailed distribution)
-PN_FEATURES = [
-    'pn_log',
-]
-
-
-# --------------------------------------------------------------------------
 # Site-specific configuration dictionary
 # --------------------------------------------------------------------------
 
 # SITE_SPECIFIC_CONFIGS is now loaded from config/tuned_hyperparameters.json.
 # To change values: edit that JSON (or regenerate via scripts/tune/tune_all.py),
 # do NOT add hardcoded literals back here. Env-var overlays below still apply.
-# The feature group constants above (PERSISTENCE_FEATURES, etc.) are kept for
-# reference / external scripts; the JSON contains the resolved flat feature lists.
 from forecasting.tuned_config import get_per_site as _get_per_site
 SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
     site: dict(cfg) for site, cfg in _get_per_site().items()

@@ -231,70 +231,7 @@ def plot_yearly_drift(df: pd.DataFrame, region: str) -> plt.Figure:
 # E3 — Spatial coherence (Moran's I, numpy only)
 # ---------------------------------------------------------------------------
 
-def morans_i(values: np.ndarray, valid: np.ndarray) -> float:
-    """Moran's I on a (H, W) array using rook (4-neighbour) contiguity."""
-    flat_vals = values[valid].astype(np.float64)
-    if flat_vals.size < 4:
-        return float("nan")
-    rows, cols = np.where(valid)
-    n = len(rows)
-    z = flat_vals - flat_vals.mean()
-
-    coord_set = {(r, c): i for i, (r, c) in enumerate(zip(rows, cols))}
-    W = np.zeros((n, n), dtype=np.float32)
-    for i, (r, c) in enumerate(zip(rows, cols)):
-        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            j = coord_set.get((r + dr, c + dc))
-            if j is not None:
-                W[i, j] = 1.0
-    row_sums = W.sum(axis=1, keepdims=True)
-    row_sums = np.where(row_sums == 0, 1.0, row_sums)
-    W_row = W / row_sums
-    numerator = float(z @ W_row @ z)
-    denominator = float(z @ z)
-    if denominator < 1e-12:
-        return float("nan")
-    return n * numerator / (W.sum() * denominator)
-
-
 # ---------------------------------------------------------------------------
 # Sanity: cloud-coverage confound + aggregation comparison
 # ---------------------------------------------------------------------------
 
-def plot_cloud_confound(df: pd.DataFrame, valid_fracs: pd.Series) -> plt.Figure:
-    """Scatter score vs valid-pixel fraction per frame."""
-    sub = df.copy()
-    sub["date"] = pd.to_datetime(sub["date"])
-    valid_fracs.index = pd.to_datetime(valid_fracs.index)
-    merged = sub.merge(valid_fracs.rename("valid_frac"), left_on="date", right_index=True)
-    methods = sorted(merged["method"].unique())
-
-    fig, axes = plt.subplots(1, len(methods), figsize=(4 * len(methods), 4))
-    if len(methods) == 1:
-        axes = [axes]
-    for ax, method in zip(axes, methods):
-        m = merged[merged["method"] == method].dropna(subset=["score", "valid_frac"])
-        ax.scatter(m["valid_frac"], m["score"], alpha=0.3, s=5)
-        corr = float(m[["valid_frac", "score"]].corr().iloc[0, 1]) if len(m) > 2 else float("nan")
-        ax.set_title(f"{method}\nr={corr:.2f}", fontsize=8)
-        ax.set_xlabel("Valid-pixel fraction")
-        ax.set_ylabel("Score")
-    fig.suptitle("Sanity: cloud-coverage confound", fontsize=10)
-    fig.tight_layout()
-    return fig
-
-
-def plot_aggregation_comparison(df: pd.DataFrame, region: str, method: str) -> plt.Figure:
-    """Overlay mean / top_decile / max aggregations for one method in one region."""
-    sub = df[(df["region"] == region) & (df["method"] == method)].copy()
-    sub["date"] = pd.to_datetime(sub["date"])
-    fig, ax = plt.subplots(figsize=(12, 4))
-    for agg in ["mean", "top_decile", "max"]:
-        d = sub[sub["aggregation"] == agg].sort_values("date")
-        if d.empty:
-            continue
-        ax.plot(d["date"], d["score"], label=agg, linewidth=0.8)
-    ax.set_title(f"Aggregation comparison — {method} — {region}")
-    ax.legend()
-    fig.tight_layout()
-    return fig

@@ -182,68 +182,6 @@ def _real_composite_from_cube(target_date: str = TARGET_COMPOSITE_DATE) -> tuple
         ds.close()
 
 
-def _real_channel_panels(target_date: str = TARGET_COMPOSITE_DATE):
-    """Return normalized single-channel panels from the cube for a clean poster inset."""
-    if not CUBE.exists():
-        return None
-
-    import pandas as pd
-    import xarray as xr
-
-    ds = xr.open_zarr(CUBE, consolidated=True)
-    try:
-        channels = list(ds.attrs.get("channels", []))
-        required = ["chla", "k490", "nflh", "sst"]
-        if not set(required).issubset(channels):
-            return None
-        target = np.datetime64(target_date)
-        times = pd.to_datetime(ds["time"].values)
-        idx = int(np.argmin(np.abs(times.values.astype("datetime64[ns]") - target.astype("datetime64[ns]"))))
-        date_label = times[idx].strftime("%Y-%m-%d")
-        frame = ds["data"].isel(time=idx).values.astype(float)
-        valid = ds["mask"].isel(time=idx).values.astype(bool)
-        panels = {}
-        for ch in required:
-            band = frame[channels.index(ch)]
-            norm = _normalize_band(band, valid)
-            norm = np.where(valid, norm, np.nan)
-            panels[ch] = norm
-        return panels, date_label
-    finally:
-        ds.close()
-
-
-def _plot_channel_panel_grid(fig, outer_gs, channel_panels):
-    panel_gs = outer_gs.subgridspec(2, 2, wspace=0.08, hspace=0.18)
-    cmaps = {
-        "chla": "viridis",
-        "k490": "cividis",
-        "nflh": "magma",
-        "sst": "coolwarm",
-    }
-    titles = {
-        "chla": "Chlorophyll-a",
-        "k490": "Diffuse attenuation (Kd490)",
-        "nflh": "Fluorescence line height",
-        "sst": "Sea surface temperature",
-    }
-    for i, ch in enumerate(["chla", "k490", "nflh", "sst"]):
-        ax = fig.add_subplot(panel_gs[i // 2, i % 2])
-        cmap = plt.get_cmap(cmaps[ch]).copy()
-        cmap.set_bad("#eef2f7")
-        im = ax.imshow(channel_panels[ch], origin="lower", cmap=cmap, vmin=0, vmax=1)
-        ax.set_title(titles[ch], fontsize=10.5, weight="bold", pad=4)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_color("#cbd5e1")
-            spine.set_linewidth(0.8)
-        cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.015)
-        cb.set_ticks([0, 1])
-        cb.set_ticklabels(["low", "high"])
-        cb.ax.tick_params(labelsize=7, length=0)
-
-
 def make_study_region() -> None:
     fig = plt.figure(figsize=(14.2, 7.6), dpi=220)
     gs = fig.add_gridspec(1, 2, width_ratios=[1.0, 1.28], wspace=0.16)
@@ -316,27 +254,6 @@ def make_study_region() -> None:
     fig.savefig(OUT / "study_region_sample_composite.png", bbox_inches="tight")
     fig.savefig(OUT / "study_region_sample_composite.svg", bbox_inches="tight")
     plt.close(fig)
-
-
-def _box(ax, xy, wh, text, fc, ec="#334155", fs=10.5, lw=1.6):
-    rect = patches.FancyBboxPatch(
-        xy, wh[0], wh[1], boxstyle="round,pad=0.02,rounding_size=0.035",
-        facecolor=fc, edgecolor=ec, linewidth=lw
-    )
-    ax.add_patch(rect)
-    ax.text(xy[0] + wh[0] / 2, xy[1] + wh[1] / 2, text, ha="center", va="center",
-            fontsize=fs, color="#0f172a", linespacing=1.2)
-    return rect
-
-
-def _arrow(ax, start, end, color="#334155", lw=1.8, rad=0.0):
-    ax.annotate(
-        "",
-        xy=end,
-        xytext=start,
-        arrowprops=dict(arrowstyle="-|>", color=color, lw=lw, shrinkA=5, shrinkB=5,
-                        connectionstyle=f"arc3,rad={rad}"),
-    )
 
 
 def make_architecture() -> None:

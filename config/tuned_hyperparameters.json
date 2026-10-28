@@ -49,13 +49,6 @@
       "min_samples_leaf": 3,
       "max_features": 0.85
     },
-    "rf_conservative_params": {
-      "n_estimators": 400,
-      "max_depth": 6,
-      "min_samples_split": 10,
-      "min_samples_leaf": 5,
-      "max_features": 0.5
-    },
     "spike_classifier_params": {
       "n_estimators": 300,
       "max_depth": 4,

@@ -56,7 +56,7 @@ from .per_site_models import (
 from .feature_utils import add_temporal_features, create_transformer
 from .ensemble_model_factory import EnsembleModelFactory
 from .classification_adapter import ClassificationAdapter
-from .validation import validate_system_startup, validate_runtime_parameters
+from .validation import validate_system_startup
 from .logging_config import get_logger
 
 warnings.filterwarnings("ignore")
@@ -692,9 +692,6 @@ class RawForecastEngine:
         self,
         task: str = "regression",
         model_type: str = "ensemble",
-        n_anchors: int = 50,
-        min_test_date: str = "2008-01-01",
-        model_params_override: Optional[dict] = None,
         max_test_samples: Optional[int] = None,
     ) -> Optional[pd.DataFrame]:
         """
@@ -707,16 +704,13 @@ class RawForecastEngine:
         If *max_test_samples* is set, the per-site draw is subsampled to at
         most that many rows (after concatenation), for quick smoke tests.
         """
-        validate_runtime_parameters(n_anchors, min_test_date)
         logger.info("Running LEAK-FREE %s evaluation with %s", task, model_type)
         self._retro_model_type = model_type
 
         feature_frame = self._load_feature_frame()
         raw_data = self._raw_data_cache
 
-        min_test_ts = pd.Timestamp(
-            getattr(config, "MIN_TEST_DATE", min_test_date)
-        )
+        min_test_ts = pd.Timestamp(config.MIN_TEST_DATE)
         min_training = self.min_training_samples
         forecast_horizon = config.FORECAST_HORIZON_DAYS
         history_frac = getattr(config, "HISTORY_REQUIREMENT_FRACTION", 0.33)

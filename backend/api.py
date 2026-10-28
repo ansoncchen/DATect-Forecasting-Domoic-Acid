@@ -305,54 +305,6 @@ async def generate_forecast(request: ForecastRequest):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.get("/api/historical/all")
-async def get_all_sites_historical(
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    limit: Optional[int] = 1000,
-):
-    """Get historical data for all sites."""
-    try:
-        data = get_data_copy()
-        data["date"] = pd.to_datetime(data["date"])
-
-        if start_date:
-            data = data[data["date"] >= pd.to_datetime(start_date)]
-        if end_date:
-            data = data[data["date"] <= pd.to_datetime(end_date)]
-
-        # Most recent rows across all sites (aligned with per-site .tail(limit))
-        data = data.sort_values(["date", "site"])
-        if limit:
-            data = data.tail(limit)
-
-        result = []
-        for _, row in data.iterrows():
-            da_val = row["da"] if pd.notna(row["da"]) else None
-            da_category = (
-                row["da-category"]
-                if "da-category" in row and pd.notna(row["da-category"])
-                else None
-            )
-
-            rec = {
-                "date": row["date"].strftime("%Y-%m-%d") if pd.notna(row["date"]) else None,
-                "site": row["site"],
-                "actual_da": clean_for_json(da_val),
-            }
-            if da_category is not None:
-                rec["actual_category"] = clean_for_json(da_category)
-            result.append(rec)
-
-        return JSONResponse(
-            content={"success": True, "data": result, "count": len(result)}
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve historical data: {str(e)}"
-        )
-
-
 @app.get("/api/historical/{site}")
 async def get_historical_data(
     site: str,
@@ -498,16 +450,6 @@ async def get_sensitivity_analysis_single(site: str):
     except Exception as e:
         logging.error(f"Error in sensitivity analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate sensitivity analysis: {str(e)}")
-
-@app.get("/api/visualizations/comparison/all")
-async def get_time_series_comparison_all():
-    """Generate time series comparison for all sites."""
-    try:
-        data = get_data_copy()
-        plot_data = generate_time_series_comparison(data, site=None)
-        return {"success": True, "plot": plot_data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate time series comparison: {str(e)}")
 
 @app.get("/api/visualizations/comparison/{site}")
 async def get_time_series_comparison_single(site: str):
@@ -845,6 +787,7 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
         # Canonical on-disk path for this slice (response metadata); reads may come from Redis instead.
         cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{config.FORECAST_TASK}_{actual_model}.json"
         base_results = cache_manager.get_retrospective_forecast(config.FORECAST_TASK, actual_model)
+        cache_hit = base_results is not None
         
         if base_results is None:
             # Compute on server (expensive - only for local development)
@@ -855,7 +798,6 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
             results_df = engine.run_retrospective_evaluation(
                 task=config.FORECAST_TASK,
                 model_type=actual_model,
-                n_anchors=getattr(config, 'N_RANDOM_ANCHORS', 500)
             )
 
             if results_df is None or results_df.empty:
@@ -901,7 +843,7 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
                 "path": str(cache_manager.cache_dir),
                 "file": str(cache_file),
                 "file_exists": cache_file.exists(),
-                "hit": base_results is not None,
+                "hit": cache_hit,
                 "redis_active": cache_manager.use_redis,
             },
             "summary": summary,

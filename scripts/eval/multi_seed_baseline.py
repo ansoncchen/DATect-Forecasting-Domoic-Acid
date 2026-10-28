@@ -45,8 +45,6 @@ from forecasting.raw_forecast_engine import RawForecastEngine
 engine = RawForecastEngine(validate_on_init=False)
 results_df = engine.run_retrospective_evaluation(
     task="regression", model_type="ensemble",
-    n_anchors=getattr(config, "N_RANDOM_ANCHORS", 500),
-    min_test_date="2008-01-01",
 )
 if results_df is None or results_df.empty:
     print("ERROR: no results")

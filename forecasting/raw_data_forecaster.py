@@ -27,7 +27,6 @@ logger = get_logger(__name__)
 @dataclass
 class RawForecastConfig:
     lags: Iterable[int] = None  # Read from config at runtime, not import time
-    max_date_diff_days: int = 14
 
     def __post_init__(self):
         if self.lags is None:
@@ -110,12 +109,11 @@ def aggregate_raw_to_weekly(raw_df: pd.DataFrame) -> pd.DataFrame:
 def build_raw_feature_frame(
     processed_data: pd.DataFrame,
     raw_weekly: pd.DataFrame,
-    config_override: Optional[RawForecastConfig] = None,
 ) -> pd.DataFrame:
     """
     Merge raw DA (weekly) into processed environmental features and add raw lags.
     """
-    cfg = config_override or RawForecastConfig()
+    cfg = RawForecastConfig()
     base = processed_data.copy()
     base["date"] = pd.to_datetime(base["date"])
 

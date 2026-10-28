@@ -69,12 +69,6 @@ def main() -> int:
         help="Earliest raw test measurement dates",
     )
     parser.add_argument(
-        "--n-anchors",
-        type=int,
-        default=50,
-        help="Passed to validate_runtime_parameters only (sampling uses --fraction)",
-    )
-    parser.add_argument(
         "--output-json",
         type=str,
         default="",
@@ -110,8 +104,6 @@ def main() -> int:
         df = engine.run_retrospective_evaluation(
             task="regression",
             model_type="ensemble",
-            n_anchors=args.n_anchors,
-            min_test_date=args.min_test_date,
             max_test_samples=cap,
         )
     finally:

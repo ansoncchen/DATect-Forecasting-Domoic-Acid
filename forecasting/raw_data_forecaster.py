@@ -42,7 +42,10 @@ def load_raw_da_measurements() -> pd.DataFrame:
     """
     Load raw DA measurements from CSVs.
 
-    Returns: DataFrame with columns [date, site, da_raw]
+    Returns: DataFrame with columns [date, site, da_raw], one row per site-day.
+    Several samples on the same site-day (the CSVs record no species or station)
+    collapse to their maximum, matching the weekly MAX aggregation used for
+    training targets here and in dataset-creation.py.
     """
     raw_measurements = []
     for site_key, file_path in config.ORIGINAL_DA_FILES.items():
@@ -87,8 +90,8 @@ def load_raw_da_measurements() -> pd.DataFrame:
         raise ValueError("No raw DA measurements could be loaded.")
 
     all_raw = pd.concat(raw_measurements, ignore_index=True)
-    all_raw = all_raw.sort_values(["site", "date"]).reset_index(drop=True)
-    return all_raw
+    all_raw = all_raw.groupby(["site", "date"], as_index=False)["da_raw"].max()
+    return all_raw[["date", "site", "da_raw"]]
 
 
 def aggregate_raw_to_weekly(raw_df: pd.DataFrame) -> pd.DataFrame:

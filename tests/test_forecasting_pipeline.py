@@ -37,6 +37,14 @@ class TestForecastingPipeline:
         assert "da_raw" in df.columns
         assert "Twin Harbors" in df["site"].unique()
 
+    def test_raw_measurements_one_row_per_site_day(self):
+        """Same-day samples collapse to their max, so the test target is not arbitrary."""
+        df = load_raw_da_measurements()
+        assert not df.duplicated(["site", "date"]).any()
+        # gold-beach-da.csv has two samples on 2019-01-24: 0 and 190 ug/g
+        day = df[(df["site"] == "Gold Beach") & (df["date"] == "2019-01-24")]
+        assert day["da_raw"].tolist() == [190.0]
+
     def test_regression_forecast_ensemble(self):
         """Test end-to-end regression forecasting using the ML Ensemble."""
         # Pick a valid date from Twin Harbors where history exists

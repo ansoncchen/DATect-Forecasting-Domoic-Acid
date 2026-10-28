@@ -775,7 +775,7 @@ class RawForecastEngine:
                 )
             )
 
-        # Sort and deduplicate (same date+site can appear multiple times in test_samples)
+        # Sort and deduplicate (defensive: raw measurements are already one row per site-day)
         n_before_dedup = len(results_df)
         results_df = results_df.sort_values(["date", "site"]).drop_duplicates(
             ["date", "site"]

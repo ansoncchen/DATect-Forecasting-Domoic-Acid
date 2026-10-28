@@ -19,10 +19,11 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
+
+from _subprocess import run_python
 
 try:
     from _repo import ensure_repo_root
@@ -61,15 +62,11 @@ def run_one_seed(seed: int, out_dir: Path) -> None:
         return
     print(f"[seed {seed}] starting retrospective...", flush=True)
     t0 = time.time()
-    env = os.environ.copy()
-    env["BOOTSTRAP_SEED"] = str(seed)
-    env["OUT_PATH"] = str(out_path.resolve())
-    env["DATECT_MIN_TRAINING_FOR_TUNING"] = "99999"  # match holdout config for consistency
-    result = subprocess.run(
-        [sys.executable, "-c", SUBPROCESS_SCRIPT],
-        env=env, stdout=subprocess.PIPE, stderr=None,
-        text=True, timeout=7200,
-    )
+    result = run_python(SUBPROCESS_SCRIPT, {
+        "BOOTSTRAP_SEED": str(seed),
+        "OUT_PATH": str(out_path.resolve()),
+        "DATECT_MIN_TRAINING_FOR_TUNING": "99999",  # match holdout config for consistency
+    }, timeout=7200)
     elapsed = time.time() - t0
     if result.returncode != 0:
         print(f"[seed {seed}] FAILED ({elapsed/60:.1f} min)")

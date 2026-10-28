@@ -40,11 +40,12 @@ import argparse
 import itertools
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
+
+from _subprocess import last_json_line, run_python
 
 try:
     from _repo import ensure_repo_root
@@ -122,25 +123,18 @@ def evaluate_config_fold(site: str, params: dict, fold_start: str, fold_end: str
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump({site: params}, f)
         json_path = f.name
+    failed = {"r2": -999.0, "mae": 999.0, "n": 0}
     try:
-        env = os.environ.copy()
-        env["DATECT_HPARAM_OVERRIDE_JSON"] = json_path
-        env["DATECT_MIN_TRAINING_FOR_TUNING"] = "99999"  # skip inner tuning
-        env["GRID_SITE"] = site
-        env["FOLD_START"] = fold_start
-        env["FOLD_END"] = fold_end
-        result = subprocess.run(
-            [sys.executable, "-c", SUBPROCESS_SCRIPT],
-            env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=timeout,
-        )
+        result = run_python(SUBPROCESS_SCRIPT, {
+            "DATECT_HPARAM_OVERRIDE_JSON": json_path,
+            "DATECT_MIN_TRAINING_FOR_TUNING": "99999",  # skip inner tuning
+            "GRID_SITE": site,
+            "FOLD_START": fold_start,
+            "FOLD_END": fold_end,
+        }, timeout=timeout, show_stderr=False)
         if result.returncode != 0:
-            return {"r2": -999.0, "mae": 999.0, "n": 0}
-        for line in reversed(result.stdout.strip().split("\n")):
-            line = line.strip()
-            if line.startswith("{"):
-                return json.loads(line)
-        return {"r2": -999.0, "mae": 999.0, "n": 0}
+            return failed
+        return last_json_line(result.stdout) or failed
     finally:
         os.unlink(json_path)
 

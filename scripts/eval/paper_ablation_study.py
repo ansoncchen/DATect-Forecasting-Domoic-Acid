@@ -21,9 +21,10 @@ Output: results/ablation/paper_ablation_results.json
 import argparse
 import json
 import os
-import subprocess
 import sys
 import warnings
+
+from _subprocess import last_json_line, run_python
 
 warnings.filterwarnings("ignore")
 
@@ -63,40 +64,22 @@ def run_ablation(name, seed, env_overrides=None):
 
 def _run_subprocess_ablation(name, seed, env_overrides):
     """Run ablation in a subprocess so config.py reads env vars fresh."""
-    env = os.environ.copy()
-    env.update(env_overrides)
-    env["DATECT_ABLATION_SEED"] = str(seed)
-
-    result = subprocess.run(
-        [sys.executable, "-c", SUBPROCESS_SCRIPT],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=None,  # Show progress bars live
-        text=True,
-        timeout=7200,  # 2 hour timeout per experiment
+    result = run_python(
+        SUBPROCESS_SCRIPT,
+        {**env_overrides, "DATECT_ABLATION_SEED": str(seed)},
+        timeout=7200,  # 2 hour timeout per experiment; stderr shows progress bars live
     )
 
     if result.returncode != 0:
         print(f"  FAILED (exit code {result.returncode})")
         return None
 
-    # Parse JSON output from subprocess
+    data = last_json_line(result.stdout)
+    if data is None:
+        print("  ERROR: No JSON in output")
+        print(result.stdout[-500:])
+        return None
     try:
-        lines = result.stdout.strip().split("\n")
-        json_start = None
-        for i, line in enumerate(lines):
-            if line.strip().startswith("{"):
-                json_start = i
-                break
-
-        if json_start is None:
-            print("  ERROR: No JSON in output")
-            print(result.stdout[-500:])
-            return None
-
-        json_str = "\n".join(lines[json_start:])
-        data = json.loads(json_str)
-
         overall = data["overall"]
         print(f"  Overall: R2={overall['r2']:.4f}, MAE={overall['mae']:.2f}, N={overall['n']}")
         for site, m in data.get("per_site", {}).items():
@@ -104,7 +87,7 @@ def _run_subprocess_ablation(name, seed, env_overrides):
 
         return data
 
-    except (json.JSONDecodeError, KeyError) as e:
+    except KeyError as e:
         print(f"  ERROR parsing output: {e}")
         print(result.stdout[-500:])
         return None

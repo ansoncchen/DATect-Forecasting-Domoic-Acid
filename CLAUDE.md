@@ -1,284 +1,195 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (and other agents) working in this repository. Model
+results live in `docs/CORRECTED_NUMBERS.md`; this file holds how to work here.
 
-## Quick Commands
+## Quick commands
 
 ```bash
-# Run the complete system (starts backend API + frontend + opens browser)
-python3 run_datect.py
-# After starting: Backend → http://localhost:8000 | Frontend → http://localhost:3000 | API docs → http://localhost:8000/docs
-# Picks uv vs pip, bun vs npm, granian vs uvicorn from PATH; installs from requirements.txt
+python3 run_datect.py                         # API (:8000) + frontend (:3000) + browser
+.venv/bin/python -m pytest tests/ -q          # test suite (~1 min, order-independent)
+cd frontend && npm run lint && npm run build  # frontend checks
 
-# Pre-compute cache (MUST run on Hyak, not locally)
-python3 precompute_cache.py
+# Data: rebuild final_output.parquet offline (never re-download; see below)
+python scripts/data/rebuild_final_output.py --recompute measurements   # da, pn
+python scripts/data/rebuild_final_output.py --recompute oad            # oad_* features
+python scripts/data/export_oad_features.py ae_3d_l32_c4_t4_s42_mae070  # OAD input
 
-# Regenerate dataset (30-60 min process, only when data changes)
-python3 dataset-creation.py
+# Hyak: every evaluation that backs a reported number, in a disposable worktree
+bash scripts/eval/golden_baseline.sh <git-ref> <label>
+python scripts/eval/compare_golden.py <golden_root>/<a> <golden_root>/<b>
 
-# Deploy to Google Cloud Platform
-./deploy_gcloud.sh
-
-# Frontend development commands (from frontend/ directory)
-cd frontend && npm run dev      # Development server
-cd frontend && npm run build    # Production build
-cd frontend && npm run lint     # ESLint validation
+PROJECT_ID=<gcp-project> ./deploy/deploy_gcloud.sh                     # Cloud Run
 ```
 
-## Environment Variables
+Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install with
+`pip install -r requirements.txt -r requirements-dev.txt`.
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `ENABLE_PRECOMPUTED_CACHE` | `false` | Set `"true"` to use pre-computed cache locally |
-| `CACHE_DIR` | `./cache` | Path to pre-computed cache directory |
-| `REDIS_URL` | unset | Redis connection URL for 100x faster cache reads (e.g. `redis://localhost:6379/0`) |
-| `ALLOWED_ORIGINS` | unset | Comma-separated browser origins for CORS (e.g. `https://app.example.com`). If unset, defaults to `http://localhost:3000` and `http://localhost:5173` only — **set this in production** so the API is not limited to localhost. |
+## Hard rules
 
-## Environment Notes
+1. **Never re-download ERDDAP data.** MODIS satellite chunks, PDO, ONI and BEUTI all come
+   from NOAA ERDDAP, which is too unreliable to re-fetch, and there is no local satellite
+   cache, so `dataset-creation.py` end-to-end would re-download everything. Treat the
+   environmental columns in `data/processed/final_output.parquet` as frozen and use
+   `scripts/data/rebuild_final_output.py` for anything derived from local files.
+2. **Heavy compute runs on Hyak** (`precompute_cache.py`, retrospective/multi-seed/ablation
+   evals). The laptop is for editing, tests and the dashboard.
+3. **Leak-free, past-only training is non-negotiable.** Training uses `date <= anchor_date`
+   (`anchor = test_date - 7 days`); persistence features and the naive baseline come from
+   real observations only; test points are raw DA measurements only. Any new feature or
+   imputer needs an explicit story for why it cannot see the future.
+4. **Behavior-neutral refactors must reproduce the golden baseline exactly**
+   (`compare_golden.py`: prediction parquets byte-identical; metric tables may differ only
+   by ~1e-12 rounding). Behavior-changing fixes go in their own commit with before/after
+   numbers, then the reported numbers are re-run and updated.
+5. **Judge improvements on the leak-free raw retrospective**, not on the gap-filled weekly
+   panel. Keep the gap-fill (synthetic training targets) and the model choice as separate
+   experimental dimensions.
 
-- **`POST /api/config`** only updates the running process’s in-memory `config` values (it does **not** edit `config.py` on disk). Restart the API to reload from `config.py`; for durable deploy settings use env vars or your orchestration layer.
-- **Do not run heavy scripts locally** (precompute_cache.py). These must be run on the Hyak compute cluster.
-- Local development is for code editing, review, lightweight testing, and running the dashboard with pre-computed cache.
-- See `docs/HYAK_SETUP.md` for cluster workflow.
+## Conventions that are easy to get wrong
 
-## Mechanical Gotchas
+- **Spike rule:** a value at a threshold counts. Spike = actual DA `>= 20` ug/g; the
+  regression alert fires at predicted `>= 12`. Categories are left-closed bins
+  `[0,5) [5,20) [20,40) [40,inf)` (`pd.cut(..., right=False)`). Use
+  `forecasting/metrics.py` (`exceeds`, `detection_scores`, `bootstrap_samples`) instead of
+  writing comparisons or F-scores by hand.
+- **Measurement parsing** is in `forecasting/measurements.py`: `"<1"` (below detection) is
+  LOD/2 = 0.5; PN counts with thousands separators (`"12,345"`) are parsed; dates are
+  stripped of whitespace. All three readers (dataset build, evaluation targets, API) use it.
+- **Seeds:** `config.RANDOM_SEED` only chooses retrospective test points;
+  `config.MODEL_SEED` (42) seeds every model. Joblib/Spark workers re-import `config`, so
+  patching `config` in the parent never reaches them; vary behavior through env vars.
+- **Per-anchor XGB tuning is off by default** (`DATECT_PER_ANCHOR_TUNING=true` to enable). It
+  changes ~23% of predictions without improving skill and costs 1-3 min per forecast; every
+  reported number was produced with it off.
+- **Single forecasts use the evaluated models:** `generate_single_forecast` calls
+  `_run_single_raw_validation` (the retrospective core) and only adds intervals and
+  categories. Intervals use XGBoost `reg:quantileerror` (not `reg:quantile`, which does not
+  exist) plus the spread of the Random Forest's trees.
+- **The pooled spike classifier** is trained on a pooled imputer/MinMax encoding of all
+  sites; test rows must be encoded with that same transformer (returned by
+  `_build_pooled_spike_data`), not the per-site one.
+- **`SITE_SPECIFIC_CONFIGS[site]['ensemble_weights']` is a tuple `(w_xgb, w_rf, w_naive)`**,
+  not a dict. Weights, clip quantiles, feature subsets and hyperparameters come from
+  `config/tuned_hyperparameters.json` (grid-search winners), loaded by
+  `forecasting/tuned_config.py`.
+- **`final_output.parquet`:** lowercase `date`/`site` columns; `date` is a `"MM/DD/YYYY"`
+  string (`pd.to_datetime` before joins, `.dt.strftime("%m/%d/%Y")` before writing); 33
+  columns including 16 OAD features.
+- **Adding a column in `dataset-creation.py`:** the `final_core_cols` list in `main()` is an
+  allow-list; a new column is silently dropped unless added there (or appended like the
+  `sat_*` / OAD columns).
+- **The decay fill cascades:** each filled week seeds the next gap, so `*_MAX_GAP_WEEKS` does
+  not limit fills; only weeks before a site's first measurement become 0.
+- **API handlers are plain `def`** (FastAPI runs them in its thread pool). Model work inside
+  `async def` blocks the event loop for every user. Settings such as task/model travel with
+  each request; the server holds no per-user state (there is no `POST /api/config`).
+- **Tests:** use the `fast_models` (class-scoped model shrinking, restored afterwards) and
+  `fresh_import` (re-import config modules for one test, originals restored) fixtures in
+  `tests/conftest.py`. Never mutate shared config dicts without restoring them; tests must
+  pass in any file order.
 
-- **Local Python**: use `.venv/bin/python` (pandas, optuna, xgboost installed there; system `python3` does not have project deps).
-- **Hyak Python**: `/gscratch/stf/ac283/envs/datect_scratch/bin/python` (conda env with torch + xarray + zarr).
-- **Hyak Slurm**: prefer `--partition=ckpt --account=stf-ckpt --requeue` for batch eval/tuning. The `compute` partition often hits `QOSGrpMemLimit` from group memory pressure even at modest requests (32G+). ckpt is preemptible but free; use sqlite-backed studies for resumability.
-- **Hyak log files**: under sbatch, Python `print()` is line-buffered to `.out` (often appears empty for long stretches); `tqdm` writes to `.err`. To check ablation/tuning progress, `tail -1 logs/*.err | tr "\r" "\n" | tail -3`.
-- **Adding columns in `dataset-creation.py`**: the `final_core_cols` block (~line 1206) is a hardcoded allow-list — any new column **silently dropped** unless added there. Pattern: insert the join after `add_satellite_data()` (~line 1200), then append `extra_cols = [c for c in NEW_COLS if c in final_data.columns]` to `final_cols`. Note: the streamflow merge at line 955 is inside a helper function, not the main flow.
-- **`final_output.parquet` date column** is stored as object string `"MM/DD/YYYY"`, NOT a Timestamp. Always `pd.to_datetime(df["date"])` before joins/comparisons; convert back via `.dt.strftime("%m/%d/%Y")` before writing.
-- **Single forecast**: `engine.generate_single_forecast(data_path, forecast_date, site, task, model_type)` — all 5 positional. Heavy locally (per-anchor XGB tuning takes 1-3 min per forecast); for end-to-end smoke tests use the retrospective eval on a small subset instead.
-- **Env-var ablation hooks in `config.py` / `per_site_models.py`**: `DATECT_EXTRA_DROP_FEATURES` (CSV append to `ZERO_IMPORTANCE_FEATURES`), `DATECT_USE_INTERPOLATED_TRAINING`, `DATECT_USE_PER_SITE_MODELS`, `DATECT_LAG_FEATURES`, `DATECT_USE_MONOTONIC_CONSTRAINTS`, `DATECT_CLIP_Q_OVERRIDE`, `DATECT_RF_PARAMS_JSON`, `DATECT_FEATURE_SUBSET_MODE`, `DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_SPIKE_CLASSIFIER_JSON`, `DATECT_OAD_ON_SMALL_N`. Prefer these over new flags — `paper_ablation_study.py` already runs subprocess + env-var pattern.
-- **Hyperparameter tuning protocol** (added in `oad-integration` branch): use the **3-window chronological split** — training = pre-anchor data (engine-enforced); validation = retrospective points in `[2019-01-01, 2022-01-01)` via `TUNE_VAL_START`/`TUNE_VAL_END` env vars (Optuna objective); holdout = `[2022-01-01, 2024-12-31]` (final unbiased report only). Random-seed sampling (existing `paper_ablation_study.py`) is fine for **model-vs-model comparison** but NOT for hyperparameter selection — it has temporal autocorrelation between sampled "train" and "test" anchors. Use `scripts/eval/validate_tuned_on_holdout.py --compare baseline tuned` for the REAL / OVERFITTING / NEUTRAL / NULL verdict.
-- **Hyperparameter tuning warning**: full Optuna search over 18 dims (XGB + RF + ensemble weights + clipping) overfits catastrophically — val Δ R² = +0.07 but holdout Δ R² = −0.16 (see `oad-integration` branch §18). The prior stability study showed |ΔR²| < 0.001 from RF perturbations and similar near-flat regions for XGB regularization. **Tune only the 3 high-leverage dims** (`ensemble_weights`, `prediction_clip_q`, `prediction_clip_max`) via constrained grid search with chronological CV — see `scripts/eval/grid_search_weights_clip.py`. Never report tuned R² without holdout-window verification.
-- **Outer-tuning loops must disable inner per-anchor tuning** via `DATECT_MIN_TRAINING_FOR_TUNING=99999` in the subprocess env. Otherwise each outer trial recursively triggers per-anchor XGB tuning (1-3 min × ~500 anchors = ~8 hr per trial), blowing past any sane timeout. Inner tuning is the right behavior for deployed forecasts but wrong during outer hparam search.
-- **`DATECT_HPARAM_OVERRIDE_JSON` supports `feature_subset` overrides** (not just hyperparams). Pass JSON like `{"Twin Harbors": {"feature_subset": [...]}}` to swap a site's feature subset for one subprocess run. Critical for chains and feature ablations — in-memory mutation of `SITE_SPECIFIC_CONFIGS` does NOT propagate to subprocess workers (they re-import the module fresh).
-- **Parallel sbatch tasks must not write to shared files**: 4 chains writing to `data/processed/final_output.parquet` concurrently corrupted it (`OSError: Couldn't deserialize thrift` from pyarrow). Use `--array=N-M%1` to serialize array tasks that share mutable state, OR write per-task output files. See `chains/run_chain.sbatch`.
-- **R² is highly seed-sensitive at N~1200**: pooled-all-years R² spans 0.22-0.42 across seeds 42-46 (std ≈ 0.08), and **holdout-window R² spans 0.19-0.60 across the same seeds (std ≈ 0.15)** — i.e. the holdout-window measurement noise alone is wider than any tuning Δ we ever found. Single-seed point estimates are not paper-publishable. Quote 5-seed mean ± std via `scripts/eval/multi_seed_baseline.py` (sbatch array). Forecast horizon stays 7 days regardless of seed.
-- **Hyak SSH login-node IP blocks**: a fail2ban-style system blocks your client IP after ~50-100 failed SSH attempts in an hour. Symptom: `Connection refused` on `ssh klone-login` from all terminals (even though jobs keep running on compute nodes). Cause is usually a long-running polling loop that keeps hammering the login node when Hyak briefly went down. Fix: kill the polls, wait 15-30 min for the block to expire — DO NOT reboot. For long-running polls, use exponential backoff (5min → 30min → 1hr) or a single shared poll, not multiple polls each opening their own connection.
-- **`SITE_SPECIFIC_CONFIGS[site]['ensemble_weights']` is a tuple `(w_xgb, w_rf, w_linear)`, NOT a dict.** Other keys in the same site dict use string-keyed sub-dicts (`xgb_params`, `param_grid`), so it's easy to write `.get('xgb')` and crash. Index by position.
-- **`final_output.parquet` uses lowercase `site` and `date` columns** (not `Site`/`Date`). Test fixtures in `tests/test_oad_features.py` use the capitalized form because `add_oad_features` takes a `site_col` arg, but the parquet itself is lowercase. Check column case before joins.
-- **Per-site fold-CV at N < 50/fold is unreliable** — the constrained grid search (`scripts/eval/grid_search_weights_clip.py`) produced negative winner R² for 4 of 10 sites because each fold had only 6-20 test points. Either pool sites or use leave-one-year-out before trusting per-site fold-CV means.
+## Env-var hooks (ablations and experiments)
 
-## System Architecture
+Read at import by `config.py` / `forecasting/per_site_models.py`, so set them in the
+subprocess environment (see `scripts/eval/_subprocess.py`):
 
-DATect is a machine learning system for forecasting harmful algal bloom toxin concentrations (domoic acid) along the Pacific Coast. It uses a **two-model ML ensemble** (XGBoost + Random Forest), with naïve persistence as an external standalone baseline, with per-site hyperparameter tuning and leak-free validation on raw DA measurements.
+| Variable | Effect |
+|---|---|
+| `DATECT_PER_ANCHOR_TUNING` | `true` enables per-anchor XGB grid tuning (default off) |
+| `DATECT_USE_PER_SITE_MODELS` | `false` disables per-site configs (equal XGB/RF weights) |
+| `DATECT_USE_INTERPOLATED_TRAINING` | `false` trains on real DA rows only |
+| `DATECT_USE_MONOTONIC_CONSTRAINTS` | `false` drops XGBoost monotone constraints |
+| `DATECT_LAG_FEATURES` | lag list, e.g. `1,2`; `none` disables lag features |
+| `DATECT_EXTRA_DROP_FEATURES` | CSV of extra features to drop |
+| `DATECT_CLIP_Q_OVERRIDE` | `none` disables clipping; a number replaces every clip quantile |
+| `DATECT_RF_PARAMS_JSON` / `DATECT_SPIKE_CLASSIFIER_JSON` | overlay RF / spike-classifier params |
+| `DATECT_HPARAM_OVERRIDE_JSON` | per-site overrides, incl. `feature_subset` |
+| `DATECT_FEATURE_SUBSET_MODE` | `all` removes per-site subsets; `minimal` forces a 4-feature subset |
+| `DATECT_TEMPORAL_HOLDOUT_CUTOFF` | holdout start for `eval_paper_metrics --temporal-holdout` (default 2022-01-01) |
+| `DATECT_PARALLEL_BACKEND` | joblib backend (default `loky`) |
 
-### Core Components
+Backend/deploy variables (`ENABLE_PRECOMPUTED_CACHE`, `CACHE_DIR`, `REDIS_URL`,
+`ALLOWED_ORIGINS`, `PORT`, `WORKERS`, `DATECT_USE_GRANIAN`, `NODE_ENV`, `VITE_API_URL`) are
+documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
 
-**Forecasting Engine** (`forecasting/`)
+## Evaluation protocol
 
-| File | Purpose |
-|------|---------|
-| `raw_forecast_engine.py` | **Main engine** — ensemble pipeline with per-site tuning |
-| `raw_data_forecaster.py` | Raw DA loading, feature frame building, leak-free test rows |
-| `raw_data_processor.py` | Observation-order lag features (not grid-shift) |
-| `per_site_models.py` | Per-site hyperparams, feature subsets, ensemble weights (10 sites) |
-| `raw_model_factory.py` | Standalone model builders (XGB, RF, classifier) |
-| `ensemble_model_factory.py` | Class-based wrapper matching API's ModelFactory interface |
-| `classification_adapter.py` | Threshold + dedicated XGBoost classifier for 4 DA categories |
-| `feature_utils.py` | Shared temporal features + transformer creation |
-| `validation.py` | System startup validation |
+- **Three chronological windows:** training = pre-anchor data (engine-enforced); validation =
+  `[2019-01-01, 2022-01-01)` (tuning objective); holdout = `[2022-01-01, 2024-01-01)`
+  (final report only, never used for selection). Defined in the tuned JSON's `eval_windows`.
+- **Headline = deterministic chronological eval** (`scripts/eval/chronological_eval.py`):
+  every real DA measurement in the window, no sampling. Confirm with the 5-seed bootstrap
+  (`multi_seed_baseline.py`, seeds 42-46 at 20%). Single-seed R² at N~1,200 is noise-dominated
+  (std across seeds ~0.08 pooled, ~0.15 on the holdout); never report one seed alone.
+- **Never tune all dimensions at once.** A full Optuna search over 18 dims overfit badly
+  (validation +0.07 R², holdout -0.16). Tune only ensemble weights and clip parameters with
+  constrained chronological CV (`grid_search_weights_clip.py`), and verify on the holdout
+  (`validate_tuned_on_holdout.py`). Per-site fold CV with < 50 test points per fold is
+  unreliable.
+- **Results files:** `results/chronological` (headline), `results/multi_seed`,
+  `results/paper_metrics`, `results/ablation`, `results/final_verification`,
+  `results/holdout_validation`, `results/tuning_provenance`. The dashboard reads the first
+  two through `GET /api/metrics/summary`.
 
-**Web Interface**
-- `backend/api.py`: FastAPI server providing forecasting endpoints
-- `frontend/`: React + Vite interface for dashboards and visualizations
-- `backend/visualizations.py`: Chart generation (correlation matrices, time series)
-- `backend/cache_manager.py`: Pre-computed cache access (file-based + Redis backend)
-- `backend/redis_cache.py`: Optional Redis caching (100x faster; set `REDIS_URL` to enable)
+## Hyak
 
-**Data Pipeline**
-- `dataset-creation.py`: Downloads and processes 21 years of satellite/environmental data
-- `config.py`: Centralized configuration for data sources, model parameters, temporal settings
+- SSH alias `klone-login` (ControlMaster; re-auth with `ssh klone-login 'whoami'` when it
+  expires). Conda env `/gscratch/stf/ac283/envs/datect_scratch/bin/python` (Python 3.10).
+- Submit sbatch files from the repo root: they `cd "$SLURM_SUBMIT_DIR"` and accept
+  `DATECT_PY`. Prefer `--partition=ckpt --account=stf-ckpt --requeue`; exclusive nodes can
+  wait hours on a busy queue, and results do not depend on core count. `logs/` must exist
+  (it is tracked) because Slurm opens `--output=logs/...` before the job runs.
+- Run long jobs in a disposable worktree (`golden_baseline.sh <ref> <label> [sbatch]`) so
+  relative outputs never dirty a checkout. Parallel jobs must not write the same file (four
+  chains writing `final_output.parquet` once corrupted it).
+- **Do not poll the login node in loops.** A fail2ban-style block hits your IP after
+  ~50-100 failed SSH attempts per hour (symptom: `Connection refused` everywhere while jobs
+  keep running); wait 15-30 min, don't reboot. When waiting remotely for a process, don't
+  use `pgrep -f <pattern>` from a shell whose own command line contains the pattern.
+- `git fetch` over HTTPS on Hyak can hang on a credential prompt; use
+  `GIT_TERMINAL_PROMPT=0`. The old checkout at `/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid`
+  holds untracked OAD data; work happens in worktrees such as `/gscratch/stf/ac283/datect-cleanup`.
+- OAD data lives behind `/gscratch/stf/ac283/oad_current` (symlink to that checkout's
+  `ocean anomaly detection/`); OAD sbatch files default `OAD_ROOT` to it.
 
-**Technical Documentation** (`docs/`)
-`PIPELINE_DEEP_DIVE.md` (forecasting + safeguards), `DATA_PIPELINE_DETAILED.md` (`dataset-creation.py`), `dataset-creation-scientific-decisions.md`, `EVALUATION_AND_RESEARCH.md` (paper/Hyak scripts), `VISUALIZATIONS_GUIDE.md`, `QUICK_START.md`, `HYAK_SETUP.md`, `DEPLOYMENT_GUIDE.md`.
+## Architecture
 
-### Key Design Principles
+| Path | Purpose |
+|---|---|
+| `forecasting/raw_forecast_engine.py` | Engine: retrospective evaluation, single forecasts, intervals, spike classifier |
+| `forecasting/raw_data_forecaster.py`, `raw_data_processor.py` | Raw DA loading, feature frame, observation-order lags, leak-free test rows |
+| `forecasting/per_site_models.py`, `tuned_config.py` | Per-site configs from `config/tuned_hyperparameters.json` + env overlays |
+| `forecasting/metrics.py`, `measurements.py` | Shared spike/bootstrap metrics; raw measurement parsing |
+| `forecasting/oad_features.py` | 16 OAD features (leak-safe R-5 day lag; cloud fractions) |
+| `forecasting/raw_model_factory.py`, `classification_adapter.py` | Model builders; categories and the spike classifier |
+| `backend/api.py` | FastAPI: forecasts, retrospective, visualizations, `/api/metrics/summary` |
+| `frontend/` | React + Vite dashboard (trimmed Plotly bundle in `src/utils/Plot.js`) |
+| `dataset-creation.py` | Full dataset build (downloads; see hard rule 1) |
+| `scripts/eval/`, `scripts/tune/`, `scripts/data/` | Evaluation, tuning, offline data tools |
+| `oad/` | Ocean Anomaly Detection subproject (MODIS autoencoder; see `oad/README.md`) |
+| `papers/` | `datect/`, `oad_mdpi/`, `oad_cvpr/`, `poster/` |
 
-**Interpolated-Training Ensemble Forecasting**: Uses a two-model ML ensemble (XGBoost + Random Forest) with per-site weighted blending. Naïve persistence is computed separately as an external standalone baseline. Trains on all rows (real + gap-filled DA, ~5x more data); tests on raw DA measurements only. Controlled by `USE_INTERPOLATED_TRAINING` in `config.py`.
+**Models:** per-site weighted blend of XGBoost + Random Forest (`ensemble`); naive persistence
+is an external baseline; Ridge/logistic (`linear`) is a competitor. Training uses real plus
+gap-filled DA rows; evaluation uses real raw measurements only.
 
-**Temporal Integrity**: Environmental features come from anchor date (test_date - 7 days). Persistence features recomputed from training data only. No future data leakage.
+**OAD integration:** the AE checkpoint `ae_3d_l32_c4_t4_s42_mae070` scores 5 PNW regions;
+each site maps to one region. Scores are lagged so the centered 8-day composite ends before
+the anchor (score at `test_date - 12`), and the in-region valid-pixel fraction is a parallel
+feature because the score correlates with cloud cover (r ~ 0.4-0.5).
 
-**Per-Site Customization**: Each of the 10 Pacific Coast sites has custom XGBoost/RF hyperparameters, feature subsets, ensemble weights, and prediction clipping via `per_site_models.py`. These were hand-tuned on the seed=42 dev set; `scripts/eval/paper_stability_study.py` validates their robustness across seeds and perturbations.
+## Results
 
-**Observation-Order Lag Features**: Instead of grid-shift lags, uses the Nth most recent actual observation, which is critical for sparse/irregular measurement data.
+All current numbers, their protocol and history are in `docs/CORRECTED_NUMBERS.md`.
+<!-- HEADLINE: filled after the post-cleanup re-run -->
 
-**DA Risk Categories**: Low (0-5), Moderate (5-20), High (20-40), Extreme (40+ µg/g). Both threshold-based and ML-based classification supported.
+## Docs
 
-**Model options**: `ensemble` (XGB + RF — two-model ML blend), `naive` (persistence: most recent DA at/before anchor — standalone external baseline), `linear` (Ridge full-feature regression / Logistic classification). Linear is a competitor, not a baseline.
+`README.md` (setup) · `docs/CORRECTED_NUMBERS.md` (all numbers) ·
+`docs/QUICKSTART_FOR_REVIEWERS.md` (reproducing claims, script index) ·
+`docs/PIPELINE_DEEP_DIVE.md` · `docs/DATA_PIPELINE_DETAILED.md` ·
+`docs/OAD_INTEGRATION_RESULTS.md` · `docs/HYAK_SETUP.md` · `docs/DEPLOYMENT_GUIDE.md` ·
+`docs/VISUALIZATIONS_GUIDE.md` · `oad/README.md`, `oad/RESULTS.md`.
 
-**Streamlined Feature Pipeline**: After systematic ablation, the pipeline uses only features with confirmed impact: persistence (last DA, weeks since spike), observation-order lags (4 values + 2 recency + 1 trend), rolling stats (mean/max at 4-week; std/max at 8/12-week), 3 temporal encodings (sin/cos day-of-year, month), environmental (SST, BEUTI, PDO, ONI, discharge, FLH, SST-anom), and pn_log. Six parquet columns (lat, lon, modis-par, modis-k490, chla-anom, modis-chla) are dropped before training.
-
-**Configuration Management**: `config.py` contains all system parameters:
-- 10 Pacific Coast monitoring sites with coordinates
-- Satellite data URLs (MODIS ocean color, SST, chlorophyll)
-- Model hyperparameters (XGBoost, RF, Ridge, classification)
-- Per-site configuration via `per_site_models.py`
-- Raw pipeline params: ZERO_IMPORTANCE_FEATURES, PREDICTION_CLIP_Q, CALIBRATION_FRACTION, PARAM_GRID
-
-## Hyak Workflow
-
-**precompute_cache.py** (deployment cache):
-1. Run on Hyak: `python precompute_cache.py`
-2. SCP cache: `scp -r klone-node:/.../cache/ ./cache/`
-3. Run locally: `python run_datect.py`
-
-**Paper evaluation scripts** (`scripts/eval/` — run from repo root):
-1. Stability: `python3 scripts/eval/paper_stability_study.py` (~1.5 hrs at 20% sample; full run can be ~3 hrs)
-2. Smoke test: `python3 scripts/eval/paper_stability_study.py --quick` (1% sample)
-3. Tables from stability JSON: `python3 scripts/eval/paper_stability_table.py` or `--latex`
-4. Phase 1B only: `python3 scripts/eval/paper_stability_study.py --phase 1b`
-5. Paper metrics / CIs: `python3 scripts/eval/eval_paper_metrics.py`
-6. Full Hyak sweep: `bash run_full_validation.sh`
-
-## Development Workflow
-
-1. **Data Changes**: Run `python dataset-creation.py` to regenerate the processed dataset
-2. **Model Changes**: Modify parameters in `config.py` or `per_site_models.py`, then test on Hyak
-3. **Frontend Changes**: Use `cd frontend && npm run dev` for development server
-4. **Full System Testing**: Use `python run_datect.py` to test complete integration with pre-computed cache
-
-## Success Metrics
-
-**Headline values are from the deterministic chronological eval on the 2022-2023 holdout (every real DA measurement, N=404, no random sampling) using current `per_site_models.py` with leak-free grid-winner per-site config.** A complementary 5-seed bootstrap (20% sampling × seeds 42-46) is reported as confirmation. See `docs/CORRECTED_NUMBERS.md` for the historical audit trail (lucky-seed 0.492 → multi-seed 0.386 ± 0.145 → deterministic 0.485 [0.330, 0.604]).
-
-| Metric | Window | **Deterministic [95% CI]** | Multi-seed mean ± std | N (det / per-seed) | Notes |
-|--------|--------|------|------|---|-------|
-| **Ensemble R²** | **2022-2023 holdout** | **0.485 [0.330, 0.604]** | 0.433 ± 0.092 | 404 / ~160 | **Headline.** Consistent across both protocols. |
-| Ensemble R² | 2019-2022 validation | 0.384 [0.263, 0.496] | 0.377 ± 0.164 | 632 / ~220 | Tuning objective window |
-| Ensemble R² | all years pooled (paper Table 1) | 0.238 [0.150, 0.340] | 0.316 ± 0.079 | 2181 / ~1190 | Single-seed paper sample at seed 123 |
-| Ensemble MAE | 2022-2023 holdout | **6.76 [5.48, 8.20] µg/g** | 6.03 ± 0.63 µg/g | 404 / ~160 | |
-| Spike recall (regression-only) | 2022-2023 holdout | **0.857** | 0.848 ± 0.044 | 404 / ~160 | Most stable operational metric |
-| Spike F2 (regression-only) | 2022-2023 holdout | **0.699** | 0.648 ± 0.044 | 404 / ~160 | Deterministic tighter (no sampling noise) |
-| Spike precision (regression-only) | 2022-2023 holdout | 0.403 | — | 404 | |
-| Spike recall (val) | 2019-2022 validation | 0.839 | — | 632 | |
-| Spike F2 (val) | 2019-2022 validation | 0.754 | 0.738 ± 0.024 | 632 / ~220 | |
-| Hybrid alert recall | rolling (seed 123, paper-sample) | 0.876 | — | 1177 | spike_alert = classifier OR regression union |
-| Transition recall | rolling (paper-defined event) | 0.734 classifier / 0.236 naive | — | 89 events seed 123 | Spike-classifier eval, not re-run this session |
-
-**Per-site holdout R² (deterministic chronological, 2022-2023, N≈40 per site):**
-
-| WA / OR | Site | **Deterministic R² [CI]** | Multi-seed R² mean ± std |
-|---|---|---|---|
-| WA | Twin Harbors | **+0.633** [0.327, 0.798] | +0.53 ± 0.18 |
-| OR | Coos Bay | **+0.630** [0.451, 0.863] | +0.67 ± 0.11 |
-| WA | Copalis | **+0.598** [0.358, 0.777] | +0.53 ± 0.14 |
-| WA | Quinault | **+0.549** [0.237, 0.750] | +0.58 ± 0.13 |
-| WA | Long Beach | **+0.531** [0.219, 0.842] | +0.55 ± 0.17 |
-| OR | Clatsop Beach | **+0.515** [0.325, 0.700] | +0.53 ± 0.19 |
-| WA | Kalaloch | **+0.493** [0.225, 0.694] | +0.41 ± 0.17 |
-| OR | Newport | +0.170 [−0.321, 0.393] | −1.06 ± 1.70 ← multi-seed N=20/site artifact |
-| OR | Gold Beach | −0.235 [−12.1, 0.181] | −2.14 ± 3.21 ← multi-seed N=17/site artifact |
-| OR | Cannon Beach | no spikes in holdout | — |
-
-9 of 10 sites positive on the deterministic eval. Catastrophic multi-seed numbers at Newport / Gold Beach were largely small-per-seed-N sampling artifacts; deterministic uses all available data per site.
-
-## No Data Leakage Guarantees
-
-- Training only uses `date ≤ anchor_date` (includes gap-filled rows for more data)
-- `da_raw` and `da` dropped from test features
-- Lag features use observation-order past-only shifts
-- Persistence features and Naive baseline recomputed from **real observations only** (not gap-filled)
-- Test/evaluation uses only real raw DA measurements
-- Fresh model per test point (no lookahead)
-- `verify_no_data_leakage()` called for every prediction
-
-**Temporal holdout caveat**: The temporal holdout (2019+) evaluates post-2019 data that was never used as training targets, but per-site tuning decisions (ensemble weights, feature subsets, hyperparameters in `per_site_models.py`) were made on the seed=42 dev set which includes post-2019 test points. This means tuning decisions were indirectly informed by post-2019 patterns. `scripts/eval/paper_stability_study.py` validates that these choices are robust across seeds and perturbations.
-
-## Stability Study Results (Phase 1)
-
-Multi-seed (5 seeds) and perturbation (13 experiments) validation confirms current design choices:
-
-| Decision | Sensitivity | Conclusion |
-|----------|-------------|------------|
-| RF hyperparameters | |ΔR²| < 0.001 across 4 configs | RF genuinely robust — no tuning needed |
-| Per-site feature subsets | |ΔR²| < 0.006 | Persistence dominates; subsets barely matter pooled |
-| Per-site clipping thresholds | ΔR² = −0.030 when relaxed | Current 0.95–0.98 quantiles are well-calibrated |
-| Winner-take-all model selection | ΔR² = −0.028 (RF→XGB), −0.005 (XGB→RF) | Current assignments near-optimal |
-| Monotonic constraints | ΔR² = +0.0003 | Negligible effect |
-| Per-site config overall | ΔR² = −0.103 without it | Biggest lever — validates per-site customization |
-
-**Regional stability (re-audited 2026-05-23 on 2022-2023 holdout, 5 seeds):**
-- WA sites are stable: 5-site mean R² ≈ 0.50 (range 0.42-0.56), per-site std 0.16-0.18 across seeds.
-- OR sites split: Clatsop +0.50, Coos Bay +0.70 (small N=10), Newport −1.06 ± 1.70, Gold Beach −2.14 ± 3.21. The two OR catastrophes are data-scarcity / oceanographic issues, not a tuning problem.
-
-**Go/no-go**: No perturbation exceeds the noise floor → Phase 2 (Optuna/grid search) skipped. Current config validated.
-
-## Autocorrelation Ceilings
-
-The ρ² ceiling in `autocorrelation_diagnostic.py` bounds a **persistence-only** forecast. Models using environmental features (SST, BEUTI, PDO, discharge, etc.) can exceed this bound. OR sites above ρ² are exploiting environmental signal, not overfitting.
-
-## Ocean Anomaly Detection (OAD) subproject
-
-A parallel subproject lives at **`ocean anomaly detection/`** (branch `ocean-anomaly-v2`). It is an **unsupervised convolutional autoencoder over 4-channel MODIS Aqua imagery** (chla, Kd490, nflh, SST) that produces a per-region scalar "ocean state anomaly score" for the U.S. Pacific Northwest coast.
-
-- **Trained on**: 22-year cube (2003–2024) at stride-2 / 0.025° resolution, ~4,700 daily rolling 8-day composites × 4 channels × 321 × 409.
-- **Headline checkpoint**: `ae_3d_l32_c4_t4_s42_mae070` — 3D ConvAE3D with Phase C masked-autoencoder training (70% random pixel hiding). **Strongest defensive finding**: at lead=7 days (the informative-horizon test that the 1-day-ahead headline number does not pass cleanly), AE_3d_mae070 is the **only method** with positive R² in every PNW region (0.10–0.26), while climatology baselines B1/B2 collapse to ≤ 0 (B2 goes *negative* — anti-predicts) and PCA was already at 0. The 1-day-ahead R²=0.87 in SW Washington is real but inflated by 8-day composite overlap. Moderate cloud-cover confound: Pearson r ≈ +0.4–0.5 with valid-pixel fraction (~24% variance). For DATect integration, **use this same mae070 checkpoint** — the cleaner-cloud variant mae050 collapses faster at long leads (R²=−0.17 vs +0.19 at lead=7 in Olympic Coast), so the cloud tradeoff isn't worth the multi-step penalty.
-- **5 regions** (1 envelope + 4 alongshore bands) — each of DATect's 10 sites maps to exactly one region (mapping documented in `ocean anomaly detection/RESULTS.md`).
-- **Score parquets**: `ocean anomaly detection/outputs/scores/*.parquet`, columns `date, region, method, aggregation, score`.
-- **`ocean anomaly detection/data/cube.zarr` schema** (Hyak-only): two variables — `data` shape `(channel=4, time≈4700, lat=321, lon=409)` with channel order `[chla, Kd490, nFLH, SST]`, and `mask` shape `(lat, lon)` bool (True=ocean). NaNs in `data` mark cloud-flagged pixels; the 2D `mask` is the static ocean/land mask. Open via the conda env (`/gscratch/stf/ac283/envs/datect_scratch/bin/python`), not the system `.venv` (no xarray/zarr there).
-
-### Integration into the main DATect forecast (planned)
-
-The OAD score is a candidate new feature column for `forecasting/raw_data_processor.py`. **Three integration constraints** (all from `RESULTS.md` §SANITY-CHECK CAVEATS):
-
-1. **Centered-composite leakage**: MODIS 8-day composites are **CENTERED** on the labeled date (`long_name="Centered Time"`), so a score at date *t* contains 3–4 days of "future" data. The leakage-safe lag is `test_date − 12` (i.e. anchor − 5), which puts the score's composite window entirely before DATect's `anchor = test_date − 7` convention.
-2. **Use the lead=7+ regime**: at the trivial 1-day-ahead lead the AE's R² is inflated by 8-day composite overlap (0.87). The real, usable signal is at lead ≥ 7 days, where R² is 0.10–0.26 — modest but PCA collapses to 0 there too. The leakage lag in constraint (1) already puts us in this regime.
-3. **Cloud-fraction confound**: OAD score has Pearson r ≈ +0.4–0.5 with in-region valid-pixel fraction. Add `oad_valid_pixel_fraction` as a parallel feature so XGBoost can learn to discount cloudy weeks (preferred), or pre-regress cloud fraction out of the score before merging.
-
-Suggested 8 new features per (site, date) row: `oad_score`, `oad_score_lag1week`, `oad_score_lag2week`, `oad_score_30day_mean`, `oad_score_30day_max`, `oad_score_30day_trend`, `oad_score_zscore_doy`, **`oad_valid_pixel_fraction`** (cloud control). Evaluate via `scripts/eval/eval_paper_metrics.py` baseline vs +OAD on the same retrospective rows. Source parquet: `ocean anomaly detection/outputs/scores/ae_3d_l32_c4_t4_s42_mae070.parquet` (best multi-step skill, only method with positive R² at lead=7 in every region).
-
-See `ocean anomaly detection/RESULTS.md` and `ocean anomaly detection/IMPLEMENTATION_PLAN.md` for full design + validated numbers.
-
-## Quick reference: subproject docs
-
-- `ocean anomaly detection/README.md` — Hyak-first workflow
-- `ocean anomaly detection/IMPLEMENTATION_PLAN.md` — design + completion status of Phases A/B/C
-- `ocean anomaly detection/RESULTS.md` — validated numbers (per-region E4 forecastability tables, MAE ratio comparison, annual cycle plots)
-- `ocean anomaly detection/AGENTS.md` — workspace facts for agents continuing OAD work
-
-## Agent / development guidance
-
-These are conventions that have accumulated from prior conversations. They are
-project-wide rules, not optional preferences — follow them by default unless the
-user explicitly opts out.
-
-### Process rules
-
-1. **Keep gap-fill (synthetic training targets) separate from forecast model choice.**
-   They are two independent design dimensions (what data fills sparse DA between
-   real samples vs which model — XGB, RF, MLP — predicts on that data). Mixing
-   them up in experiments leads to incorrect attribution of improvements.
-2. **Leak-free, past-only training rules are non-negotiable.** Any alternative
-   to causal exponential decay gap-fill (e.g. bidirectional imputers) needs an
-   explicit story for why it does not leak future information into training rows.
-   "It looks like it works on the panel" is not enough.
-3. **Judge improvements on the leak-free raw retrospective**, not on dense ISO-week
-   panel imputation quality. The weekly panel has gap-filled `da`; only the raw
-   shore measurements are the actual prediction targets the system should be
-   evaluated against.
-4. **Prefer simple plain-English explanations** when the conversation moves
-   between synthetic-data design and prediction-model ablations. Those two
-   threads are easy to conflate.
-5. **Run all heavy compute on Hyak** (`/gscratch/stf/ac283/...`). Local laptop
-   is for editing code and reviewing figures. Cluster workflow in `docs/HYAK_SETUP.md`.
-6. **Memory hygiene**: before pasting a file path from a learned-fact note into
-   a prompt or instruction, verify it exists with `ls`. Past agents have
-   hallucinated filenames like `quick_raw_retrospective_compare.py`; the real
-   entry points are listed in "Hyak Workflow" above.
-
-### Useful workspace facts
-
-- Raw DA volume is in the **thousands** of shore rows and **thousands** of
-  site-weeks with real measurements. The weekly panel is dense with gap-filled
-  `da`, but evaluation for forecasting skill should always track raw measurements.
-- Quick retrospective comparisons and small **MLP / sklearn-style baselines**
-  at modest sample fractions are **CPU-viable on Hyak**; a GPU is not required
-  for that evaluation tier (reserve GPU partitions for the autoencoder training
-  in the OAD subproject).
-- SSH ControlMaster for Hyak is set up as `klone-login`. It expires periodically
-  (2FA timeout); user re-auths from their terminal with `ssh klone-login 'whoami'`
-  when needed.
+Before pasting a file path from memory or an old note into an instruction, check it exists.

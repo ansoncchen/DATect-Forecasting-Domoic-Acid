@@ -98,17 +98,25 @@ class TestGetSiteTrainingFrame:
             "Training frame contains dates after anchor — temporal leakage!"
         )
 
-    def test_row_at_anchor_is_included(self):
-        """Rows with date == anchor_date are part of training (anchor is inclusive)."""
+    def test_anchor_week_excluded(self):
+        """A weekly row covers its date plus six days, so the row dated at the
+        anchor can hold measurements taken after it and must not be trained on."""
         df = _make_site_df(n_rows=20)
-        # Use row 12 as anchor so there are 13 rows (≥ default min 10) before and at anchor
         anchor = df["date"].iloc[12]
 
         train = get_site_training_frame(df, site="Newport", anchor_date=anchor)
         assert train is not None
-        assert (train["date"] == anchor).any(), (
-            "Row at anchor_date should be included in training"
-        )
+        assert not (train["date"] == anchor).any(), "Partial anchor week used in training"
+        assert (train["date"] + pd.Timedelta(days=6) <= anchor).all()
+
+    def test_week_ending_at_anchor_included(self):
+        """A week that ends on the anchor is complete and is trained on."""
+        df = _make_site_df(n_rows=20)
+        anchor = df["date"].iloc[12] + pd.Timedelta(days=6)
+
+        train = get_site_training_frame(df, site="Newport", anchor_date=anchor)
+        assert train is not None
+        assert (train["date"] == df["date"].iloc[12]).any()
 
     def test_row_after_anchor_excluded(self):
         """A row one week after anchor must not appear in training."""
@@ -283,14 +291,24 @@ class TestVerifyNoDataLeakage:
             anchor_date="2015-06-07",
         )
 
-    def test_training_date_at_anchor_passes(self):
-        """Anchor date itself is included in training — must pass."""
-        train = self._make_train_df("2015-06-07")
+    def test_week_ending_at_anchor_passes(self):
+        """A weekly row whose six-day span ends on the anchor is allowed."""
+        train = self._make_train_df("2015-06-01")
         _verify_no_data_leakage(
             train,
             test_date="2015-07-01",
             anchor_date="2015-06-07",
         )
+
+    def test_week_spanning_anchor_raises(self):
+        """A weekly row dated on the anchor extends six days past it."""
+        train = self._make_train_df("2015-06-07")
+        with pytest.raises(AssertionError, match="TEMPORAL LEAK"):
+            _verify_no_data_leakage(
+                train,
+                test_date="2015-07-01",
+                anchor_date="2015-06-07",
+            )
 
     def test_training_date_after_anchor_raises(self):
         """Any training row after anchor_date must raise AssertionError."""
@@ -342,3 +360,15 @@ def test_training_persistence_excludes_own_week():
     assert np.isnan(ff["last_observed_da_raw"].iloc[0])
     # Spike at week 3: its own row has not seen it yet; the next row is 1 week on
     assert ff["weeks_since_last_spike"].tolist()[2:4] == [999.0, 1.0]
+
+
+def test_test_row_persistence_uses_only_samples_up_to_anchor():
+    """Clatsop Beach, test date 2020-11-03: the anchor (10-27) shares a week with a
+    100 ug/g sample from 10-28. Persistence must come from 10-20 (9.6 ug/g)."""
+    from forecasting.raw_forecast_engine import RawForecastEngine
+
+    engine = RawForecastEngine(validate_on_init=False)
+    anchor = pd.Timestamp("2020-10-27")
+    obs = engine._observations_up_to("Clatsop Beach", anchor)
+    assert obs["date"].max() <= anchor
+    assert obs["da_raw"].iloc[-1] == 9.6

@@ -34,9 +34,12 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
    `scripts/data/rebuild_final_output.py` for anything derived from local files.
 2. **Heavy compute runs on Hyak** (`precompute_cache.py`, retrospective/multi-seed/ablation
    evals). The laptop is for editing, tests and the dashboard.
-3. **Leak-free, past-only training is non-negotiable.** Training uses `date <= anchor_date`
-   (`anchor = test_date - 7 days`); persistence features and the naive baseline come from
-   real observations only; test points are raw DA measurements only. Any new feature or
+3. **Leak-free, past-only training is non-negotiable.** A weekly row is labelled with its
+   Monday but aggregates Monday-Sunday, so training and the anchor row use only weeks that
+   end by the anchor (`date + 6 days <= anchor_date`, `anchor = test_date - 7 days`;
+   `week_complete_by`). Test-time persistence features and the naive baseline come from raw
+   daily measurements dated `<= anchor_date`; in training rows they use only earlier weeks.
+   Test points are raw DA measurements only. Any new feature or
    imputer needs an explicit story for why it cannot see the future.
 4. **Behavior-neutral refactors must reproduce the golden baseline exactly**
    (`compare_golden.py`: prediction parquets byte-identical; metric tables may differ only

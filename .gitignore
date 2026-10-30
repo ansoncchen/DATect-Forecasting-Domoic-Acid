@@ -102,3 +102,13 @@ oad/outputs/figures_*/
 *.backup
 *\ 2.py
 *\ copy.py
+
+# Spark / Delta / MLflow outputs (Hyak keeps these on scrubbed)
+lake/
+ivy/
+mlruns/
+mlartifacts/
+mlflow.db
+retune-*.out
+retune-*.err
+retune_sha.txt

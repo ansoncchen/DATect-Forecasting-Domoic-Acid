@@ -805,11 +805,13 @@ class RawForecastEngine:
         raw_measurement: dict,
         feature_frame: pd.DataFrame,
         base_params: dict,
+        return_internals: bool = False,
     ) -> Optional[dict]:
         """
         Run a single retrospective validation point with per-anchor tuning.
 
         Mirrors ``run_single_raw_validation_with_tuning()`` from the source.
+        ``return_internals`` is passed through to ``_run_single_raw_validation``.
         """
         test_date = raw_measurement["date"]
         site = raw_measurement["site"]
@@ -886,7 +888,8 @@ class RawForecastEngine:
         # skip_quantiles=True: retrospective evaluation does not use quantile
         # intervals, so avoid the 3 extra XGB quantile model trainings per point.
         return self._run_single_raw_validation(
-            raw_measurement, feature_frame, best_params, skip_quantiles=True
+            raw_measurement, feature_frame, best_params, skip_quantiles=True,
+            return_internals=return_internals,
         )
 
     def _run_single_raw_validation(

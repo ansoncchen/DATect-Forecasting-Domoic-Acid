@@ -17,8 +17,8 @@ Identifying spike transitions in test set...
 Computing spike detection metrics...
 
   Evaluating integrated spike classifier...
-    Spike classifier (prob>=0.10): recall=0.910, transition_recall=0.731, F2=0.773
-    Hybrid alert: recall=0.921, transition_recall=0.763, F2=0.775
+    Spike classifier (prob>=0.10): recall=0.885, transition_recall=0.699, F2=0.757
+    Hybrid alert: recall=0.910, transition_recall=0.753, F2=0.764
 
 Running threshold sensitivity analysis for ensemble...
 Saved threshold sweep plot to results/spike_metrics_seed123/threshold_sweep.png
@@ -33,13 +33,13 @@ PHASE 2: SPIKE DETECTION EVALUATION — SUMMARY
 --- Confusion Matrix Breakdown (DA >= 20 threshold) ---
   Model                     TP    FP    FN    TN  Alerts  Actual   Recall  Precision  Trans.
   -----------------------------------------------------------------------------------------------
-  ensemble                 142    51   136  1776     193     278    0.511      0.736   0.086
-  xgboost                  138    49   140  1778     187     278    0.496      0.738   0.118
-  rf                       158    63   120  1764     221     278    0.568      0.715   0.086
-  naive                    195    98    83  1729     293     278    0.701      0.666   0.118
-  linear                   168    63   110  1764     231     278    0.604      0.727   0.097
-  spike_classifier_p10     253   271    25  1556     524     278    0.910      0.483   0.731
-  hybrid_alert             256   284    22  1543     540     278    0.921      0.474   0.763
+  ensemble                 172    92   106  1735     264     278    0.619      0.652   0.237
+  xgboost                  172    89   106  1738     261     278    0.619      0.659   0.247
+  rf                       180    96    98  1731     276     278    0.647      0.652   0.280
+  naive                    191    95    87  1732     286     278    0.687      0.668   0.129
+  linear                   152    55   126  1772     207     278    0.547      0.734   0.183
+  spike_classifier_p10     246   266    32  1561     512     278    0.885      0.480   0.699
+  hybrid_alert             253   290    25  1537     543     278    0.910      0.466   0.753
 
   TP = correctly alerted spikes     FP = false alarms (alert but no spike)
   FN = missed spikes (no alert)     TN = correctly quiet
@@ -48,33 +48,33 @@ PHASE 2: SPIKE DETECTION EVALUATION — SUMMARY
 
 --- Overall Spike Detection Metrics ---
                model  n_actual_spikes  recall  precision    f1    f2   fnr  transition_recall
-            ensemble              278   0.511      0.736 0.603 0.544 0.489              0.086
-             xgboost              278   0.496      0.738 0.594 0.531 0.504              0.118
-                  rf              278   0.568      0.715 0.633 0.593 0.432              0.086
-               naive              278   0.701      0.666 0.683 0.694 0.299              0.118
-              linear              278   0.604      0.727 0.660 0.625 0.396              0.097
-spike_classifier_p10              278   0.910      0.483 0.631 0.773 0.090              0.731
-        hybrid_alert              278   0.921      0.474 0.626 0.775 0.079              0.763
+            ensemble              278   0.619      0.652 0.635 0.625 0.381              0.237
+             xgboost              278   0.619      0.659 0.638 0.626 0.381              0.247
+                  rf              278   0.647      0.652 0.650 0.648 0.353              0.280
+               naive              278   0.687      0.668 0.677 0.683 0.313              0.129
+              linear              278   0.547      0.734 0.627 0.576 0.453              0.183
+spike_classifier_p10              278   0.885      0.480 0.623 0.757 0.115              0.699
+        hybrid_alert              278   0.910      0.466 0.616 0.764 0.090              0.753
 
 --- Spike Classifier Breakdown ---
-  Raised 524 alerts total:
-    253 were real spikes (true positives)
-    271 were false alarms (DA stayed below 20)
-  Missed 25 actual spikes (false negatives)
-  Of 93 NEW spike transitions: caught 68 (73.1%)
-  Of 278 total spike events: caught 253 (91.0%)
+  Raised 512 alerts total:
+    246 were real spikes (true positives)
+    266 were false alarms (DA stayed below 20)
+  Missed 32 actual spikes (false negatives)
+  Of 93 NEW spike transitions: caught 65 (69.9%)
+  Of 278 total spike events: caught 246 (88.5%)
 
 --- Hypothesis Test: Does ML outperform naive on spike detection? ---
 
-  Naive spike recall:    0.701
-  Ensemble spike recall: 0.511
+  Naive spike recall:    0.687
+  Ensemble spike recall: 0.619
 
-  Naive transition recall:    0.118
-  Ensemble transition recall: 0.086
+  Naive transition recall:    0.129
+  Ensemble transition recall: 0.237
 
-  Spike classifier transition recall: 0.731
-  vs naive transition recall:         0.118
-  Improvement factor:                 6.2x
+  Spike classifier transition recall: 0.699
+  vs naive transition recall:         0.129
+  Improvement factor:                 5.4x
 
   RESULT: Spike classifier significantly outperforms naive on transitions.
   The dedicated classifier provides advance warning for the events that
@@ -82,40 +82,40 @@ spike_classifier_p10              278   0.910      0.483 0.631 0.773 0.090      
 
 --- Washington Sites (Primary Focus) ---
         site                model  n_actual_spikes  recall    f2  transition_recall
-     Copalis             ensemble               20   0.650 0.699              0.000
-    Kalaloch             ensemble               14   0.429 0.476              0.000
-  Long Beach             ensemble               31   0.645 0.680              0.143
-    Quinault             ensemble               24   0.333 0.374              0.000
-Twin Harbors             ensemble               38   0.684 0.722              0.000
-     Copalis              xgboost               20   0.650 0.699              0.000
-    Kalaloch              xgboost               14   0.429 0.476              0.125
-  Long Beach              xgboost               31   0.645 0.680              0.143
-    Quinault              xgboost               24   0.333 0.374              0.000
-Twin Harbors              xgboost               38   0.632 0.674              0.000
-     Copalis                   rf               20   0.700 0.737              0.000
-    Kalaloch                   rf               14   0.429 0.476              0.000
-  Long Beach                   rf               31   0.710 0.728              0.143
-    Quinault                   rf               24   0.542 0.570              0.000
-Twin Harbors                   rf               38   0.711 0.746              0.000
+     Copalis             ensemble               20   0.750 0.765              0.000
+    Kalaloch             ensemble               14   0.357 0.379              0.000
+  Long Beach             ensemble               31   0.677 0.695              0.429
+    Quinault             ensemble               24   0.458 0.482              0.000
+Twin Harbors             ensemble               38   0.737 0.765              0.167
+     Copalis              xgboost               20   0.750 0.765              0.000
+    Kalaloch              xgboost               14   0.357 0.385              0.000
+  Long Beach              xgboost               31   0.677 0.695              0.429
+    Quinault              xgboost               24   0.458 0.482              0.000
+Twin Harbors              xgboost               38   0.737 0.769              0.167
+     Copalis                   rf               20   0.700 0.722              0.000
+    Kalaloch                   rf               14   0.357 0.379              0.000
+  Long Beach                   rf               31   0.677 0.700              0.286
+    Quinault                   rf               24   0.417 0.439              0.000
+Twin Harbors                   rf               38   0.737 0.761              0.167
      Copalis                naive               20   0.850 0.842              0.000
-    Kalaloch                naive               14   0.500 0.500              0.125
-  Long Beach                naive               31   0.839 0.828              0.286
-    Quinault                naive               24   0.708 0.708              0.125
-Twin Harbors                naive               38   0.816 0.820              0.000
-     Copalis               linear               20   0.800 0.808              0.000
-    Kalaloch               linear               14   0.429 0.462              0.000
-  Long Beach               linear               31   0.774 0.795              0.429
-    Quinault               linear               24   0.417 0.459              0.000
-Twin Harbors               linear               38   0.711 0.742              0.000
-     Copalis spike_classifier_p10               20   0.900 0.776              0.333
-    Kalaloch spike_classifier_p10               14   0.643 0.500              0.375
-  Long Beach spike_classifier_p10               31   0.935 0.848              0.714
-    Quinault spike_classifier_p10               24   0.958 0.804              0.875
-Twin Harbors spike_classifier_p10               38   0.921 0.858              0.500
-     Copalis         hybrid_alert               20   0.900 0.756              0.333
-    Kalaloch         hybrid_alert               14   0.643 0.479              0.375
-  Long Beach         hybrid_alert               31   0.968 0.867              0.857
-    Quinault         hybrid_alert               24   1.000 0.833              1.000
-Twin Harbors         hybrid_alert               38   0.947 0.870              0.667
+    Kalaloch                naive               14   0.500 0.507              0.125
+  Long Beach                naive               31   0.774 0.779              0.286
+    Quinault                naive               24   0.625 0.630              0.125
+Twin Harbors                naive               38   0.789 0.798              0.000
+     Copalis               linear               20   0.650 0.663              0.000
+    Kalaloch               linear               14   0.357 0.385              0.000
+  Long Beach               linear               31   0.613 0.655              0.143
+    Quinault               linear               24   0.292 0.330              0.000
+Twin Harbors               linear               38   0.658 0.698              0.167
+     Copalis spike_classifier_p10               20   0.800 0.672              0.000
+    Kalaloch spike_classifier_p10               14   0.643 0.556              0.375
+  Long Beach spike_classifier_p10               31   0.935 0.833              0.857
+    Quinault spike_classifier_p10               24   0.875 0.761              0.750
+Twin Harbors spike_classifier_p10               38   0.895 0.842              0.500
+     Copalis         hybrid_alert               20   0.850 0.691              0.000
+    Kalaloch         hybrid_alert               14   0.714 0.568              0.500
+  Long Beach         hybrid_alert               31   0.935 0.829              0.857
+    Quinault         hybrid_alert               24   0.917 0.786              0.750
+Twin Harbors         hybrid_alert               38   0.947 0.870              0.833
 
 ================================================================================

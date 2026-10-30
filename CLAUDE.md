@@ -190,8 +190,8 @@ feature because the score correlates with cloud cover (r ~ 0.4-0.5).
 ## Results
 
 All current numbers, their protocol and history are in `docs/CORRECTED_NUMBERS.md`.
-Headline (2022–2023 holdout, every real measurement, commit `a2de8dac`): R² 0.419
-[0.247, 0.546], MAE 7.49 ug/g, spike recall 0.774, F2 0.693, N = 409.
+Headline (2022–2023 holdout, every real measurement, commit `2688fb8d`): R² 0.497
+[0.365, 0.601], MAE 7.60 ug/g, spike recall 0.833, F2 0.729, N = 409.
 `tests/test_chronological_eval_smoke.py` pins it; change both together.
 
 ## Docs

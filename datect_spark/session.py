@@ -12,7 +12,12 @@ group allocation is nearly full):
 from __future__ import annotations
 
 import os
+import sys
 import time
+
+# Workers must run the driver's interpreter (the venv), not whatever python3 is
+# first on a compute node's PATH.
+os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
 
 # One thread per task: Spark runs one Python worker per core, and models already
 # train with n_jobs=1. Must be set before any worker starts.

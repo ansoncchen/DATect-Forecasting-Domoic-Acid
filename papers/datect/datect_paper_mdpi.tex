@@ -1028,36 +1028,36 @@ To validate that per-site design choices are not fragile artifacts of the seed-4
 
 Three findings emerge. First, Random Forest hyperparameters are genuinely insensitive: across four configurations spanning depth 6--16 and 200--800 estimators, no perturbation exceeds $|\Delta R^2| = 0.001$. This validates the claim in Section~\ref{sec:results-ablation} that RF robustness to hyperparameters does not require per-site RF tuning. Second, per-site prediction clipping provides meaningful regularization: relaxing all per-site quantile thresholds from their current values (0.95--0.98) to a uniform 0.99 costs $\Delta R^2 = -0.029$; disabling clipping entirely costs only $-0.026$, revealing that the harm is not from clipping itself but from replacing well-calibrated site-specific thresholds with an overly permissive uniform one. Third, feature subsets have negligible pooled impact ($+0.006$ with all features, $+0.002$ with only four persistence features), confirming that predictive skill is dominated by the DA persistence signal rather than feature engineering.
 
-Multi-seed evaluation further characterizes the stability of these results. Table~\ref{tab:seed-stability} reports per-site $R^2$ across five random seeds with per-site configuration enabled.
+Multi-seed evaluation further characterizes the stability of these results. Table~\ref{tab:seed-stability} reports per-site $R^2$ across the five bootstrap seeds (42--46) with per-site configuration enabled.
 
 \begin{table}[H]
-\caption{Per-site $R^2$ across five random seeds (20\% sample, per-site configuration enabled). Sites are grouped by region.}
+\caption{Per-site $R^2$ across the five bootstrap seeds (42--46; 20\% of all real DA measurements, $N = 1{,}054$ per seed; per-site configuration enabled). Sites are grouped by region.}
 \label{tab:seed-stability}
 \centering\scriptsize
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrrrrrrr}
 \toprule
-\textbf{Site} & \textbf{s42} & \textbf{s123} & \textbf{s456} & \textbf{s789} & \textbf{s1337} & \textbf{Mean} & \textbf{Std} \\
+\textbf{Site} & \textbf{s42} & \textbf{s43} & \textbf{s44} & \textbf{s45} & \textbf{s46} & \textbf{Mean} & \textbf{Std} \\
 \midrule
 \multicolumn{8}{l}{\textit{Washington}} \\
-Copalis      & .752 & .764 & .769 & .712 & .733 & .746 & .021 \\
-Quinault     & .491 & .584 & .677 & .680 & .519 & .590 & .078 \\
-Twin Harb.   & .514 & .566 & .579 & .709 & .566 & .587 & .065 \\
-Long Beach   & .643 & .526 & .605 & .642 & .516 & .586 & .055 \\
-Kalaloch     & .618 & .627 & .454 & .628 & .537 & .573 & .069 \\
+Copalis      & .825 & .779 & .797 & .719 & .792 & .783 & .039 \\
+Kalaloch     & .559 & .703 & .471 & .598 & .576 & .581 & .084 \\
+Twin Harb.   & .431 & .603 & .561 & .723 & .694 & .603 & .116 \\
+Long Beach   & .303 & .554 & .532 & .499 & .637 & .505 & .124 \\
+Quinault     & .527 & .426 & .494 & .233 & .367 & .409 & .117 \\
 \midrule
 \multicolumn{8}{l}{\textit{Oregon}} \\
-Clatsop Bch  & .374 & .305 & $-$.238 & .666 & .296 & .280 & .292 \\
-Coos Bay     & .358 & $-$.004 & .095 & $-$.001 & .153 & .120 & .133 \\
-Cannon Bch   & .014 & $-$.071 & .138 & $-$.055 & $-$.071 & $-$.009 & .080 \\
-Gold Beach   & $-$.053 & .035 & $-$.251 & .227 & .006 & $-$.007 & .154 \\
-Newport      & .119 & $-$.163 & $-$.950 & $-$.113 & $-$.226 & $-$.267 & .361 \\
+Clatsop Bch  & .447 & .491 & .500 & .454 & .470 & .472 & .023 \\
+Coos Bay     & .125 & .212 & .212 & .200 & .246 & .199 & .045 \\
+Gold Beach   & .235 & $-$.119 & .263 & .186 & .070 & .127 & .156 \\
+Cannon Bch   & $-$.048 & $-$.028 & $-$.018 & $-$.012 & $-$.039 & $-$.029 & .015 \\
+Newport      & $-$.018 & $-$.208 & .139 & $-$.029 & $-$.139 & $-$.051 & .132 \\
 \midrule
-\multicolumn{2}{l}{Pooled} & & & & & .265 & .102 \\
+Pooled       & .332 & .392 & .395 & .292 & .314 & .345 & .046 \\
 \bottomrule
 \end{tabular*}
 \end{table}
 
-Washington sites show stable performance across seeds (mean $R^2 = 0.57$--$0.75$, std $\leq 0.08$), while Oregon sites exhibit high variance (std up to 0.36 for Newport). The regional skill divide persists across all five seeds, confirming that it reflects fundamental data quality differences rather than seed-specific tuning artifacts.
+Washington sites are consistently skillful across seeds (mean $R^2 = 0.41$--$0.78$, std 0.04--0.12), and Clatsop Beach is the most stable site of all ($0.47 \pm 0.02$). The four other Oregon sites stay near zero in every seed (means $-0.05$ to $0.20$, std up to 0.16 at Gold Beach). The skill divide persists across all five seeds, so it reflects the sites' data and DA dynamics rather than seed-specific sampling.
 
 
 % ══════════════════════════════════════════════════════════════════════════════

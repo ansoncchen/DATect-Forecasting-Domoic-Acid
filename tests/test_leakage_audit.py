@@ -321,3 +321,24 @@ class TestVerifyNoDataLeakage:
                 test_date="2015-06-01",
                 anchor_date="2015-06-07",
             )
+
+
+# ---------------------------------------------------------------------------
+# Persistence features in training rows exclude the row's own week
+# ---------------------------------------------------------------------------
+
+def test_training_persistence_excludes_own_week():
+    """last_observed_da_raw / weeks_since_last_spike in a training row describe
+    the past, as they do at forecast time; they must not echo the row's target."""
+    from forecasting.raw_data_forecaster import build_raw_feature_frame
+
+    dates = pd.date_range("2015-01-05", periods=6, freq="7D")
+    processed = pd.DataFrame({"site": "Newport", "date": dates, "da": 0.0})
+    weekly = pd.DataFrame({"site": "Newport", "date": dates,
+                           "da_raw": [1.0, np.nan, 30.0, 2.0, np.nan, 5.0]})
+    ff = build_raw_feature_frame(processed, weekly).sort_values("date")
+
+    assert ff["last_observed_da_raw"].tolist()[1:] == [1.0, 1.0, 30.0, 2.0, 2.0]
+    assert np.isnan(ff["last_observed_da_raw"].iloc[0])
+    # Spike at week 3: its own row has not seen it yet; the next row is 1 week on
+    assert ff["weeks_since_last_spike"].tolist()[2:4] == [999.0, 1.0]

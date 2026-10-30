@@ -140,18 +140,24 @@ def build_raw_feature_frame(
     # ablation confirmed all have |ΔR²| ≤ 0.005. They have been removed
     # from the pipeline. See paper_feature_ablation_results.json.
 
-    # Add persistence features from raw measurements (no interpolation)
+    # Persistence features from raw measurements (no interpolation), using only
+    # observations before the row's own week. Including the row itself made the
+    # feature equal the training target (and weeks_since_last_spike 0 exactly on
+    # spike rows), which never happens at forecast time.
     merged = merged.sort_values(["site", "date"])
-    merged["last_observed_da_raw"] = merged.groupby("site")["da_raw"].ffill()
+    previous_da = merged.groupby("site")["da_raw"].shift(1)
+    merged["last_observed_da_raw"] = previous_da.groupby(merged["site"]).ffill()
 
-    last_spike_date = merged["date"].where(merged["da_raw"] >= config.SPIKE_THRESHOLD)
+    spike_date = merged["date"].where(merged["da_raw"] >= config.SPIKE_THRESHOLD)
+    last_spike_date = spike_date.groupby(merged["site"]).shift(1)
     last_spike_date = last_spike_date.groupby(merged["site"]).ffill()
     merged["weeks_since_last_spike"] = (merged["date"] - last_spike_date).dt.days / 7.0
     merged["weeks_since_last_spike"] = merged["weeks_since_last_spike"].fillna(999.0)
 
     if config.USE_ROLLING_FEATURES:
         rolling_windows = (4, 8, 12)
-        shifted = merged.groupby("site")["last_observed_da_raw"].shift(1)
+        # Already excludes the row's own value (same series the old shift(1) produced)
+        shifted = merged["last_observed_da_raw"]
         for window in rolling_windows:
             rolling_group = shifted.groupby(merged["site"]).rolling(window, min_periods=1)
             # Rolling mean only needed for window=4 (8/12 are negligible)

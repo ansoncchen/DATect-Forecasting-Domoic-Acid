@@ -165,7 +165,18 @@ Every component is within ±0.01 R² of the full system on this sample, includin
 the per-site configuration (pre-cleanup: −0.187). ΔR² is paired on identical test
 points, but it is one seed; see the per-site check below.
 
-<!-- PERSITE: deterministic chronological with DATECT_USE_PER_SITE_MODELS=false (job 42599199) -->
+**Per-site configuration on the deterministic windows** (`chronological_eval.py` with
+`DATECT_USE_PER_SITE_MODELS=false`, Hyak job 42599199;
+`results/chronological_no_per_site/`):
+
+| Window | Per-site on | Per-site off |
+|---|---|---|
+| Validation 2019–2021 (N = 635) | R² 0.329, MAE 6.82, F2 0.737 | R² 0.368 [0.114, 0.593], MAE 6.37, F2 0.739 |
+| Holdout 2022–2023 (N = 409) | R² 0.419, MAE 7.49, F2 0.693 | R² 0.343 [0.069, 0.520], MAE 7.55, F2 0.688 |
+
+The per-site configuration hurts on validation (−0.039) and helps on the holdout
+(+0.076), both inside the CIs: roughly neutral overall, as the single-seed ablation
+says. Reported only; the holdout is not used to choose a configuration.
 
 **Feature groups** (`paper_sensitivity_study.py --study features`, same sample;
 `results/ablation/paper_features_results.json`): no group moves R² by more than

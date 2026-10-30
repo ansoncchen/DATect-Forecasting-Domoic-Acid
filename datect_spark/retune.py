@@ -6,14 +6,16 @@ Forest models are the same whatever those settings are. So instead of re-running
 the whole retrospective for every configuration (scripts/eval/
 grid_search_weights_clip.py runs 2,250 full retrospectives), this:
 
-1. ``predict --window validation|holdout``: one Spark task per real DA
+1. ``predict --window tuning|holdout``: one Spark task per real DA
    measurement in the window. Each task trains that point's models exactly as
    the retrospective evaluation does (RawForecastEngine._run_single_retrospective)
    with clipping switched off, and returns the raw XGB and RF predictions plus
    the 0.95/0.97/0.99 quantiles of its training targets. Rows go to Delta.
-2. ``score``: applies the 75 weight x clip configurations to the validation rows
-   in Spark SQL and scores each (site, configuration) on yearly folds 2019,
-   2020 and 2021, the chronological CV of the original grid search. Each
+2. ``score``: applies the 75 weight x clip configurations to the tuning rows
+   in Spark SQL and scores each (site, configuration) on yearly folds
+   2015-2021. The original grid search used only 2019-2021, but that leaves
+   11-32 points per site and fold (none at Cannon Beach in 2019-2020); seven
+   folds give 1,581 points instead of 635 and stay before the holdout. Each
    (site, configuration) is an MLflow run; the winner maximizes
    mean R2 - 0.5 * std R2 over folds.
 3. ``holdout``: scores the chosen and the current configurations once on the
@@ -23,7 +25,7 @@ grid_search_weights_clip.py runs 2,250 full retrospectives), this:
 from the raw predictions must equal the committed chronological predictions.
 
 Usage (Hyak, inside an allocation; see datect_spark/retune.sbatch):
-    python -m datect_spark.retune predict --window validation
+    python -m datect_spark.retune predict --window tuning
     python -m datect_spark.retune predict --window holdout
     python -m datect_spark.retune score
     python -m datect_spark.retune holdout
@@ -54,6 +56,9 @@ PRED_SCHEMA = (
     "q95 double, q97 double, q99 double, n_train int, task_seconds double, "
     "host string, ok boolean"
 )
+# First tuning fold; the last is the year before the holdout (eval_windows.validation_end)
+TUNING_START = "2015-01-01"
+
 CHRONO = {
     "validation": "results/chronological/chronological_regression_ensemble_20190101_20220101.parquet",
     "holdout": "results/chronological/chronological_regression_ensemble_20220101_20240101.parquet",
@@ -64,6 +69,8 @@ def _window_bounds(window: str) -> tuple[str, str]:
     from forecasting.tuned_config import get_eval_windows
 
     w = get_eval_windows()
+    if window == "tuning":
+        return (TUNING_START, w["validation_end"])
     return (w[f"{window}_start"], w[f"{window}_end"])
 
 
@@ -209,6 +216,9 @@ def _ensemble(preds: pd.DataFrame, configs: dict) -> pd.Series:
 
 def _parity(preds: pd.DataFrame, window: str) -> dict:
     """Current configuration rebuilt from raw predictions vs the committed run."""
+    if window == "tuning":  # parity is checked on the part with a committed run
+        start = pd.Timestamp(_window_bounds("validation")[0])
+        return _parity(preds[pd.to_datetime(preds["date"]) >= start], "validation")
     ref = pd.read_parquet(os.path.join(REPO_ROOT, CHRONO[window]))
     ref["date"] = pd.to_datetime(ref["date"])
     ok = preds[preds["ok"]].copy()
@@ -231,7 +241,7 @@ def score() -> None:
     from pyspark.sql import functions as F
 
     spark = get_spark("datect-retune-score")
-    preds = spark.read.format("delta").load(lake_path("gold", "retune_predictions_validation")).where("ok")
+    preds = spark.read.format("delta").load(lake_path("gold", "retune_predictions_tuning")).where("ok")
     grid = spark.createDataFrame(
         [(w, q, m) for w in W_XGB_GRID for q in CLIP_Q_GRID for m in CLIP_MAX_GRID],
         "w_xgb double, clip_q double, clip_max double")
@@ -293,9 +303,9 @@ def score() -> None:
     from mlflow.tracking import MlflowClient
 
     client = MlflowClient()
-    with mlflow.start_run(run_name="score-validation-folds") as parent:
+    with mlflow.start_run(run_name="score-tuning-folds") as parent:
         mlflow.log_params({"git_sha": _git_sha(), "objective": "mean_r2 - 0.5*std_r2",
-                           "folds": "2019,2020,2021", "n_configs": len(W_XGB_GRID) * len(CLIP_Q_GRID) * len(CLIP_MAX_GRID)})
+                           "folds": "2015-2021 yearly", "n_configs": len(W_XGB_GRID) * len(CLIP_Q_GRID) * len(CLIP_MAX_GRID)})
         now = int(time.time() * 1000)
         exp_id = parent.info.experiment_id
         for _, r in agg.iterrows():
@@ -358,7 +368,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("predict")
-    p.add_argument("--window", choices=["validation", "holdout"], required=True)
+    p.add_argument("--window", choices=["tuning", "validation", "holdout"], required=True)
     p.add_argument("--limit", type=int, help="only the first N points (smoke test)")
     sub.add_parser("score")
     sub.add_parser("holdout")

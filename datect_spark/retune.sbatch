@@ -16,7 +16,7 @@
 # its outputs, so a ckpt requeue just repeats it. Submit from the repo root of
 # a disposable worktree:
 #   sbatch datect_spark/retune.sbatch
-#   sbatch --export=ALL,STEPS="predict-validation" datect_spark/retune.sbatch
+#   sbatch --export=ALL,STEPS="predict-tuning" datect_spark/retune.sbatch
 #
 # Storage: the lake, Spark scratch and MLflow artifacts live on scrubbed (the
 # stf allocation is nearly full); only the small MLflow database is on stf.
@@ -34,10 +34,10 @@ export TZ=UTC
 mkdir -p "$DATECT_LAKE" "$SPARK_LOCAL_DIRS" /gscratch/stf/ac283/datect-mlflow
 
 git rev-parse HEAD > retune_sha.txt
-for step in ${STEPS:-predict-validation predict-holdout score holdout}; do
+for step in ${STEPS:-predict-tuning predict-holdout score holdout}; do
     echo "== $step @ $(date +%T) =="
     case $step in
-        predict-validation) $PY -u -m datect_spark.retune predict --window validation ${LIMIT:+--limit $LIMIT} ;;
+        predict-tuning)     $PY -u -m datect_spark.retune predict --window tuning ${LIMIT:+--limit $LIMIT} ;;
         predict-holdout)    $PY -u -m datect_spark.retune predict --window holdout ${LIMIT:+--limit $LIMIT} ;;
         score)              $PY -u -m datect_spark.retune score ;;
         holdout)            $PY -u -m datect_spark.retune holdout ;;

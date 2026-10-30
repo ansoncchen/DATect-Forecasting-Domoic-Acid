@@ -601,15 +601,15 @@ Hybrid alert (cls.\ $\cup$ regression $\geq$12 \si{\microgrampeg}) & \textbf{0.7
 \label{fig:spike-summary}
 \end{figure}
 
-The hybrid alert---combining the transition-focused classifier with a regression trigger at \SI{12}{\microgrampeg}---achieves 76.3\% transition recall compared to 11.8\% for na\"ive persistence (at the \SI{20}{\microgrampeg} regulatory threshold) and 8.6\% for the standard regression ensemble. This 6.5$\times$ improvement in transition recall over na\"ive persistence comes at the cost of lower precision (0.474 hybrid vs.\ 0.666 naive), roughly one false alarm per true alert. Because F2 weights recall twice as heavily as precision, the hybrid's overall F2 (0.775) still exceeds na\"ive persistence (0.694). The classifier alone captures most of this (transition recall 0.731); the regression arm at \SI{12}{\microgrampeg} adds three more onsets. On the deterministic 2022--2023 holdout ($N = 409$, 29 transitions) the hybrid alert detects 89.3\% of spikes and 20 of the 29 onsets (69.0\%). The classifier's top features are rolling DA maximum over 4 weeks (gain importance 0.41--0.45 across the five evaluation seeds: 42, 123, 456, 789, 1337), consistent with the biological mechanism where gradual toxin accumulation precedes a threshold crossing (Figure~\ref{fig:feature-importance}). Environmental features including PDO, BEUTI, and fluorescence contribute meaningfully when persistence features are excluded by the safe-baseline filter.
+The hybrid alert---combining the transition-focused classifier with a regression trigger at \SI{12}{\microgrampeg}---achieves 76.3\% transition recall compared to 11.8\% for na\"ive persistence (at the \SI{20}{\microgrampeg} regulatory threshold) and 8.6\% for the standard regression ensemble. This 6.5$\times$ improvement in transition recall over na\"ive persistence comes at the cost of lower precision (0.474 hybrid vs.\ 0.666 naive), roughly one false alarm per true alert. Because F2 weights recall twice as heavily as precision, the hybrid's overall F2 (0.775) still exceeds na\"ive persistence (0.694). The classifier alone captures most of this (transition recall 0.731); the regression arm at \SI{12}{\microgrampeg} adds three more onsets. On the deterministic 2022--2023 holdout ($N = 409$, 29 transitions) the hybrid alert detects 89.3\% of spikes and 20 of the 29 onsets (69.0\%). The classifier's top feature is the rolling DA maximum over 4 weeks (normalized gain importance 0.31--0.34 across the five bootstrap seeds 42--46, averaged over 60 retraining anchors per seed); the 4-, 8- and 12-week rolling maxima together carry 57\% of the gain, consistent with the biological mechanism where gradual toxin accumulation precedes a threshold crossing. Environmental features contribute far less once persistence features are excluded by the safe-baseline filter: PDO is the strongest (0.03), and ONI, BEUTI, fluorescence, discharge and SST each stay near 0.01.
 
 \subsection{Ablation Study}
 \label{sec:results-ablation}
 
-Component ablation is summarized in Appendix~\ref{app:component-ablation} (Table~\ref{tab:ablation}), evaluated on the held-out paper sample (seed = 123, $n = 1{,}202$) under the current grid-winner per-site configuration. Per-site customization is the most impactful component ($\Delta R^2 = -0.187$ when removed), confirming that the 10 monitoring sites cannot be represented well by a single global configuration. Interpolated training provides a modest improvement ($\Delta R^2 = -0.024$ when removed). Observation-order lags ($\Delta R^2 = -0.003$) and derived features ($\Delta R^2 = +0.000$) show negligible standalone impact at the one-week horizon; these are best interpreted as redundancy with persistence and rolling-statistics features that already capture much of the same recent-history signal. The OAD ocean-anomaly features show similar sub-noise impact ($\Delta R^2 = -0.003$) for reasons discussed in Section~\ref{sec:discussion-feature-extension}.
+Component ablation is summarized in Appendix~\ref{app:component-ablation} (Table~\ref{tab:ablation}), evaluated on the development sample (seed = 42, 20\%, $n = 1{,}054$) under the current grid-winner per-site configuration. On the corrected targets no single component changes $R^2$ by more than 0.01. Removing the per-site configuration costs $\Delta R^2 = -0.005$, but this nets out two opposing effects that the perturbation study separates (Table~\ref{tab:perturbation}): the per-site clip quantiles now truncate real spikes (relaxing them to the global 0.99 gains $+0.039$), while the per-site weights and hyperparameters still add roughly 0.04 relative to the global defaults. Dropping the gap-filled training rows raises $R^2$ slightly ($+0.007$) but also raises MAE (6.29 to \SI{6.39}{\microgrampeg}), so the gap-fill is neutral on this sample. Observation-order lags ($+0.003$ when removed) and the derived \texttt{pn\_log} ($+0.000$) show negligible standalone impact at the one-week horizon, consistent with redundancy with the persistence and rolling-statistics features. The OAD ocean-anomaly features are likewise sub-noise ($+0.003$ when removed) for reasons discussed in Section~\ref{sec:discussion-feature-extension}.
 
 \begin{sloppypar}
-A fine-grained per-feature ablation (Appendix~\ref{app:feature-ablation}, Table~\ref{tab:feature-ablation}) confirms that no individual environmental feature exceeds noise-level impact ($|\Delta R^2| \leq 0.005$), and removing all low-importance features simultaneously costs only $\Delta R^2 = -0.004$. Feature importance rankings (Figure~\ref{fig:feature-importance}) show that persistence features (\texttt{last\_observed\_da\_raw}, \texttt{weeks\_since\_last\_spike}) dominate, accounting for over half of total model gain and confirming the strong DA autocorrelation at weekly timescales. Environmental features (PDO, SST, ONI) appear in the top tier but at substantially lower gain. Critically, high gain importance does not imply high marginal contribution: lag features rank highly in model splits but are largely redundant with \texttt{last\_observed\_da\_raw} ($\Delta R^2 = -0.001$ when removed). A targeted perturbation study (Appendix~\ref{app:perturbation-sensitivity}, Tables~\ref{tab:perturbation}--\ref{tab:seed-stability}) confirms that RF hyperparameters, clipping thresholds, and per-site model selection are all well-calibrated, with Washington sites stable across five seeds (mean $R^2 = 0.61 \pm 0.05$) and Oregon variance reflecting data scarcity rather than tuning fragility.
+The feature-group ablation (Appendix~\ref{app:feature-ablation}, Table~\ref{tab:feature-ablation}) shows that no group of environmental predictors exceeds noise-level impact ($|\Delta R^2| \leq 0.004$), and removing all of them at once costs only $\Delta R^2 = -0.004$. Feature importance rankings (Figure~\ref{fig:feature-importance}) show that DA-history features (\texttt{last\_observed\_da\_raw}, \texttt{weeks\_since\_last\_spike}, observation-order lags and rolling statistics) account for 53\% of total model gain, the 16 OAD features for 34\%, and the climate, satellite, upwelling, discharge and \textit{Pseudo-nitzschia} predictors together for 8\%. High gain importance does not imply marginal contribution: the trees split on the OAD features often, yet removing them changes $R^2$ by only $+0.003$, so they carry no information the other features lack. The perturbation study (Appendix~\ref{app:perturbation-sensitivity}, Tables~\ref{tab:perturbation}--\ref{tab:seed-stability}) shows that RF hyperparameters and monotonic constraints are insensitive, that model-family and feature-subset choices stay within 0.015, and that Washington sites are stable across five seeds (mean $R^2$ 0.41--0.78), with Oregon variance reflecting data scarcity rather than tuning fragility.
 \end{sloppypar}
 
 
@@ -636,9 +636,9 @@ The difference between the standard single-seed paper sample ($R^2 = 0.337$ at s
 
 Strong persistence at several Washington sites is biologically plausible. DA depuration from razor clam tissue occurs over weeks to months \cite{Drum1993, Wekell1994}, so one-week-ahead DA often remains close to the most recent observation during sustained bloom periods. DATect therefore treats na\"ive persistence as a serious external baseline rather than a straw man. Its pooled held-out $R^2$ of 0.150, well below the ensemble's 0.337 but with an overlapping CI, reflects that persistence is highly site-dependent: strong where DA is autocorrelated, and close to useless at Newport and Gold Beach.
 
-The near-tie between the tree-based models and Ridge regression further shows that most forecast signal comes from the feature set and the per-site design, not from an intrinsically superior model family. Removing per-site customization costs $\Delta R^2 = -0.187$ in the component ablation under the current grid-winner config ($-0.158$ under the prior hand-tuned baseline; Table~\ref{tab:ablation}), far more than any other single component. Likewise, model-selection robustness in Appendix~\ref{app:weight-robustness} shows that choosing XGBoost versus Random Forest per site changes aggregate $R^2$ only modestly.
+The near-tie between the tree-based models and Ridge regression further shows that most forecast signal comes from the feature set, above all the DA history, not from an intrinsically superior model family. On the corrected targets the per-site configuration is roughly neutral in aggregate ($\Delta R^2 = -0.005$ when removed; Table~\ref{tab:ablation}): its tuned weights and hyperparameters help, but its clip quantiles, selected against the uncorrected targets, now cost a similar amount (Appendix~\ref{app:perturbation-sensitivity}). Likewise, model-selection robustness in Appendix~\ref{app:weight-robustness} shows that choosing XGBoost versus Random Forest per site changes aggregate $R^2$ only modestly.
 
-This perspective also helps interpret the ablations. Interpolated training provides a modest gain, while observation-order lags and derived features show little standalone marginal effect at the one-week horizon---their signal overlaps with persistence and rolling-history terms, and tree models can capture simple nonlinear structure without handcrafted interactions.
+This perspective also helps interpret the ablations. Gap-filled training rows are neutral on the development sample, while observation-order lags and derived features show little standalone marginal effect at the one-week horizon---their signal overlaps with persistence and rolling-history terms, and tree models can capture simple nonlinear structure without handcrafted interactions.
 
 \subsection{Spike Detection and Management Relevance}
 \label{sec:discussion-spike}
@@ -655,7 +655,7 @@ That distinction matters for management value. Quantitative one-week forecasts c
 \begin{enumerate}[nosep]
     \item \textbf{Per-site skill on the small-$N$ Oregon coast}: On the single-seed paper sample (Table~\ref{tab:per-site-results}, all years), Newport, Gold Beach and Cannon Beach have $R^2$ near zero ($-0.02$ to $0.09$) and Coos Bay is moderate (0.31). On the deterministic post-2022 holdout (Table~\ref{tab:temporal-holdout}), Coos Bay and Clatsop Beach reach $R^2 \approx 0.5$--$0.6$, Newport is near zero ($+0.04$), and Gold Beach is negative ($R^2 = -0.27$). Cannon Beach has only two measurements in the 2022--2023 window and is not evaluable. The lag-1 autocorrelation analysis (Table~\ref{tab:predictability-ceiling}) gives persistence-forecast $R^2$ ceilings of 0.05 for Newport and Gold Beach and 0.23--0.26 for Cannon Beach and Coos Bay, so consecutive DA measurements at these sites carry little information about the next observation. This does not preclude improvement from environmental predictors---Coos Bay, Newport and Gold Beach all exceed their persistence ceilings (e.g., Coos Bay $R^2 = 0.311 > \rho^2 = 0.255$)---but the low autocorrelation structure means persistence-based signal contributes little. The paper cannot fully separate data sparsity from true regional oceanographic complexity; denser Oregon monitoring records and richer environmental predictors may yet reveal exploitable structure currently obscured by irregular sampling.
     \item \textbf{High-risk category weakness}: The High and Extreme DA categories remain difficult, with F1 scores of 0.404 and 0.448, and 9.3\% of Extreme events are misclassified as Low under threshold-based four-category classification.
-    \item \textbf{Per-site outer configuration is selected by leak-free grid search}: The per-site values in \texttt{per\_site\_models.py} (ensemble weights, prediction clip quantile, prediction clip ceiling) were selected by a constrained 3-dimensional grid search (75 configurations per site) tuned strictly on pre-2022 data via chronological 3-fold cross-validation (folds: 2019, 2020, 2021); the 2022--2023 holdout window was never inspected during selection. The defensive comparison against the prior hand-tuned configuration (Section~\ref{sec:results-temporal-holdout}) showed a small validation-window leak in the all-year hand-tuning that reversed on the holdout, within seed noise; we retain the grid-search winners because they remove the indirect-leak concern by construction. A more aggressive 18-dimensional Optuna search over per-anchor XGB and Random Forest hyperparameters using the same protocol produced gains on the validation window ($+0.07$ R$^2$) that fully reversed on the holdout ($-0.16$ R$^2$), indicating the model is feature-limited rather than hyperparameter-limited under broader search.
+    \item \textbf{Per-site outer configuration is selected by leak-free grid search}: The per-site values in \texttt{per\_site\_models.py} (ensemble weights, prediction clip quantile, prediction clip ceiling) were selected by a constrained 3-dimensional grid search (75 configurations per site) tuned strictly on pre-2022 data via chronological 3-fold cross-validation (folds: 2019, 2020, 2021); the 2022--2023 holdout window was never inspected during selection. The defensive comparison against the prior hand-tuned configuration (Section~\ref{sec:results-temporal-holdout}) showed a small validation-window leak in the all-year hand-tuning that reversed on the holdout, within seed noise; we retain the grid-search winners because they remove the indirect-leak concern by construction. That search, however, was run before the evaluation targets were corrected to one measurement per site-day (Section~\ref{sec:retro-eval}). Against the corrected targets the selected clip quantiles truncate real spikes (on the development sample, $R^2$ rises from 0.332 to 0.388 without clipping; Table~\ref{tab:perturbation}), so the grid search must be re-run on the corrected data, and checked once on the holdout, before the per-site configuration can be considered final. A more aggressive 18-dimensional Optuna search over per-anchor XGB and Random Forest hyperparameters using the same protocol produced gains on the validation window ($+0.07$ R$^2$) that fully reversed on the holdout ($-0.16$ R$^2$), indicating the model is feature-limited rather than hyperparameter-limited under broader search.
     \item \textbf{Uncertainty summaries are not full probabilistic guarantees}: The quantile bands used for forecasts are hybrid empirical intervals, and the bootstrap confidence intervals reported for retrospective metrics resample held-out prediction rows with replacement (Section~\ref{sec:validation}). They summarize variability across the sampled test rows under that scheme; they are not block-bootstrap intervals over time or space and do not establish exact calibration under temporal or spatial dependence.
     \item \textbf{Operational deployment remains simplified}: The current system relies on pre-computed cache and a seven-day forecast horizon aligned with the PNW HAB Bulletin. Real-time ingestion and longer forecast horizons remain open engineering and scientific challenges.
     \item \textbf{Sensor continuity}: MODIS-Aqua is approaching end of life, so future operational use will require careful recalibration to successor instruments such as PACE.
@@ -800,21 +800,23 @@ Extreme  & 11   & 30  & 38 & 39 \\
 \label{app:component-ablation}
 
 \begin{table}[H]
-\caption{Component ablation: each row removes one component from the full DATect system, evaluated on the held-out paper sample (seed = 123, $n = 1{,}202$).}
+\caption{Component ablation: each row removes one component from the full DATect system, evaluated on the development sample (seed = 42, 20\%, $n = 1{,}054$).}
 \label{tab:ablation}
 \centering\footnotesize
 \begin{tabularx}{\linewidth}{lcccX}
 \toprule
 \textbf{Configuration} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} & \textbf{Notes} \\
 \midrule
-Full DATect (baseline)    & 0.211 & ---      & 6.60 & Current grid-winner config \\
-No per-site custom.       & 0.023 & $-0.187$ & 6.71 & Largest impact \\
-No interp.\ training      & 0.186 & $-0.024$ & 6.90 & Data augmentation contribution \\
-No obs-order lags         & 0.208 & $-0.003$ & 6.70 & Redundant with persistence at 1-wk horizon \\
-No derived features       & 0.211 & $+0.000$ & 6.60 & Negligible standalone impact \\
-No OAD features           & 0.208 & $-0.003$ & 6.59 & Sub-noise; offshore signal doesn't reach beach \\
+Full DATect (baseline)    & 0.332 & ---      & 6.29 & Grid-winner per-site config \\
+No per-site custom.       & 0.327 & $-$0.005 & 6.14 & Equal XGB/RF weights, global hyperparameters, all features, clip $q = 0.99$ \\
+No interp.\ training      & 0.339 & +0.007 & 6.39 & Real DA rows only as training targets \\
+No obs-order lags         & 0.335 & +0.003 & 6.29 & Redundant with persistence at 1-wk horizon \\
+No derived features       & 0.332 & +0.000 & 6.29 & \texttt{pn\_log} \\
+No OAD features           & 0.335 & +0.003 & 6.27 & Offshore signal does not reach the beach \\
 \bottomrule
 \end{tabularx}
+\vspace{0.3em}\\
+\footnotesize{Rows are paired on identical test points; each configuration runs in a fresh process (\texttt{scripts/eval/paper\_ablation\_study.py}).}
 \end{table}
 
 \section{Per-Site Hyperparameter Configuration}
@@ -878,7 +880,7 @@ Gold Beach   & $\checkmark$ & & & & & partial & & & \\
 \section{Features Explored but Removed}
 \label{app:feature-engineering}
 
-During development, we explored several additional features motivated by domain knowledge of harmful algal bloom dynamics. Individual feature ablation (Table~\ref{tab:feature-ablation}) confirmed that none contributed more than $|\Delta R^2| = 0.005$ to ensemble performance, and all have been removed from the final pipeline. We document them here for the benefit of future researchers.
+During development, we explored several additional features motivated by domain knowledge of harmful algal bloom dynamics. A per-feature ablation run on a pre-release configuration (its code is no longer part of the released pipeline) found that none contributed more than $|\Delta R^2| = 0.005$ to ensemble performance, and all have been removed. The $\Delta R^2$ values below are from that earlier run; Table~\ref{tab:feature-ablation} re-measures the feature groups the final pipeline still uses. We document them here for the benefit of future researchers.
 
 \subsection*{Derived Environmental Features}
 
@@ -899,7 +901,7 @@ Several satellite products were downloaded and tested but contributed negligibly
     \item \textbf{MODIS K490} (diffuse attenuation coefficient): $\Delta R^2 = +0.001$ (removing improves performance).
     \item \textbf{MODIS PAR} (photosynthetically active radiation): $< 1\%$ feature importance.
 \end{itemize}
-Removing all six satellite-derived features simultaneously costs only $\Delta R^2 = -0.003$.
+In that earlier run, removing all six satellite-derived features simultaneously cost only $\Delta R^2 = -0.003$.
 
 \subsection*{Temporal and Other Features}
 
@@ -930,28 +932,31 @@ The dashboard supports two modes. In \textbf{real-time forecasting mode}, users 
 \section{Individual Feature Ablation}
 \label{app:feature-ablation}
 
-Table~\ref{tab:feature-ablation} presents a fine-grained ablation in which each row removes one feature or feature group from the full system. All changes fall within sampling variability ($|\Delta R^2| \leq 0.005$), confirming negligible marginal contributions. All features listed were removed from the final pipeline; see Appendix~\ref{app:feature-engineering} for documentation.
+Table~\ref{tab:feature-ablation} presents a feature-group ablation of the final pipeline: each row removes one group of features that the models still use. No group changes $R^2$ by more than 0.004, and removing every environmental predictor at once costs only $\Delta R^2 = $-$0.004$: on this sample, regression skill comes almost entirely from the DA-history features. Features explored and removed during development are documented in Appendix~\ref{app:feature-engineering}.
 
 \begin{table}[H]
-\caption{Feature group ablation: each row removes one feature or group from the full system, evaluated on the development set (seed = 42).}
+\caption{Feature group ablation: each row removes one feature group from the full system, evaluated on the development sample (seed = 42, 20\%, $n = 1{,}054$).}
 \label{tab:feature-ablation}
 \centering\footnotesize
 \begin{tabularx}{\linewidth}{Xcccc}
 \toprule
 \textbf{Feature(s) removed} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} & $\boldsymbol{\Delta}$\textbf{MAE} \\
 \midrule
-Full DATect (baseline) & 0.457 & --- & 6.15 & --- \\
+Full DATect (baseline) & 0.332 & --- & 6.29 & --- \\
 \addlinespace
-All satellite (6) & 0.454 & $-0.003$ & 6.19 & $+0.03$ \\
-All derived env.\ (4)$^\ddagger$ & 0.455 & $-0.002$ & 6.18 & $+0.03$ \\
-PN features (2) & 0.452 & $-0.005$ & 6.22 & $+0.06$ \\
-Rolling std (3) & 0.457 & $-0.001$ & 6.16 & $+0.00$ \\
+Satellite (SST, SST anomaly, FLH) & 0.335 & +0.003 & 6.28 & $-$0.01 \\
+Climate indices (PDO, ONI) & 0.333 & +0.001 & 6.30 & +0.01 \\
+Upwelling (BEUTI) & 0.332 & $-$0.000 & 6.29 & +0.01 \\
+River discharge & 0.332 & $-$0.000 & 6.29 & +0.00 \\
+\textit{Pseudo-nitzschia} (count, log count) & 0.332 & +0.000 & 6.29 & $-$0.00 \\
+Rolling DA statistics (7) & 0.331 & $-$0.001 & 6.30 & +0.01 \\
+Calendar (month, day-of-year sin/cos) & 0.334 & +0.002 & 6.30 & +0.01 \\
 \addlinespace
-All low-imp.\ combined (8)$^\dagger$ & 0.453 & $-0.004$ & 6.19 & $+0.04$ \\
+All environmental (9)$^\dagger$ & 0.328 & $-$0.004 & 6.29 & +0.01 \\
 \bottomrule
 \end{tabularx}
 \vspace{0.3em}\\
-\footnotesize{All changes fall within sampling variability ($|\Delta R^2| \leq 0.005$). The baseline $R^2 = 0.457$ uses an earlier configuration than the component ablation (Table~\ref{tab:ablation}, $R^2 = 0.414$); the conclusion is unaffected. $^\dagger$Includes: K490, K490$^2$, fluor.\ efficiency, Chl-$a$ anomaly, PDO--ONI phase, BEUTI relaxation, PN threshold, Chl-$a$. $^\ddagger$4 derived features active at this checkpoint; full set of 7 in Appendix~\ref{app:feature-engineering}.}
+\footnotesize{Each group is dropped from every site's feature set; sites whose feature subset already excludes a group are unaffected. $\Delta$ values are paired on identical test points. $^\dagger$Satellite, climate indices, BEUTI, river discharge and \textit{Pseudo-nitzschia}.}
 \end{table}
 
 
@@ -993,10 +998,10 @@ The near-equivalence of these strategies ($R^2 = 0.325$--$0.337$, all within the
 \section{Perturbation Sensitivity Analysis}
 \label{app:perturbation-sensitivity}
 
-To validate that per-site design choices are not fragile artifacts of the seed-42 development set, we conduct a systematic perturbation study. Each experiment modifies a single design dimension while holding all others fixed, evaluated on the development set ($n = 1{,}177$, seed = 42, 20\% sample). Table~\ref{tab:perturbation} reports the results.
+To test whether per-site design choices are fragile, we run a systematic perturbation study. Each experiment modifies a single design dimension while holding all others fixed, evaluated on the development sample ($n = 1{,}054$, seed = 42, 20\% sample). Table~\ref{tab:perturbation} reports the results.
 
 \begin{table}[H]
-\caption{Perturbation sensitivity analysis: each row modifies one design choice relative to the baseline ($R^2 = 0.409$), evaluated on the development set (seed = 42, $n = 1{,}177$).}
+\caption{Perturbation sensitivity analysis: each row modifies one design choice relative to the baseline ($R^2 = 0.332$), evaluated on the development sample (seed = 42, $n = 1{,}054$).}
 \label{tab:perturbation}
 \centering\footnotesize
 \begin{tabularx}{\linewidth}{Xrrr}
@@ -1004,29 +1009,29 @@ To validate that per-site design choices are not fragile artifacts of the seed-4
 \textbf{Perturbation} & $\boldsymbol{R^2}$ & $\boldsymbol{\Delta R^2}$ & \textbf{MAE} \\
 \midrule
 \multicolumn{4}{l}{\textit{Model selection}} \\
-\quad RF $\rightarrow$ XGB & 0.381 & $-0.029$ & 6.47 \\
-\quad XGB $\rightarrow$ RF & 0.405 & $-0.005$ & 6.38 \\
-\quad No per-site config   & 0.307 & $-0.103$ & 6.66 \\
+\quad XGBoost at every site & 0.331 & $-$0.001 & 6.40 \\
+\quad RF at every site & 0.323 & $-$0.009 & 6.23 \\
+\quad No per-site config & 0.327 & $-$0.005 & 6.14 \\
 \midrule
 \multicolumn{4}{l}{\textit{RF hyperparameters}} \\
-\quad Shallow (dep.\ 6, $n_{\text{est}}$ 200) & 0.410 & $+0.000$ & 6.40 \\
-\quad Deep (dep.\ 16, $n_{\text{est}}$ 600)   & 0.409 & $-0.000$ & 6.42 \\
-\quad More trees ($n_{\text{est}}$ 800)        & 0.410 & $+0.000$ & 6.42 \\
-\quad Less reg.\ (leaf = 1)                    & 0.409 & $-0.001$ & 6.43 \\
+\quad Shallow (dep.\ 6, $n_{\text{est}}$ 200) & 0.332 & +0.000 & 6.27 \\
+\quad Deep (dep.\ 16, $n_{\text{est}}$ 600) & 0.332 & $-$0.000 & 6.29 \\
+\quad More trees ($n_{\text{est}}$ 800) & 0.332 & +0.000 & 6.29 \\
+\quad Less reg.\ (leaf = 1) & 0.332 & $-$0.000 & 6.29 \\
 \midrule
 \multicolumn{4}{l}{\textit{Feature \& clipping}} \\
-\quad All features all sites    & 0.415 & $+0.006$ & 6.45 \\
-\quad Minimal features (4)      & 0.412 & $+0.002$ & 6.66 \\
-\quad Relax clip ($q = 0.99$)   & 0.380 & $-0.029$ & 6.49 \\
-\quad Disable clipping          & 0.384 & $-0.026$ & 6.39 \\
-\quad Disable monotonic         & 0.410 & $+0.000$ & 6.43 \\
+\quad All features all sites & 0.347 & +0.015 & 6.25 \\
+\quad Minimal features (4) & 0.333 & +0.001 & 6.49 \\
+\quad Relax clip ($q = 0.99$) & 0.371 & +0.039 & 6.13 \\
+\quad Disable clipping & 0.388 & +0.055 & 6.08 \\
+\quad Disable monotonic & 0.332 & +0.000 & 6.29 \\
 \bottomrule
 \end{tabularx}
 \vspace{0.3em}\\
-\footnotesize{The baseline $R^2 = 0.409$ differs from the component ablation ($R^2 = 0.414$, Table~\ref{tab:ablation}) because this study used an intermediate configuration checkpoint preceding the final monotonic-constraint and Oregon feature-reduction changes; the $\Delta R^2$ conclusions are unaffected.}
+\footnotesize{Rows are paired on identical test points. RF variants change the global RF parameters; the four sites with their own RF parameters (Coos Bay, Cannon Beach, Gold Beach, Newport) keep them. Every change is passed to the parallel training workers as an environment variable (\texttt{scripts/eval/paper\_sensitivity\_study.py}).}
 \end{table}
 
-Three findings emerge. First, Random Forest hyperparameters are genuinely insensitive: across four configurations spanning depth 6--16 and 200--800 estimators, no perturbation exceeds $|\Delta R^2| = 0.001$. This validates the claim in Section~\ref{sec:results-ablation} that RF robustness to hyperparameters does not require per-site RF tuning. Second, per-site prediction clipping provides meaningful regularization: relaxing all per-site quantile thresholds from their current values (0.95--0.98) to a uniform 0.99 costs $\Delta R^2 = -0.029$; disabling clipping entirely costs only $-0.026$, revealing that the harm is not from clipping itself but from replacing well-calibrated site-specific thresholds with an overly permissive uniform one. Third, feature subsets have negligible pooled impact ($+0.006$ with all features, $+0.002$ with only four persistence features), confirming that predictive skill is dominated by the DA persistence signal rather than feature engineering.
+Three findings emerge. First, Random Forest hyperparameters are insensitive: across four configurations spanning depth 6--16 and 200--800 trees, no perturbation exceeds $|\Delta R^2| = 0.001$, and removing the monotonic constraints changes nothing. Second, model-family and feature-subset choices matter little: XGBoost or Random Forest at every site, no per-site configuration, and a four-feature persistence-only subset all stay within 0.01 of the baseline, while using every feature at every site gains $+0.015$. Third, prediction clipping now costs skill: relaxing every per-site quantile to 0.99 gains $+0.039$ and removing clipping gains $+0.055$ (MAE 6.08 vs.\ 6.29). The per-site clip quantiles (0.95--0.97) were selected by the grid search before the evaluation targets were corrected to one measurement per site-day (Section~\ref{sec:retro-eval}); against daily-maximum targets, a cap at the 95th--97th percentile of training targets truncates real spikes. This sample includes 2022--2023 rows, so it cannot be used to choose new clip values; re-running the leak-free chronological grid search on the corrected targets is future work (Section~\ref{sec:discussion-limitations}).
 
 Multi-seed evaluation further characterizes the stability of these results. Table~\ref{tab:seed-stability} reports per-site $R^2$ across the five bootstrap seeds (42--46) with per-site configuration enabled.
 

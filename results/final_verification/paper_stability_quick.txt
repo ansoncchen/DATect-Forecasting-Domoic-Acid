@@ -1,254 +1,0 @@
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 149.85sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.12sample/s] Retrospective:  68%|██████▊   | 48/71 [00:06<00:04,  5.69sample/s]Retrospective:  90%|█████████ | 64/71 [00:08<00:01,  6.56sample/s]Retrospective: 100%|██████████| 71/71 [00:08<00:00,  8.07sample/s]
-Seed=42, Fraction=0.01, PerSite=False
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 80.63sample/s]Retrospective:  45%|████▌     | 32/71 [00:03<00:04,  8.11sample/s]Retrospective:  68%|██████▊   | 48/71 [00:08<00:05,  4.53sample/s]Retrospective:  90%|█████████ | 64/71 [00:14<00:01,  3.76sample/s]Retrospective: 100%|██████████| 71/71 [00:14<00:00,  5.02sample/s]
-Seed=123, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 135.58sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.39sample/s] Retrospective:  68%|██████▊   | 48/71 [00:07<00:04,  5.18sample/s]Retrospective:  90%|█████████ | 64/71 [00:09<00:01,  5.81sample/s]Retrospective: 100%|██████████| 71/71 [00:09<00:00,  7.28sample/s]
-Seed=123, Fraction=0.01, PerSite=False
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 136.01sample/s]Retrospective:  45%|████▌     | 32/71 [00:03<00:05,  7.06sample/s] Retrospective:  68%|██████▊   | 48/71 [00:10<00:06,  3.69sample/s]Retrospective:  90%|█████████ | 64/71 [00:15<00:02,  3.49sample/s]Retrospective: 100%|██████████| 71/71 [00:15<00:00,  4.54sample/s]
-Seed=456, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 132.96sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 12.52sample/s] Retrospective:  68%|██████▊   | 48/71 [00:07<00:04,  5.49sample/s]Retrospective:  90%|█████████ | 64/71 [00:09<00:01,  6.16sample/s]Retrospective: 100%|██████████| 71/71 [00:09<00:00,  7.73sample/s]
-Seed=456, Fraction=0.01, PerSite=False
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 114.23sample/s]Retrospective:  45%|████▌     | 32/71 [00:03<00:04,  8.29sample/s] Retrospective:  68%|██████▊   | 48/71 [00:09<00:05,  4.02sample/s]Retrospective:  90%|█████████ | 64/71 [00:14<00:01,  3.61sample/s]Retrospective: 100%|██████████| 71/71 [00:14<00:00,  4.77sample/s]
-Seed=789, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 96.73sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 12.07sample/s]Retrospective:  68%|██████▊   | 48/71 [00:06<00:03,  6.08sample/s]Retrospective:  90%|█████████ | 64/71 [00:09<00:01,  6.00sample/s]Retrospective: 100%|██████████| 71/71 [00:09<00:00,  7.71sample/s]
-Seed=789, Fraction=0.01, PerSite=False
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 96.77sample/s]Retrospective:  45%|████▌     | 32/71 [00:03<00:04,  8.33sample/s]Retrospective:  68%|██████▊   | 48/71 [00:08<00:05,  4.49sample/s]Retrospective:  90%|█████████ | 64/71 [00:13<00:01,  3.92sample/s]Retrospective: 100%|██████████| 71/71 [00:13<00:00,  5.18sample/s]
-Seed=1337, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 142.24sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 10.40sample/s] Retrospective:  68%|██████▊   | 48/71 [00:06<00:03,  5.94sample/s]Retrospective:  90%|█████████ | 64/71 [00:08<00:01,  6.59sample/s]Retrospective: 100%|██████████| 71/71 [00:08<00:00,  8.13sample/s]
-Seed=1337, Fraction=0.01, PerSite=False
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  45%|████▌     | 32/71 [00:03<00:04,  8.37sample/s]Retrospective:  68%|██████▊   | 48/71 [00:08<00:04,  5.18sample/s]Retrospective:  90%|█████████ | 64/71 [00:13<00:01,  4.18sample/s]Retrospective: 100%|██████████| 71/71 [00:13<00:00,  5.21sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 131.04sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 12.21sample/s] Retrospective:  68%|██████▊   | 48/71 [00:06<00:04,  5.60sample/s]Retrospective:  90%|█████████ | 64/71 [00:08<00:01,  6.35sample/s]Retrospective: 100%|██████████| 71/71 [00:08<00:00,  7.92sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 93.19sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.07sample/s]Retrospective:  68%|██████▊   | 48/71 [00:07<00:04,  5.62sample/s]Retrospective:  90%|█████████ | 64/71 [00:08<00:01,  6.44sample/s]Retrospective: 100%|██████████| 71/71 [00:08<00:00,  7.93sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 118.77sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.03sample/s] Retrospective:  68%|██████▊   | 48/71 [00:07<00:04,  5.57sample/s]Retrospective:  90%|█████████ | 64/71 [00:08<00:01,  6.42sample/s]Retrospective: 100%|██████████| 71/71 [00:08<00:00,  7.91sample/s]
-Seed=42, Fraction=0.01, PerSite=False
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 99.42sample/s]Retrospective:  45%|████▌     | 32/71 [00:03<00:04,  7.95sample/s]Retrospective:  68%|██████▊   | 48/71 [00:08<00:05,  4.46sample/s]Retrospective:  90%|█████████ | 64/71 [00:14<00:01,  3.69sample/s]Retrospective: 100%|██████████| 71/71 [00:14<00:00,  4.92sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 102.76sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.23sample/s] Retrospective:  68%|██████▊   | 48/71 [00:04<00:02,  9.35sample/s]Retrospective:  90%|█████████ | 64/71 [00:05<00:00, 10.62sample/s]Retrospective: 100%|██████████| 71/71 [00:05<00:00, 12.42sample/s]
-DATect Stability Study — quick smoke test
-Phase: all, Output: eval_results/stability/stability_results.json
-Seeds: [42, 123, 456, 789, 1337]
-
-======================================================================
-PHASE 1A: Multi-Seed Noise Floor
-======================================================================
-
-────────────────────────────────────────────────────────────
-  per_site_ON seed=42  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  R²=-0.1907, MAE=7.81, N=70, time=45s
-
-────────────────────────────────────────────────────────────
-  per_site_OFF seed=42  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_USE_PER_SITE_MODELS=false
-  R²=-0.5311, MAE=8.41, N=70, time=44s
-
-────────────────────────────────────────────────────────────
-  per_site_ON seed=123  (seed=123, frac=0.01)
-────────────────────────────────────────────────────────────
-  R²=0.7671, MAE=3.97, N=71, time=36s
-
-────────────────────────────────────────────────────────────
-  per_site_OFF seed=123  (seed=123, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_USE_PER_SITE_MODELS=false
-  R²=0.5284, MAE=4.55, N=71, time=46s
-
-────────────────────────────────────────────────────────────
-  per_site_ON seed=456  (seed=456, frac=0.01)
-────────────────────────────────────────────────────────────
-  R²=-0.5288, MAE=5.12, N=70, time=34s
-
-────────────────────────────────────────────────────────────
-  per_site_OFF seed=456  (seed=456, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_USE_PER_SITE_MODELS=false
-  R²=-2.1874, MAE=5.89, N=70, time=45s
-
-────────────────────────────────────────────────────────────
-  per_site_ON seed=789  (seed=789, frac=0.01)
-────────────────────────────────────────────────────────────
-  R²=0.3621, MAE=5.35, N=71, time=33s
-
-────────────────────────────────────────────────────────────
-  per_site_OFF seed=789  (seed=789, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_USE_PER_SITE_MODELS=false
-  R²=0.3445, MAE=4.86, N=71, time=43s
-
-────────────────────────────────────────────────────────────
-  per_site_ON seed=1337  (seed=1337, frac=0.01)
-────────────────────────────────────────────────────────────
-  R²=0.5297, MAE=4.75, N=71, time=33s
-
-────────────────────────────────────────────────────────────
-  per_site_OFF seed=1337  (seed=1337, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_USE_PER_SITE_MODELS=false
-  R²=0.3641, MAE=5.11, N=71, time=42s
-
-======================================================================
-PHASE 1B: Targeted Perturbations
-======================================================================
-
-────────────────────────────────────────────────────────────
-  Baseline (current config)  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  R²=-0.1907, MAE=7.81, N=70, time=34s
-
-────────────────────────────────────────────────────────────
-  Swap all RF→XGB  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  PATCH: 
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site, cfg in ...
-  R²=-0.1851, MAE=7.97, N=70, time=34s
-
-────────────────────────────────────────────────────────────
-  Swap all XGB→RF  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  PATCH: 
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site, cfg in ...
-  R²=-0.3899, MAE=8.21, N=70, time=34s
-
-────────────────────────────────────────────────────────────
-  No per-site config  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_USE_PER_SITE_MODELS=false
-  R²=-0.5311, MAE=8.41, N=70, time=44s
-
-────────────────────────────────────────────────────────────
-  RF shallow (depth=6, trees=200)  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_RF_PARAMS_JSON={"n_estimators": 200, "max_depth": 6, "min_samples_split": 5, "min_samples_leaf": 3, "max_features": 0.5}
-  R²=-0.1910, MAE=7.80, N=70, time=24s
-
-────────────────────────────────────────────────────────────
-  RF deep (depth=16, trees=600)  (seed=42, frac=0.01)
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 133.90sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.25sample/s] Retrospective:  68%|██████▊   | 48/71 [00:08<00:05,  4.40sample/s]Retrospective:  90%|█████████ | 64/71 [00:11<00:01,  4.62sample/s]Retrospective: 100%|██████████| 71/71 [00:11<00:00,  5.96sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 99.28sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.03sample/s]Retrospective:  68%|██████▊   | 48/71 [00:09<00:05,  3.99sample/s]Retrospective:  90%|█████████ | 64/71 [00:13<00:01,  4.04sample/s]Retrospective: 100%|██████████| 71/71 [00:13<00:00,  5.28sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 159.06sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.16sample/s] Retrospective:  68%|██████▊   | 48/71 [00:07<00:04,  5.20sample/s]Retrospective:  90%|█████████ | 64/71 [00:09<00:01,  5.90sample/s]Retrospective: 100%|██████████| 71/71 [00:09<00:00,  7.35sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 131.02sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.72sample/s] Retrospective:  68%|██████▊   | 48/71 [00:07<00:04,  5.14sample/s]Retrospective:  90%|█████████ | 64/71 [00:10<00:01,  5.55sample/s]Retrospective: 100%|██████████| 71/71 [00:10<00:00,  7.05sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 156.59sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 12.95sample/s] Retrospective:  68%|██████▊   | 48/71 [00:03<00:01, 12.30sample/s]Retrospective:  90%|█████████ | 64/71 [00:04<00:00, 12.82sample/s]Retrospective: 100%|██████████| 71/71 [00:04<00:00, 15.18sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 122.18sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.50sample/s] Retrospective:  68%|██████▊   | 48/71 [00:07<00:04,  5.54sample/s]Retrospective:  90%|█████████ | 64/71 [00:08<00:01,  6.40sample/s]Retrospective: 100%|██████████| 71/71 [00:08<00:00,  7.91sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 72.37sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:02, 13.45sample/s]Retrospective:  68%|██████▊   | 48/71 [00:06<00:03,  5.81sample/s]Retrospective:  90%|█████████ | 64/71 [00:08<00:01,  6.58sample/s]Retrospective: 100%|██████████| 71/71 [00:08<00:00,  8.21sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 80.07sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 10.88sample/s]Retrospective:  68%|██████▊   | 48/71 [00:06<00:04,  5.72sample/s]Retrospective:  90%|█████████ | 64/71 [00:08<00:01,  6.39sample/s]Retrospective: 100%|██████████| 71/71 [00:08<00:00,  7.90sample/s]
-Seed=42, Fraction=0.01, PerSite=True
-Retrospective:   0%|          | 0/71 [00:00<?, ?sample/s]Retrospective:  23%|██▎       | 16/71 [00:00<00:00, 121.87sample/s]Retrospective:  45%|████▌     | 32/71 [00:02<00:03, 11.14sample/s] Retrospective:  68%|██████▊   | 48/71 [00:07<00:04,  5.60sample/s]Retrospective:  90%|█████████ | 64/71 [00:08<00:01,  6.52sample/s]Retrospective: 100%|██████████| 71/71 [00:08<00:00,  8.01sample/s]
-────────────────────────────────────────────────────────────
-  ENV: DATECT_RF_PARAMS_JSON={"n_estimators": 600, "max_depth": 16, "min_samples_split": 5, "min_samples_leaf": 3, "max_features": 0.9}
-  R²=-0.1907, MAE=7.80, N=70, time=43s
-
-────────────────────────────────────────────────────────────
-  RF more trees (n=800)  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_RF_PARAMS_JSON={"n_estimators": 800, "max_depth": 12, "min_samples_split": 5, "min_samples_leaf": 3, "max_features": 0.85}
-  R²=-0.1909, MAE=7.81, N=70, time=47s
-
-────────────────────────────────────────────────────────────
-  RF less regularized (leaf=1)  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_RF_PARAMS_JSON={"n_estimators": 400, "max_depth": 12, "min_samples_split": 2, "min_samples_leaf": 1, "max_features": 0.85}
-  R²=-0.1908, MAE=7.80, N=70, time=36s
-
-────────────────────────────────────────────────────────────
-  All features everywhere  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_FEATURE_SUBSET_MODE=all
-  R²=0.0632, MAE=7.45, N=70, time=37s
-
-────────────────────────────────────────────────────────────
-  Minimal features (4 only)  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_FEATURE_SUBSET_MODE=minimal
-  R²=-0.3535, MAE=8.21, N=70, time=22s
-
-────────────────────────────────────────────────────────────
-  Relax clipping (0.99 all)  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_CLIP_Q_OVERRIDE=0.99
-  R²=-0.1908, MAE=7.82, N=70, time=34s
-
-────────────────────────────────────────────────────────────
-  No prediction clipping  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_CLIP_Q_OVERRIDE=none
-  R²=-0.1908, MAE=7.82, N=70, time=34s
-
-────────────────────────────────────────────────────────────
-  Monotonic constraints off  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  ENV: DATECT_USE_MONOTONIC_CONSTRAINTS=false
-  R²=-0.1858, MAE=7.79, N=70, time=34s
-
-────────────────────────────────────────────────────────────
-  50/50 blend: Copalis + Long Beach  (seed=42, frac=0.01)
-────────────────────────────────────────────────────────────
-  PATCH: 
-from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-for site in ('Cop...
-  R²=-0.1863, MAE=7.81, N=70, time=34s
-
-Results saved to eval_results/stability/stability_results.json
-Total elapsed: 892s
-
-==========================================================================================
-TABLE A: Multi-Seed Stability (Phase 1A)
-==========================================================================================
-  Site                ON mean   ON std OFF mean   Δ mean    Δ std  Stable?
-  ────────────────────────────────────────────────────────────────────────────────
-  Cannon Beach        -0.3929   0.3563  -0.4035  +0.0106   0.0204       No
-  Clatsop Beach      -21.8278  29.0578 -26.7239  +4.8960   4.4584      Yes
-  Coos Bay            -0.5235   1.4254  -0.3845  -0.1391   0.2845       No
-  Copalis              0.5241   0.4540   0.2803  +0.2439   0.5137       No
-  Gold Beach         -262.6614 368.4370 -602.9543 +340.2928 403.6835       No
-  Kalaloch             0.3937   0.3180   0.4069  -0.0132   0.0286       No
-  Long Beach           0.4468   0.5911  -0.0548  +0.5016   1.0388       No
-  Newport             -1.4120   1.9395  -1.6495  +0.2375   0.8689       No
-  Quinault             0.5725   0.2646   0.5295  +0.0430   0.0953       No
-  Twin Harbors         0.6617   0.3426   0.6543  +0.0074   0.0291       No
-
-  Pooled ON:  R² = 0.1879 ± 0.4774
-  Pooled OFF: R² = -0.2963 ± 1.0157
-
-==========================================================================================
-TABLE B: Perturbation Sensitivity (Phase 1B)
-==========================================================================================
-  Perturbation                              R²      ΔR²      MAE   >2σ?
-  ──────────────────────────────────────────────────────────────────────
-  Baseline                             -0.1907      ---         
-  Swap all RF→XGB                      -0.1851  +0.0056     7.97     no
-  Swap all XGB→RF                      -0.3899  -0.1992     8.21     no
-  No per-site config                   -0.5311  -0.3404     8.41     no
-  RF shallow (depth=6, trees=200)      -0.1910  -0.0003     7.80     no
-  RF deep (depth=16, trees=600)        -0.1907  +0.0000     7.80     no
-  RF more trees (n=800)                -0.1909  -0.0002     7.81     no
-  RF less regularized (leaf=1)         -0.1908  -0.0001     7.80     no
-  All features everywhere               0.0632  +0.2539     7.45     no
-  Minimal features (4 only)            -0.3535  -0.1628     8.21     no
-  Relax clipping (0.99 all)            -0.1908  -0.0001     7.82     no
-  No prediction clipping               -0.1908  -0.0001     7.82     no
-  Monotonic constraints off            -0.1858  +0.0049     7.79     no
-  50/50 blend: Copalis + Long Beach    -0.1863  +0.0044     7.81     no
-
-  Significance threshold: |ΔR²| > 0.9548 (2× noise floor std)
-
-==========================================================================================
-GO/NO-GO RECOMMENDATIONS
-==========================================================================================
-  → No significant perturbations found → skip Phase 2, proceed to Phase 3 (stability table)
-  → Per-site tuning unstable across seeds at: Cannon Beach, Coos Bay, Copalis, Gold Beach, Kalaloch, Long Beach, Newport, Quinault, Twin Harbors
-

@@ -147,9 +147,88 @@ last-value forecast could reach. Washington sites 0.73–0.81 (mean 0.76); Clats
 Beach 0.71; Coos Bay 0.25; Cannon Beach 0.23; Newport and Gold Beach 0.05.
 Source: `results/final_verification/autocorrelation_diagnostic.txt`.
 
-## Component ablation (seed 42, 20%)
+## Component ablation (seed 42, 20%, N = 1,054)
 
-<!-- ABLATION: filled from Hyak job 42597354 (results/ablation/paper_ablation_results.json) -->
+`paper_ablation_study.py` (Hyak job 42597354), each run in a fresh process. Source:
+`results/ablation/paper_ablation_results.json`, log `results/final_verification/paper_ablation_study.txt`.
+
+| Run | R² | ΔR² | MAE |
+|---|---:|---:|---:|
+| Full DATect | 0.332 | — | 6.29 |
+| No gap-filled training rows | 0.339 | +0.007 | 6.39 |
+| No per-site configuration | 0.327 | -0.005 | 6.14 |
+| No observation-order lags | 0.335 | +0.003 | 6.29 |
+| No derived features (`pn_log`) | 0.332 | +0.000 | 6.29 |
+| No OAD features (16) | 0.335 | +0.003 | 6.27 |
+
+Every component is within ±0.01 R² of the full system on this sample, including
+the per-site configuration (pre-cleanup: −0.187). ΔR² is paired on identical test
+points, but it is one seed; see the per-site check below.
+
+<!-- PERSITE: deterministic chronological with DATECT_USE_PER_SITE_MODELS=false (job 42599199) -->
+
+**Feature groups** (`paper_sensitivity_study.py --study features`, same sample;
+`results/ablation/paper_features_results.json`): no group moves R² by more than
+0.004, and dropping every environmental predictor at once costs −0.004.
+
+| Group dropped | R² | ΔR² |
+|---|---:|---:|
+| Satellite (SST, SST anomaly, FLH) | 0.335 | +0.003 |
+| Climate indices (PDO, ONI) | 0.333 | +0.001 |
+| Upwelling (BEUTI) | 0.332 | -0.000 |
+| River discharge | 0.332 | -0.000 |
+| Pseudo-nitzschia (count, log count) | 0.332 | +0.000 |
+| Rolling DA statistics (7) | 0.331 | -0.001 |
+| Calendar (month, day-of-year sin/cos) | 0.334 | +0.002 |
+| All environmental (satellite, climate, BEUTI, discharge, PN) | 0.328 | -0.004 |
+
+**Design perturbations** (`paper_sensitivity_study.py --study perturbations`, same
+sample, Hyak job 42597854; `results/ablation/paper_perturbations_results.json`):
+
+| Perturbation | R² | ΔR² | MAE |
+|---|---:|---:|---:|
+| Baseline (full DATect) | 0.332 | — | 6.29 |
+| XGBoost at every site | 0.331 | -0.001 | 6.40 |
+| Random Forest at every site | 0.323 | -0.009 | 6.23 |
+| No per-site config | 0.327 | -0.005 | 6.14 |
+| RF shallow (depth 6, 200 trees) | 0.332 | +0.000 | 6.27 |
+| RF deep (depth 16, 600 trees) | 0.332 | -0.000 | 6.29 |
+| RF more trees (800) | 0.332 | +0.000 | 6.29 |
+| RF less regularized (leaf 1) | 0.332 | -0.000 | 6.29 |
+| All features at every site | 0.347 | +0.015 | 6.25 |
+| Minimal features (4) | 0.333 | +0.001 | 6.49 |
+| Clip at q = 0.99 everywhere | 0.371 | +0.039 | 6.13 |
+| No prediction clipping | 0.388 | +0.055 | 6.08 |
+| No monotonic constraints | 0.332 | +0.000 | 6.29 |
+
+**Known issue: the per-site clip quantiles are stale.** They were chosen by the
+weights × clip grid search against the pre-`a2de8dac` targets. Against daily-max
+targets, capping forecasts at the 95th–97th percentile of training targets cuts off
+real spikes: without clipping the development-sample R² rises from 0.332 to 0.388
+(MAE 6.29 → 6.08). "No per-site configuration" (−0.005) nets this out against the
+per-site weights and hyperparameters, which still add about +0.04. This sample
+includes 2022–2023 rows, so it must not be used to pick new values. Plan (decided
+2026-10-29): re-run the constrained grid search on pre-2022 chronological CV with the
+corrected targets as the first Spark + MLflow workload, check the holdout once, then
+re-run the golden baseline and update every number here.
+
+**Spike-classifier gain importance** (`spike_classifier_importance.py`: the pooled
+classifier retrained as the engine does at 60 anchors per seed, seeds 42–46;
+`results/spike_classifier/importance_by_seed.csv`). The three rolling DA maxima
+carry 57% of the gain; PDO is the strongest environmental feature.
+
+| Feature | Mean gain | Range over seeds |
+|---|---:|---|
+| `raw_obs_roll_max_4` | 0.323 | 0.311–0.343 |
+| `raw_obs_roll_max_8` | 0.160 | 0.142–0.173 |
+| `raw_obs_roll_max_12` | 0.090 | 0.082–0.097 |
+| `pdo` | 0.031 | 0.031–0.032 |
+| `raw_obs_roll_mean_4` | 0.025 | 0.023–0.029 |
+| `da_raw_prev_obs_1` | 0.020 | 0.019–0.021 |
+
+**Per-site R² by seed** (`seed_stability_table.py` over `results/multi_seed`;
+`results/multi_seed/per_site_r2_by_seed.csv`): Washington means 0.41–0.78 (std
+0.04–0.12), Clatsop Beach 0.47 ± 0.02, the other Oregon sites −0.05 to 0.20.
 
 ## How the headline got here
 
@@ -228,9 +307,12 @@ features, is the likely route to better skill.
 # spike eval, in a disposable worktree
 bash scripts/eval/golden_baseline.sh a2de8dac post-dedup
 bash scripts/eval/golden_baseline.sh a2de8dac ablation-post-dedup scripts/eval/paper_ablation_study.sbatch
+# Appendix studies, one job per STUDY (features, perturbations, classifier), from a worktree
+sbatch --export=ALL,STUDY=features scripts/eval/paper_sensitivity_study.sbatch
 
 # Laptop, from the seed-123 cache copied to results/retro_seed123/
 .venv/bin/python scripts/eval/spike_detection_eval.py --seed 123 --sample-fraction 0.40
 .venv/bin/python scripts/eval/spike_env_lead_analysis.py
 .venv/bin/python scripts/eval/autocorrelation_diagnostic.py
+.venv/bin/python scripts/eval/seed_stability_table.py
 ```

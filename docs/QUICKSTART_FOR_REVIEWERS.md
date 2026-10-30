@@ -23,7 +23,10 @@ Run everything from the repository root. Locally, use a virtual environment with
 | Environmental lead signals before spikes (exploratory, full data) | `results/env_lead/{spike_events,statistical_tests}.csv`, log in `results/final_verification/spike_env_lead_analysis.txt` (`scripts/eval/spike_env_lead_analysis.py`) |
 | Persistence ceiling per site | `results/final_verification/autocorrelation_diagnostic.txt` (`scripts/eval/autocorrelation_diagnostic.py`) |
 | Component ablation (Appendix Table A1) | `results/ablation/paper_ablation_results.json`, log in `results/final_verification/paper_ablation_study.txt` |
-| Stability perturbations (Appendix Table A2) | `results/final_verification/paper_stability_quick.txt` (the script that produced it was removed as out of date; it is at git tag `archive/pre-cleanup`) |
+| Feature-group ablation (appendix) | `results/ablation/paper_features_results.json` (`scripts/eval/paper_sensitivity_study.py --study features`) |
+| Design perturbations (Appendix Table A2) | `results/ablation/paper_perturbations_results.json` (`paper_sensitivity_study.py --study perturbations`) |
+| Per-site R² by seed (Appendix Table A3) | `results/multi_seed/per_site_r2_by_seed.csv` (`scripts/eval/seed_stability_table.py`) |
+| Spike-classifier feature importance | `results/spike_classifier/importance_by_seed.csv` (`scripts/eval/spike_classifier_importance.py`) |
 | Per-anchor tuning on vs off; tuned vs baseline configs | `results/holdout_validation/*_predictions.parquet` |
 | How each tuned value was chosen | `config/tuned_hyperparameters.json` (`provenance`) and `results/tuning_provenance/` |
 | OAD vs ESP mooring correlations | [`../oad/OAD_STORYLINE.md`](../oad/OAD_STORYLINE.md), Chapter 9 |

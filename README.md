@@ -18,7 +18,20 @@ DATect forecasts domoic acid (DA), the harmful-algal-bloom toxin, in shellfish a
 
 ## Performance
 
-<!-- NUMBERS: filled from docs/CORRECTED_NUMBERS.md after the post-cleanup re-run -->
+One-week-ahead forecasts on the untouched 2022–2023 holdout, scored against every
+real DA measurement in the window (N = 409, no sampling):
+
+| Metric | Value |
+|---|---|
+| R² [95% CI] | 0.419 [0.247, 0.546] |
+| MAE | 7.49 µg/g |
+| Spike recall (actual ≥ 20 µg/g, alert at predicted ≥ 12) | 0.774 (F2 0.693) |
+| Hybrid alert, recall on new spike onsets (seed-123 sample, 93 onsets) | 0.763, vs 0.118 for naive persistence |
+
+All five Washington sites score R² 0.53–0.71 on the holdout. Newport and Gold Beach in
+southern Oregon stay near zero: their toxin levels have almost no week-to-week
+persistence (lag-1 R² ≈ 0.05), so a one-week-ahead forecast has little to work with.
+
 All reported metrics, with their sources and history, are in [docs/CORRECTED_NUMBERS.md](docs/CORRECTED_NUMBERS.md).
 
 ## Quick Start

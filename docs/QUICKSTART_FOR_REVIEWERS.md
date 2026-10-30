@@ -19,18 +19,19 @@ Run everything from the repository root. Locally, use a virtual environment with
 | Validation-window (2019–2021) metrics | `results/chronological/chronological_regression_ensemble_20190101_20220101.{json,parquet}` |
 | 5-seed bootstrap confirmation | `results/multi_seed/baseline_seed{42..46}_predictions.parquet` |
 | Tables 1–2 and the 4-category classification table (single-seed paper sample) | `results/paper_metrics/{table1_model_comparison,table2_per_site,table3_classification}.csv`, `paper_metrics.json` |
-| Spike / transition recall (Table 5) | `results/final_verification/spike_detection_eval.txt`; the hybrid-alert row was scored on `results/holdout_validation/baseline_predictions.parquet` |
-| Component ablation (Appendix Table A1) | `results/ablation/paper_ablation_results_grid_winner.json`, log in `results/final_verification/paper_ablation_study.txt` |
+| Spike / transition recall, including the hybrid alert (Table 5, Figure 4) | `results/spike_metrics_seed123/{spike_metrics_by_model,per_site_metrics,threshold_sweep}.csv`, log in `results/final_verification/spike_detection_eval.txt` |
+| Environmental lead signals before spikes (exploratory, full data) | `results/env_lead/{spike_events,statistical_tests}.csv`, log in `results/final_verification/spike_env_lead_analysis.txt` (`scripts/eval/spike_env_lead_analysis.py`) |
+| Persistence ceiling per site | `results/final_verification/autocorrelation_diagnostic.txt` (`scripts/eval/autocorrelation_diagnostic.py`) |
+| Component ablation (Appendix Table A1) | `results/ablation/paper_ablation_results.json`, log in `results/final_verification/paper_ablation_study.txt` |
 | Stability perturbations (Appendix Table A2) | `results/final_verification/paper_stability_quick.txt` (the script that produced it was removed as out of date; it is at git tag `archive/pre-cleanup`) |
 | Per-anchor tuning on vs off; tuned vs baseline configs | `results/holdout_validation/*_predictions.parquet` |
 | How each tuned value was chosen | `config/tuned_hyperparameters.json` (`provenance`) and `results/tuning_provenance/` |
 | OAD vs ESP mooring correlations | [`../oad/OAD_STORYLINE.md`](../oad/OAD_STORYLINE.md), Chapter 9 |
 
-The committed results were produced before the October 2026 cleanup, which changed
-model inputs (below-detection DA kept as 0.5 µg/g, comma-grouped PN counts parsed,
-OAD features from the `mae070` checkpoint, a spike counted at ≥ 20 µg/g). They are
-being regenerated with the golden baseline below; `CORRECTED_NUMBERS.md` records
-which run each reported number comes from.
+The committed results come from the October 2026 cleanup re-run at commit
+`a2de8dac` (golden baseline below). `results/holdout_validation/` and
+`results/tuning_provenance/` predate the cleanup: they document how the per-site
+configuration was chosen and are not re-run.
 
 ---
 
@@ -126,7 +127,7 @@ trans = (df.groupby('site')['actual_da'].shift(1) < 20.0).to_numpy() & spike
 alert = df['spike_alert'].fillna(False).astype(bool).to_numpy()
 print('spike events:', detection_scores(spike, alert))
 print('transition recall:', detection_scores(spike[trans], alert[trans])['recall'])
-" results/holdout_validation/baseline_predictions.parquet
+" results/chronological/chronological_regression_ensemble_20220101_20240101.parquet
 ```
 
 A transition is a spike whose previous measurement at the same site was below 20 µg/g.

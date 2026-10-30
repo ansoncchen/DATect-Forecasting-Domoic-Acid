@@ -1,128 +1,236 @@
-# Authoritative Numbers — Audit Trail (2026-05-23)
+# Reported numbers
 
-This document tracks the journey of the headline holdout R² through three protocols. The **current authoritative headline** is the deterministic chronological result (last row of the table below). The earlier rows are kept as the audit trail for the paper Methods section.
+Every metric DATect reports, the file it comes from, and how it got there. The
+README, CLAUDE.md, the dashboard (`GET /api/metrics/summary`) and the paper quote
+this page; when a re-run changes a number, change it here first.
 
-## Headline number journey (2022-2023 holdout)
+Current numbers come from the October 2026 cleanup re-run at commit `a2de8dac`
+(Hyak golden job 42541704, `scripts/eval/golden_baseline.sbatch`), plus two local
+passes over its cached predictions (`spike_detection_eval.py`,
+`spike_env_lead_analysis.py`). Every model is seeded with `MODEL_SEED = 42`.
 
-| Protocol | R² | N | Issue / why moved on |
-|---|---|---|---|
-| ① Original single-seed (seed=42, hand-tuned config) | 0.492 | ~160 | Lucky seed inflation; not generalizable |
-| ② 5-seed bootstrap (seeds 42-46, hand-tuned) | 0.386 ± 0.145 | ~160/seed | Honest noise estimate, but hand-tuned config had implicit val-window leak |
-| ③ 5-seed bootstrap (grid-winner config, leak-free) | 0.433 ± 0.092 | ~160/seed | Leak-free per-site config; tighter variance than ② |
-| **④ Deterministic chronological (grid-winner, 100% of holdout)** | **0.485 [0.330, 0.604]** | **404** | **CURRENT HEADLINE.** Uses every real DA point in window; no sampling noise. CI from row-level bootstrap. |
+## Headline: deterministic chronological evaluation
 
-All four protocols are statistically consistent (each later number sits within the prior CI). The shift from ② to ③ reflects fixing the indirect-leak risk (Limitations item 3 in the paper). The shift from ③ to ④ reflects sampling noise reduction by using all available data.
+Every real DA measurement in the window is a test point (no sampling), each
+forecast trained only on data up to `test_date - 7 days`. 95% CIs are row-level
+bootstrap. Spike = actual DA ≥ 20 µg/g; the regression alert fires at a predicted
+≥ 12 µg/g.
 
-## Other metric upgrades alongside the headline
+| Window | N | Spikes | R² [95% CI] | MAE µg/g [95% CI] | RMSE | Spike recall | Precision | F2 |
+|---|---:|---:|---|---|---:|---:|---:|---:|
+| **Holdout 2022–2023** | **409** | 84 | **0.419 [0.247, 0.546]** | **7.49 [6.08, 9.07]** | 17.06 | **0.774** | 0.489 | **0.693** |
+| Validation 2019–2021 | 635 | 114 | 0.329 [0.203, 0.465] | 6.82 [5.70, 8.04] | 16.71 | 0.763 | 0.649 | 0.737 |
 
-| Metric | Stale (single-seed) | Multi-seed (③) | **Deterministic (④)** |
-|---|---|---|---|
-| Pooled all-years R² (paper Table 1) | 0.215 | 0.316 ± 0.079 | 0.238 [0.150, 0.340] (paper-sample seed 123) |
-| Holdout MAE (µg/g) | 5.33 | 6.03 ± 0.63 | **6.76 [5.48, 8.20]** |
-| Holdout spike recall | — | 0.848 ± 0.044 | **0.857** |
-| Holdout spike F2 | — | 0.648 ± 0.044 | **0.699** |
-| Validation R² | 0.346 | 0.377 ± 0.164 | 0.384 [0.263, 0.496] |
-| Validation spike F2 | 0.732 | 0.738 ± 0.024 | 0.754 |
+Source: `results/chronological/chronological_regression_ensemble_{20220101_20240101,20190101_20220101}.{json,parquet}`.
+`tests/test_chronological_eval_smoke.py` pins the holdout row.
 
-**The headline numbers everywhere in the paper, README, CLAUDE.md, and webapp are now aligned on protocol ④.**
+### Per-site holdout (2022–2023)
 
-## Per-site holdout 2022-2023 — deterministic (④, headline) vs 5-seed bootstrap (③)
+| Site | State | N | Spikes | R² [95% CI] | MAE |
+|---|---|---:|---:|---|---:|
+| Quinault | WA | 55 | 9 | 0.708 [0.518, 0.832] | 2.96 |
+| Coos Bay | OR | 35 | 14 | 0.634 [0.451, 0.869] | 13.84 |
+| Twin Harbors | WA | 42 | 8 | 0.596 [0.342, 0.755] | 3.82 |
+| Copalis | WA | 60 | 6 | 0.589 [0.383, 0.758] | 3.25 |
+| Kalaloch | WA | 35 | 1 | 0.537 [0.331, 0.727] | 2.10 |
+| Long Beach | WA | 44 | 8 | 0.526 [0.204, 0.843] | 3.63 |
+| Clatsop Beach | OR | 48 | 16 | 0.500 [0.300, 0.693] | 5.76 |
+| Newport | OR | 48 | 16 | 0.041 [−0.321, 0.289] | 22.62 |
+| Gold Beach | OR | 40 | 6 | −0.273 [−2.285, 0.058] | 11.66 |
+| Cannon Beach | OR | 2 | — | too few measurements in the window | — |
 
-| Site | **Deterministic R² [CI]** | Multi-seed R² mean ± std | N (det) |
-|---|---|---|---|
-| Twin Harbors | **+0.633** [0.327, 0.798] | +0.53 ± 0.18 | 42 |
-| Coos Bay | **+0.630** [0.451, 0.863] | +0.67 ± 0.11 | 35 |
-| Copalis | **+0.598** [0.358, 0.777] | +0.53 ± 0.14 | 59 |
-| Quinault | **+0.549** [0.237, 0.750] | +0.58 ± 0.13 | 55 |
-| Long Beach | **+0.531** [0.219, 0.842] | +0.55 ± 0.17 | 44 |
-| Clatsop Beach | **+0.515** [0.325, 0.700] | +0.53 ± 0.19 | 48 |
-| Kalaloch | **+0.493** [0.225, 0.694] | +0.41 ± 0.17 | 31 |
-| Newport | **+0.170** [−0.321, 0.393] | −1.06 ± 1.70 ← multi-seed N=20/site artifact | 48 |
-| Gold Beach | −0.235 [−12.1, 0.181] | −2.14 ± 3.21 | 40 |
-| Cannon Beach | no spikes in holdout | — | — |
+8 of the 9 evaluable sites have positive R². All five Washington sites score
+0.53–0.71; the two southern Oregon sites (Newport, Gold Beach) are near or below
+zero, consistent with their near-zero persistence ceilings (below).
 
-**9 of 10 sites measurably positive on the deterministic eval.** The Newport "recovery" (−1.06 → +0.17) and Gold Beach "improvement" (−2.14 → −0.24) come from using N≈40 per site (deterministic, all data) instead of N≈20 per site per seed (multi-seed). At very small N, a single bad-prediction week dominates the residual sum and crushes R².
+## Confirmation: 5-seed bootstrap
 
-## Per-site holdout — multi-seed (③) detail, for reference
+`multi_seed_baseline.py`, seeds 42–46, a random 20% of all real measurements
+(N = 1,054 per seed), same configuration. Source: `results/multi_seed/baseline_seed{42..46}_predictions.parquet`.
 
-| Site | R² mean ± std | R² range | MAE mean | N (mean per seed) |
-|---|---|---|---|---|
-| Coos Bay | **+0.70 ± 0.09** | +0.56 to +0.82 | 11.8 | 10 ← tiny N, lucky |
-| Quinault | **+0.56 ± 0.18** | +0.35 to +0.82 | 3.0 | 26 |
-| Long Beach | **+0.55 ± 0.17** | +0.30 to +0.81 | 3.9 | 20 |
-| Twin Harbors | **+0.53 ± 0.17** | +0.37 to +0.85 | 4.1 | 18 |
-| Copalis | **+0.52 ± 0.16** | +0.29 to +0.71 | 3.4 | 29 |
-| Clatsop Beach | **+0.50 ± 0.20** | +0.30 to +0.88 | 6.0 | 12 |
-| Kalaloch | **+0.42 ± 0.17** | +0.21 to +0.68 | 2.8 | 9 |
-| Newport | **−1.06 ± 1.70** | −4.40 to +0.38 | 16.9 | 20 |
-| Gold Beach | **−2.14 ± 3.21** | −8.46 to −0.08 | 5.8 | 17 |
-| Cannon Beach | (no spikes in holdout) | — | — | <5 |
+| Subset | R² mean ± std (min–max) | MAE | Spike recall | F2 |
+|---|---|---:|---:|---:|
+| All years | 0.345 ± 0.047 (0.292–0.395) | 6.18 ± 0.38 | 0.793 ± 0.027 | 0.737 ± 0.019 |
+| Holdout rows only (N 100–133 per seed) | 0.377 ± 0.105 | | | |
+| Validation rows only (N 171–183 per seed) | 0.417 ± 0.071 | | | |
 
-**5 WA sites: mean R² = 0.50, std 0.17, all reliably positive.** **3 OR sites with measurable performance: 1 positive (Clatsop), 2 deeply negative (Newport, Gold Beach).** Coos Bay's +0.70 is misleading — only ~10 holdout samples per seed.
+The holdout subset's seed-to-seed spread (± 0.105) is why a single seed is never
+reported alone; the deterministic evaluation above has no sampling noise.
 
-## What's confirmed unchanged
+## Paper sample (seed 123, 40%, N = 2,105)
 
-- **OAD is null at the beach** (`no_oad_features` ΔR² = +0.0015 in `paper_ablation_results.json` seed 123 — i.e. dropping OAD slightly *helps*, within noise).
-- **Per-site customization is the biggest lever** (ΔR² = −0.153 without it, seed 123).
-- **5 chain experiments all null** (|ΔR²| < 0.003 pooled; lagged_pn helps Long Beach +0.007 within seed noise).
-- **OAD ↔ ESP correlations remain valid** (r=+0.46 Pn, r=+0.33 pDA — these come from a separate analysis not affected by per_site_models state).
+`eval_paper_metrics.py --seed 123 --sample-fraction 0.40` (all years, 2003–2023).
+Source: `results/paper_metrics/` (`table1_model_comparison.csv`,
+`table2_per_site.csv`, `table3_classification.csv`, `paper_metrics.json`).
 
-## What the paper must change
+**Table 1: models**
 
-The current `paper/datect_paper_mdpi.tex` (line 62 abstract, line 406 Table 1, line 514 per-site discussion, line 516 temporal-holdout pooled R²) reports **single-seed** point estimates without bootstrap CIs across seeds. Required edits:
+| Model | R² [95% CI] | MAE [95% CI] | RMSE | ΔR² of ensemble vs model [95% CI] |
+|---|---|---|---:|---|
+| **Ensemble (XGB + RF)** | **0.337 [0.257, 0.416]** | **6.53 [5.78, 7.29]** | 19.42 | — |
+| XGBoost | 0.331 [0.257, 0.410] | 6.78 [6.04, 7.58] | 19.51 | +0.006 [−0.006, +0.017] |
+| Random Forest | 0.330 [0.247, 0.415] | 6.42 [5.67, 7.23] | 19.52 | +0.007 [−0.009, +0.021] |
+| Ridge | 0.325 [0.242, 0.410] | 6.61 [5.84, 7.37] | 19.59 | +0.012 [−0.007, +0.032] |
+| Naive persistence | 0.150 [−0.142, 0.384] | 6.68 [5.83, 7.60] | 22.00 | +0.188 [−0.019, +0.484] |
 
-1. **Abstract (line 62)**: replace "All five Washington sites achieve high skill ($R^2 = 0.480$–$0.789$)" with multi-seed range: "All five Washington sites achieve high skill ($R^2$ mean 0.42–0.56 across 5 random-anchor seeds, range 0.21–0.85)."
-2. **Table 1 (line 409)**: regenerate with multi-seed mean ± std, or add explicit "seed = 123" qualifier and a footnote pointing to a new "Multi-seed sensitivity" appendix.
-3. **Table 2 per-site (line 435)**: use the per-site multi-seed table above. Specifically, **Coos Bay's R² = 0.616 in the paper is at single-seed N=89; multi-seed mean is +0.70 ± 0.09 but only N≈10 per seed at holdout.** Wording needs to convey this is small-N-driven.
-4. **Temporal holdout (line 463)**: pooled R² = 0.315 → 0.386 ± 0.145; WA mean 0.549 → 0.50 ± 0.17; OR mean 0.113 → mixed (1 positive, 2 deeply negative).
-5. **Transition recall section (line 550)**: re-verify the 12.4% regression / 23.6% naive / 73.4% classifier numbers. My local re-computation with the current `spike_alert` definition gives different values (0.84 / 0.84 / 0.81), suggesting either a definitional change since the paper or that the paper used a stricter "transition" definition (e.g. previous DA < 5, not just < 20). Need to read the paper's exact event-definition code.
-6. **New paragraph in Methods / Limitations**: explicitly call out single-seed-to-multi-seed sensitivity. The paper currently mentions a "five-seed perturbation study" (line 377) but doesn't quote its dispersion.
+The ensemble's lead over XGBoost, Random Forest and Ridge is within the paired
+bootstrap CI: the four learners are statistically tied on this sample.
 
-## Final Hyak job results (completed 2026-05-23)
+**Table 2: per site**
 
-### Job 35510043 — paper-metrics N=2181 (40% sample, seed 123)
-From `eval_results/paper_metrics/`:
+| Site | N | R² [95% CI] | MAE | 4-category accuracy |
+|---|---:|---|---:|---:|
+| Copalis | 275 | 0.737 [0.649, 0.824] | 2.15 | 0.855 |
+| Kalaloch | 222 | 0.603 [0.468, 0.674] | 2.98 | 0.865 |
+| Twin Harbors | 216 | 0.486 [0.359, 0.768] | 4.67 | 0.792 |
+| Long Beach | 209 | 0.484 [0.354, 0.656] | 3.71 | 0.809 |
+| Quinault | 196 | 0.462 [0.289, 0.774] | 3.05 | 0.781 |
+| Clatsop Beach | 309 | 0.455 [0.361, 0.548] | 5.77 | 0.783 |
+| Coos Bay | 110 | 0.311 [0.156, 0.440] | 24.91 | 0.582 |
+| Newport | 208 | 0.085 [−0.176, 0.275] | 11.21 | 0.548 |
+| Gold Beach | 242 | 0.062 [−0.040, 0.207] | 12.16 | 0.789 |
+| Cannon Beach | 118 | −0.021 [−0.070, 0.145] | 2.72 | 0.898 |
 
-| Model | R² [95% CI] | MAE [95% CI] | RMSE |
-|---|---|---|---|
-| **Ensemble** | **0.241 [0.125, 0.364]** | **6.51 [5.89, 7.22]** | 17.50 |
-| XGBoost | 0.276 [0.185, 0.379] | 6.58 [5.90, 7.25] | 17.08 |
-| Random Forest | 0.195 [0.060, 0.324] | 6.46 [5.79, 7.23] | 18.02 |
-| Linear/Ridge | 0.203 [0.072, 0.326] | 6.61 [5.93, 7.39] | 17.93 |
-| Naïve persistence | −0.426 [−0.951, −0.034] | 7.73 [6.84, 8.76] | 23.98 |
+**Table 3: four categories** (left-closed bins [0,5) [5,20) [20,40) [40,∞))
 
-Per-site (paper Table 2 format):
+| Category | N | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|
+| Low | 1,370 | 0.871 | 0.914 | 0.892 |
+| Moderate | 457 | 0.603 | 0.626 | 0.614 |
+| High | 160 | 0.438 | 0.375 | 0.404 |
+| Extreme | 118 | 0.696 | 0.331 | 0.448 |
+| Macro average | 2,105 | 0.652 | 0.561 | 0.590 |
 
-| Site | N | R² [95% CI] | MAE [95% CI] | RMSE | 4-cat acc |
-|---|---:|---|---|---:|---:|
-| Copalis | 277 | 0.789 [0.706, 0.843] | 2.82 [2.31, 3.39] | 5.28 | 0.83 |
-| Long Beach | 209 | 0.629 [0.551, 0.713] | 4.44 [3.47, 5.48] | 8.67 | 0.73 |
-| Twin Harbors | 225 | 0.591 [0.469, 0.759] | 4.67 [3.35, 6.21] | 12.25 | 0.81 |
-| Quinault | 181 | 0.580 [0.495, 0.733] | 4.16 [2.97, 5.62] | 10.18 | 0.76 |
-| Kalaloch | 235 | 0.480 [0.348, 0.641] | 3.77 [2.72, 5.08] | 10.14 | 0.81 |
-| Clatsop Beach | 354 | 0.305 [−0.183, 0.558] | 6.12 [4.83, 7.52] | 13.91 | 0.71 |
-| Gold Beach | 257 | 0.079 [−0.071, 0.231] | 8.24 [5.83, 11.09] | 23.04 | 0.77 |
-| Cannon Beach | 116 | −0.044 [−0.090, −0.009] | 3.91 [1.40, 6.97] | 16.14 | 0.92 |
-| Coos Bay | 109 | −0.024 [−0.654, 0.313] | 24.35 [18.55, 30.33] | 39.84 | 0.49 |
-| Newport | 218 | −0.135 [−0.986, 0.056] | 11.07 [8.29, 14.79] | 27.03 | 0.54 |
+Overall accuracy 0.778.
 
-### Job 35510066 — leak test (5 seeds × grid-winner overrides)
+## Spike detection and transitions (seed 123, 40%)
 
-| Window | Hand-tuned (current) | Grid-winners (leak-free) | Δ |
-|---|---|---|---|
-| Pre-2019 (sanity) | 0.273 ± 0.10 | 0.273 ± 0.10 | ±0.00 ± 0.03 ✓ |
-| Val 2019-2022 | 0.377 ± 0.16 | 0.315 ± 0.12 | −0.06 ± 0.07 (hand leak) |
-| **Holdout 2022-2023** | **0.386 ± 0.15** | **0.434 ± 0.12** | **+0.05 ± 0.07** |
-| All anchors | 0.316 ± 0.08 | 0.307 ± 0.08 | −0.01 ± 0.02 |
+`spike_detection_eval.py --seed 123 --sample-fraction 0.40` on the same 2,105
+predictions: 278 spikes, of which 93 are **transitions** (the site's previous
+test observation was below 20). Here the regression rows alert at a predicted
+≥ 20; the classifier alerts at probability ≥ 0.10; the hybrid alert is
+classifier ≥ 0.10 OR ensemble ≥ 12, exactly as the engine's `spike_alert`.
 
-**Verdict**: Hand-tuning leaked ~0.06 R² on val but NOT on holdout. Grid winners give equivalent or slightly better unbiased performance. Both configurations are statistically indistinguishable on the holdout (Δ within 1σ). Per-site, grid flips 3 sites from RF to XGB (Copalis, Quinault, Twin Harbors).
+| Alert | Spike recall | Precision | F2 | Transition recall |
+|---|---:|---:|---:|---:|
+| Naive persistence (≥ 20) | 0.701 | 0.666 | 0.694 | 0.118 |
+| Ensemble regression (≥ 20) | 0.511 | 0.736 | 0.544 | 0.086 |
+| Ensemble regression (≥ 12) | 0.755 | 0.572 | 0.710 | — |
+| Spike classifier (p ≥ 0.10) | 0.910 | 0.483 | 0.773 | 0.731 |
+| **Hybrid alert** | **0.921** | **0.474** | **0.775** | **0.763** |
 
-**Promotion decision**: do NOT promote grid winners. The +0.05 holdout gain is within seed noise; the val degradation is a wash; the change adds complexity for no clean win. Document the leak finding instead — paper should report the unbiased holdout number (0.39 ± 0.15) and acknowledge that the per-site config was tuned with implicit val-window access.
+On the deterministic 2022–2023 holdout (409 rows, 84 spikes, 29 transitions) the
+hybrid alert has recall 0.893, precision 0.381, F2 0.704 and catches 20 of the 29
+transitions (0.690); scored with the snippet in
+[`QUICKSTART_FOR_REVIEWERS.md`](QUICKSTART_FOR_REVIEWERS.md).
 
-## Files to update after Hyak finishes
+The ensemble's mean prediction on transition rows is 10.8 µg/g against a mean
+actual 50.2: regression shrinks toward the mean and rarely crosses 20 at onset,
+which is why the separate classifier exists. Sources:
+`results/spike_metrics_seed123/{spike_metrics_by_model,per_site_metrics,threshold_sweep}.csv`,
+log in `results/final_verification/spike_detection_eval.txt`.
 
-1. `CLAUDE.md` — Success Metrics table (replace single-seed values with multi-seed mean ± std)
-2. `EXPERIMENT_SUMMARY.md` — same
-3. `docs/OAD_INTEGRATION_RESULTS.md` — §3.4 holdout numbers
-4. `paper/datect_paper_mdpi.tex` — abstract + Tables 1, 2, 3 + transition recall paragraph
-5. `paper/generate_figures.py` — rerun with new artifacts
+## Exploratory analyses (full data, not out-of-sample)
+
+**Environmental lead signals before a spike** (`scripts/eval/spike_env_lead_analysis.py`):
+224 raw-observation transitions (previous measurement < 20, this one ≥ 20) at 10
+sites. Largest Wilcoxon effect sizes |r| over the 1–4 week leads: Pseudo-nitzschia
+0.56 (lower than the site baseline before a spike), SST anomaly 0.45, PDO 0.43,
+discharge 0.35 (lower), SST 0.30, BEUTI 0.24. ONI shows no lead signal
+(p ≥ 0.43 at every lead). Nominal p-values, no multiple-comparison correction.
+Sources: `results/env_lead/{spike_events,statistical_tests}.csv`,
+`results/final_verification/spike_env_lead_analysis.txt`.
+
+**Persistence ceiling** (`scripts/eval/autocorrelation_diagnostic.py`): squared
+lag-1 autocorrelation of consecutive measurements at most 28 days apart, the R² a
+last-value forecast could reach. Washington sites 0.73–0.81 (mean 0.76); Clatsop
+Beach 0.71; Coos Bay 0.25; Cannon Beach 0.23; Newport and Gold Beach 0.05.
+Source: `results/final_verification/autocorrelation_diagnostic.txt`.
+
+## Component ablation (seed 42, 20%)
+
+<!-- ABLATION: filled from Hyak job 42597354 (results/ablation/paper_ablation_results.json) -->
+
+## How the headline got here
+
+| # | Protocol | Holdout R² | N | Why it moved |
+|---|---|---|---:|---|
+| 1 | Single seed 42, hand-tuned config | 0.492 | ~160 | Lucky seed |
+| 2 | 5 seeds (42–46), hand-tuned | 0.386 ± 0.145 | ~160/seed | Honest seed noise; the hand-tuned values had seen part of the validation window |
+| 3 | 5 seeds, grid-search winners (leak-free) | 0.433 ± 0.092 | ~160/seed | Tuned with chronological CV on pre-2022 data only |
+| 4 | Deterministic chronological (published) | 0.485 [0.330, 0.604] | 404 | All holdout measurements; no sampling noise |
+| 5 | Cleanup fixes (`0330150b`…`d53fb6d5`) | 0.441 [0.257, 0.571] | 409 | Spike rule, non-detects, PN parsing, mae070 OAD, classifier encoding (see below) |
+| **6** | **One measurement per site-day (`a2de8dac`)** | **0.419 [0.247, 0.546]** | **409** | Same-day duplicates scored at their daily max |
+
+**Why 0.485 became 0.419.** About 1,200 site-days have several same-day DA
+samples that often disagree (Gold Beach 2019-01-24 recorded 0 and 190 µg/g; the
+CSVs carry no species or station to tell them apart). Training already used the
+weekly maximum, but the evaluation scored each forecast against whichever sample
+sorted first, so the published target depended on file order. Scoring the
+unchanged pre-cleanup predictions against daily-max targets gives a holdout R² of
+0.419 (validation 0.332), the same as the post-cleanup model (0.419 / 0.329). So
+the cleanup's model and data fixes are neutral on the holdout, and the entire
+move from the published 0.485 comes from the target definition. Step 5's
+0.441 is the same arbitrary pick landing on different duplicates after the fixes
+reordered rows. The daily max raises 123 targets (65 validation, 58 holdout),
+lowers none, and turns 16 more holdout measurements into spikes (68 → 84).
+
+The validation window followed the same path: 0.384 (published) → 0.312 → 0.329.
+
+## Changes in the October 2026 cleanup
+
+Behavior-changing commits, each with before/after numbers in its message.
+Everything else in the cleanup was checked byte-identical against the
+pre-cleanup golden run (`compare_golden.py`).
+
+| Commit | Change | Effect on reported numbers |
+|---|---|---|
+| `81718fff` | Models seeded by `MODEL_SEED = 42`, separate from the sampling seed | None: published runs already trained with 42 in loky workers |
+| `9c435f59` | Per-anchor XGB tuning off by default (`DATECT_PER_ANCHOR_TUNING`) | None for reported numbers (all ran with it off). Tuning changes 23% of predictions without improving skill (pooled R² 0.414 on vs 0.417 off) |
+| `af778bd1` | One spike rule: actual ≥ 20, alert ≥ 12; left-closed categories | Spike counts and `weeks_since_last_spike` |
+| `6ac5ea78` | `"<1"` → LOD/2 = 0.5 (339 readings); PN `"12,345"` parsed (1,604 values); dates stripped | 5 more holdout and 3 more validation test points; training targets |
+| `a3368361` | OAD features from the `mae070` checkpoint | Within noise (see ablation) |
+| `92c1f47c` | Dashboard forecasts call the evaluated core; intervals use `reg:quantileerror` | Dashboard only |
+| `0330150b` | Spike classifier scores test rows with its own pooled encoding | Spike probability, hybrid alert, transition recall |
+| `d53fb6d5` | Non-zero intervals at RF-only sites; removed a no-op ablation | Dashboard intervals only |
+| `a2de8dac` | One DA measurement per site-day (daily max) | Evaluation targets (above) |
+| `80e6f530` | Persistence ceiling uses only pairs ≤ 28 days apart, as the paper describes | With `a2de8dac`'s one-per-day data, Clatsop Beach 0.25 → 0.71 |
+
+`spike_env_lead_analysis.py` was restored (`b428bae9`): the paper cited it after
+it had been deleted. With one measurement per site-day it finds 224 transitions;
+the same loader without the collapse gives the previously published 385, so 161
+of those were two same-day samples read as a crossing.
+
+## Experiments that did not help
+
+Measured before the cleanup (mae050 OAD checkpoint, old parsing); conclusions
+only. Code for the removed experiments is at git tag `archive/pre-cleanup`;
+details in [`OAD_INTEGRATION_RESULTS.md`](OAD_INTEGRATION_RESULTS.md) §7–8.
+
+| Experiment | Result | Disposition |
+|---|---|---|
+| OAD regional anomaly features (16 columns) | ΔR² within noise, including SW Washington | Kept (not harmful); re-measured in the ablation above |
+| Optuna search over 18 per-site hyperparameters | Validation +0.07 R², holdout −0.16 | Discarded (overfit) |
+| Grid search over ensemble weights × clip quantile × clip max (chronological CV, pre-2022) | Held up on the holdout | **Promoted** to `config/tuned_hyperparameters.json`; the current configuration |
+| Five extra feature sets (lagged PN, BEUTI derivatives, NeMO mooring, ESP offshore pDA, NDBC wind) | Each \|ΔR²\| < 0.003 | Removed |
+| Per-anchor XGB grid tuning | 23% of predictions change, no skill gain | Off by default (`9c435f59`) |
+
+Two conclusions from this work still stand: OAD tracks *Pseudo-nitzschia* at the
+offshore NEMO mooring but adds nothing at the beaches (see
+[`../oad/OAD_STORYLINE.md`](../oad/OAD_STORYLINE.md), Chapter 9), and the existing
+feature set is at a flat optimum where new in-situ data, not more derived
+features, is the likely route to better skill.
+
+## Reproducing
+
+```bash
+# Hyak: chronological (both windows), multi-seed 42-46, paper metrics (seed 123),
+# spike eval, in a disposable worktree
+bash scripts/eval/golden_baseline.sh a2de8dac post-dedup
+bash scripts/eval/golden_baseline.sh a2de8dac ablation-post-dedup scripts/eval/paper_ablation_study.sbatch
+
+# Laptop, from the seed-123 cache copied to results/retro_seed123/
+.venv/bin/python scripts/eval/spike_detection_eval.py --seed 123 --sample-fraction 0.40
+.venv/bin/python scripts/eval/spike_env_lead_analysis.py
+.venv/bin/python scripts/eval/autocorrelation_diagnostic.py
+```

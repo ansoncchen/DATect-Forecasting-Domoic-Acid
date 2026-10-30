@@ -125,8 +125,8 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
   (final report only, never used for selection). Defined in the tuned JSON's `eval_windows`.
 - **Headline = deterministic chronological eval** (`scripts/eval/chronological_eval.py`):
   every real DA measurement in the window, no sampling. Confirm with the 5-seed bootstrap
-  (`multi_seed_baseline.py`, seeds 42-46 at 20%). Single-seed R² at N~1,200 is noise-dominated
-  (std across seeds ~0.08 pooled, ~0.15 on the holdout); never report one seed alone.
+  (`multi_seed_baseline.py`, seeds 42-46 at 20%). Single-seed R² at N~1,000 is noise-dominated
+  (std across seeds ~0.05 pooled, ~0.10 on the holdout rows); never report one seed alone.
 - **Never tune all dimensions at once.** A full Optuna search over 18 dims overfit badly
   (validation +0.07 R², holdout -0.16). Tune only ensemble weights and clip parameters with
   constrained chronological CV (`grid_search_weights_clip.py`), and verify on the holdout
@@ -187,7 +187,9 @@ feature because the score correlates with cloud cover (r ~ 0.4-0.5).
 ## Results
 
 All current numbers, their protocol and history are in `docs/CORRECTED_NUMBERS.md`.
-<!-- HEADLINE: filled after the post-cleanup re-run -->
+Headline (2022–2023 holdout, every real measurement, commit `a2de8dac`): R² 0.419
+[0.247, 0.546], MAE 7.49 ug/g, spike recall 0.774, F2 0.693, N = 409.
+`tests/test_chronological_eval_smoke.py` pins it; change both together.
 
 ## Docs
 

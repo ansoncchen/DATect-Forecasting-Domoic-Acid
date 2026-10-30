@@ -6,54 +6,27 @@ from raw and processed datasets, handle OAD features cleanly without leakage,
 and generate regression/classification predictions correctly.
 """
 
-import sys
 from pathlib import Path
 import pandas as pd
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
 import config
 from forecasting import ForecastEngine
-from forecasting.raw_data_forecaster import load_raw_da_measurements, get_site_training_frame
-from forecasting.raw_forecast_engine import _verify_no_data_leakage
+from forecasting.raw_data_forecaster import load_raw_da_measurements
 
 
+@pytest.mark.usefixtures("fast_models")
 class TestForecastingPipeline:
+    test_sample_fraction = 0.002
+
     @classmethod
     def setup_class(cls):
         # Verify processed parquet exists before running integration tests
         cls.parquet_path = _REPO_ROOT / "data" / "processed" / "final_output.parquet"
         assert cls.parquet_path.exists(), "Processed final_output.parquet must exist for integration tests"
-        
-        # Patch global config for ultra-fast local integration tests
-        config.N_BOOTSTRAP_ITERATIONS = 2
-        config.XGB_REGRESSION_PARAMS["n_estimators"] = 5
-        config.RF_REGRESSION_PARAMS["n_estimators"] = 5
-        config.XGB_CLASSIFICATION_PARAMS["n_estimators"] = 5
-        config.SPIKE_CLASSIFIER_PARAMS["n_estimators"] = 5
-        config.ENABLE_PARALLEL = False
-        config.TEST_SAMPLE_FRACTION = 0.002
-        config.MIN_TRAINING_FOR_TUNING = 99999
-        
-        # Patch site-specific overrides so they don't trigger large models
-        import forecasting.per_site_models
-        forecasting.per_site_models.MIN_TRAINING_FOR_TUNING = 99999
-        for site, site_cfg in forecasting.per_site_models.SITE_SPECIFIC_CONFIGS.items():
-            if site_cfg.get("xgb_params"):
-                site_cfg["xgb_params"]["n_estimators"] = 5
-            if site_cfg.get("rf_params"):
-                site_cfg["rf_params"]["n_estimators"] = 5
-
         cls.engine = ForecastEngine(data_file=str(cls.parquet_path), validate_on_init=True)
-
-    @classmethod
-    def teardown_class(cls):
-        # Restore configuration values to prevent side effects in other tests
-        config.MIN_TRAINING_FOR_TUNING = 80
-        import forecasting.per_site_models
-        forecasting.per_site_models.MIN_TRAINING_FOR_TUNING = 80
 
     def test_load_raw_measurements(self):
         """Verify raw DA measurements load correctly and site names are canonicalized."""
@@ -63,6 +36,14 @@ class TestForecastingPipeline:
         assert "site" in df.columns
         assert "da_raw" in df.columns
         assert "Twin Harbors" in df["site"].unique()
+
+    def test_raw_measurements_one_row_per_site_day(self):
+        """Same-day samples collapse to their max, so the test target is not arbitrary."""
+        df = load_raw_da_measurements()
+        assert not df.duplicated(["site", "date"]).any()
+        # gold-beach-da.csv has two samples on 2019-01-24: 0 and 190 ug/g
+        day = df[(df["site"] == "Gold Beach") & (df["date"] == "2019-01-24")]
+        assert day["da_raw"].tolist() == [190.0]
 
     def test_regression_forecast_ensemble(self):
         """Test end-to-end regression forecasting using the ML Ensemble."""
@@ -142,17 +123,14 @@ class TestForecastingPipeline:
 
     def test_retrospective_evaluation_smoke(self):
         """Run a lightweight retrospective evaluation to verify temporal splits and evaluation metrics."""
-        # Use a small number of anchors for a fast smoke test
+        # test_sample_fraction keeps this to roughly one test point per site
         eval_df = self.engine.run_retrospective_evaluation(
             task="regression",
             model_type="ensemble",
-            n_anchors=2,
-            min_test_date="2018-01-01"
         )
-        
-        if eval_df is not None:
-            assert isinstance(eval_df, pd.DataFrame)
-            assert not eval_df.empty
-            required_cols = ["date", "site", "anchor_date", "actual_da", "predicted_da"]
-            for col in required_cols:
-                assert col in eval_df.columns
+
+        assert isinstance(eval_df, pd.DataFrame)
+        assert not eval_df.empty
+        required_cols = ["date", "site", "anchor_date", "actual_da", "predicted_da"]
+        for col in required_cols:
+            assert col in eval_df.columns

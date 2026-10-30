@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Validate tuned hyperparameters on the 2019+ temporal holdout (final unbiased test).
+Validate tuned hyperparameters on the 2022+ temporal holdout (final unbiased test).
 
 Runs the retrospective forecast with proposed_overrides.json applied, then
 splits results into:
-  - TUNING window (< 2019-01-01): the data Optuna saw.
-  - HOLDOUT window (>= 2019-01-01): completely untouched by tuning.
+  - pre-2019: training-era test points.
+  - VALIDATION window [2019-01-01, 2022-01-01): the tuning objective.
+  - HOLDOUT window (>= 2022-01-01): never inspected during tuning.
 
 A tuned config is considered "real" only if it improves on BOTH windows.
 If it improves only on tuning and degrades on holdout → overfitting; discard.
@@ -24,11 +25,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from sklearn.metrics import r2_score, mean_absolute_error
 
@@ -45,15 +44,12 @@ VAL_START = pd.Timestamp(_w["validation_start"])
 VAL_END   = pd.Timestamp(_w["validation_end"])  # holdout starts here
 
 
-def run_eval(label: str, output_dir: str = "holdout_validation") -> str:
-    import config
+def run_eval(label: str, output_dir: str = "results/holdout_validation") -> str:
     from forecasting.raw_forecast_engine import RawForecastEngine
 
     engine = RawForecastEngine(validate_on_init=False)
     results_df = engine.run_retrospective_evaluation(
         task="regression", model_type="ensemble",
-        n_anchors=getattr(config, "N_RANDOM_ANCHORS", 500),
-        min_test_date="2008-01-01",
     )
     if results_df is None or results_df.empty:
         raise RuntimeError("No retrospective results")
@@ -163,8 +159,8 @@ def main() -> int:
     p.add_argument("--label", type=str, default=None,
                    help="Run eval and save predictions under this label")
     p.add_argument("--compare", nargs=2, metavar=("BASELINE", "TUNED"),
-                   help="Compare two labels (uses holdout_validation/<label>_predictions.parquet)")
-    p.add_argument("--output-dir", type=str, default="holdout_validation")
+                   help="Compare two labels (uses results/holdout_validation/<label>_predictions.parquet)")
+    p.add_argument("--output-dir", type=str, default="results/holdout_validation")
     args = p.parse_args()
 
     if args.compare:

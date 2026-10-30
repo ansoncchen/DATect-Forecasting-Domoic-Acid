@@ -15,15 +15,16 @@ Usage (from repository root; run on Hyak):
     python3 scripts/eval/paper_ablation_study.py              # dev set (seed 42)
     python3 scripts/eval/paper_ablation_study.py --seed 123   # custom seed
 
-Output: paper_ablation_results.json
+Output: results/ablation/paper_ablation_results.json
 """
 
 import argparse
 import json
 import os
-import subprocess
 import sys
 import warnings
+
+from _subprocess import last_json_line, run_python
 
 warnings.filterwarnings("ignore")
 
@@ -63,40 +64,22 @@ def run_ablation(name, seed, env_overrides=None):
 
 def _run_subprocess_ablation(name, seed, env_overrides):
     """Run ablation in a subprocess so config.py reads env vars fresh."""
-    env = os.environ.copy()
-    env.update(env_overrides)
-    env["DATECT_ABLATION_SEED"] = str(seed)
-
-    result = subprocess.run(
-        [sys.executable, "-c", SUBPROCESS_SCRIPT],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=None,  # Show progress bars live
-        text=True,
-        timeout=7200,  # 2 hour timeout per experiment
+    result = run_python(
+        SUBPROCESS_SCRIPT,
+        {**env_overrides, "DATECT_ABLATION_SEED": str(seed)},
+        timeout=7200,  # 2 hour timeout per experiment; stderr shows progress bars live
     )
 
     if result.returncode != 0:
         print(f"  FAILED (exit code {result.returncode})")
         return None
 
-    # Parse JSON output from subprocess
+    data = last_json_line(result.stdout)
+    if data is None:
+        print("  ERROR: No JSON in output")
+        print(result.stdout[-500:])
+        return None
     try:
-        lines = result.stdout.strip().split("\n")
-        json_start = None
-        for i, line in enumerate(lines):
-            if line.strip().startswith("{"):
-                json_start = i
-                break
-
-        if json_start is None:
-            print(f"  ERROR: No JSON in output")
-            print(result.stdout[-500:])
-            return None
-
-        json_str = "\n".join(lines[json_start:])
-        data = json.loads(json_str)
-
         overall = data["overall"]
         print(f"  Overall: R2={overall['r2']:.4f}, MAE={overall['mae']:.2f}, N={overall['n']}")
         for site, m in data.get("per_site", {}).items():
@@ -104,7 +87,7 @@ def _run_subprocess_ablation(name, seed, env_overrides):
 
         return data
 
-    except (json.JSONDecodeError, KeyError) as e:
+    except KeyError as e:
         print(f"  ERROR parsing output: {e}")
         print(result.stdout[-500:])
         return None
@@ -141,8 +124,6 @@ engine = RawForecastEngine(validate_on_init=False)
 results_df = engine.run_retrospective_evaluation(
     task="regression",
     model_type="ensemble",
-    n_anchors=getattr(config, "N_RANDOM_ANCHORS", 500),
-    min_test_date="2008-01-01"
 )
 
 if results_df is None or results_df.empty:
@@ -232,19 +213,6 @@ def main():
             env_overrides={"DATECT_EXTRA_DROP_FEATURES": ",".join(OAD_FEATURES)},
         )
 
-    # ── Ablation 6: With OAD ALSO on small-N sites ────────────────────────
-    # Tests whether OAD acts as "synthetic data" that helps the 4 small-N
-    # sites (Coos Bay, Cannon Beach, Gold Beach, Newport) despite their
-    # handcrafted minimal feature subsets. Per-site comparison (especially
-    # vs baseline for those 4 sites) is the diagnostic of interest.
-    abl_oad_small_n = None
-    if OAD_FEATURES:
-        abl_oad_small_n = run_ablation(
-            "With OAD also on small-N sites",
-            seed,
-            env_overrides={"DATECT_OAD_ON_SMALL_N": "true"},
-        )
-
     # ── Compile results ───────────────────────────────────────────────────
     all_results = {
         "baseline": baseline,
@@ -255,10 +223,8 @@ def main():
     }
     if abl_no_oad is not None:
         all_results["no_oad_features"] = abl_no_oad
-    if abl_oad_small_n is not None:
-        all_results["with_oad_on_small_n"] = abl_oad_small_n
 
-    with open("paper_ablation_results.json", "w") as f:
+    with open("results/ablation/paper_ablation_results.json", "w") as f:
         json.dump(all_results, f, indent=2)
 
     # ── Summary table ─────────────────────────────────────────────────────
@@ -283,7 +249,7 @@ def main():
 
     print()
     print(f"Seed: {seed}")
-    print("Saved to paper_ablation_results.json")
+    print("Saved to results/ablation/paper_ablation_results.json")
 
 
 if __name__ == "__main__":

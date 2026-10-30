@@ -26,22 +26,14 @@ import shutil
 import config
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from forecasting.measurements import parse_da_values, parse_dates, parse_pn_values
 from forecasting.oad_features import add_oad_features, OAD_FEATURES_ALL
 
-# High-performance libraries
-try:
-    import polars as pl
-    POLARS_AVAILABLE = True
-except ImportError:
-    pl = None
-    POLARS_AVAILABLE = False
-
+# Optional JIT for BEUTI interpolation
 try:
     from numba import jit
-    NUMBA_AVAILABLE = True
 except ImportError:
     jit = None
-    NUMBA_AVAILABLE = False
 
 from forecasting.logging_config import setup_logging, get_logger
 
@@ -60,7 +52,6 @@ FORCE_SATELLITE_REPROCESSING = False
 # File tracking for cleanup
 downloaded_files = []
 generated_parquet_files = []
-temporary_nc_files_for_stitching = []
 
 def _idw_interpolate(lats, values, target_lat, power):
     distances = np.abs(lats - target_lat)
@@ -84,7 +75,7 @@ def normalize_site_name(value: str) -> str:
 
 logger.info("Starting dataset creation pipeline")
 logger.info("Loading configuration from config.py")
-print(f"--- Loading Configuration from config.py ---")
+print("--- Loading Configuration from config.py ---")
 da_files = config.ORIGINAL_DA_FILES
 pn_files = config.ORIGINAL_PN_FILES
 sites = config.SITES
@@ -104,7 +95,7 @@ print(f"Date range: {start_date.date()} to {end_date.date()}, Output: {final_out
 
 satellite_metadata = config.SATELLITE_DATA
 logger.info(f"Satellite configuration loaded with {len(satellite_metadata)} data types")
-print(f"\n--- Satellite Configuration loaded from main config ---")
+print("\n--- Satellite Configuration loaded from main config ---")
 print(f"Satellite configuration loaded with {len(satellite_metadata)} data types.")
 
 # Utility Functions
@@ -150,17 +141,12 @@ def local_filename(url, ext, temp_dir=None):
 
 
 def csv_to_parquet(csv_path):
-    """Convert CSV to Parquet for faster I/O. Uses Polars if available."""
+    """Convert CSV to Parquet for faster I/O."""
     parquet_path = csv_path[:-4] + '.parquet'
-    
-    if POLARS_AVAILABLE:
-        # Polars is 2-5x faster for CSV to Parquet conversion
-        df = pl.read_csv(csv_path)
-        df.write_parquet(parquet_path)
-    else:
-        df = pd.read_csv(csv_path, low_memory=False)
-        df.to_parquet(parquet_path, index=False)
-    
+    # pandas, not Polars: Polars rejects several raw files (e.g. "<1" in numeric columns)
+    df = pd.read_csv(csv_path, low_memory=False)
+    df.to_parquet(parquet_path, index=False)
+
     generated_parquet_files.append(parquet_path)
     return parquet_path
 
@@ -449,93 +435,8 @@ def generate_satellite_parquet(satellite_metadata_dict, main_sites_list, output_
     if path_to_return:
         print(f"generate_satellite_parquet is returning path: {path_to_return}")
     else:
-        print(f"generate_satellite_parquet is returning None (error or no file generated).")
+        print("generate_satellite_parquet is returning None (error or no file generated).")
     return path_to_return
-
-def find_best_satellite_match(target_row, sat_pivot_indexed):
-    target_site = target_row.get('Site')
-    target_ts = target_row.get('timestamp_dt') # Weekly timestamp from target_df
-
-    expected_cols = sat_pivot_indexed.columns if not sat_pivot_indexed.empty else pd.Index([])
-    result_series = pd.Series(index=expected_cols, dtype=float)
-
-    if pd.isna(target_ts):
-        return result_series
-
-    target_site_normalized = normalize_site_name(target_site)
-
-    unique_original_index_sites = sat_pivot_indexed.index.get_level_values('site').unique()
-    original_index_site = None
-    for s_val in unique_original_index_sites:
-        if normalize_site_name(s_val) == target_site_normalized:
-            original_index_site = s_val
-            break
-
-    if original_index_site is None:
-        return result_series
-
-    try:
-        site_data = sat_pivot_indexed.xs(original_index_site, level='site')
-    except KeyError:
-        return result_series
-
-    if site_data.empty:
-        return result_series
-
-    if not isinstance(site_data.index, pd.DatetimeIndex):
-        site_data.index = pd.to_datetime(site_data.index)
-    site_data = site_data[pd.notna(site_data.index)]
-
-    if site_data.empty:
-        return result_series
-
-    for var_name in expected_cols:
-        if var_name not in site_data.columns:
-            continue
-
-        var_series_at_site = site_data[var_name]
-        non_nan_var_series = var_series_at_site.dropna()
-
-        if non_nan_var_series.empty:
-            continue
-
-        is_anomaly_var = "anom" in var_name.lower()
-
-        if is_anomaly_var:
-            # FIXED: Use data from at least 2 months before target to avoid leakage
-            current_month_period = target_ts.to_period('M')
-            # Use data from 2 months prior to ensure no temporal overlap
-            safe_month_period = current_month_period - 2
-            safe_month_start_time = safe_month_period.start_time
-            safe_month_end_time = safe_month_period.end_time
-
-            data_in_safe_month = non_nan_var_series[
-                (non_nan_var_series.index >= safe_month_start_time) &
-                (non_nan_var_series.index <= safe_month_end_time)
-            ]
-
-            if not data_in_safe_month.empty:
-                chosen_ts = data_in_safe_month.index.max()
-                result_series[var_name] = data_in_safe_month.loc[chosen_ts]
-            else:
-                # Fallback: Use data from at least 1 month before target
-                cutoff_date = target_ts - pd.DateOffset(months=1)
-                data_before_cutoff = non_nan_var_series[non_nan_var_series.index <= cutoff_date]
-                if not data_before_cutoff.empty:
-                    chosen_ts = data_before_cutoff.index.max()
-                    result_series[var_name] = data_before_cutoff.loc[chosen_ts]
-        else:
-            # FIXED: For regular satellite data, use strict temporal cutoff (1 week minimum)
-            cutoff_date = target_ts - pd.Timedelta(days=7)
-            data_on_or_before = non_nan_var_series[non_nan_var_series.index <= cutoff_date]
-
-            if not data_on_or_before.empty:
-                chosen_ts = data_on_or_before.index.max()
-                result_series[var_name] = data_on_or_before.loc[chosen_ts]
-            else:
-                # No fallback - if no data available with safe temporal distance, leave as NaN
-                pass
-    return result_series
 
 def add_satellite_data(target_df, satellite_parquet_path):
     """Add satellite data to the target DataFrame"""        
@@ -782,8 +683,8 @@ def process_da(da_files_dict):
             elif 'Domoic Acid' in df.columns: da_col = 'Domoic Acid'
 
             # Process valid columns
-            df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
-            df['DA_Levels'] = pd.to_numeric(df[da_col], errors='coerce')
+            df['Parsed_Date'] = parse_dates(df[date_col])
+            df['DA_Levels'] = parse_da_values(df[da_col])  # "<1" -> LOD/2
             df['Site'] = site_name_guess
 
             df.dropna(subset=['Parsed_Date', 'DA_Levels', 'Site'], inplace=True)
@@ -842,8 +743,8 @@ def process_pn(pn_files_dict):
             pn_col = pn_col_candidates[0]
 
         # Process valid columns
-        df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
-        df['PN_Levels'] = pd.to_numeric(df[pn_col], errors='coerce')
+        df['Parsed_Date'] = parse_dates(df[date_col])
+        df['PN_Levels'] = parse_pn_values(df[pn_col])  # accepts "12,345"
         df['Site'] = site_name_guess
         df.dropna(subset=['Parsed_Date', 'PN_Levels', 'Site'], inplace=True)
 
@@ -1051,7 +952,7 @@ def compile_da_pn(lt_df, da_df, pn_df):
     da_missing_after = lt_df_merged['DA_Levels'].isna().sum()
     pn_missing_after = lt_df_merged['PN_Levels'].isna().sum()
     
-    print(f"  Biological decay interpolation complete:")
+    print("  Biological decay interpolation complete:")
     print(f"    - DA: {da_interpolated_total} values interpolated with exponential decay")
     print(f"    - PN: {pn_interpolated_total} values interpolated with exponential decay") 
     print(f"    - Gaps >{da_max_gap_weeks}/{pn_max_gap_weeks} weeks filled with 0")
@@ -1111,7 +1012,7 @@ def main():
     should_generate_new_satellite_file = False
     if FORCE_SATELLITE_REPROCESSING:
         print(
-            f"\n--- FORCE_SATELLITE_REPROCESSING is True. Satellite data will be regenerated. ---"
+            "\n--- FORCE_SATELLITE_REPROCESSING is True. Satellite data will be regenerated. ---"
         )
         should_generate_new_satellite_file = True
     elif not os.path.exists(SATELLITE_OUTPUT_PARQUET):
@@ -1124,7 +1025,7 @@ def main():
             f"\n--- Found existing satellite data: {SATELLITE_OUTPUT_PARQUET}. Using this file. ---"
         )
         print(
-            f"--- To regenerate, set FORCE_SATELLITE_REPROCESSING = True in the script. ---"
+            "--- To regenerate, set FORCE_SATELLITE_REPROCESSING = True in the script. ---"
         )
         satellite_parquet_file_path = (
             SATELLITE_OUTPUT_PARQUET  # Use existing file
@@ -1132,7 +1033,7 @@ def main():
 
     if should_generate_new_satellite_file:
         print(
-            f"--- Generating satellite data. This may take a while... ---"
+            "--- Generating satellite data. This may take a while... ---"
         )
         if FORCE_SATELLITE_REPROCESSING and os.path.exists(SATELLITE_OUTPUT_PARQUET):
             try:

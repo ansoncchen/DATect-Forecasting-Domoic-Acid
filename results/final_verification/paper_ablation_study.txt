@@ -1,0 +1,113 @@
+== ablation @ 22:31:11 ==
+Running ablation study with seed=42
+
+============================================================
+ABLATION: Baseline (full DATect)
+============================================================
+  Overall: R2=0.3321, MAE=6.29, N=1054
+    Cannon Beach       R2=-0.0477, MAE=4.09, N=59
+    Clatsop Beach      R2=0.4471, MAE=5.68, N=155
+    Coos Bay           R2=0.1254, MAE=28.20, N=55
+    Copalis            R2=0.8248, MAE=2.48, N=138
+    Gold Beach         R2=0.2350, MAE=8.12, N=121
+    Kalaloch           R2=0.5593, MAE=2.08, N=111
+    Long Beach         R2=0.3033, MAE=4.33, N=105
+    Newport            R2=-0.0179, MAE=11.41, N=104
+    Quinault           R2=0.5265, MAE=3.24, N=98
+    Twin Harbors       R2=0.4307, MAE=4.05, N=108
+
+============================================================
+ABLATION: No interpolated training
+============================================================
+  ENV: DATECT_USE_INTERPOLATED_TRAINING=false
+  Overall: R2=0.3388, MAE=6.39, N=1054
+    Cannon Beach       R2=-0.0259, MAE=3.95, N=59
+    Clatsop Beach      R2=0.4685, MAE=5.67, N=155
+    Coos Bay           R2=0.1609, MAE=27.50, N=55
+    Copalis            R2=0.8209, MAE=2.81, N=138
+    Gold Beach         R2=0.2079, MAE=8.49, N=121
+    Kalaloch           R2=0.5675, MAE=1.99, N=111
+    Long Beach         R2=0.4388, MAE=4.21, N=105
+    Newport            R2=-0.2194, MAE=12.74, N=104
+    Quinault           R2=0.6871, MAE=2.88, N=98
+    Twin Harbors       R2=0.4724, MAE=3.98, N=108
+
+============================================================
+ABLATION: No per-site customization
+============================================================
+  ENV: DATECT_USE_PER_SITE_MODELS=false
+  Overall: R2=0.3266, MAE=6.14, N=1054
+    Cannon Beach       R2=0.0252, MAE=4.16, N=59
+    Clatsop Beach      R2=0.6899, MAE=4.90, N=155
+    Coos Bay           R2=-0.0581, MAE=31.76, N=55
+    Copalis            R2=0.8697, MAE=2.22, N=138
+    Gold Beach         R2=0.2705, MAE=7.33, N=121
+    Kalaloch           R2=0.5533, MAE=2.08, N=111
+    Long Beach         R2=0.7113, MAE=3.34, N=105
+    Newport            R2=-0.3596, MAE=12.14, N=104
+    Quinault           R2=0.8444, MAE=2.55, N=98
+    Twin Harbors       R2=0.4947, MAE=3.98, N=108
+
+============================================================
+ABLATION: No observation-order lags
+============================================================
+  ENV: DATECT_LAG_FEATURES=none
+  Overall: R2=0.3347, MAE=6.29, N=1054
+    Cannon Beach       R2=-0.0473, MAE=4.09, N=59
+    Clatsop Beach      R2=0.4473, MAE=5.73, N=155
+    Coos Bay           R2=0.1136, MAE=28.04, N=55
+    Copalis            R2=0.8133, MAE=2.50, N=138
+    Gold Beach         R2=0.2468, MAE=8.27, N=121
+    Kalaloch           R2=0.5696, MAE=2.06, N=111
+    Long Beach         R2=0.2988, MAE=4.37, N=105
+    Newport            R2=0.0367, MAE=11.23, N=104
+    Quinault           R2=0.5219, MAE=3.29, N=98
+    Twin Harbors       R2=0.4316, MAE=4.03, N=108
+
+============================================================
+ABLATION: No derived features
+============================================================
+  ENV: DATECT_EXTRA_DROP_FEATURES=pn_log
+  Overall: R2=0.3322, MAE=6.29, N=1054
+    Cannon Beach       R2=-0.0477, MAE=4.09, N=59
+    Clatsop Beach      R2=0.4475, MAE=5.75, N=155
+    Coos Bay           R2=0.1254, MAE=28.20, N=55
+    Copalis            R2=0.8248, MAE=2.48, N=138
+    Gold Beach         R2=0.2350, MAE=8.12, N=121
+    Kalaloch           R2=0.5600, MAE=2.07, N=111
+    Long Beach         R2=0.3033, MAE=4.33, N=105
+    Newport            R2=-0.0179, MAE=11.41, N=104
+    Quinault           R2=0.5265, MAE=3.24, N=98
+    Twin Harbors       R2=0.4307, MAE=4.05, N=108
+
+============================================================
+ABLATION: No OAD regional anomaly features
+============================================================
+  ENV: DATECT_EXTRA_DROP_FEATURES=oad_score,oad_score_lag1week,oad_score_lag2week,oad_score_30day_mean,oad_score_30day_max,oad_score_30day_trend,oad_score_zscore_doy,oad_overall_score,oad_overall_score_lag1week,oad_overall_score_lag2week,oad_overall_score_30day_mean,oad_overall_score_30day_max,oad_overall_score_30day_trend,oad_overall_score_zscore_doy,oad_valid_frac,oad_overall_valid_frac
+  Overall: R2=0.3354, MAE=6.27, N=1054
+    Cannon Beach       R2=-0.0475, MAE=4.10, N=59
+    Clatsop Beach      R2=0.4476, MAE=5.69, N=155
+    Coos Bay           R2=0.1393, MAE=28.04, N=55
+    Copalis            R2=0.8236, MAE=2.48, N=138
+    Gold Beach         R2=0.2112, MAE=8.20, N=121
+    Kalaloch           R2=0.5621, MAE=2.06, N=111
+    Long Beach         R2=0.3041, MAE=4.31, N=105
+    Newport            R2=0.0182, MAE=11.25, N=104
+    Quinault           R2=0.5229, MAE=3.26, N=98
+    Twin Harbors       R2=0.4301, MAE=4.04, N=108
+
+======================================================================
+ABLATION SUMMARY
+======================================================================
+Configuration                             R2      dR2      MAE      N
+----------------------------------------------------------------------
+baseline                               0.332      ---     6.29   1054
+no_interpolated_training               0.339   +0.007     6.39   1054
+no_per_site_customization              0.327   -0.005     6.14   1054
+no_observation_order_lags              0.335   +0.003     6.29   1054
+no_derived_features                    0.332   +0.000     6.29   1054
+no_oad_features                        0.335   +0.003     6.27   1054
+
+Seed: 42
+Saved to results/ablation/paper_ablation_results.json
+== done @ 23:08:05 ==

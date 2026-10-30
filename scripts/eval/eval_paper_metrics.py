@@ -11,7 +11,7 @@ paper tables:
 
 Usage (from repository root):
     python3 scripts/eval/eval_paper_metrics.py [--seed 123] [--force-rerun] \
-        [--output-dir eval_results/paper_metrics]
+        [--output-dir results/paper_metrics]
 """
 
 from __future__ import annotations
@@ -40,9 +40,7 @@ warnings.filterwarnings("ignore")
 # ---------------------------------------------------------------------------
 # DA category thresholds: Low < 5, Moderate 5-20, High 20-40, Extreme >= 40
 # ---------------------------------------------------------------------------
-DA_BINS = [-np.inf, 5.0, 20.0, 40.0, np.inf]
 DA_LABELS = ["Low", "Moderate", "High", "Extreme"]
-DA_LABEL_INDICES = [0, 1, 2, 3]
 
 
 def da_category(values: np.ndarray) -> np.ndarray:
@@ -63,13 +61,11 @@ def bootstrap_metric(
     rng: np.random.Generator | None = None,
 ) -> tuple[float, float]:
     """Return (ci_lo, ci_hi) percentile bootstrap 95% CI for metric_fn."""
+    from forecasting.metrics import bootstrap_samples
+
     if rng is None:
         rng = np.random.default_rng(42)
-    n = len(actual)
-    scores = np.empty(B)
-    for i in range(B):
-        idx = rng.integers(0, n, size=n)
-        scores[i] = metric_fn(actual[idx], predicted[idx])
+    scores = bootstrap_samples((actual, predicted), metric_fn, B, rng)
     return float(np.percentile(scores, 2.5)), float(np.percentile(scores, 97.5))
 
 
@@ -84,17 +80,16 @@ def bootstrap_delta_r2(
     Paired bootstrap for delta R² = R²(ensemble) - R²(other).
     Returns (observed_delta, ci_lo, ci_hi).
     """
+    from forecasting.metrics import bootstrap_samples
+
     if rng is None:
         rng = np.random.default_rng(42)
-    n = len(actual)
     obs_delta = r2_score(actual, pred_ensemble) - r2_score(actual, pred_other)
-    deltas = np.empty(B)
-    for i in range(B):
-        idx = rng.integers(0, n, size=n)
-        a = actual[idx]
-        e = pred_ensemble[idx]
-        o = pred_other[idx]
-        deltas[i] = r2_score(a, e) - r2_score(a, o)
+    deltas = bootstrap_samples(
+        (actual, pred_ensemble, pred_other),
+        lambda a, e, o: r2_score(a, e) - r2_score(a, o),
+        B, rng,
+    )
     return (
         float(obs_delta),
         float(np.percentile(deltas, 2.5)),
@@ -174,8 +169,8 @@ def load_or_run_retro(
         # Patch config before importing the engine so seed/fraction take effect
         import config as cfg
         original_seed = cfg.RANDOM_SEED
-        original_frac = getattr(cfg, "TEST_SAMPLE_FRACTION", 0.20)
-        original_min_date = getattr(cfg, "MIN_TEST_DATE", "2003-01-01")
+        original_frac = cfg.TEST_SAMPLE_FRACTION
+        original_min_date = cfg.MIN_TEST_DATE
 
         cfg.RANDOM_SEED = seed
         cfg.TEST_SAMPLE_FRACTION = sample_fraction
@@ -333,103 +328,7 @@ def compute_classification_table(actual: np.ndarray, predicted: np.ndarray) -> p
 
 
 # ---------------------------------------------------------------------------
-# Spike / alert metrics (retrospective DataFrames; also useful ad hoc)
-# ---------------------------------------------------------------------------
-
-def compute_spike_tables(
-    df: pd.DataFrame,
-    spike_threshold: float | None = None,
-    reg_alert_threshold: float | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Compute spike-detection metrics from a retrospective results DataFrame.
-
-    Two tables are returned:
-      event_df      — metrics where the target is an actual spike (DA >= spike_threshold)
-      transition_df — metrics where the target is the transition zone
-                      (reg_alert_threshold <= DA < spike_threshold), i.e. the zone
-                      where early warnings matter most.
-
-    Each DataFrame has columns: model, recall, precision, f1, n_positive, n_total.
-    Model values:
-      "hybrid"     — spike_alert column (classifier OR regression threshold, the
-                     primary signal used in production)
-      "regression" — ensemble_prediction >= reg_alert_threshold only
-
-    Args:
-        df: retrospective results DataFrame from RawForecastEngine.
-        spike_threshold: DA value above which an event is a spike (default 20 µg/g).
-        reg_alert_threshold: DA value at which regression alone fires an alert (12 µg/g).
-    """
-    # Defaults loaded from config (which itself loads from tuned_hyperparameters.json)
-    if spike_threshold is None:
-        import config
-        spike_threshold = float(config.SPIKE_THRESHOLD)
-    if reg_alert_threshold is None:
-        import config
-        reg_alert_threshold = float(config.SPIKE_REGRESSION_ALERT_THRESHOLD)
-
-    df = df.copy()
-
-    # Normalise actual column
-    if "actual_da" not in df.columns and "actual_da_raw" in df.columns:
-        df["actual_da"] = df["actual_da_raw"]
-
-    pred_col = "ensemble_prediction" if "ensemble_prediction" in df.columns else "predicted_da"
-
-    df = df.dropna(subset=["actual_da", pred_col])
-    actual = df["actual_da"].astype(float)
-
-    # --- Predicted alert signals ---
-    # Hybrid: use spike_alert column when available, fall back to regression threshold
-    if "spike_alert" in df.columns:
-        hybrid_alert = df["spike_alert"].fillna(False).astype(bool)
-    else:
-        hybrid_alert = df[pred_col].astype(float) >= reg_alert_threshold
-
-    regression_alert = df[pred_col].astype(float) >= reg_alert_threshold
-
-    def _row(model: str, predicted_positive: pd.Series, actual_positive: pd.Series) -> dict:
-        y_true = actual_positive.astype(int).values
-        y_pred = predicted_positive.astype(int).values
-        n_pos = int(y_true.sum())
-        if n_pos == 0:
-            return {
-                "model": model, "recall": None, "precision": None, "f1": None,
-                "n_positive": 0, "n_total": len(y_true),
-            }
-        rec  = float(recall_score(y_true, y_pred, zero_division=0))
-        prec = float(precision_score(y_true, y_pred, zero_division=0))
-        f1v  = float(f1_score(y_true, y_pred, zero_division=0))
-        return {
-            "model": model,
-            "recall": round(rec, 4),
-            "precision": round(prec, 4),
-            "f1": round(f1v, 4),
-            "n_positive": n_pos,
-            "n_total": int(len(y_true)),
-        }
-
-    # --- Event table: actual DA >= spike_threshold ---
-    event_positive = actual >= spike_threshold
-    event_rows = [
-        _row("hybrid",     hybrid_alert,     event_positive),
-        _row("regression", regression_alert,  event_positive),
-    ]
-
-    # --- Transition table: reg_alert_threshold <= actual < spike_threshold ---
-    # Correct prediction = alert fires when DA is in the warning zone
-    transition_positive = (actual >= reg_alert_threshold) & (actual < spike_threshold)
-    transition_rows = [
-        _row("hybrid",     hybrid_alert,     transition_positive),
-        _row("regression", regression_alert,  transition_positive),
-    ]
-
-    return pd.DataFrame(event_rows), pd.DataFrame(transition_rows)
-
-
-# ---------------------------------------------------------------------------
-# Pretty-print helpers
+# Table formatting and printing
 # ---------------------------------------------------------------------------
 
 def fmt_ci(lo, hi, decimals=3):
@@ -526,13 +425,12 @@ def main():
                         help="Fraction of valid points to sample per site (default: 0.40)")
     parser.add_argument("--force-rerun", action="store_true",
                         help="Force re-run retrospective evaluations even if parquets exist")
-    parser.add_argument("--output-dir", default="eval_results/paper_metrics",
+    parser.add_argument("--output-dir", default="results/paper_metrics",
                         help="Output directory for CSV/JSON results")
     parser.add_argument("--temporal-holdout", action="store_true",
-                        help="Restrict test points to 2019-01-01 and later (temporal holdout). "
-                             "Output goes to eval_results/paper_metrics_temporal/. "
-                             "Provides an unbiased generalization estimate: no tuning decisions "
-                             "informed by post-2019 data.")
+                        help="Restrict test points to the temporal holdout (dates on or after "
+                             "config.TEMPORAL_HOLDOUT_CUTOFF, 2022-01-01). "
+                             "Output goes to results/paper_metrics_temporal/.")
     args = parser.parse_args()
 
     seed = args.seed
@@ -542,16 +440,16 @@ def main():
 
     # Temporal holdout: override output dir and retro dir to avoid overwriting standard results
     if temporal_holdout:
-        holdout_cutoff = getattr(__import__("config"), "TEMPORAL_HOLDOUT_CUTOFF", "2019-01-01")
+        holdout_cutoff = __import__("config").TEMPORAL_HOLDOUT_CUTOFF
         output_dir = args.output_dir.replace("paper_metrics", "paper_metrics_temporal") \
-            if args.output_dir == "eval_results/paper_metrics" else args.output_dir + "_temporal"
+            if args.output_dir == "results/paper_metrics" else args.output_dir + "_temporal"
         seed_suffix = f"_seed{seed}" if seed != 42 else ""
-        retro_dir = os.path.join("eval_results", f"retro{seed_suffix}_temporal")
+        retro_dir = os.path.join("results", f"retro{seed_suffix}_temporal")
     else:
         holdout_cutoff = None
         output_dir = args.output_dir
         seed_suffix = f"_seed{seed}" if seed != 42 else ""
-        retro_dir = os.path.join("eval_results", f"retro{seed_suffix}")
+        retro_dir = os.path.join("results", f"retro{seed_suffix}")
 
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(retro_dir, exist_ok=True)
@@ -733,11 +631,11 @@ def main():
     print(f"  manual  R²={manual_metrics['r2']:.4f}  MAE={manual_metrics['mae']:.3f}  "
           f"RMSE={manual_metrics['rmse']:.3f}")
 
-    # Check for alternative weight strategies in eval_results/
+    # Check for alternative weight strategies in results/
     alt_candidates = []
-    for fname in sorted(os.listdir("eval_results")) if os.path.isdir("eval_results") else []:
+    for fname in sorted(os.listdir("results")) if os.path.isdir("results") else []:
         if fname.startswith("retro") and fname != f"retro{seed_suffix}":
-            alt_dir = os.path.join("eval_results", fname)
+            alt_dir = os.path.join("results", fname)
             alt_path = os.path.join(alt_dir, "retro_regression_xgb.parquet")
             if os.path.exists(alt_path):
                 alt_candidates.append((fname, alt_path))
@@ -822,8 +720,8 @@ def main():
             "bootstrap_b_ci": 2000,
             "bootstrap_b_delta": 10000,
             "bootstrap_rng_seed": 42,
-            "da_category_thresholds": {"Low": "<5", "Moderate": "5-20",
-                                        "High": "20-40", "Extreme": ">=40"},
+            "da_category_thresholds": {"Low": "<5", "Moderate": "5 to <20",
+                                        "High": "20 to <40", "Extreme": ">=40"},
             "evaluation_mode": f"temporal_holdout_{holdout_cutoff}" if temporal_holdout else "standard",
         },
         "table1_model_comparison": _df_to_records(table1_df),

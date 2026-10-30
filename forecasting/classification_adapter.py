@@ -52,22 +52,22 @@ class ClassificationAdapter:
         """
         Map a continuous DA prediction to a risk category.
 
-        Uses ``config.DA_CATEGORY_BINS`` for the cut points:
-          0 – 5   → 0 (Low)
-          5 – 20  → 1 (Moderate)
-          20 – 40 → 2 (High)
-          40+     → 3 (Extreme)
+        Uses ``config.DA_CATEGORY_BINS`` as left-closed intervals:
+          [0, 5)   → 0 (Low)
+          [5, 20)  → 1 (Moderate)
+          [20, 40) → 2 (High)
+          [40, ∞)  → 3 (Extreme)
         """
         result = pd.cut(
             [da_value],
             bins=self.bins,
-            labels=self.labels,
+            labels=self.labels, right=False,
         )
         return int(result[0])
 
     def threshold_classify_series(self, da_values: pd.Series) -> pd.Series:
         """Vectorised threshold classification for a column of DA values."""
-        return pd.cut(da_values, bins=self.bins, labels=self.labels).astype(int)
+        return pd.cut(da_values, bins=self.bins, labels=self.labels, right=False).astype(int)
 
     # ------------------------------------------------------------------
     # 2. Dedicated XGBoost classifier
@@ -102,7 +102,7 @@ class ClassificationAdapter:
         y_categories = pd.cut(
             y_da_raw,
             bins=self.bins,
-            labels=self.labels,
+            labels=self.labels, right=False,
         ).astype(int)
 
         unique_classes = np.unique(y_categories)
@@ -219,7 +219,7 @@ class ClassificationAdapter:
         spike_params = dict(config.SPIKE_CLASSIFIER_PARAMS)
         model = XGBClassifier(
             **spike_params,
-            random_state=config.RANDOM_SEED,
+            random_state=config.MODEL_SEED,
             verbosity=0,
             use_label_encoder=False,
         )

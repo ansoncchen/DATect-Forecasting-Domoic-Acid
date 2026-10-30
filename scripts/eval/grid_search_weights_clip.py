@@ -40,11 +40,12 @@ import argparse
 import itertools
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
+
+from _subprocess import last_json_line, run_python
 
 try:
     from _repo import ensure_repo_root
@@ -90,12 +91,11 @@ fold_start = pd.Timestamp(os.environ["FOLD_START"])
 fold_end   = pd.Timestamp(os.environ["FOLD_END"])
 
 engine = RawForecastEngine(validate_on_init=False)
-# Only evaluate within this fold's test window — saves compute by skipping
-# years we don't score. (Inner per-anchor tuning stays at whatever the env says.)
+# The engine evaluates every sampled date >= config.MIN_TEST_DATE; the fold is
+# scored on [fold_start, fold_end) below. (Inner per-anchor tuning stays at
+# whatever the env says.)
 results_df = engine.run_retrospective_evaluation(
     task="regression", model_type="ensemble",
-    n_anchors=getattr(config, "N_RANDOM_ANCHORS", 500),
-    min_test_date=fold_start.strftime("%Y-%m-%d"),
 )
 if results_df is None or results_df.empty:
     print(json.dumps({"r2": -999.0, "mae": 999.0, "n": 0}))
@@ -123,25 +123,17 @@ def evaluate_config_fold(site: str, params: dict, fold_start: str, fold_end: str
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump({site: params}, f)
         json_path = f.name
+    failed = {"r2": -999.0, "mae": 999.0, "n": 0}
     try:
-        env = os.environ.copy()
-        env["DATECT_HPARAM_OVERRIDE_JSON"] = json_path
-        env["DATECT_MIN_TRAINING_FOR_TUNING"] = "99999"  # skip inner tuning
-        env["GRID_SITE"] = site
-        env["FOLD_START"] = fold_start
-        env["FOLD_END"] = fold_end
-        result = subprocess.run(
-            [sys.executable, "-c", SUBPROCESS_SCRIPT],
-            env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=timeout,
-        )
+        result = run_python(SUBPROCESS_SCRIPT, {
+            "DATECT_HPARAM_OVERRIDE_JSON": json_path,
+            "GRID_SITE": site,
+            "FOLD_START": fold_start,
+            "FOLD_END": fold_end,
+        }, timeout=timeout, show_stderr=False)
         if result.returncode != 0:
-            return {"r2": -999.0, "mae": 999.0, "n": 0}
-        for line in reversed(result.stdout.strip().split("\n")):
-            line = line.strip()
-            if line.startswith("{"):
-                return json.loads(line)
-        return {"r2": -999.0, "mae": 999.0, "n": 0}
+            return failed
+        return last_json_line(result.stdout) or failed
     finally:
         os.unlink(json_path)
 
@@ -226,7 +218,7 @@ def grid_search_one_site(site: str, out_dir: Path) -> None:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--site", type=str, default=None)
-    p.add_argument("--out-dir", type=str, default="grid_search_results")
+    p.add_argument("--out-dir", type=str, default="results/tuning_provenance/grid_search_results")
     args = p.parse_args()
     if args.site is None:
         idx = int(os.environ.get("SLURM_ARRAY_TASK_ID", "0"))

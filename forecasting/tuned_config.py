@@ -11,7 +11,6 @@ are still applied on top of the JSON values by the respective consumers.
 from __future__ import annotations
 
 import json
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict
@@ -46,11 +45,6 @@ def get_per_site() -> Dict[str, Dict[str, Any]]:
 def get_global() -> Dict[str, Any]:
     """Global tunable config block (XGB defaults, spike thresholds, etc.)."""
     return load_tuned()["global"]
-
-
-def get_provenance() -> Dict[str, str]:
-    """How each tunable group was selected — for paper Methods sections."""
-    return load_tuned().get("provenance", {})
 
 
 def get_eval_windows() -> Dict[str, str]:

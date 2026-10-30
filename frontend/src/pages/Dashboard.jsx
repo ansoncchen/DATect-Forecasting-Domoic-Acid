@@ -2,11 +2,18 @@ import React, { useState, useEffect } from 'react'
 import { Calendar, MapPin, Cpu, AlertTriangle, Settings, Play, BarChart3, TrendingUp, Clock, Download, Info } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import Select from 'react-select'
-import Plot from 'react-plotly.js'
+import Plot from '../utils/Plot'
 import { format, subDays } from 'date-fns'
 import api from '../services/api'
 import { plotConfig, getPlotFilename } from '../utils/plotConfig'
-import { getSiteColor } from '../utils/constants'
+import {
+  buildRetrospectiveScatter,
+  buildRetrospectiveTimeSeries,
+  calculateClassificationMetrics,
+  calculateRegressionMetrics,
+  exportResultsCSV,
+  parsePlotlyJson,
+} from '../utils/retrospective'
 import 'react-datepicker/dist/react-datepicker.css'
 
 const Dashboard = () => {
@@ -14,8 +21,8 @@ const Dashboard = () => {
   
   const [config, setConfig] = useState({
     forecast_mode: 'realtime',
-    forecast_task: 'regression', 
-    forecast_model: 'xgboost',
+    forecast_task: 'regression',
+    forecast_model: 'ensemble',
     selected_sites: []
   })
   const [configLoading, setConfigLoading] = useState(false)
@@ -23,6 +30,8 @@ const Dashboard = () => {
   const [sites, setSites] = useState([])
   const [models, setModels] = useState({ regression: [], classification: [] })
   const [dateRange, setDateRange] = useState({ min: null, max: null })
+  // Headline holdout metrics from the latest committed evaluation (/api/metrics/summary)
+  const [metricsSummary, setMetricsSummary] = useState(null)
   
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedSite, setSelectedSite] = useState(null)
@@ -35,40 +44,6 @@ const Dashboard = () => {
   const [selectedSiteFilter, setSelectedSiteFilter] = useState('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-
-  const exportResultsCSV = (filtered, siteFilter, task) => {
-    if (!filtered?.results?.length) return
-    const rows = filtered.results
-    // Build union of all keys we want, in a stable order
-    const baseCols = ['date', 'site', 'predicted_da', 'actual_da', 'predicted_category',
-                      'actual_category', 'spike_alert', 'spike_probability',
-                      'forecast_window']
-    const cols = baseCols.filter(c => rows.some(r => r[c] !== undefined))
-    const esc = v => v === null || v === undefined ? ''
-      : (typeof v === 'string' && (v.includes(',') || v.includes('"')))
-        ? `"${v.replace(/"/g, '""')}"`
-        : String(v)
-    const csv = [cols.join(','), ...rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    const ts = new Date().toISOString().slice(0, 10)
-    a.href = url
-    a.download = `datect_${task || 'results'}_${siteFilter || 'all'}_${ts}.csv`
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
-  const parsePlotlyJson = (plotJson) => {
-    if (!plotJson) return null
-    if (typeof plotJson === 'object') return plotJson
-    try {
-      return JSON.parse(plotJson)
-    } catch (err) {
-      console.warn('Failed to parse plot JSON', err)
-      return null
-    }
-  }
 
   useEffect(() => {
     loadInitialData()
@@ -98,6 +73,13 @@ const Dashboard = () => {
     } catch (err) {
       setError('Failed to load initial data')
     }
+    try {
+      const summaryRes = await api.get('/api/metrics/summary')
+      setMetricsSummary(summaryRes.data)
+    } catch (err) {
+      // Optional: the dashboard works without headline metrics
+      console.warn('Metrics summary unavailable:', err.message)
+    }
   }
 
   const loadConfig = async () => {
@@ -124,145 +106,20 @@ const Dashboard = () => {
 
     setConfigLoading(true)
     setError(null)
-    
+
+    // Settings travel with each request; the server holds no per-user state.
+    setTask(config.forecast_task)
+    setSelectedModel(config.forecast_model)
     try {
-      const response = await api.post('/api/config', config)
-      if (response.data.success) {
-        // Update local state
-        setTask(config.forecast_task)
-        setSelectedModel(config.forecast_model)
-        
-        // Move to next step based on mode
-        if (config.forecast_mode === 'realtime') {
-          setCurrentStep('realtime')
-        } else {
-          // Start retrospective analysis immediately
-          setCurrentStep('retrospective')
-          await runRetrospectiveAnalysis()
-        }
+      if (config.forecast_mode === 'realtime') {
+        setCurrentStep('realtime')
+      } else {
+        // Start retrospective analysis immediately
+        setCurrentStep('retrospective')
+        await runRetrospectiveAnalysis()
       }
-    } catch (err) {
-      setError('Failed to update configuration')
     } finally {
       setConfigLoading(false)
-    }
-  }
-
-  const calculateClassificationMetrics = (results) => {
-    const validClassification = results.filter(r => 
-      r.actual_category !== null && r.actual_category !== undefined &&
-      r.predicted_category !== null && r.predicted_category !== undefined
-    )
-    
-    if (validClassification.length === 0) return {}
-    
-    const correctPredictions = validClassification.filter(r => 
-      r.actual_category === r.predicted_category
-    ).length
-    const accuracy = correctPredictions / validClassification.length
-    
-    const classes = [0, 1, 2, 3]
-    const classNames = ['Low', 'Moderate', 'High', 'Extreme']
-    let balancedAccSum = 0
-    let validClasses = 0
-    const perClassMetrics = {}
-    
-    classes.forEach((cls, idx) => {
-      const actualInClass = validClassification.filter(r => r.actual_category === cls)
-      const predictedInClass = validClassification.filter(r => r.predicted_category === cls)
-      const truePositives = validClassification.filter(r => 
-        r.actual_category === cls && r.predicted_category === cls
-      ).length
-      
-      if (actualInClass.length > 0) {
-        const recall = truePositives / actualInClass.length
-        const precision = predictedInClass.length > 0 ? truePositives / predictedInClass.length : 0
-        const f1 = (precision + recall) > 0 ? 2 * (precision * recall) / (precision + recall) : 0
-        
-        balancedAccSum += recall
-        validClasses += 1
-        
-        perClassMetrics[classNames[idx]] = {
-          recall, precision, f1,
-          support: actualInClass.length
-        }
-      }
-    })
-    
-    const balancedAccuracy = validClasses > 0 ? balancedAccSum / validClasses : 0
-    
-    return {
-      classification_forecasts: validClassification.length,
-      accuracy,
-      balanced_accuracy: balancedAccuracy,
-      per_class_metrics: perClassMetrics
-    }
-  }
-
-  const calculateRegressionMetrics = (results) => {
-    const validRegression = results.filter(r => 
-      r.actual_da !== null && r.predicted_da !== null
-    )
-    
-    if (validRegression.length === 0) return {}
-    
-    const actuals = validRegression.map(r => r.actual_da)
-    const predictions = validRegression.map(r => r.predicted_da)
-    
-    // R2 calculation
-    const meanActual = actuals.reduce((a, b) => a + b, 0) / actuals.length
-    const ssTotal = actuals.reduce((sum, val) => sum + Math.pow(val - meanActual, 2), 0)
-    const ssResidual = actuals.reduce((sum, val, i) => 
-      sum + Math.pow(val - predictions[i], 2), 0
-    )
-    const r2 = 1 - (ssResidual / ssTotal)
-    
-    // MAE calculation
-    const mae = actuals.reduce((sum, val, i) => 
-      sum + Math.abs(val - predictions[i]), 0
-    ) / actuals.length
-    
-    // Spike detection metrics — match backend thresholds:
-    //   actual > 20 µg/g (SPIKE_THRESHOLD)
-    //   predicted > 12 µg/g (SPIKE_REGRESSION_ALERT_THRESHOLD)
-    const SPIKE_ACTUAL = 20
-    const SPIKE_PREDICTED = 12
-    const actualSpikes = actuals.map(val => val > SPIKE_ACTUAL ? 1 : 0)
-    const predictedSpikes = predictions.map(val => val > SPIKE_PREDICTED ? 1 : 0)
-
-    const truePositives = actualSpikes.reduce((sum, actual, i) =>
-      sum + (actual === 1 && predictedSpikes[i] === 1 ? 1 : 0), 0
-    )
-    const falsePositives = actualSpikes.reduce((sum, actual, i) =>
-      sum + (actual === 0 && predictedSpikes[i] === 1 ? 1 : 0), 0
-    )
-    const falseNegatives = actualSpikes.reduce((sum, actual, i) =>
-      sum + (actual === 1 && predictedSpikes[i] === 0 ? 1 : 0), 0
-    )
-
-    const nSpikeEvents = actualSpikes.reduce((a, b) => a + b, 0)
-    const nAlerts = predictedSpikes.reduce((a, b) => a + b, 0)
-    const precision = truePositives + falsePositives > 0 ? truePositives / (truePositives + falsePositives) : 0
-    const recall = truePositives + falseNegatives > 0 ? truePositives / (truePositives + falseNegatives) : 0
-    const f1Score = precision + recall > 0 ? 2 * (precision * recall) / (precision + recall) : 0
-    // F2 weights recall 4x precision (matches backend fbeta_score(beta=2.0))
-    const f2Score = precision + recall > 0
-      ? (5 * precision * recall) / (4 * precision + recall)
-      : 0
-
-    return {
-      regression_forecasts: validRegression.length,
-      r2_score: r2,
-      mae,
-      f1_score: f1Score,
-      // New per-filter spike metrics (override pooled server values)
-      spike_recall: recall,
-      spike_precision: precision,
-      spike_f2: f2Score,
-      n_spike_events: nSpikeEvents,
-      n_alerts_fired: nAlerts,
-      spike_threshold_actual: SPIKE_ACTUAL,
-      spike_threshold_predicted: SPIKE_PREDICTED,
     }
   }
 
@@ -301,7 +158,9 @@ const Dashboard = () => {
     
     try {
       const response = await api.post('/api/retrospective', {
-        selected_sites: config.selected_sites
+        selected_sites: config.selected_sites,
+        task: config.forecast_task,
+        model: config.forecast_model
       })
       
       setRetrospectiveResults(response.data)
@@ -349,367 +208,6 @@ const Dashboard = () => {
   }
 
   // Create retrospective time series graph
-  const createRetrospectiveTimeSeries = () => {
-    if (!filteredResults?.results) return null
-
-    const results = filteredResults.results
-    const isClassification = config.forecast_task === 'classification'
-    
-    // Group by site for better visualization
-    const sites = [...new Set(results.map(r => r.site))] // Show all sites
-    const isSingleSite = sites.length === 1
-    
-    const traces = []
-    
-    if (isClassification) {
-      // Classification time series
-      sites.forEach((site, siteIndex) => {
-        const siteData = results
-          .filter(r => r.site === site && r.actual_category !== null && r.actual_category !== undefined && 
-                       r.predicted_category !== null && r.predicted_category !== undefined)
-          .sort((a, b) => new Date(a.date) - new Date(b.date))
-        
-        if (siteData.length === 0) return
-        
-        const siteColor = getSiteColor(siteIndex)
-        
-        // Color logic: single site = blue/red, multiple sites = site-specific colors
-        const actualColor = isSingleSite ? 'blue' : siteColor
-        const predictedColor = isSingleSite ? 'red' : siteColor
-        
-        // Actual categories
-        traces.push({
-          x: siteData.map(d => d.date),
-          y: siteData.map(d => d.actual_category),
-          mode: 'lines+markers',
-          name: `${site} - Actual Category`,
-          line: { color: actualColor, width: 2 },
-          marker: { size: 6 },
-          hovertemplate: '<b>%{text}</b><br>Date: %{x}<br>Actual Category: %{customdata}<extra></extra>',
-          text: siteData.map(d => site),
-          customdata: siteData.map(d => {
-            const categories = ['Low', 'Moderate', 'High', 'Extreme']
-            return categories[d.actual_category] || `Category ${d.actual_category}`
-          })
-        })
-        
-        // Predicted categories
-        traces.push({
-          x: siteData.map(d => d.date),
-          y: siteData.map(d => d.predicted_category),
-          mode: 'lines+markers',
-          name: `${site} - Predicted Category`,
-          line: { color: predictedColor, width: 2, dash: 'dash' },
-          marker: { size: 6, symbol: 'square' },
-          hovertemplate: '<b>%{text}</b><br>Date: %{x}<br>Predicted Category: %{customdata}<extra></extra>',
-          text: siteData.map(d => site),
-          customdata: siteData.map(d => {
-            const categories = ['Low', 'Moderate', 'High', 'Extreme']
-            return categories[d.predicted_category] || `Category ${d.predicted_category}`
-          })
-        })
-      })
-      
-      return {
-        data: traces,
-        layout: {
-          title: `DA Category Forecasting Results - ${config.forecast_model} Classification`,
-          xaxis: { title: 'Date' },
-          yaxis: { 
-            title: 'DA Risk Category',
-            tickmode: 'array',
-            tickvals: [0, 1, 2, 3],
-            ticktext: ['Low', 'Moderate', 'High', 'Extreme'],
-            range: [-0.5, 3.5]
-          },
-          height: 500,
-          hovermode: 'closest'
-        }
-      }
-    } else {
-      // Regression time series (existing code)
-      sites.forEach((site, siteIndex) => {
-        const siteData = results
-          .filter(r => r.site === site && r.actual_da !== null && r.predicted_da !== null)
-          .sort((a, b) => new Date(a.date) - new Date(b.date))
-        
-        if (siteData.length === 0) return
-        
-        const siteColor = getSiteColor(siteIndex)
-        
-        // Color logic: single site = blue/red, multiple sites = site-specific colors
-        const actualColor = isSingleSite ? 'blue' : siteColor
-        const predictedColor = isSingleSite ? 'red' : siteColor
-        
-        // Actual values
-        traces.push({
-          x: siteData.map(d => d.date),
-          y: siteData.map(d => d.actual_da),
-          mode: 'lines+markers',
-          name: `${site} - Actual`,
-          line: { color: actualColor, width: 2 },
-          marker: { size: 4 }
-        })
-        
-        // Predicted values
-        traces.push({
-          x: siteData.map(d => d.date),
-          y: siteData.map(d => d.predicted_da),
-          mode: 'lines+markers',
-          name: `${site} - Predicted`,
-          line: { color: predictedColor, width: 2, dash: 'dash' },
-          marker: { size: 4, symbol: 'square' }
-        })
-
-        // Spike alert markers (where classifier flagged spike risk)
-        const spikeAlerts = siteData.filter(d => d.spike_alert === true)
-        if (spikeAlerts.length > 0) {
-          traces.push({
-            x: spikeAlerts.map(d => d.date),
-            y: spikeAlerts.map(d => d.predicted_da),
-            mode: 'markers',
-            name: `${site} - Spike Alert`,
-            marker: {
-              size: 12,
-              symbol: 'triangle-up',
-              color: 'rgba(220, 38, 38, 0.8)',
-              line: { color: 'darkred', width: 1 }
-            },
-            text: spikeAlerts.map(d => `Spike prob: ${(d.spike_probability * 100).toFixed(1)}%`),
-            hovertemplate: '%{text}<br>Predicted: %{y:.1f} μg/g<br>Date: %{x}<extra></extra>'
-          })
-        }
-      })
-
-      // Regulatory threshold line at DA = 20
-      traces.push({
-        x: [results[0]?.date, results[results.length - 1]?.date],
-        y: [20, 20],
-        mode: 'lines',
-        name: 'Regulatory Threshold (20 μg/g)',
-        line: { color: 'rgba(220, 38, 38, 0.4)', width: 2, dash: 'dot' },
-        hoverinfo: 'skip'
-      })
-
-      return {
-        data: traces,
-        layout: {
-          title: `Retrospective Analysis: Actual vs Predicted DA Concentrations (${config.forecast_task})`,
-          xaxis: { title: 'Date' },
-          yaxis: { title: 'DA Concentration (μg/g)' },
-          height: 500,
-          hovermode: 'closest'
-        }
-      }
-    }
-  }
-
-  // Create scatter plot for retrospective results
-  const createRetrospectiveScatter = () => {
-    if (!filteredResults?.results) return null
-    
-    const isClassification = config.forecast_task === 'classification'
-    
-    if (isClassification) {
-      // Classification scatter plot (confusion matrix style)
-      const validData = filteredResults.results.filter(r => 
-        r.actual_category !== null && r.actual_category !== undefined &&
-        r.predicted_category !== null && r.predicted_category !== undefined
-      )
-      
-      if (validData.length === 0) return null
-      
-      // Calculate accuracy
-      const correctPredictions = validData.filter(d => d.actual_category === d.predicted_category).length
-      const accuracy = correctPredictions / validData.length
-      
-      // Add jitter to see overlapping points better
-      const jitterStrength = 0.1
-      const jitteredData = validData.map(d => ({
-        ...d,
-        x_jitter: d.actual_category + (Math.random() - 0.5) * jitterStrength * 2,
-        y_jitter: d.predicted_category + (Math.random() - 0.5) * jitterStrength * 2
-      }))
-      
-      // Group by site for colors
-      const siteGroups = {}
-      jitteredData.forEach(d => {
-        if (!siteGroups[d.site]) {
-          siteGroups[d.site] = []
-        }
-        siteGroups[d.site].push(d)
-      })
-      
-      const traces = []
-      
-      // Add diagonal reference line for perfect predictions
-      traces.push({
-        x: [-0.5, 3.5],
-        y: [-0.5, 3.5],
-        mode: 'lines',
-        line: { color: 'red', width: 2, dash: 'dash' },
-        name: 'Perfect Prediction',
-        hoverinfo: 'skip'
-      })
-      
-      // Add scatter points for each site
-      Object.entries(siteGroups).forEach(([site, data], index) => {
-        traces.push({
-          x: data.map(d => d.x_jitter),
-          y: data.map(d => d.y_jitter),
-          mode: 'markers',
-          type: 'scatter',
-          name: site,
-          marker: { 
-            color: getSiteColor(index),
-            size: 8,
-            opacity: 0.6
-          },
-          hovertemplate: '<b>%{text}</b><br>Actual Category: %{customdata[0]}<br>Predicted Category: %{customdata[1]}<extra></extra>',
-          text: data.map(d => `${d.site}<br>${d.date}`),
-          customdata: data.map(d => {
-            const categories = ['Low', 'Moderate', 'High', 'Extreme']
-            return [
-              categories[d.actual_category] || `Category ${d.actual_category}`,
-              categories[d.predicted_category] || `Category ${d.predicted_category}`
-            ]
-          })
-        })
-      })
-      
-      return {
-        data: traces,
-        layout: {
-          title: `Actual vs Predicted Category - ${config.forecast_model} (Accuracy = ${(accuracy * 100).toFixed(1)}%)`,
-          xaxis: {
-            title: 'Actual DA Category',
-            tickmode: 'array',
-            tickvals: [0, 1, 2, 3],
-            ticktext: ['Low', 'Moderate', 'High', 'Extreme'],
-            range: [-0.5, 3.5]
-          },
-          yaxis: {
-            title: 'Predicted DA Category',
-            tickmode: 'array',
-            tickvals: [0, 1, 2, 3],
-            ticktext: ['Low', 'Moderate', 'High', 'Extreme'],
-            range: [-0.5, 3.5]
-          },
-          height: 500,
-          showlegend: true,
-          legend: { 
-            x: 0.02, 
-            y: 0.98,
-            bgcolor: 'rgba(255,255,255,0.8)'
-          }
-        }
-      }
-    } else {
-      // Regression scatter plot (existing code)
-      const validData = filteredResults.results.filter(r => 
-        r.actual_da !== null && r.predicted_da !== null
-      )
-
-      if (validData.length === 0) return null
-
-      // Calculate range for diagonal line
-      const allValues = [...validData.map(d => d.actual_da), ...validData.map(d => d.predicted_da)]
-      const minVal = Math.min(...allValues)
-      const maxVal = Math.max(...allValues)
-      const range = [Math.max(0, minVal - 0.1), maxVal + 0.1]
-
-      // Group by TIME WINDOW (not site) so users see which dots are the
-      // unbiased 2022-2023 holdout vs training-period predictions.
-      // Site stays in hover text.
-      const windowOf = (dateStr) => {
-        const d = new Date(dateStr)
-        if (d < new Date('2019-01-01')) return 'pre-2019 (training context)'
-        if (d < new Date('2022-01-01')) return 'val 2019-2022 (tuning)'
-        return 'holdout 2022-2023 (untouched)'
-      }
-      const windowColor = {
-        'pre-2019 (training context)':  '#94a3b8',  // gray
-        'val 2019-2022 (tuning)':       '#fbbf24',  // amber
-        'holdout 2022-2023 (untouched)':'#10b981',  // green
-      }
-      const windowGroups = {}
-      validData.forEach(d => {
-        const w = windowOf(d.date)
-        if (!windowGroups[w]) windowGroups[w] = []
-        windowGroups[w].push(d)
-      })
-
-      const traces = []
-
-      // Add diagonal reference line
-      traces.push({
-        x: range,
-        y: range,
-        mode: 'lines',
-        line: { color: 'red', width: 2, dash: 'dash' },
-        name: 'Perfect Prediction',
-        hovertemplate: 'Perfect prediction line<extra></extra>'
-      })
-      // Add regulatory + alert threshold lines (operational reference)
-      traces.push({
-        x: [20, 20], y: range, mode: 'lines',
-        line: { color: '#ef4444', width: 1, dash: 'dot' },
-        name: 'Spike threshold (actual >20)',
-        hoverinfo: 'skip'
-      })
-      traces.push({
-        x: range, y: [12, 12], mode: 'lines',
-        line: { color: '#f59e0b', width: 1, dash: 'dot' },
-        name: 'Alert threshold (predicted >12)',
-        hoverinfo: 'skip'
-      })
-
-      // Add scatter points colored by time window (preserves site in hover)
-      const orderedWindows = ['pre-2019 (training context)', 'val 2019-2022 (tuning)', 'holdout 2022-2023 (untouched)']
-      orderedWindows.forEach(window => {
-        const data = windowGroups[window]
-        if (!data || data.length === 0) return
-        traces.push({
-          x: data.map(d => d.actual_da),
-          y: data.map(d => d.predicted_da),
-          mode: 'markers',
-          type: 'scatter',
-          name: `${window} (n=${data.length})`,
-          marker: {
-            color: windowColor[window],
-            size: 8,
-            opacity: window.startsWith('holdout') ? 0.85 : 0.45,
-            line: window.startsWith('holdout') ? { color: '#047857', width: 1 } : undefined,
-          },
-          text: data.map(d => `${d.site}<br>${d.date}`),
-          hovertemplate: '%{text}<br>Actual: %{x:.2f} μg/g<br>Predicted: %{y:.2f} μg/g<extra></extra>'
-        })
-      })
-
-      return {
-        data: traces,
-        layout: {
-          title: 'Model Performance: Actual vs Predicted DA Concentrations',
-          xaxis: { 
-            title: 'Actual DA Concentration (μg/g)',
-            range: range
-          },
-          yaxis: { 
-            title: 'Predicted DA Concentration (μg/g)',
-            range: range
-          },
-          height: 500,
-          showlegend: true,
-          legend: { 
-            x: 0.02, 
-            y: 0.98,
-            bgcolor: 'rgba(255,255,255,0.8)'
-          }
-        }
-      }
-    }
-  }
-
   // Render different steps
   const renderConfigStep = () => (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -1192,7 +690,7 @@ const Dashboard = () => {
 
                         return {
                           title: "DA Level Forecast with Bootstrap Confidence Intervals",
-                          xaxis: { title: "DA Level (μg/L)", range: [xMin, xMax] },
+                          xaxis: { title: "DA Level (μg/g)", range: [xMin, xMax] },
                           yaxis: { visible: false, range: [0, 1] },
                           showlegend: true,
                           height: 350,
@@ -1212,7 +710,7 @@ const Dashboard = () => {
                 <div>
                   <Plot
                     data={[{
-                      x: forecast.graphs.category_range.category_labels || ['Low (≤5)', 'Moderate (5-20]', 'High (20-40]', 'Extreme (>40)'],
+                      x: forecast.graphs.category_range.category_labels || ['Low (<5)', 'Moderate (5–<20)', 'High (20–<40)', 'Extreme (≥40)'],
                       y: forecast.graphs.category_range.class_probabilities || [0, 0, 0, 0],
                       type: 'bar',
                       marker: {
@@ -1286,8 +784,8 @@ const Dashboard = () => {
   )
 
   const renderRetrospectiveResults = () => {
-    const timeSeriesData = createRetrospectiveTimeSeries()
-    const scatterData = createRetrospectiveScatter()
+    const timeSeriesData = buildRetrospectiveTimeSeries(filteredResults, config)
+    const scatterData = buildRetrospectiveScatter(filteredResults, config)
     
     return (
       <div className="max-w-7xl mx-auto space-y-6">
@@ -1323,21 +821,16 @@ const Dashboard = () => {
             >
               <option value="all">All Sites</option>
               {sites.map(site => {
-                // Quality tier from deterministic 2022-2023 holdout
-                // (eval_outputs/chronological_regression_ensemble_*.json).
-                // Per-site R² uses N≈40 per site (all real DA, no sampling).
-                const qualityTier = {
-                  'Twin Harbors':   '🟢',   // R² 0.633 [0.327, 0.798]
-                  'Coos Bay':       '🟢',   // R² 0.630 [0.451, 0.863]
-                  'Copalis':        '🟢',   // R² 0.598 [0.358, 0.777]
-                  'Quinault':       '🟢',   // R² 0.549 [0.237, 0.750]
-                  'Long Beach':     '🟢',   // R² 0.531 [0.219, 0.842]
-                  'Clatsop Beach':  '🟢',   // R² 0.515 [0.325, 0.700]
-                  'Kalaloch':       '🟢',   // R² 0.493 [0.225, 0.694]
-                  'Newport':        '🟡',   // R² 0.170 [-0.321, 0.393] — modest
-                  'Gold Beach':     '🔴',   // R² -0.235 [-12.1, 0.181] — genuine failure
-                  'Cannon Beach':   '⚪',   // No spike events in holdout window
-                }[site] || ''
+                // Quality tier from each site's deterministic holdout R²
+                // (all real DA in the window, no sampling; /api/metrics/summary)
+                const siteMetrics = metricsSummary?.per_site?.[site]
+                let qualityTier = ''
+                if (metricsSummary) {
+                  if (!siteMetrics) qualityTier = '⚪'  // too few holdout measurements to score
+                  else if (siteMetrics.r2[0] >= 0.4) qualityTier = '🟢'
+                  else if (siteMetrics.r2[0] >= 0) qualityTier = '🟡'
+                  else qualityTier = '🔴'
+                }
                 return (
                   <option key={site} value={site}>
                     {qualityTier} {site}
@@ -1414,9 +907,15 @@ const Dashboard = () => {
                     <div><span className="text-yellow-300">Validation:</span> 2019–2022 (used by tuning)</div>
                     <div><span className="text-green-300">Holdout:</span> 2022–2023 (never seen by tuning)</div>
                   </div>
-                  <div className="mt-2 text-gray-300 italic">
-                    Headline holdout R² = <span className="text-green-300 font-semibold">0.485</span> [0.330, 0.604] (deterministic, all real DA, N=404); 5-seed bootstrap confirmation 0.433 ± 0.092. Pooled R² shown above mixes all windows. Filter by year/site for holdout-only view.
-                  </div>
+                  {metricsSummary && (
+                    <div className="mt-2 text-gray-300 italic">
+                      Headline holdout R² = <span className="text-green-300 font-semibold">{metricsSummary.overall.r2[0].toFixed(3)}</span>{' '}
+                      [{metricsSummary.overall.r2[1].toFixed(3)}, {metricsSummary.overall.r2[2].toFixed(3)}] (deterministic, all real DA, N={metricsSummary.overall.n})
+                      {metricsSummary.multi_seed?.r2_mean != null && (
+                        <>; {metricsSummary.multi_seed.n_seeds}-seed bootstrap confirmation {metricsSummary.multi_seed.r2_mean.toFixed(3)} ± {metricsSummary.multi_seed.r2_std.toFixed(3)}</>
+                      )}. Pooled R² shown above mixes all windows. Filter by year/site for holdout-only view.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1438,8 +937,8 @@ const Dashboard = () => {
                   {' '}F2 {(filteredResults.summary.spike_f2 ?? 0).toFixed(2)}
                 </div>
                 <div className="text-xs text-gray-400 mt-1">
-                  Regression-only: predicted &gt;{filteredResults.summary.spike_threshold_predicted ?? 12} →
-                  actual &gt;{filteredResults.summary.spike_threshold_actual ?? 20} µg/g
+                  Regression-only: predicted ≥{filteredResults.summary.spike_threshold_predicted ?? 12} →
+                  actual ≥{filteredResults.summary.spike_threshold_actual ?? 20} µg/g
                 </div>
               </div>
             )}
@@ -1568,7 +1067,7 @@ const Dashboard = () => {
                 <ul className="text-sm space-y-2 text-gray-700">
                   <li>• Points closer to the diagonal line indicate better predictions</li>
                   <li>• Color represents time window (gray=pre-2019 training context, amber=2019-22 validation, green=2022-24 untouched holdout)</li>
-                  <li>• Red dotted vertical = spike threshold (actual &gt;20 µg/g)</li>
+                  <li>• Red dotted vertical = spike threshold (actual ≥20 µg/g)</li>
                   <li>• Orange dotted horizontal = alert threshold (predicted &gt;12 µg/g)</li>
                   <li>• Quadrants: top-right = caught spikes, bottom-right = MISSED spikes, top-left = false alarms</li>
                 </ul>

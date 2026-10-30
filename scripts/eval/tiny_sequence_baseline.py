@@ -46,9 +46,9 @@ def _select_retrospective_samples(
     """Mirror RawForecastEngine retrospective candidate selection (no model calls)."""
     import config
 
-    min_test_ts = pd.Timestamp(getattr(config, "MIN_TEST_DATE", min_test_date))
+    min_test_ts = pd.Timestamp(config.MIN_TEST_DATE)
     forecast_horizon = config.FORECAST_HORIZON_DAYS
-    history_frac = getattr(config, "HISTORY_REQUIREMENT_FRACTION", 0.33)
+    history_frac = config.HISTORY_REQUIREMENT_FRACTION
 
     candidate_raw = raw_data[raw_data["date"] >= min_test_ts].copy()
     site_total_counts = raw_data.groupby("site")["date"].size().to_dict()
@@ -89,7 +89,7 @@ def _select_retrospective_samples(
         site_df = site_df.sort_values("date")
         n_candidates = len(site_df)
         total_site = site_total_counts.get(site, n_candidates)
-        test_frac = getattr(config, "TEST_SAMPLE_FRACTION", 0.20)
+        test_frac = config.TEST_SAMPLE_FRACTION
         target = min(int(np.ceil(test_frac * total_site)), n_candidates)
         if target <= 0:
             continue
@@ -119,7 +119,7 @@ def _postprocess(
     from forecasting.per_site_models import get_site_clip_params
 
     value = max(0.0, value)
-    clip_q = getattr(config, "PREDICTION_CLIP_Q", 0.99)
+    clip_q = config.PREDICTION_CLIP_Q
     if use_per_site:
         sq, sm = get_site_clip_params(site)
         cq = sq if sq is not None else clip_q
@@ -156,8 +156,8 @@ def _mlp_predict_one(
     site = raw_measurement["site"]
     forecast_horizon = config.FORECAST_HORIZON_DAYS
     anchor_date = test_date - pd.Timedelta(days=forecast_horizon)
-    use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
-    zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
+    use_per_site = config.USE_PER_SITE_MODELS
+    zero_imp = config.ZERO_IMPORTANCE_FEATURES
 
     train_data = get_site_training_frame(
         feature_frame, site, anchor_date, min_training
@@ -243,9 +243,9 @@ def main() -> int:
 
     orig = {
         "seed": cfg.RANDOM_SEED,
-        "frac": getattr(cfg, "TEST_SAMPLE_FRACTION", 0.20),
-        "parallel": getattr(cfg, "ENABLE_PARALLEL", True),
-        "min_date": getattr(cfg, "MIN_TEST_DATE", "2003-01-01"),
+        "frac": cfg.TEST_SAMPLE_FRACTION,
+        "parallel": cfg.ENABLE_PARALLEL,
+        "min_date": cfg.MIN_TEST_DATE,
     }
     cfg.RANDOM_SEED = args.seed
     cfg.TEST_SAMPLE_FRACTION = args.fraction

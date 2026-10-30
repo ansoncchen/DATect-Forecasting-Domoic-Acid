@@ -1,9 +1,10 @@
 """
 OAD (Ocean Anomaly Detection) regional features for DATect.
 
-Joins regional daily anomaly scores produced by the AE_3d_l32_c4_t4_s42_mae050
-masked-autoencoder onto DATect's weekly (Monday) per-site feature rows, plus
-a parallel valid-pixel-fraction signal (cloud-confound mitigation).
+Joins regional daily anomaly scores from an OAD masked-autoencoder checkpoint
+(currently ae_3d_l32_c4_t4_s42_mae070; see scripts/data/export_oad_features.py)
+onto DATect's weekly (Monday) per-site feature rows, plus a parallel
+valid-pixel-fraction signal (cloud-confound mitigation).
 
 Leakage policy
 --------------
@@ -24,7 +25,7 @@ import pandas as pd
 
 LEAK_SHIFT_DAYS = 5
 
-# Exact region-name strings as produced by ocean anomaly detection/src/regions.py
+# Exact region-name strings as produced by oad/src/regions.py
 # (en-dash in "Overall" is intentional; matches the OAD parquet).
 REGION_OLYMPIC = "Olympic Coast (WA)"
 REGION_SW_WA = "SW Washington / Long Beach"

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { MapPin, BarChart3, Activity, Map } from 'lucide-react'
 import Select from 'react-select'
-import Plot from 'react-plotly.js'
+import Plot from '../utils/Plot'
 import api from '../services/api'
 import { plotConfig, getPlotFilename } from '../utils/plotConfig'
 

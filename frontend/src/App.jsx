@@ -1,11 +1,13 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Navigation from './components/Navigation'
 import ErrorBoundary from './components/ErrorBoundary'
-import Dashboard from './pages/Dashboard'
-import Historical from './pages/Historical'
-import About from './pages/About'
 import './App.css'
+
+// Pages load on demand so the About page does not wait for the charting code
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Historical = lazy(() => import('./pages/Historical'))
+const About = lazy(() => import('./pages/About'))
 
 function App() {
   return (
@@ -13,11 +15,13 @@ function App() {
       <Navigation />
       <main className="container mx-auto px-4 py-8">
         <ErrorBoundary>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/historical" element={<Historical />} />
-            <Route path="/about" element={<About />} />
-          </Routes>
+          <Suspense fallback={<div className="text-gray-500">Loading…</div>}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/historical" element={<Historical />} />
+              <Route path="/about" element={<About />} />
+            </Routes>
+          </Suspense>
         </ErrorBoundary>
       </main>
     </div>

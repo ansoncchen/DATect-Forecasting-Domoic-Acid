@@ -52,13 +52,9 @@ class DATectCacheGenerator:
                 from backend.api import get_forecast_engine, clean_for_json, _compute_summary
                 
                 engine = get_forecast_engine()
-                n_anchors = getattr(config, 'N_RANDOM_ANCHORS', 500)
-                
                 results_df = engine.run_retrospective_evaluation(
                     task=task,
                     model_type=model_type,
-                    n_anchors=n_anchors,
-                    min_test_date="2008-01-01"
                 )
                 
                 if results_df is not None and not results_df.empty:
@@ -132,7 +128,6 @@ class DATectCacheGenerator:
         print("Pre-computing spectral analysis...")
         
         data = pd.read_parquet(config.FINAL_OUTPUT_PATH)
-        os.environ['SPECTRAL_ENABLE_XGB'] = '1'
         
         sites = list(data['site'].unique()) + [None]
         
@@ -184,10 +179,9 @@ class DATectCacheGenerator:
             'generated_at': datetime.now().isoformat(),
             'cache_version': '2.0', 
             'config': {
-                'N_RANDOM_ANCHORS': getattr(config, 'N_RANDOM_ANCHORS', 500),
                 'RANDOM_SEED': config.RANDOM_SEED,
                 'FORECAST_HORIZON_DAYS': config.FORECAST_HORIZON_DAYS,
-                'MIN_TRAINING_SAMPLES': getattr(config, 'MIN_TRAINING_SAMPLES', 5)
+                'MIN_TRAINING_SAMPLES': config.MIN_TRAINING_SAMPLES
             },
             'files': {}
         }
@@ -208,8 +202,7 @@ class DATectCacheGenerator:
         """Run all pre-computation tasks."""
         print("Starting DATect cache pre-computation")
         print("=====================================")
-        print(f"Configuration:")
-        print(f"  N_RANDOM_ANCHORS: {getattr(config, 'N_RANDOM_ANCHORS', 500)}")
+        print("Configuration:")
         print(f"  RANDOM_SEED: {config.RANDOM_SEED}")
         print(f"  FORECAST_HORIZON_DAYS: {config.FORECAST_HORIZON_DAYS}")
         print("=====================================")
@@ -233,7 +226,7 @@ class DATectCacheGenerator:
 
 
 def main() -> None:
-    """Entry point for `python precompute_cache.py` and the `datect-cache` console script."""
+    """Entry point for `python precompute_cache.py`."""
     DATectCacheGenerator().run_full_precomputation()
 
 

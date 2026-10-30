@@ -13,15 +13,13 @@ This guards against three failure modes:
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
 
 # Expected per-site grid-winner configs as of the 2026-05-23 leak-free CV.
-# These came directly from eval_outputs/grid_search_results/*_summary.json
+# These came directly from results/tuning_provenance/grid_search_results/*_summary.json
 # and were promoted to config/tuned_hyperparameters.json in commit cdc2a32c.
 # If a future grid search produces different winners, update both this
 # fixture AND the JSON in the same commit.
@@ -53,12 +51,10 @@ def test_grid_winners_match_loaded_json():
             )
 
 
-def test_grid_winners_apply_to_runtime_dict():
+def test_grid_winners_apply_to_runtime_dict(fresh_import):
     """per_site_models.SITE_SPECIFIC_CONFIGS must reflect the JSON winners."""
-    # Force reload to bypass any cached state
-    for mod in list(sys.modules):
-        if "per_site_models" in mod or "tuned_config" in mod:
-            del sys.modules[mod]
+    # Re-import from the JSON to bypass any cached state
+    fresh_import(lambda name: "per_site_models" in name or "tuned_config" in name)
     from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
     for site, expected in EXPECTED_GRID_WINNERS.items():
         cfg = SITE_SPECIFIC_CONFIGS[site]

@@ -18,6 +18,7 @@ import pandas as pd
 import numpy as np
 
 import config
+from .measurements import parse_da_values, parse_dates
 from .raw_data_processor import RawDataProcessor as DataProcessor
 from .logging_config import get_logger
 
@@ -27,7 +28,6 @@ logger = get_logger(__name__)
 @dataclass
 class RawForecastConfig:
     lags: Iterable[int] = None  # Read from config at runtime, not import time
-    max_date_diff_days: int = 14
 
     def __post_init__(self):
         if self.lags is None:
@@ -42,7 +42,10 @@ def load_raw_da_measurements() -> pd.DataFrame:
     """
     Load raw DA measurements from CSVs.
 
-    Returns: DataFrame with columns [date, site, da_raw]
+    Returns: DataFrame with columns [date, site, da_raw], one row per site-day.
+    Several samples on the same site-day (the CSVs record no species or station)
+    collapse to their maximum, matching the weekly MAX aggregation used for
+    training targets here and in dataset-creation.py.
     """
     raw_measurements = []
     for site_key, file_path in config.ORIGINAL_DA_FILES.items():
@@ -75,8 +78,8 @@ def load_raw_da_measurements() -> pd.DataFrame:
             logger.warning("Unknown raw DA schema for %s", file_path)
             continue
 
-        df["date"] = pd.to_datetime(df[date_col], errors="coerce")
-        df["da_raw"] = pd.to_numeric(df[da_col], errors="coerce")
+        df["date"] = parse_dates(df[date_col])
+        df["da_raw"] = parse_da_values(df[da_col])  # "<1" -> LOD/2
         df["site"] = site_name
 
         valid_df = df.dropna(subset=["date", "da_raw"])
@@ -87,8 +90,8 @@ def load_raw_da_measurements() -> pd.DataFrame:
         raise ValueError("No raw DA measurements could be loaded.")
 
     all_raw = pd.concat(raw_measurements, ignore_index=True)
-    all_raw = all_raw.sort_values(["site", "date"]).reset_index(drop=True)
-    return all_raw
+    all_raw = all_raw.groupby(["site", "date"], as_index=False)["da_raw"].max()
+    return all_raw[["date", "site", "da_raw"]]
 
 
 def aggregate_raw_to_weekly(raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -110,12 +113,11 @@ def aggregate_raw_to_weekly(raw_df: pd.DataFrame) -> pd.DataFrame:
 def build_raw_feature_frame(
     processed_data: pd.DataFrame,
     raw_weekly: pd.DataFrame,
-    config_override: Optional[RawForecastConfig] = None,
 ) -> pd.DataFrame:
     """
     Merge raw DA (weekly) into processed environmental features and add raw lags.
     """
-    cfg = config_override or RawForecastConfig()
+    cfg = RawForecastConfig()
     base = processed_data.copy()
     base["date"] = pd.to_datetime(base["date"])
 
@@ -142,7 +144,7 @@ def build_raw_feature_frame(
     merged = merged.sort_values(["site", "date"])
     merged["last_observed_da_raw"] = merged.groupby("site")["da_raw"].ffill()
 
-    last_spike_date = merged["date"].where(merged["da_raw"] > config.SPIKE_THRESHOLD)
+    last_spike_date = merged["date"].where(merged["da_raw"] >= config.SPIKE_THRESHOLD)
     last_spike_date = last_spike_date.groupby(merged["site"]).ffill()
     merged["weeks_since_last_spike"] = (merged["date"] - last_spike_date).dt.days / 7.0
     merged["weeks_since_last_spike"] = merged["weeks_since_last_spike"].fillna(999.0)
@@ -193,7 +195,7 @@ def get_site_training_frame(
     site_data = site_data.sort_values("date")
     train_data = site_data[site_data["date"] <= anchor_date].copy()
 
-    if getattr(config, "USE_INTERPOLATED_TRAINING", False):
+    if config.USE_INTERPOLATED_TRAINING:
         # Keep rows that have either real or interpolated DA
         train_data = train_data.dropna(subset=["da"])
         # Mark which rows are interpolated (before we fill da_raw)
@@ -234,7 +236,7 @@ def recompute_test_row_persistence_features(
     last_da = float(train_data["da_raw"].iloc[-1])
     test_row["last_observed_da_raw"] = last_da
     # Last spike date from training only
-    spike_mask = train_data["da_raw"] > spike_threshold
+    spike_mask = train_data["da_raw"] >= spike_threshold
     if spike_mask.any():
         last_spike_date = train_data.loc[spike_mask, "date"].max()
         test_row["weeks_since_last_spike"] = (test_row_date - last_spike_date).days / 7.0

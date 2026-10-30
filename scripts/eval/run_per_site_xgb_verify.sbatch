@@ -13,12 +13,11 @@
 #SBATCH --error=logs/xgb-verify-%A_%a.err
 
 set -euo pipefail
-cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
-mkdir -p logs xgb_verify_results
+cd "${SLURM_SUBMIT_DIR:?submit from the repo root}"  # run the checkout this was submitted from
+mkdir -p logs results/tuning_provenance/xgb_verify_results
 
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
-export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
-export DATECT_MIN_TRAINING_FOR_TUNING=99999
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
+export PATH="$(dirname "$PYBIN"):$PATH"
 
 # 5 perturbations applied to ALL sites: 0=baseline, 1=depth+1, 2=depth-1, 3=mcw×1.5, 4=mcw×0.67
 PERT=$SLURM_ARRAY_TASK_ID
@@ -51,5 +50,5 @@ LABELS=("baseline" "depth+1" "depth-1" "mcw_x1.5" "mcw_x0.67")
 LABEL=${LABELS[$PERT]}
 
 echo "== Started: $(date) — perturbation=$LABEL =="
-$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir xgb_verify_results/p${PERT}_${LABEL}
+$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir results/tuning_provenance/xgb_verify_results/p${PERT}_${LABEL}
 echo "== Done: $(date) =="

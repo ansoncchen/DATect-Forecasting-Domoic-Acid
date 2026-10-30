@@ -14,12 +14,12 @@
 
 set -euo pipefail
 
-REPO_ROOT="/gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid"
+REPO_ROOT="${SLURM_SUBMIT_DIR:?submit from the repo root}"  # run the checkout this was submitted from
 cd "$REPO_ROOT"
-mkdir -p logs grid_search_results
+mkdir -p logs results/tuning_provenance/grid_search_results
 
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
-export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
+export PATH="$(dirname "$PYBIN"):$PATH"
 
 echo "== Node: $(hostname) =="
 echo "== Array task: $SLURM_ARRAY_TASK_ID =="

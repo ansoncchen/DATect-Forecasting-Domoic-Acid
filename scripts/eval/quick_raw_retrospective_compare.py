@@ -11,7 +11,7 @@ Does not use panel imputation / dense parquet ``da`` fill quality as a metric.
 Usage (repo root):
     python3 scripts/eval/quick_raw_retrospective_compare.py
     python3 scripts/eval/quick_raw_retrospective_compare.py --fraction 0.05 --seed 42
-    python3 scripts/eval/quick_raw_retrospective_compare.py --output-json eval_results/quick_retro_compare.json
+    python3 scripts/eval/quick_raw_retrospective_compare.py --output-json results/quick_retro_compare.json
 """
 
 from __future__ import annotations
@@ -69,12 +69,6 @@ def main() -> int:
         help="Earliest raw test measurement dates",
     )
     parser.add_argument(
-        "--n-anchors",
-        type=int,
-        default=50,
-        help="Passed to validate_runtime_parameters only (sampling uses --fraction)",
-    )
-    parser.add_argument(
         "--output-json",
         type=str,
         default="",
@@ -91,9 +85,9 @@ def main() -> int:
 
     orig = {
         "seed": cfg.RANDOM_SEED,
-        "frac": getattr(cfg, "TEST_SAMPLE_FRACTION", 0.20),
-        "parallel": getattr(cfg, "ENABLE_PARALLEL", True),
-        "min_date": getattr(cfg, "MIN_TEST_DATE", "2003-01-01"),
+        "frac": cfg.TEST_SAMPLE_FRACTION,
+        "parallel": cfg.ENABLE_PARALLEL,
+        "min_date": cfg.MIN_TEST_DATE,
     }
     cfg.RANDOM_SEED = args.seed
     cfg.TEST_SAMPLE_FRACTION = args.fraction
@@ -110,8 +104,6 @@ def main() -> int:
         df = engine.run_retrospective_evaluation(
             task="regression",
             model_type="ensemble",
-            n_anchors=args.n_anchors,
-            min_test_date=args.min_test_date,
             max_test_samples=cap,
         )
     finally:

@@ -193,22 +193,12 @@ FORECAST_MODEL = "ensemble"
 FORECAST_HORIZON_WEEKS = 1
 FORECAST_HORIZON_DAYS = FORECAST_HORIZON_WEEKS * 7  # Derived days value for internal calculations
 
-# XGBoost Hyperparameters (configurable)
-# These override defaults in ModelFactory for reproducible tuning and easy experimentation.
-# Regression parameters
-XGB_REGRESSION_PARAMS = {
-    "n_estimators": 400,
-    "max_depth": 6,
-    "learning_rate": 0.05,
-    "subsample": 0.85,
-    "colsample_bytree": 0.85,
-    "colsample_bylevel": 0.8,
-    "reg_alpha": 0.1,
-    "reg_lambda": 1.0,
-    "gamma": 0.1,
-    "min_child_weight": 3,
-    "tree_method": "hist",
-}
+# Tuned values are loaded from config/tuned_hyperparameters.json (single source of truth).
+from forecasting.tuned_config import get_global as _get_tuned_global
+_tuned = _get_tuned_global()
+
+# XGBoost regression base parameters (per-site overrides live in SITE_SPECIFIC_CONFIGS)
+XGB_REGRESSION_PARAMS = dict(_tuned["xgb_base_params"])
 
 # Classification parameters
 XGB_CLASSIFICATION_PARAMS = {
@@ -231,7 +221,13 @@ XGB_CLASSIFICATION_PARAMS = {
 
 # Model Performance
 MIN_TRAINING_SAMPLES = 10
+# Seed for choosing retrospective test points (evaluation scripts vary it per run).
 RANDOM_SEED = 42
+# Seed for every fitted model (XGBoost, Random Forest, Ridge, classifiers). Separate
+# from RANDOM_SEED so a different sampling seed never changes how models train, and
+# serial, joblib-parallel and distributed runs agree (worker processes re-import
+# config, so a RANDOM_SEED patched in the parent never reached them anyway).
+MODEL_SEED = 42
 
 # Bootstrap confidence intervals
 ENABLE_BOOTSTRAP_INTERVALS = True  # Disable to skip bootstrap uncertainty
@@ -246,17 +242,14 @@ LAG_FEATURES = [] if _lag_env.lower() == "none" else [int(x) for x in _lag_env.s
 
 # DA Category Configuration
 
-# Risk thresholds for classification: Low (0-5), Moderate (5-20), High (20-40), Extreme (>40 μg/g)
+# Risk categories as left-closed bins (pd.cut(..., right=False)): Low [0,5), Moderate [5,20),
+# High [20,40), Extreme >= 40 μg/g. A value on a boundary belongs to the higher category.
 DA_CATEGORY_BINS = [-float("inf"), 5, 20, 40, float("inf")]
 DA_CATEGORY_LABELS = [0, 1, 2, 3]
 
-# Spike Detection Configuration
-# Tuned values loaded from config/tuned_hyperparameters.json (single source of truth).
-# Env-var overlays (DATECT_SPIKE_CLASSIFIER_JSON) still apply on top.
-from forecasting.tuned_config import get_global as _get_tuned_global
-_tuned = _get_tuned_global()
+# Spike Detection Configuration (tuned values; DATECT_SPIKE_CLASSIFIER_JSON overlays apply)
 
-SPIKE_THRESHOLD = float(_tuned["spike_threshold_actual"])  # DA > 20 μg/g considered a spike event
+SPIKE_THRESHOLD = float(_tuned["spike_threshold_actual"])  # DA >= 20 μg/g is a spike event
 SPIKE_ALERT_PROB_THRESHOLD = float(_tuned["spike_alert_prob_threshold"])  # classifier operating point
 SPIKE_CLASSIFIER_ENABLED = True
 SPIKE_REGRESSION_ALERT_THRESHOLD = float(_tuned["spike_regression_alert_threshold"])
@@ -302,11 +295,14 @@ USE_ROLLING_FEATURES = True  # Enable rolling statistics features for raw pipeli
 # Used for filling gaps in DA/PN measurements with exponential decay
 
 # DA (Domoic Acid) parameters - conservative due to frequent zeros in data
-DA_MAX_GAP_WEEKS = 2  # Maximum gap to interpolate (larger gaps filled with 0)
+# The decay fill treats each filled week as the start of the next gap, so a gap of any length
+# decays continuously and *_MAX_GAP_WEEKS has no effect on the output; only weeks before a
+# site's first measurement are filled with 0. Kept as-is so the dataset stays reproducible.
+DA_MAX_GAP_WEEKS = 2  # Fill-chunk length in weeks (see note above)
 DA_DECAY_RATE = 0.2   # Per week decay rate (half-life ~3.5 weeks)
 
 # PN (Pseudo-nitzschia) parameters - more aggressive due to sparser data
-PN_MAX_GAP_WEEKS = 4  # Maximum gap to interpolate
+PN_MAX_GAP_WEEKS = 4  # Fill-chunk length in weeks (see note above)
 PN_DECAY_RATE = 0.3   # Per week decay rate (half-life ~2.3 weeks)
 
 
@@ -340,10 +336,13 @@ MONOTONIC_FEATURE_CONSTRAINTS: dict = {
     "raw_obs_roll_mean_4": 1,        # Higher 4-week mean → higher or equal forecast
 }
 
-# Minimum training rows required before per-anchor XGB tuning is attempted.
-# Tuned value from JSON; env var still overrides. Sweep (2026-05-23) showed
-# this parameter has zero effect at the current configuration — kept for
-# future-proofing if param_grids ever grow.
+# Per-anchor XGB tuning (grid search on calibration rows before every forecast).
+# Off by default: every reported number was produced without it, and it changes
+# predictions without improving skill (see provenance in the tuned JSON).
+PER_ANCHOR_TUNING = os.environ.get(
+    "DATECT_PER_ANCHOR_TUNING", str(_tuned["per_anchor_tuning"])
+).lower() == "true"
+# Minimum training rows before per-anchor tuning is attempted (only when enabled).
 MIN_TRAINING_FOR_TUNING = int(os.environ.get(
     "DATECT_MIN_TRAINING_FOR_TUNING",
     str(_tuned["min_training_for_tuning"]),
@@ -352,11 +351,16 @@ MIN_TRAINING_FOR_TUNING = int(os.environ.get(
 # Prediction clipping — default applies when a site has no prediction_clip_q.
 # Per-site overrides live in SITE_SPECIFIC_CONFIGS via per_site_models.py.
 PREDICTION_CLIP_Q = float(_tuned["prediction_clip_q_default"])
+# DATECT_CLIP_Q_OVERRIDE (ablations): "none" disables clipping; a number replaces the global and
+# every per-site clip quantile (per_site_models.py reads CLIP_Q_OVERRIDE). None = no override.
 _clip_override = os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")
-if _clip_override == "none":
+CLIP_Q_OVERRIDE = None if not _clip_override else (
+    "none" if _clip_override == "none" else float(_clip_override)
+)
+if CLIP_Q_OVERRIDE == "none":
     PREDICTION_CLIP_Q = None
-elif _clip_override:
-    PREDICTION_CLIP_Q = float(_clip_override)
+elif CLIP_Q_OVERRIDE is not None:
+    PREDICTION_CLIP_Q = CLIP_Q_OVERRIDE
 
 # Parallelization
 ENABLE_PARALLEL = True
@@ -393,16 +397,14 @@ if _extra_drop:
 # Minimum test date (early lower bound; per-site history fraction is the real filter)
 MIN_TEST_DATE = "2003-01-01"
 
-# Temporal hold-out evaluation mode
-# When scripts/eval/eval_paper_metrics.py --temporal-holdout is used, only dates >= TEMPORAL_HOLDOUT_CUTOFF
-# are used as test points. Training still uses all data before each anchor date.
-# Provides an uncontaminated generalization estimate separate from hyperparameter tuning.
+# Temporal holdout: the same window everywhere (paper, tuned JSON eval_windows, eval scripts),
+# 2022-01-01 onward. eval_paper_metrics.py --temporal-holdout keeps test points dated on or after
+# TEMPORAL_HOLDOUT_CUTOFF; training still uses all data before each anchor date.
 from forecasting.tuned_config import get_eval_windows as _get_eval_windows
 TEMPORAL_HOLDOUT_CUTOFF = os.environ.get(
     "DATECT_TEMPORAL_HOLDOUT_CUTOFF",
-    _get_eval_windows()["validation_start"],
+    _get_eval_windows()["holdout_start"],
 )
-TEMPORAL_HOLDOUT_FRACTION = float(os.environ.get("DATECT_TEMPORAL_HOLDOUT_FRACTION", "1.0"))
 
 # Parallelization backend (used by joblib in retrospective evaluation)
 PARALLEL_BACKEND = os.environ.get("DATECT_PARALLEL_BACKEND", "loky")

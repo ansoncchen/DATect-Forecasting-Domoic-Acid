@@ -13,12 +13,11 @@
 #SBATCH --error=logs/xgb-sweep-%A_%a.err
 
 set -euo pipefail
-cd /gscratch/stf/ac283/DATect-Forecasting-Domoic-Acid
-mkdir -p logs xgb_sweep_results
+cd "${SLURM_SUBMIT_DIR:?submit from the repo root}"  # run the checkout this was submitted from
+mkdir -p logs results/tuning_provenance/xgb_sweep_results
 
-PYBIN=/gscratch/stf/ac283/envs/datect_scratch/bin/python
-export PATH=/gscratch/stf/ac283/envs/datect_scratch/bin:$PATH
-export DATECT_MIN_TRAINING_FOR_TUNING=99999
+PYBIN=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}
+export PATH="$(dirname "$PYBIN"):$PATH"
 
 # 2x2x2 grid: max_depth × n_estimators × learning_rate
 DEPTHS=(4 6 4 6 4 6 4 6)
@@ -43,5 +42,5 @@ json.dump(o, open('$TMPJSON','w'))
 export DATECT_HPARAM_OVERRIDE_JSON=$TMPJSON
 
 echo "== Started: $(date) — depth=$DEPTH n_est=$NEST lr=$LR =="
-$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir xgb_sweep_results/d${DEPTH}_n${NEST}_lr${LR}
+$PYBIN scripts/eval/multi_seed_baseline.py --seed 42 --out-dir results/tuning_provenance/xgb_sweep_results/d${DEPTH}_n${NEST}_lr${LR}
 echo "== Done: $(date) =="

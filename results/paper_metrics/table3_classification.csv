@@ -1,0 +1,6 @@
+category,N_actual,precision,recall,f1,accuracy
+Low,1370,0.8707,0.9139,0.8917,
+Moderate,457,0.6034,0.6258,0.6144,
+High,160,0.438,0.375,0.404,
+Extreme,118,0.6964,0.3305,0.4483,
+Overall (macro),2105,0.6521,0.5613,0.5896,0.7777

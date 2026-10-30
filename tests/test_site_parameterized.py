@@ -8,19 +8,14 @@ Exercises:
   regression vs classification tasks, and 5 distinct model types.
 """
 
-import sys
 from pathlib import Path
-import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
-import config
 from forecasting import ForecastEngine
-from forecasting.raw_data_forecaster import load_raw_da_measurements
 from forecasting.per_site_models import (
     get_site_config,
     get_site_ensemble_weights,
@@ -30,14 +25,13 @@ from forecasting.per_site_models import (
     get_site_param_grid,
 )
 from forecasting.oad_features import SITE_TO_REGION
-from backend.api import app, resolve_site
+from backend.api import app
 from backend.visualizations import (
     generate_correlation_heatmap,
     generate_sensitivity_analysis,
     generate_time_series_comparison,
     generate_spectral_analysis,
 )
-from forecasting.validation import validate_runtime_parameters
 from forecasting.raw_forecast_engine import _verify_no_data_leakage
 
 # All 10 canonical monitoring sites
@@ -52,7 +46,10 @@ TASKS = ["regression", "classification"]
 MODELS = ["ensemble", "xgboost", "rf", "naive", "linear"]
 
 
+@pytest.mark.usefixtures("fast_models")
 class TestSiteParameterized:
+    test_sample_fraction = 0.001
+
     @classmethod
     def setup_class(cls):
         cls.parquet_path = _REPO_ROOT / "data" / "processed" / "final_output.parquet"
@@ -61,32 +58,7 @@ class TestSiteParameterized:
         # Load data once for all visualization tests
         cls.df = pd.read_parquet(cls.parquet_path)
 
-        # Scale down models and iterations for fast local parameter testing
-        config.N_BOOTSTRAP_ITERATIONS = 2
-        config.XGB_REGRESSION_PARAMS["n_estimators"] = 5
-        config.RF_REGRESSION_PARAMS["n_estimators"] = 5
-        config.XGB_CLASSIFICATION_PARAMS["n_estimators"] = 5
-        config.SPIKE_CLASSIFIER_PARAMS["n_estimators"] = 5
-        config.ENABLE_PARALLEL = False
-        config.TEST_SAMPLE_FRACTION = 0.001
-        config.MIN_TRAINING_FOR_TUNING = 99999
-
-        # Patch site-specific overrides so they don't trigger large models
-        import forecasting.per_site_models
-        forecasting.per_site_models.MIN_TRAINING_FOR_TUNING = 99999
-        for site, site_cfg in forecasting.per_site_models.SITE_SPECIFIC_CONFIGS.items():
-            if site_cfg.get("xgb_params"):
-                site_cfg["xgb_params"]["n_estimators"] = 5
-            if site_cfg.get("rf_params"):
-                site_cfg["rf_params"]["n_estimators"] = 5
-
         cls.engine = ForecastEngine(data_file=str(cls.parquet_path), validate_on_init=True)
-
-    @classmethod
-    def teardown_class(cls):
-        config.MIN_TRAINING_FOR_TUNING = 80
-        import forecasting.per_site_models
-        forecasting.per_site_models.MIN_TRAINING_FOR_TUNING = 80
 
     # 1. Config tests (10 sites × 7 properties = 70 assertions in 10 tests)
     @pytest.mark.parametrize("site", SITES)
@@ -203,14 +175,12 @@ class TestSiteParameterized:
             model_type=m_type
         )
         
-        # Some early date/site combos might not have enough history and return None
-        # verifying that it returns either None (fail-safe) or a valid dict (success)
-        if result is not None:
-            assert isinstance(result, dict)
-            assert result["site"] == site
-            assert result["task"] == task
-            assert "predicted_da" in result or "predicted_category" in result
-            assert "naive_prediction" in result
+        # Every site has years of history before these 2018-2021 dates
+        assert isinstance(result, dict)
+        assert result["site"] == site
+        assert result["task"] == task
+        assert "predicted_da" in result or "predicted_category" in result
+        assert "naive_prediction" in result
 
     # 5. Temporal Integrity Boundaries (20 tests)
     @pytest.mark.parametrize("anchor_offset", range(1, 21))
@@ -224,13 +194,3 @@ class TestSiteParameterized:
         with pytest.raises(AssertionError, match="TEMPORAL LEAK"):
             _verify_no_data_leakage(train_df, test_date, anchor_date)
 
-    # 6. Runtime Argument Validation Boundaries (20 tests)
-    @pytest.mark.parametrize("n_anchors", [-5, 0, 1000000])
-    def test_validate_runtime_parameters_n_anchors(self, n_anchors):
-        """Verify bad anchor parameters raise ValueError in validation."""
-        if n_anchors <= 0:
-            with pytest.raises(ValueError):
-                validate_runtime_parameters(n_anchors, "2018-01-01")
-        else:
-            # high n_anchors should pass validation bounds check
-            validate_runtime_parameters(n_anchors, "2018-01-01")

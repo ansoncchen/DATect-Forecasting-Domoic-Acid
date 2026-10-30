@@ -3,7 +3,7 @@
 tune_all.py — single-command end-to-end re-tune of DATect.
 
 Regenerates ``config/tuned_hyperparameters.json`` from scratch by running
-the five leak-free sweeps documented in ``docs/EXPERIMENT_SUMMARY.md``,
+the four leak-free sweeps described below (results: ``docs/CORRECTED_NUMBERS.md``),
 parsing their winners, and writing the updated JSON with provenance.
 
 Designed to be invoked once per "tuning refresh" — when new data arrives,
@@ -24,19 +24,16 @@ Usage:
 The workflow:
 
   Stage 1 — leak-free per-site grid search (3-fold chronological CV on pre-2022)
-            → produces eval_outputs/grid_search_results/*_summary.json
+            → produces results/tuning_provenance/grid_search_results/*_summary.json
             → defines per-site ensemble_weights, prediction_clip_q, clip_max
   Stage 2 — per-site xgb_params perturbation verification (5 perturbations)
-            → produces eval_outputs/xgb_verify_results/p{0..4}_*/
+            → produces results/tuning_provenance/xgb_verify_results/p{0..4}_*/
             → confirms hand-tuned xgb_params are stable (paper claim)
   Stage 3 — global XGB defaults sweep (8 configs)
-            → produces eval_outputs/xgb_sweep_results/d{4,6}_n{400,600}_lr{05,10}/
+            → produces results/tuning_provenance/xgb_sweep_results/d{4,6}_n{400,600}_lr{05,10}/
             → confirms global xgb_base_params are well-calibrated
-  Stage 4 — MIN_TRAINING_FOR_TUNING sweep (5 cutoff values)
-            → produces eval_outputs/mintrain_sweep_results/min{40..160}/
-            → confirms the magic number has near-zero effect
-  Stage 5 — spike classifier hyperparameter sweep (6 configs)
-            → produces eval_outputs/spike_clf_sweep_results/d{3,4,5}_*/
+  Stage 4 — spike classifier hyperparameter sweep (6 configs)
+            → produces results/tuning_provenance/spike_clf_sweep_results/d{3,4,5}_*/
             → confirms current SPIKE_CLASSIFIER_PARAMS are near optimum
 
 After all stages complete, ``assemble_json()`` reads each sweep's winners,
@@ -51,7 +48,6 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import os
 import re
 import subprocess
 import sys
@@ -65,11 +61,10 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 # Stage definitions: (label, sbatch_path, output_dir_to_check)
 STAGES = [
-    ("grid_search",     "scripts/eval/grid_search_weights_clip.sbatch",   "eval_outputs/grid_search_results"),
-    ("xgb_verify",      "scripts/eval/run_per_site_xgb_verify.sbatch",   "eval_outputs/xgb_verify_results"),
-    ("xgb_sweep",       "scripts/eval/run_global_xgb_sweep.sbatch",      "eval_outputs/xgb_sweep_results"),
-    ("mintrain_sweep",  "scripts/eval/run_mintrain_sweep.sbatch",        "eval_outputs/mintrain_sweep_results"),
-    ("spike_clf_sweep", "scripts/eval/run_spike_classifier_sweep.sbatch", "eval_outputs/spike_clf_sweep_results"),
+    ("grid_search",     "scripts/eval/grid_search_weights_clip.sbatch",   "results/tuning_provenance/grid_search_results"),
+    ("xgb_verify",      "scripts/eval/run_per_site_xgb_verify.sbatch",   "results/tuning_provenance/xgb_verify_results"),
+    ("xgb_sweep",       "scripts/eval/run_global_xgb_sweep.sbatch",      "results/tuning_provenance/xgb_sweep_results"),
+    ("spike_clf_sweep", "scripts/eval/run_spike_classifier_sweep.sbatch", "results/tuning_provenance/spike_clf_sweep_results"),
 ]
 
 JSON_PATH = _REPO_ROOT / "config" / "tuned_hyperparameters.json"
@@ -81,7 +76,7 @@ def run_stage(label: str, sbatch_path: str, dry_run: bool = False) -> str | None
         print(f"  [DRY RUN] would submit: sbatch {sbatch_path}")
         return None
     cmd = ["sbatch", sbatch_path]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False, cwd=_REPO_ROOT)
     if result.returncode != 0:
         print(f"  ✗ sbatch failed: {result.stderr.strip()}", file=sys.stderr)
         return None
@@ -113,9 +108,9 @@ def wait_for_jobs(job_ids: list[str], poll_interval: int = 60) -> None:
 
 
 def assemble_grid_winners() -> Dict[str, Dict[str, Any]]:
-    """Parse eval_outputs/grid_search_results/*_summary.json → per-site overrides."""
+    """Parse results/tuning_provenance/grid_search_results/*_summary.json → per-site overrides."""
     out: Dict[str, Dict[str, Any]] = {}
-    pattern = str(_REPO_ROOT / "eval_outputs" / "grid_search_results" / "*_summary.json")
+    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "grid_search_results" / "*_summary.json")
     for path in sorted(glob.glob(pattern)):
         with open(path) as f:
             s = json.load(f)
@@ -133,7 +128,7 @@ def assemble_grid_winners() -> Dict[str, Dict[str, Any]]:
 
 def assemble_xgb_verify_status() -> str:
     """Compute the perturbation-vs-baseline summary for provenance."""
-    pattern = str(_REPO_ROOT / "eval_outputs" / "xgb_verify_results" / "p*")
+    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "xgb_verify_results" / "p*")
     dirs = sorted(glob.glob(pattern))
     if len(dirs) < 5:
         return "incomplete (expected 5 perturbation dirs)"
@@ -142,7 +137,7 @@ def assemble_xgb_verify_status() -> str:
 
 def assemble_global_xgb_status() -> str:
     """Summarize the global XGB sweep finding."""
-    pattern = str(_REPO_ROOT / "eval_outputs" / "xgb_sweep_results" / "d*")
+    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "xgb_sweep_results" / "d*")
     dirs = sorted(glob.glob(pattern))
     if not dirs:
         return "not yet run"
@@ -150,16 +145,8 @@ def assemble_global_xgb_status() -> str:
             f"(see {pattern}) — per-site is irreducible")
 
 
-def assemble_mintrain_status() -> str:
-    pattern = str(_REPO_ROOT / "eval_outputs" / "mintrain_sweep_results" / "min*")
-    dirs = sorted(glob.glob(pattern))
-    if not dirs:
-        return "not yet run"
-    return f"verified inert: all {len(dirs)} cutoff values yield identical R² (see {pattern})"
-
-
 def assemble_spike_clf_status() -> str:
-    pattern = str(_REPO_ROOT / "eval_outputs" / "spike_clf_sweep_results" / "d*")
+    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "spike_clf_sweep_results" / "d*")
     dirs = sorted(glob.glob(pattern))
     if not dirs:
         return "not yet run"
@@ -207,9 +194,6 @@ def assemble_json(grid_winners: Dict[str, Dict[str, Any]], dry_run: bool = False
     data["provenance"]["xgb_base_params"] = (
         f"PROJECT DEFAULTS; {assemble_global_xgb_status()} (refreshed {today})"
     )
-    data["provenance"]["min_training_for_tuning"] = (
-        f"MAGIC NUMBER; {assemble_mintrain_status()} (refreshed {today})"
-    )
     data["provenance"]["spike_classifier_params"] = (
         f"PROJECT DEFAULTS; {assemble_spike_clf_status()} (refreshed {today})"
     )
@@ -218,7 +202,7 @@ def assemble_json(grid_winners: Dict[str, Dict[str, Any]], dry_run: bool = False
         print(f"  [DRY RUN] would write JSON to {JSON_PATH}")
         print(f"    version: {data['version']}")
         print(f"    per_site sites updated: {sorted(grid_winners.keys())}")
-        print(f"    provenance keys updated: 6")
+        print("    provenance keys updated: 5")
     else:
         with open(JSON_PATH, "w") as f:
             json.dump(data, f, indent=2)
@@ -234,9 +218,9 @@ def main() -> int:
     p.add_argument("--dry-run", action="store_true",
                    help="Don't actually submit jobs or write JSON; print what would happen")
     p.add_argument("--assemble-only", action="store_true",
-                   help="Skip Stages 1-5; just read existing sweep outputs and rewrite JSON")
+                   help="Skip Stages 1-4; just read existing sweep outputs and rewrite JSON")
     p.add_argument("--no-wait", action="store_true",
-                   help="Submit Stages 1-5 in parallel and exit without waiting for completion")
+                   help="Submit Stages 1-4 in parallel and exit without waiting for completion")
     args = p.parse_args()
 
     if not args.assemble_only:
@@ -249,25 +233,25 @@ def main() -> int:
                 job_ids.append(jid)
         if args.no_wait:
             print(f"\nSubmitted {len(job_ids)} jobs; --no-wait was set, exiting.")
-            print(f"Re-run with --assemble-only after all jobs complete to rebuild the JSON.")
+            print("Re-run with --assemble-only after all jobs complete to rebuild the JSON.")
             return 0
         if not args.dry_run:
             wait_for_jobs(job_ids)
 
-    print(f"\n=== Stage 6 — assemble JSON from sweep winners ===")
+    print("\n=== Stage 5 — assemble JSON from sweep winners ===")
     grid_winners = assemble_grid_winners()
     print(f"  Read grid winners for {len(grid_winners)} sites")
     assemble_json(grid_winners, dry_run=args.dry_run)
 
     print(f"\n=== Done at {datetime.now().isoformat(timespec='seconds')} ===")
     if not args.dry_run:
-        print(f"Next steps:")
-        print(f"  1. Re-run multi-seed bootstrap to verify performance:")
-        print(f"       sbatch scripts/eval/multi_seed_baseline.sbatch")
-        print(f"  2. Re-run deterministic chronological eval:")
-        print(f"       sbatch scripts/eval/run_chronological.sbatch")
-        print(f"  3. If headline R² shifts meaningfully, update paper Tables 1–3.")
-        print(f"  4. Commit config/tuned_hyperparameters.json with a descriptive message.")
+        print("Next steps:")
+        print("  1. Re-run multi-seed bootstrap to verify performance:")
+        print("       sbatch scripts/eval/multi_seed_baseline.sbatch")
+        print("  2. Re-run deterministic chronological eval:")
+        print("       sbatch scripts/eval/run_chronological.sbatch")
+        print("  3. If headline R² shifts meaningfully, update paper Tables 1–3.")
+        print("  4. Commit config/tuned_hyperparameters.json with a descriptive message.")
     return 0
 
 

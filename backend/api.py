@@ -13,10 +13,9 @@ from functools import lru_cache
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 
@@ -151,13 +150,6 @@ class ForecastRequest(BaseModel):
     task: str = "regression"  # "regression" or "classification"
     model: str = "ensemble"
 
-class ConfigUpdateRequest(BaseModel):
-    forecast_mode: str = "realtime"  # "realtime" or "retrospective"
-    forecast_task: str = "regression"  # "regression" or "classification"
-    forecast_model: str = "ensemble"  # "ensemble", "naive", or "linear"
-    selected_sites: List[str] = []  # For retrospective site filtering
-    forecast_horizon_weeks: int = 1  # Weeks ahead to forecast from data cutoff
-
 class ForecastResponse(BaseModel):
     success: bool
     forecast_date: date
@@ -188,10 +180,12 @@ class ModelInfo(BaseModel):
 
 class RetrospectiveRequest(BaseModel):
     selected_sites: List[str] = []  # Empty list means all sites
+    task: str = config.FORECAST_TASK  # "regression" or "classification"
+    model: str = config.FORECAST_MODEL  # "ensemble", "naive", or "linear"
 
 
 @app.get("/api")
-async def root():
+def root():
     """Root endpoint with API information."""
     return {
         "message": "DATect API - Domoic Acid Forecasting System",
@@ -200,12 +194,12 @@ async def root():
     }
 
 @app.get("/health")
-async def health_check():
+def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/api/sites", response_model=SiteInfo)
-async def get_sites():
+def get_sites():
     """Get available sites and date range from the dataset."""
     try:
         # Load data to get site information
@@ -226,7 +220,7 @@ async def get_sites():
         raise HTTPException(status_code=500, detail=f"Failed to load site information: {str(e)}")
 
 @app.get("/api/models", response_model=ModelInfo)
-async def get_models():
+def get_models():
     """Get available models and their descriptions."""
     try:
         mf = get_model_factory()
@@ -247,7 +241,7 @@ async def get_models():
         raise HTTPException(status_code=500, detail=f"Failed to load model information: {str(e)}")
 
 @app.post("/api/forecast", response_model=ForecastResponse)
-async def generate_forecast(request: ForecastRequest):
+def generate_forecast(request: ForecastRequest):
     """Generate a forecast for the specified parameters."""
     if request.task not in ["regression", "classification"]:
         raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
@@ -305,56 +299,8 @@ async def generate_forecast(request: ForecastRequest):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.get("/api/historical/all")
-async def get_all_sites_historical(
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    limit: Optional[int] = 1000,
-):
-    """Get historical data for all sites."""
-    try:
-        data = get_data_copy()
-        data["date"] = pd.to_datetime(data["date"])
-
-        if start_date:
-            data = data[data["date"] >= pd.to_datetime(start_date)]
-        if end_date:
-            data = data[data["date"] <= pd.to_datetime(end_date)]
-
-        # Most recent rows across all sites (aligned with per-site .tail(limit))
-        data = data.sort_values(["date", "site"])
-        if limit:
-            data = data.tail(limit)
-
-        result = []
-        for _, row in data.iterrows():
-            da_val = row["da"] if pd.notna(row["da"]) else None
-            da_category = (
-                row["da-category"]
-                if "da-category" in row and pd.notna(row["da-category"])
-                else None
-            )
-
-            rec = {
-                "date": row["date"].strftime("%Y-%m-%d") if pd.notna(row["date"]) else None,
-                "site": row["site"],
-                "actual_da": clean_for_json(da_val),
-            }
-            if da_category is not None:
-                rec["actual_category"] = clean_for_json(da_category)
-            result.append(rec)
-
-        return JSONResponse(
-            content={"success": True, "data": result, "count": len(result)}
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve historical data: {str(e)}"
-        )
-
-
 @app.get("/api/historical/{site}")
-async def get_historical_data(
+def get_historical_data(
     site: str,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
@@ -400,58 +346,73 @@ async def get_historical_data(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load historical data: {str(e)}")
 
-@app.get("/api/config")
-async def get_config():
-    """Get current system configuration."""
+@lru_cache(maxsize=1)
+def _load_metrics_summary() -> dict:
+    """Headline evaluation metrics, read from the committed results in results/.
+
+    The dashboard shows these instead of hardcoding numbers that drift from the
+    latest evaluation: the deterministic chronological holdout (overall and per
+    site) and the 5-seed bootstrap confirmation on the same window.
+    """
+    import glob
+    import json
+
+    from sklearn.metrics import r2_score
+
+    from forecasting.tuned_config import get_eval_windows
+
+    window = get_eval_windows()
+    start, end = window["holdout_start"], window["holdout_end"]
+    tag = f"{start.replace('-', '')}_{end.replace('-', '')}"
+    results = Path(project_root) / "results"
+    chrono = json.loads(
+        (results / "chronological" / f"chronological_regression_ensemble_{tag}.json").read_text()
+    )
+
+    seed_r2 = []
+    for path in sorted(glob.glob(str(results / "multi_seed" / "*_predictions.parquet"))):
+        df = pd.read_parquet(path, columns=["date", "actual_da", "predicted_da"])
+        df["date"] = pd.to_datetime(df["date"])
+        held = df[(df["date"] >= start) & (df["date"] < end)]
+        seed_r2.append(float(r2_score(held["actual_da"], held["predicted_da"])))
+
     return {
-        "forecast_mode": getattr(config, 'FORECAST_MODE', 'realtime'),
-        "forecast_task": getattr(config, 'FORECAST_TASK', 'regression'),
-        "forecast_model": getattr(config, 'FORECAST_MODEL', 'ensemble'),
-        "forecast_horizon_weeks": getattr(config, 'FORECAST_HORIZON_WEEKS', 1),
-        "forecast_horizon_days": getattr(config, 'FORECAST_HORIZON_DAYS', 7),
-        "spike_threshold": config.SPIKE_THRESHOLD,
+        "holdout_window": {"start": start, "end": end},
+        "overall": chrono["overall"],
+        "per_site": chrono["per_site"],
+        "multi_seed": {
+            "n_seeds": len(seed_r2),
+            "r2_mean": float(np.mean(seed_r2)) if seed_r2 else None,
+            "r2_std": float(np.std(seed_r2)) if seed_r2 else None,
+        },
     }
 
-@app.post("/api/config")
-async def update_config(request: Request, config_request: ConfigUpdateRequest):
-    """Apply forecast UI settings for this API process only."""
+
+@app.get("/api/metrics/summary")
+def get_metrics_summary():
+    """Headline holdout metrics (overall, per site, multi-seed) from results/."""
     try:
-        client_host = request.client.host if request.client else None
-        local_hosts = {"127.0.0.1", "::1", "localhost"}
-        allow_remote_updates = os.getenv("ENABLE_RUNTIME_CONFIG_UPDATE", "").lower() == "true"
-        if client_host not in local_hosts and not allow_remote_updates:
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "Runtime config updates are restricted to localhost unless "
-                    "ENABLE_RUNTIME_CONFIG_UPDATE=true"
-                ),
-            )
+        return clean_for_json(_load_metrics_summary())
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Evaluation results not found: {e}") from e
 
-        config.FORECAST_MODE = config_request.forecast_mode
-        config.FORECAST_TASK = config_request.forecast_task
-        config.FORECAST_MODEL = config_request.forecast_model
-        config.FORECAST_HORIZON_WEEKS = config_request.forecast_horizon_weeks
-        config.FORECAST_HORIZON_DAYS = config_request.forecast_horizon_weeks * 7
 
-        return {
-            "success": True,
-            "message": "Configuration updated for this server process (not persisted to disk)",
-            "config": {
-                "forecast_mode": config.FORECAST_MODE,
-                "forecast_task": config.FORECAST_TASK,
-                "forecast_model": config.FORECAST_MODEL,
-            },
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update configuration: {str(e)}")
+@app.get("/api/config")
+def get_config():
+    """Get current system configuration."""
+    return {
+        "forecast_mode": config.FORECAST_MODE,
+        "forecast_task": config.FORECAST_TASK,
+        "forecast_model": config.FORECAST_MODEL,
+        "forecast_horizon_weeks": config.FORECAST_HORIZON_WEEKS,
+        "forecast_horizon_days": config.FORECAST_HORIZON_DAYS,
+        "spike_threshold": config.SPIKE_THRESHOLD,
+    }
 
 # Visualization endpoints
 # NOTE: More specific routes must come before generic parameter routes
 @app.get("/api/visualizations/correlation/all")
-async def get_correlation_heatmap_all():
+def get_correlation_heatmap_all():
     """Generate correlation heatmap for all sites combined."""
     try:
         data = get_data_copy()
@@ -461,7 +422,7 @@ async def get_correlation_heatmap_all():
         raise HTTPException(status_code=500, detail=f"Failed to generate correlation heatmap: {str(e)}")
 
 @app.get("/api/visualizations/correlation/{site}")
-async def get_correlation_heatmap_single(site: str):
+def get_correlation_heatmap_single(site: str):
     """Generate correlation heatmap for a single site."""
     try:
         data = get_data_copy()
@@ -477,7 +438,7 @@ async def get_correlation_heatmap_single(site: str):
         raise HTTPException(status_code=500, detail=f"Failed to generate correlation heatmap: {str(e)}")
 
 @app.get("/api/visualizations/sensitivity/all")
-async def get_sensitivity_analysis_all():
+def get_sensitivity_analysis_all():
     """Generate sensitivity analysis plots for all sites combined."""
     try:
         data = get_data_copy()
@@ -487,7 +448,7 @@ async def get_sensitivity_analysis_all():
         raise HTTPException(status_code=500, detail=f"Failed to generate sensitivity analysis: {str(e)}")
 
 @app.get("/api/visualizations/sensitivity/{site}")
-async def get_sensitivity_analysis_single(site: str):
+def get_sensitivity_analysis_single(site: str):
     """Generate sensitivity analysis plots for a single site."""
     try:
         data = get_data_copy()
@@ -499,18 +460,8 @@ async def get_sensitivity_analysis_single(site: str):
         logging.error(f"Error in sensitivity analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate sensitivity analysis: {str(e)}")
 
-@app.get("/api/visualizations/comparison/all")
-async def get_time_series_comparison_all():
-    """Generate time series comparison for all sites."""
-    try:
-        data = get_data_copy()
-        plot_data = generate_time_series_comparison(data, site=None)
-        return {"success": True, "plot": plot_data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate time series comparison: {str(e)}")
-
 @app.get("/api/visualizations/comparison/{site}")
-async def get_time_series_comparison_single(site: str):
+def get_time_series_comparison_single(site: str):
     """Generate time series comparison for a single site."""
     try:
         data = get_data_copy()
@@ -522,7 +473,7 @@ async def get_time_series_comparison_single(site: str):
         raise HTTPException(status_code=500, detail=f"Failed to generate time series comparison: {str(e)}")
 
 @app.get("/api/visualizations/waterfall")
-async def get_waterfall_plot():
+def get_waterfall_plot():
     """Generate waterfall plot for all sites."""
     try:
         data = get_data_copy()
@@ -532,7 +483,7 @@ async def get_waterfall_plot():
         raise HTTPException(status_code=500, detail=f"Failed to generate waterfall plot: {str(e)}")
 
 @app.get("/api/visualizations/spectral/all")
-async def get_spectral_analysis_all():
+def get_spectral_analysis_all():
     """Generate spectral analysis for all sites combined (uses pre-computed cache)."""
     try:
         # First try pre-computed cache
@@ -550,7 +501,7 @@ async def get_spectral_analysis_all():
         raise HTTPException(status_code=500, detail=f"Failed to generate spectral analysis: {str(e)}")
 
 @app.get("/api/visualizations/spectral/{site}")
-async def get_spectral_analysis_single(site: str):
+def get_spectral_analysis_single(site: str):
     """Generate spectral analysis for a single site (uses pre-computed cache)."""
     try:
         data = get_data_copy()
@@ -618,12 +569,10 @@ def get_latest_da_from_raw_files():
             logger.warning("Unparseable date in last row of %s", file_path)
             continue
 
-        try:
-            if isinstance(da_value, str) and "<" in da_value:
-                da_numeric = float(da_value.replace("<", "").strip()) / 2
-            else:
-                da_numeric = float(da_value)
-        except (TypeError, ValueError):
+        from forecasting.measurements import parse_da_values
+
+        da_numeric = float(parse_da_values([da_value]).iloc[0])  # "<1" -> LOD/2
+        if pd.isna(da_numeric):
             logger.warning("Unparseable DA value in last row of %s", file_path)
             continue
 
@@ -632,7 +581,7 @@ def get_latest_da_from_raw_files():
     return latest_da_data
 
 @app.get("/api/visualizations/map")
-async def get_site_map():
+def get_site_map():
     """Generate map visualization of all 10 monitoring sites with risk level colors using latest raw data."""
     try:
         # Import here to avoid issues if plotly is not available during startup
@@ -736,7 +685,7 @@ async def get_site_map():
 
 
 @app.post("/api/forecast/enhanced")
-async def generate_enhanced_forecast(request: ForecastRequest):
+def generate_enhanced_forecast(request: ForecastRequest):
     """Generate enhanced forecast with both regression and classification for frontend."""
     try:
         actual_site = resolve_site(request.site)
@@ -800,7 +749,7 @@ async def generate_enhanced_forecast(request: ForecastRequest):
             response_data["graphs"]["category_range"] = {
                 "predicted_category": int(classification_result['predicted_category']),
                 "class_probabilities": class_probs,
-                "category_labels": ['Low (≤5)', 'Moderate (5-20]', 'High (20-40]', 'Extreme (>40)'],
+                "category_labels": ['Low (<5)', 'Moderate (5–<20)', 'High (20–<40)', 'Extreme (≥40)'],
                 "type": "category_range"
             }
 
@@ -833,18 +782,22 @@ async def generate_enhanced_forecast(request: ForecastRequest):
 
 
 @app.post("/api/retrospective")
-async def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequest()):
-    """Run complete retrospective analysis based on current config (uses pre-computed cache for production)."""
+def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequest()):
+    """Retrospective results for the requested task and model (pre-computed cache in production)."""
+    if request.task not in ("regression", "classification"):
+        raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
+    task = request.task
     try:
         # Map model names for API compatibility
-        if config.FORECAST_MODEL == "linear":
-            actual_model = "linear" if config.FORECAST_TASK == "regression" else "logistic"
+        if request.model == "linear":
+            actual_model = "linear" if task == "regression" else "logistic"
         else:
-            actual_model = config.FORECAST_MODEL  # "ensemble" or "naive" pass through
+            actual_model = request.model  # "ensemble" or "naive" pass through
         
         # Canonical on-disk path for this slice (response metadata); reads may come from Redis instead.
-        cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{config.FORECAST_TASK}_{actual_model}.json"
-        base_results = cache_manager.get_retrospective_forecast(config.FORECAST_TASK, actual_model)
+        cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{task}_{actual_model}.json"
+        base_results = cache_manager.get_retrospective_forecast(task, actual_model)
+        cache_hit = base_results is not None
         
         if base_results is None:
             # Compute on server (expensive - only for local development)
@@ -853,9 +806,8 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
             engine.data_file = config.FINAL_OUTPUT_PATH
             
             results_df = engine.run_retrospective_evaluation(
-                task=config.FORECAST_TASK,
+                task=task,
                 model_type=actual_model,
-                n_anchors=getattr(config, 'N_RANDOM_ANCHORS', 500)
             )
 
             if results_df is None or results_df.empty:
@@ -881,27 +833,27 @@ async def run_retrospective_analysis(request: RetrospectiveRequest = Retrospecti
 
             # Results computed on-demand for local development
         else:
-            logging.info(f"Serving pre-computed retrospective analysis: {config.FORECAST_TASK}+{actual_model}")
+            logging.info(f"Serving pre-computed retrospective analysis: {task}+{actual_model}")
 
         # Cached data now uses the same standardized format as fresh computation (actual_da, predicted_da, actual_category, predicted_category)
 
         # Filter by sites if specified
         filtered = [r for r in base_results if r['site'] in request.selected_sites] if request.selected_sites else base_results
         
-        summary = _compute_summary(filtered, config.FORECAST_TASK)
+        summary = _compute_summary(filtered, task)
         return {
             "success": True,
             "config": {
-                "forecast_mode": config.FORECAST_MODE,
-                "forecast_task": config.FORECAST_TASK,
-                "forecast_model": config.FORECAST_MODEL
+                "forecast_mode": "retrospective",
+                "forecast_task": task,
+                "forecast_model": request.model,
             },
             "cache": {
                 "enabled": cache_manager.enabled,
                 "path": str(cache_manager.cache_dir),
                 "file": str(cache_file),
                 "file_exists": cache_file.exists(),
-                "hit": base_results is not None,
+                "hit": cache_hit,
                 "redis_active": cache_manager.use_redis,
             },
             "summary": summary,
@@ -937,41 +889,31 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
 
     # Regression metrics
     if task != "classification" and valid_regression:
-        from sklearn.metrics import (
-            r2_score, mean_absolute_error, f1_score,
-            precision_score, recall_score, fbeta_score,
-        )
+        from sklearn.metrics import mean_absolute_error, r2_score
+
+        from forecasting.metrics import detection_scores, exceeds
         actual_vals = [r[0] for r in valid_regression]
         pred_vals = [r[1] for r in valid_regression]
         try:
             summary["r2_score"] = float(r2_score(actual_vals, pred_vals))
             summary["mae"] = float(mean_absolute_error(actual_vals, pred_vals))
 
-            # Spike detection: actual DA > SPIKE_THRESHOLD vs predicted DA >
+            # Spike detection: actual DA >= SPIKE_THRESHOLD vs predicted DA >=
             # SPIKE_REGRESSION_ALERT_THRESHOLD. Use config constants so the
             # webapp stays coordinated with the spike-alert system.
             spike_threshold = config.SPIKE_THRESHOLD
             pred_alert_threshold = config.SPIKE_REGRESSION_ALERT_THRESHOLD
-            actual_binary = [1 if val > spike_threshold else 0 for val in actual_vals]
-            pred_binary = [
-                1 if val > pred_alert_threshold else 0 for val in pred_vals
-            ]
-            n_spike_events = int(sum(actual_binary))
-            n_alerts = int(sum(pred_binary))
-            summary["f1_score"] = float(
-                f1_score(actual_binary, pred_binary, zero_division=0)
-            )
-            summary["spike_recall"] = float(
-                recall_score(actual_binary, pred_binary, zero_division=0)
-            )
-            summary["spike_precision"] = float(
-                precision_score(actual_binary, pred_binary, zero_division=0)
-            )
+            actual_binary = exceeds(actual_vals, spike_threshold)
+            pred_binary = exceeds(pred_vals, pred_alert_threshold)
+            n_spike_events = int(actual_binary.sum())
+            n_alerts = int(pred_binary.sum())
+            det = detection_scores(actual_binary, pred_binary)
+            summary["f1_score"] = det["f1"]
+            summary["spike_recall"] = det["recall"]
+            summary["spike_precision"] = det["precision"]
             # F2 weights recall 4x precision — operational metric for public-health
             # alerting where missing a spike is worse than a false alarm.
-            summary["spike_f2"] = float(
-                fbeta_score(actual_binary, pred_binary, beta=2.0, zero_division=0)
-            )
+            summary["spike_f2"] = det["f2"]
             summary["n_spike_events"] = n_spike_events
             summary["n_alerts_fired"] = n_alerts
             summary["spike_threshold_actual"] = spike_threshold
@@ -980,8 +922,8 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
             # MAE stratified by whether the actual was a spike. Separates
             # "typical-day accuracy" from "extreme-event accuracy" — pooled MAE
             # mashes them together, but they're operationally different.
-            non_spike_pairs = [(a, p) for a, p in zip(actual_vals, pred_vals) if a <= spike_threshold]
-            spike_pairs     = [(a, p) for a, p in zip(actual_vals, pred_vals) if a >  spike_threshold]
+            non_spike_pairs = [(a, p) for a, p in zip(actual_vals, pred_vals) if a < spike_threshold]
+            spike_pairs     = [(a, p) for a, p in zip(actual_vals, pred_vals) if a >= spike_threshold]
             if non_spike_pairs:
                 summary["mae_nonspike"] = float(
                     mean_absolute_error([a for a, _ in non_spike_pairs],

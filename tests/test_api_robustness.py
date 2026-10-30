@@ -2,15 +2,12 @@
 Unit tests for backend/api.py endpoint robustness and JSON serialization.
 """
 
-import sys
 from pathlib import Path
 import numpy as np
-import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
 from backend.api import app, clean_for_json, resolve_site
 
@@ -94,3 +91,26 @@ def test_api_models_endpoint():
         assert "available_models" in data
         assert "ensemble" in data["available_models"]["regression"]
         assert "descriptions" in data
+
+
+def test_settings_travel_with_each_request():
+    """The server holds no per-user settings: no config mutation endpoint, and
+    /api/retrospective validates the task it is given."""
+    with TestClient(app) as client:
+        assert client.post("/api/config", json={"forecast_model": "naive"}).status_code == 405
+        assert client.get("/api/config").status_code == 200
+        response = client.post("/api/retrospective", json={"task": "bogus", "model": "ensemble"})
+        assert response.status_code == 400
+
+
+def test_metrics_summary_reads_committed_results():
+    """/api/metrics/summary serves the holdout numbers from results/, not hardcoded ones."""
+    with TestClient(app) as client:
+        response = client.get("/api/metrics/summary")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["holdout_window"]["start"] == "2022-01-01"
+        assert len(data["overall"]["r2"]) == 3  # point estimate and bootstrap CI
+        assert data["overall"]["n"] > 0
+        assert data["per_site"]
+        assert data["multi_seed"]["n_seeds"] == 5

@@ -8,22 +8,20 @@ window slicing + metric values.
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
 
 HOLDOUT_PARQUETS = [
-    _REPO_ROOT / "eval_outputs" / "chronological" / "chronological_regression_ensemble_20220101_20240101.parquet",
-    _REPO_ROOT / "eval_outputs" / "chronological" / "chronological_regression_ensemble_20190101_20220101.parquet",
+    _REPO_ROOT / "results" / "chronological" / "chronological_regression_ensemble_20220101_20240101.parquet",
+    _REPO_ROOT / "results" / "chronological" / "chronological_regression_ensemble_20190101_20220101.parquet",
 ]
 
-CHRONO_JSON = (_REPO_ROOT / "eval_outputs" / "chronological" /
+CHRONO_JSON = (_REPO_ROOT / "results" / "chronological" /
                "chronological_regression_ensemble_20220101_20240101.json")
 
 
@@ -44,21 +42,22 @@ def test_chronological_holdout_in_window():
     reason="Chronological JSON not present",
 )
 def test_chronological_metrics_match_paper():
-    """Headline holdout numbers must match the paper Table 3 values."""
+    """Headline holdout numbers must match docs/CORRECTED_NUMBERS.md.
+
+    The chronological eval is deterministic (every real DA measurement in the
+    window), so a re-run that changes these is a behavior change: update the
+    docs, README and paper together with this test.
+    """
     import json
     with open(CHRONO_JSON) as f:
         data = json.load(f)
     ov = data["overall"]
-    # The paper reports R² = 0.485 [0.330, 0.604], MAE = 6.76, spike recall = 0.857
-    # Use loose tolerance since the eval is run with the current grid-winner config
-    # which is stable but could shift slightly on a future re-run.
-    r2 = ov["r2"][0]
-    assert 0.40 < r2 < 0.55, f"Holdout R² out of expected range: {r2}"
-    mae = ov["mae"][0]
-    assert 5.5 < mae < 8.0, f"Holdout MAE out of expected range: {mae}"
-    if "spike_recall" in ov:
-        rec = ov["spike_recall"]
-        assert rec >= 0.75, f"Spike recall regressed: {rec}"
+    assert ov["n"] == 409
+    assert ov["n_spikes"] == 84
+    assert ov["r2"][0] == pytest.approx(0.419, abs=5e-4)
+    assert ov["mae"][0] == pytest.approx(7.49, abs=5e-3)
+    assert ov["spike_recall"] == pytest.approx(0.774, abs=5e-4)
+    assert ov["spike_f2"] == pytest.approx(0.693, abs=5e-4)
 
 
 @pytest.mark.skipif(
@@ -66,13 +65,22 @@ def test_chronological_metrics_match_paper():
     reason="Chronological eval artifacts not present",
 )
 def test_chronological_eval_uses_grid_winner_config():
-    """Holdout predictions must reflect the grid-winner config (e.g. Copalis XGB-only)."""
+    """Holdout predictions must reflect each site's grid-winner ensemble weights.
+
+    The parquet stores the blended prediction and the RF component, so RF-only
+    sites must match the RF prediction exactly and XGB-only sites must not.
+    """
+    import numpy as np
+    from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
+
     df = pd.read_parquet(HOLDOUT_PARQUETS[0])
-    cop = df[df["site"] == "Copalis"]
-    if len(cop) > 5 and "ensemble_weights" in cop.columns:
-        # Grid winner for Copalis is (1.0, 0.0, 0.0) — XGB-only
-        first_w = cop["ensemble_weights"].iloc[0]
-        # The column may be stringified tuples or lists; just verify XGB dominates
-        assert "1.0" in str(first_w) or first_w[0] >= 0.95, (
-            f"Copalis appears not to be XGB-only in the eval output: {first_w}"
-        )
+    for site, cfg in SITE_SPECIFIC_CONFIGS.items():
+        w_xgb, w_rf, _ = cfg["ensemble_weights"]
+        sub = df[df["site"] == site]
+        if sub.empty:
+            continue
+        matches_rf = np.isclose(sub["predicted_da"], sub["predicted_da_rf"]).mean()
+        if (w_xgb, w_rf) == (0.0, 1.0):
+            assert matches_rf == 1.0, f"{site} is RF-only but ensemble != RF prediction"
+        elif (w_xgb, w_rf) == (1.0, 0.0):
+            assert matches_rf < 0.5, f"{site} is XGB-only but ensemble tracks the RF prediction"

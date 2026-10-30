@@ -1,19 +1,20 @@
 name: frontend-build
 
-# Verifies the React + Vite dashboard still builds cleanly on every PR.
-# Catches broken imports, type errors, and dependency drift in the webapp
+# Verifies the React + Vite dashboard lints and builds cleanly on every PR.
+# Catches broken imports, lint regressions, and dependency drift in the webapp
 # that would otherwise only surface on local `npm run dev`.
 
 on:
   push:
-    branches: [main, oad-integration]
+    branches: [main]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-build.yml'
   pull_request:
-    branches: [main, oad-integration]
+    branches: [main]
     paths:
       - 'frontend/**'
+      - '.github/workflows/frontend-build.yml'
 
 jobs:
   build:
@@ -22,28 +23,22 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        # Use `npm install` (not `npm ci`) so platform-specific optional
-        # dependencies resolve correctly. The lockfile is generated on the
-        # developer's local machine (often macOS), so it only records the
-        # Rollup optionalDependencies for that platform. `npm ci` then fails
-        # on Linux runners with "Missing: @rollup/rollup-linux-x64-gnu from
-        # lock file". `npm install` honors version constraints from the
-        # lockfile while still resolving missing optional deps for the
-        # current platform. See https://github.com/npm/cli/issues/4828.
-        run: npm install --no-audit --no-fund
+        # The lockfile records every platform's Rollup binary, so `npm ci`
+        # installs exactly what is locked on Linux too.
+        run: npm ci --no-audit --no-fund
 
-      # Lint step intentionally omitted: package.json contains a `lint` script
-      # but no ESLint config file (.eslintrc.* / eslint.config.js). The script
-      # is orphaned from before the project's current setup. Add back when the
-      # team formally adopts ESLint with a config.
+      - name: Lint
+        run: npm run lint
 
       - name: Build production bundle
         run: npm run build

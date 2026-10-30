@@ -1,8 +1,8 @@
 import axios from 'axios'
 
-// In production (built site served by the backend), default to same-origin
-const isProd = import.meta.env.PROD
-const API_BASE_URL = import.meta.env.VITE_API_URL || (isProd ? '' : 'http://localhost:8000')
+// Same-origin by default: in production the backend serves the built site, and in
+// development Vite proxies /api to the backend (vite.config.js). VITE_API_URL overrides.
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -93,15 +93,15 @@ class EnsembleModelFactory:
 
         if model_type in ("xgboost", "xgb"):
             base_params = dict(config.XGB_REGRESSION_PARAMS)
-            if site and getattr(config, "USE_PER_SITE_MODELS", False):
+            if site and config.USE_PER_SITE_MODELS:
                 base_params = apply_site_xgb_params(base_params, site)
             if params_override:
                 base_params.update(params_override)
             return build_xgb_regressor(base_params)
 
         if model_type == "rf":
-            base_params = dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
-            if site and getattr(config, "USE_PER_SITE_MODELS", False):
+            base_params = dict(config.RF_REGRESSION_PARAMS)
+            if site and config.USE_PER_SITE_MODELS:
                 base_params = apply_site_rf_params(base_params, site)
             if params_override:
                 base_params.update(params_override)

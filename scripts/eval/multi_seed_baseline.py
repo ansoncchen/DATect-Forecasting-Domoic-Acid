@@ -18,12 +18,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
+
+from _subprocess import run_python
 
 try:
     from _repo import ensure_repo_root
@@ -45,8 +45,6 @@ from forecasting.raw_forecast_engine import RawForecastEngine
 engine = RawForecastEngine(validate_on_init=False)
 results_df = engine.run_retrospective_evaluation(
     task="regression", model_type="ensemble",
-    n_anchors=getattr(config, "N_RANDOM_ANCHORS", 500),
-    min_test_date="2008-01-01",
 )
 if results_df is None or results_df.empty:
     print("ERROR: no results")
@@ -64,15 +62,10 @@ def run_one_seed(seed: int, out_dir: Path) -> None:
         return
     print(f"[seed {seed}] starting retrospective...", flush=True)
     t0 = time.time()
-    env = os.environ.copy()
-    env["BOOTSTRAP_SEED"] = str(seed)
-    env["OUT_PATH"] = str(out_path.resolve())
-    env["DATECT_MIN_TRAINING_FOR_TUNING"] = "99999"  # match holdout config for consistency
-    result = subprocess.run(
-        [sys.executable, "-c", SUBPROCESS_SCRIPT],
-        env=env, stdout=subprocess.PIPE, stderr=None,
-        text=True, timeout=7200,
-    )
+    result = run_python(SUBPROCESS_SCRIPT, {
+        "BOOTSTRAP_SEED": str(seed),
+        "OUT_PATH": str(out_path.resolve()),
+    }, timeout=7200)
     elapsed = time.time() - t0
     if result.returncode != 0:
         print(f"[seed {seed}] FAILED ({elapsed/60:.1f} min)")
@@ -83,7 +76,7 @@ def run_one_seed(seed: int, out_dir: Path) -> None:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--seed", type=int, default=None)
-    p.add_argument("--out-dir", type=str, default="multi_seed_results")
+    p.add_argument("--out-dir", type=str, default="results/multi_seed")
     args = p.parse_args()
     if args.seed is None:
         # Array task: seeds 42, 43, 44, 45, 46

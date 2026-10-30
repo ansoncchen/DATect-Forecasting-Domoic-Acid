@@ -14,6 +14,7 @@ FastAPI backend (``api.py``) works without interface changes.
 
 from __future__ import annotations
 
+import functools
 import random
 import warnings
 from typing import Optional
@@ -25,7 +26,6 @@ from sklearn.metrics import (
     r2_score,
     mean_absolute_error,
     accuracy_score,
-    f1_score,
 )
 from tqdm import tqdm
 
@@ -56,12 +56,25 @@ from .per_site_models import (
 from .feature_utils import add_temporal_features, create_transformer
 from .ensemble_model_factory import EnsembleModelFactory
 from .classification_adapter import ClassificationAdapter
-from .validation import validate_system_startup, validate_runtime_parameters
+from .validation import validate_system_startup
 from .logging_config import get_logger
-
-warnings.filterwarnings("ignore")
+from .metrics import detection_scores, exceeds
 
 logger = get_logger(__name__)
+
+
+def _quiet_warnings(fn):
+    """Silence third-party (sklearn/xgboost/pandas) warnings during model fitting.
+
+    Scoped per call so importing the engine no longer disables warnings for the
+    whole process (tests, API, scripts).
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return fn(*args, **kwargs)
+    return wrapper
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +121,7 @@ class RawForecastEngine:
         self.classification_adapter = ClassificationAdapter()
 
         self.min_training_samples = max(
-            1, int(getattr(config, "MIN_TRAINING_SAMPLES", 10))
+            1, int(config.MIN_TRAINING_SAMPLES)
         )
         self.random_seed = config.RANDOM_SEED
 
@@ -160,7 +173,7 @@ class RawForecastEngine:
         self,
         feature_frame: pd.DataFrame,
         anchor_date: pd.Timestamp,
-    ) -> tuple[Optional[pd.DataFrame], Optional[pd.Series]]:
+    ):
         """Build pooled ALL-SITE training data for the spike binary classifier.
 
         Uses data from every site up to *anchor_date* (temporal integrity),
@@ -168,7 +181,10 @@ class RawForecastEngine:
         feature selection is applied — the spike classifier gets a uniform
         feature set across all sites.
 
-        Returns (X_pooled, y_da_raw) or (None, None) if insufficient data.
+        Returns ``(X_pooled, y_da_raw, transformer, columns)``: the fitted
+        pooled transformer and its input columns must also be used to encode
+        the test row, so it is scored on the scale the classifier was trained
+        on. Returns four Nones if there is too little data.
         """
         anchor_date = pd.Timestamp(anchor_date)
         all_train = feature_frame[feature_frame["date"] <= anchor_date].copy()
@@ -176,7 +192,7 @@ class RawForecastEngine:
         # Only real measurements — can't define "spike" from interpolated DA
         all_train = all_train[all_train["da_raw"].notna()].copy()
         if len(all_train) < 30:
-            return None, None
+            return None, None, None, None
 
         all_train = add_temporal_features(all_train)
 
@@ -184,20 +200,22 @@ class RawForecastEngine:
 
         # Standard drops: meta cols + zero-importance features
         # NO per-site drops — spike classifier uses uniform features
-        zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
+        zero_imp = config.ZERO_IMPORTANCE_FEATURES
         drop_cols = [
             "date", "site", "da_raw", "da", "_is_interpolated",
         ] + list(zero_imp)
 
         transformer, X_pooled = create_transformer(all_train, drop_cols)
+        columns = list(X_pooled.columns)
         X_pooled = transformer.fit_transform(X_pooled)
 
-        return X_pooled, y_raw
+        return X_pooled, y_raw, transformer, columns
 
     # ------------------------------------------------------------------
     # Single forecast (realtime)
     # ------------------------------------------------------------------
 
+    @_quiet_warnings
     def generate_single_forecast(
         self,
         data_path: str,
@@ -209,9 +227,10 @@ class RawForecastEngine:
         """
         Generate a single forecast for a specific date and site.
 
-        This is a faithful port of the source pipeline's
-        ``run_single_raw_validation()`` logic, adapted for the API
-        response contract.
+        Point predictions come from ``_run_single_raw_validation``, the same
+        models the retrospective evaluation scores, so the dashboard shows the
+        evaluated system. This method adds what only the UI needs: the selected
+        model's prediction, prediction intervals and risk categories.
 
         Parameters
         ----------
@@ -231,140 +250,31 @@ class RawForecastEngine:
         dict or None
         """
         forecast_date = pd.Timestamp(forecast_date)
-
-        # Load / cache feature frame
         feature_frame = self._load_feature_frame()
 
-        # Anchor = forecast_date - 7 days
-        anchor_date = forecast_date - pd.Timedelta(
-            days=config.FORECAST_HORIZON_DAYS
-        )
-
-        # --- Training data ---
-        train_data = get_site_training_frame(
-            feature_frame, site, anchor_date, self.min_training_samples
-        )
-        if train_data is None:
-            logger.warning(
-                "Insufficient training data for %s at anchor %s",
-                site,
-                anchor_date.date(),
-            )
-            return None
-
-        # --- Test row (leak-free: env features from anchor date) ---
-        test_row = get_site_anchor_row(
-            feature_frame, site, forecast_date, anchor_date,
-            max_date_diff_days=28,
-        )
-        if test_row is None:
-            logger.warning(
-                "No anchor row available for %s at %s",
-                site,
-                anchor_date.date(),
-            )
-            return None
-
-        # Recompute persistence features from real observations only
-        if "_is_interpolated" in train_data.columns:
-            real_train = train_data[~train_data["_is_interpolated"]]
-        else:
-            real_train = train_data
-        test_row = recompute_test_row_persistence_features(
-            test_row, real_train, config.SPIKE_THRESHOLD
-        )
-
-        # Add temporal features
-        train_data = add_temporal_features(train_data)
-        test_row = add_temporal_features(test_row)
-
-        # --- Feature preparation ---
-        use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
-        zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
-
-        drop_cols = ["date", "site", "da_raw", "da", "_is_interpolated"] + list(zero_imp)
-
-        if use_per_site:
-            drop_cols = compute_site_drop_cols(
-                drop_cols, train_data.columns.tolist(), site
-            )
-
-        try:
-            transformer, X_train = create_transformer(train_data, drop_cols)
-            y_train = train_data["da_raw"].astype(float).copy()
-
-            X_train_processed = transformer.fit_transform(X_train)
-
-            X_test = test_row.drop(columns=drop_cols, errors="ignore")
-            X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
-            X_test_processed = transformer.transform(X_test)
-
-            # Leakage check
-            _verify_no_data_leakage(train_data, forecast_date, anchor_date)
-
-        except Exception as exc:
-            logger.error("Feature preparation failed: %s", exc)
-            return None
-
-        # --- Prediction post-processing helper ---
-        clip_q_global = getattr(config, "PREDICTION_CLIP_Q", 0.99)
-
-        def _postprocess(value: float) -> float:
-            value = max(0.0, value)
-            if use_per_site:
-                site_clip_q, site_clip_max = get_site_clip_params(site)
-                cq = site_clip_q if site_clip_q is not None else clip_q_global
-            else:
-                cq = clip_q_global
-                site_clip_max = None
-            if cq is not None:
-                clip_max = float(np.quantile(train_data["da_raw"], cq))
-                value = min(value, clip_max)
-            if site_clip_max is not None:
-                value = min(value, site_clip_max)
-            return float(value)
-
-        # --- XGBoost prediction ---
         xgb_params = dict(config.XGB_REGRESSION_PARAMS)
-        if use_per_site:
+        if config.USE_PER_SITE_MODELS:
             xgb_params = apply_site_xgb_params(xgb_params, site)
 
-        xgb_model = build_xgb_regressor(xgb_params)
-        xgb_model.fit(X_train_processed, y_train)
-        xgb_raw = float(xgb_model.predict(X_test_processed)[0])
-        xgb_prediction = _postprocess(xgb_raw)
-
-        # --- Random Forest prediction ---
-        rf_params = dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
-        if use_per_site:
-            rf_params = apply_site_rf_params(rf_params, site)
-        rf_model = build_rf_regressor(rf_params)
-        rf_model.fit(X_train_processed, y_train)
-        rf_raw = float(rf_model.predict(X_test_processed)[0])
-        rf_prediction = _postprocess(rf_raw)
-
-        # --- Naive baseline (always use real observations only) ---
-        naive_prediction = get_last_known_raw_da(
-            real_train,
-            anchor_date=anchor_date,
-            max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
+        core = self._run_single_raw_validation(
+            {"date": forecast_date, "site": site, "da_raw": np.nan},
+            feature_frame,
+            xgb_params,
+            skip_quantiles=True,
+            return_internals=True,
         )
-        if naive_prediction is None:
-            naive_prediction = 0.0
+        if core is None:
+            logger.warning("Insufficient data for a %s forecast on %s", site, forecast_date.date())
+            return None
+        fitted = core["_internals"]
 
-        # --- Ridge (always trained as scientific baseline) ---
-        linear_prediction = None
-        try:
-            linear_model = build_linear_regressor()
-            linear_model.fit(X_train_processed, y_train)
-            linear_raw = float(linear_model.predict(X_test_processed)[0])
-            linear_prediction = _postprocess(linear_raw)
-        except Exception as exc:
-            logger.warning("Linear regression failed: %s", exc)
-            linear_prediction = None
+        xgb_prediction = core["predicted_da"]
+        rf_prediction = core["predicted_da_rf"]
+        naive_prediction = core["naive_prediction"]
+        linear_prediction = core["predicted_da_linear"]
 
         # --- Ensemble blend ---
-        w_xgb, w_rf, w_naive = get_site_ensemble_weights(site)
+        w_xgb, w_rf, w_naive = self._ensemble_weights(site)
         ensemble_prediction = (
             w_xgb * xgb_prediction
             + w_rf * rf_prediction
@@ -389,28 +299,17 @@ class RawForecastEngine:
         else:
             primary_prediction = ensemble_prediction
 
-        # --- Feature importance ---
-        feature_importance = {}
-        if hasattr(xgb_model, "feature_importances_"):
-            try:
-                feat_names = X_train.columns.tolist()
-                feature_importance = dict(
-                    zip(feat_names, xgb_model.feature_importances_)
-                )
-            except Exception:
-                pass
-
         # Build result dict matching the API contract
         result = {
             "forecast_date": forecast_date,
-            "anchor_date": anchor_date,
+            "anchor_date": core["anchor_date"],
             "site": site,
             "task": task,
             "model_type": model_type,
-            "training_samples": len(train_data),
+            "training_samples": core["training_samples"],
             "predicted_da": float(primary_prediction),
-            "feature_importance": feature_importance,
-            # Ensemble breakdown (new fields)
+            "feature_importance": core["feature_importance"],
+            # Ensemble breakdown
             "naive_prediction": float(naive_prediction),
             "xgb_prediction": float(xgb_prediction),
             "rf_prediction": float(rf_prediction),
@@ -421,9 +320,9 @@ class RawForecastEngine:
         # --- Quantile / bootstrap confidence intervals ---
         if task == "regression":
             quantiles = self._compute_confidence_intervals(
-                X_train_processed, y_train, X_test_processed, xgb_params,
-                _postprocess, model_type, site, naive_prediction,
-                rf_params, (w_xgb, w_rf, w_naive),
+                fitted["X_train_processed"], fitted["y_train"], fitted["X_test_processed"],
+                fitted["xgb_params"], fitted["postprocess"], model_type, site,
+                naive_prediction, fitted["rf_params"], (w_xgb, w_rf, w_naive),
             )
             result["bootstrap_quantiles"] = quantiles
 
@@ -438,18 +337,18 @@ class RawForecastEngine:
             if model_type == "logistic":
                 # Train LogisticRegression on category labels
                 y_categories = self.classification_adapter.threshold_classify_series(
-                    train_data["da_raw"]
+                    fitted["train_data"]["da_raw"]
                 )
                 unique_cats = sorted(y_categories.unique())
                 if len(unique_cats) >= 2:
                     try:
                         logistic_model = build_logistic_classifier()
-                        logistic_model.fit(X_train_processed, y_categories)
+                        logistic_model.fit(fitted["X_train_processed"], y_categories)
                         result["predicted_category"] = int(
-                            logistic_model.predict(X_test_processed)[0]
+                            logistic_model.predict(fitted["X_test_processed"])[0]
                         )
                         if hasattr(logistic_model, "predict_proba"):
-                            probs = logistic_model.predict_proba(X_test_processed)[0]
+                            probs = logistic_model.predict_proba(fitted["X_test_processed"])[0]
                             prob_array = [0.0, 0.0, 0.0, 0.0]
                             for i, cls in enumerate(logistic_model.classes_):
                                 cls_id = int(cls)
@@ -467,14 +366,14 @@ class RawForecastEngine:
                 try:
                     classifier_result = (
                         self.classification_adapter.train_dedicated_classifier(
-                            X_train_processed,
-                            train_data["da_raw"],
+                            fitted["X_train_processed"],
+                            fitted["train_data"]["da_raw"],
                             site=site,
                         )
                     )
                     if classifier_result is not None:
                         full_cls = self.classification_adapter.classify_prediction(
-                            primary_prediction, classifier_result, X_test_processed,
+                            primary_prediction, classifier_result, fitted["X_test_processed"],
                         )
                         result["predicted_category_ml"] = full_cls["predicted_category_ml"]
                         result["class_probabilities"] = full_cls["class_probabilities"]
@@ -486,38 +385,12 @@ class RawForecastEngine:
                 self.classification_adapter.threshold_classify(primary_prediction)
             )
 
-        # --- Spike binary classifier (pooled cross-site training) ---
-        if config.SPIKE_CLASSIFIER_ENABLED:
-            try:
-                X_pooled, y_pooled = self._build_pooled_spike_data(
-                    feature_frame, anchor_date,
-                )
-                if X_pooled is not None:
-                    spike_result = (
-                        self.classification_adapter.train_spike_binary_classifier(
-                            X_pooled,
-                            y_pooled,
-                            spike_threshold=config.SPIKE_THRESHOLD,
-                            site=site,
-                        )
-                    )
-                    if spike_result is not None:
-                        spike_prob = (
-                            self.classification_adapter.predict_spike_probability(
-                                spike_result, X_test_processed,
-                            )
-                        )
-                        result["spike_probability"] = spike_prob
-                        classifier_fires = spike_prob >= config.SPIKE_ALERT_PROB_THRESHOLD
-                        regression_fires = primary_prediction >= config.SPIKE_REGRESSION_ALERT_THRESHOLD
-                        result["spike_alert"] = classifier_fires or regression_fires
-            except Exception as exc:
-                logger.debug("Spike classifier failed: %s", exc)
-
-        # Regression-only fallback when classifier is unavailable
-        if "spike_alert" not in result:
-            if primary_prediction >= config.SPIKE_REGRESSION_ALERT_THRESHOLD:
-                result["spike_alert"] = True
+        # --- Spike alert: the evaluated hybrid rule (pooled classifier OR ensemble >= alert) ---
+        if core["spike_probability"] is not None:
+            result["spike_probability"] = core["spike_probability"]
+            result["spike_alert"] = bool(core["spike_alert"])
+        elif core["spike_alert"]:
+            result["spike_alert"] = True
 
         return result
 
@@ -543,16 +416,20 @@ class RawForecastEngine:
         (preferred) with bootstrap fallback.
         """
         quantiles = {}
-        enable_quantile = getattr(config, "ENABLE_QUANTILE_INTERVALS", True)
-        enable_bootstrap = getattr(config, "ENABLE_BOOTSTRAP_INTERVALS", True)
+        enable_quantile = config.ENABLE_QUANTILE_INTERVALS
+        enable_bootstrap = config.ENABLE_BOOTSTRAP_INTERVALS
 
         if enable_quantile and model_type in ("xgboost", "xgb", "ensemble", "threshold"):
             try:
+                # RF has no quantile objective: use the spread of its trees' predictions
+                # (one fit serves every quantile). A single RF point would give RF-only
+                # sites a zero-width interval.
+                rf_tree_preds = None
                 for q in (0.05, 0.50, 0.95):
                     # XGBoost quantile regression for the XGB component
                     q_params = {
                         **xgb_params,
-                        "objective": "reg:quantile",
+                        "objective": "reg:quantileerror",
                         "quantile_alpha": q,
                     }
                     q_model = build_xgb_regressor(q_params)
@@ -562,9 +439,14 @@ class RawForecastEngine:
                     key = f"q{int(q * 100):02d}"
                     if model_type in ("ensemble", "threshold"):
                         # Blend XGB quantile with RF + naive for ensemble CI
-                        rf_model = build_rf_regressor(rf_params)
-                        rf_model.fit(X_train_processed, y_train)
-                        rf_q_pred = postprocess_fn(float(rf_model.predict(X_test_processed)[0]))
+                        if rf_tree_preds is None:
+                            rf_model = build_rf_regressor(rf_params)
+                            rf_model.fit(X_train_processed, y_train)
+                            x_test = np.asarray(X_test_processed)
+                            rf_tree_preds = np.array(
+                                [tree.predict(x_test)[0] for tree in rf_model.estimators_]
+                            )
+                        rf_q_pred = postprocess_fn(float(np.quantile(rf_tree_preds, q)))
                         w_xgb, w_rf, w_naive = ensemble_weights
                         quantiles[key] = (
                             w_xgb * xgb_q_pred
@@ -610,11 +492,11 @@ class RawForecastEngine:
             n_bootstrap = config.N_BOOTSTRAP_ITERATIONS
 
         predictions = []
-        subsample_frac = getattr(config, "BOOTSTRAP_SUBSAMPLE_FRACTION", 0.75)
+        subsample_frac = config.BOOTSTRAP_SUBSAMPLE_FRACTION
         if postprocess_fn is None:
             postprocess_fn = lambda val: max(0.0, float(val))
 
-        rf_params = rf_params or dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
+        rf_params = rf_params or dict(config.RF_REGRESSION_PARAMS)
         if ensemble_weights is None:
             # naive_weight must always be 0.0 — naive persistence is an external baseline,
             # never blended into the ensemble. Default splits evenly between XGB and RF.
@@ -676,7 +558,7 @@ class RawForecastEngine:
                 predictions.append(float(xgb_pred))
 
         predictions = np.array(predictions)
-        percentiles = getattr(config, "CONFIDENCE_PERCENTILES", [5, 50, 95])
+        percentiles = config.CONFIDENCE_PERCENTILES
         return {
             "q05": float(np.percentile(predictions, percentiles[0])),
             "q50": float(np.percentile(predictions, percentiles[1])),
@@ -688,13 +570,11 @@ class RawForecastEngine:
     # Retrospective evaluation
     # ------------------------------------------------------------------
 
+    @_quiet_warnings
     def run_retrospective_evaluation(
         self,
         task: str = "regression",
         model_type: str = "ensemble",
-        n_anchors: int = 50,
-        min_test_date: str = "2008-01-01",
-        model_params_override: Optional[dict] = None,
         max_test_samples: Optional[int] = None,
     ) -> Optional[pd.DataFrame]:
         """
@@ -707,19 +587,16 @@ class RawForecastEngine:
         If *max_test_samples* is set, the per-site draw is subsampled to at
         most that many rows (after concatenation), for quick smoke tests.
         """
-        validate_runtime_parameters(n_anchors, min_test_date)
         logger.info("Running LEAK-FREE %s evaluation with %s", task, model_type)
         self._retro_model_type = model_type
 
         feature_frame = self._load_feature_frame()
         raw_data = self._raw_data_cache
 
-        min_test_ts = pd.Timestamp(
-            getattr(config, "MIN_TEST_DATE", min_test_date)
-        )
+        min_test_ts = pd.Timestamp(config.MIN_TEST_DATE)
         min_training = self.min_training_samples
         forecast_horizon = config.FORECAST_HORIZON_DAYS
-        history_frac = getattr(config, "HISTORY_REQUIREMENT_FRACTION", 0.33)
+        history_frac = config.HISTORY_REQUIREMENT_FRACTION
 
         # Filter to valid test dates
         candidate_raw = raw_data[raw_data["date"] >= min_test_ts].copy()
@@ -765,7 +642,7 @@ class RawForecastEngine:
             site_df = site_df.sort_values("date")
             n_candidates = len(site_df)
             total_site = site_total_counts.get(site, n_candidates)
-            test_frac = getattr(config, "TEST_SAMPLE_FRACTION", 0.20)
+            test_frac = config.TEST_SAMPLE_FRACTION
             target = min(int(np.ceil(test_frac * total_site)), n_candidates)
             if target <= 0:
                 continue
@@ -795,10 +672,10 @@ class RawForecastEngine:
         ]
 
         # Run validation
-        enable_parallel = getattr(config, "ENABLE_PARALLEL", True)
-        n_jobs = getattr(config, "N_JOBS", -1)
+        enable_parallel = config.ENABLE_PARALLEL
+        n_jobs = config.N_JOBS
 
-        parallel_backend = getattr(config, "PARALLEL_BACKEND", "loky")
+        parallel_backend = config.PARALLEL_BACKEND
         if enable_parallel:
             results = Parallel(n_jobs=n_jobs, backend=parallel_backend)(
                 delayed(self._run_single_retrospective)(
@@ -830,7 +707,7 @@ class RawForecastEngine:
         results_df = pd.DataFrame(results)
 
         # --- Ensemble prediction ---
-        use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
+        use_per_site = config.USE_PER_SITE_MODELS
         if (
             not results_df.empty
             and "predicted_da" in results_df.columns
@@ -898,7 +775,7 @@ class RawForecastEngine:
                 )
             )
 
-        # Sort and deduplicate (same date+site can appear multiple times in test_samples)
+        # Sort and deduplicate (defensive: raw measurements are already one row per site-day)
         n_before_dedup = len(results_df)
         results_df = results_df.sort_values(["date", "site"]).drop_duplicates(
             ["date", "site"]
@@ -922,6 +799,7 @@ class RawForecastEngine:
 
         return results_df
 
+    @_quiet_warnings
     def _run_single_retrospective(
         self,
         raw_measurement: dict,
@@ -938,11 +816,11 @@ class RawForecastEngine:
         forecast_horizon = config.FORECAST_HORIZON_DAYS
         anchor_date = test_date - pd.Timedelta(days=forecast_horizon)
 
-        use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
-        calibration_frac = getattr(config, "CALIBRATION_FRACTION", 0.3)
-        max_calib = getattr(config, "MAX_CALIBRATION_ROWS", 20)
-        min_tuning = getattr(config, "MIN_TUNING_SAMPLES", 10)
-        param_grid = getattr(config, "PARAM_GRID", [])
+        use_per_site = config.USE_PER_SITE_MODELS
+        calibration_frac = config.CALIBRATION_FRACTION
+        max_calib = config.MAX_CALIBRATION_ROWS
+        min_tuning = config.MIN_TUNING_SAMPLES
+        param_grid = config.PARAM_GRID
 
         # Per-site XGB param overrides
         effective_params = (
@@ -974,10 +852,11 @@ class RawForecastEngine:
 
         # Skip tuning when the full training set is too small — every row matters
         # more than marginal param selection between near-identical grid entries.
-        min_train_for_tuning = getattr(config, "MIN_TRAINING_FOR_TUNING", 80)
+        min_train_for_tuning = config.MIN_TRAINING_FOR_TUNING
 
         if (
-            not calib_candidates.empty
+            config.PER_ANCHOR_TUNING
+            and not calib_candidates.empty
             and len(calib_candidates) >= min_tuning
             and len(effective_grid) > 1
             and len(train_data) >= min_train_for_tuning
@@ -1017,9 +896,15 @@ class RawForecastEngine:
         model_params: dict,
         skip_quantiles: bool = False,
         skip_rf: bool = False,
+        return_internals: bool = False,
     ) -> Optional[dict]:
         """
-        Core single-point validation logic for a single anchor/measurement.
+        Core single-point forecast: the models every reported number is scored on.
+
+        The retrospective evaluation calls this per test point and the dashboard's
+        single forecasts call it too (``return_internals=True`` adds the fitted
+        inputs under ``"_internals"`` so intervals and categories can be built on
+        exactly the same data).
         """
         test_date = raw_measurement["date"]
         site = raw_measurement["site"]
@@ -1027,9 +912,9 @@ class RawForecastEngine:
 
         forecast_horizon = config.FORECAST_HORIZON_DAYS
         anchor_date = test_date - pd.Timedelta(days=forecast_horizon)
-        use_per_site = getattr(config, "USE_PER_SITE_MODELS", True)
-        zero_imp = getattr(config, "ZERO_IMPORTANCE_FEATURES", [])
-        clip_q = getattr(config, "PREDICTION_CLIP_Q", 0.99)
+        use_per_site = config.USE_PER_SITE_MODELS
+        zero_imp = config.ZERO_IMPORTANCE_FEATURES
+        clip_q = config.PREDICTION_CLIP_Q
 
         train_data = get_site_training_frame(
             feature_frame, site, anchor_date, self.min_training_samples
@@ -1093,8 +978,8 @@ class RawForecastEngine:
 
         # XGBoost — optionally add monotonic constraints on persistence features
         xgb_params_final = dict(model_params)
-        if getattr(config, "USE_MONOTONIC_CONSTRAINTS", False):
-            constraint_map = getattr(config, "MONOTONIC_FEATURE_CONSTRAINTS", {})
+        if config.USE_MONOTONIC_CONSTRAINTS:
+            constraint_map = config.MONOTONIC_FEATURE_CONSTRAINTS
             if constraint_map and hasattr(X_train_processed, "columns"):
                 cols = list(X_train_processed.columns)
                 mono_tuple = tuple(constraint_map.get(c, 0) for c in cols)
@@ -1107,11 +992,11 @@ class RawForecastEngine:
 
         # Random Forest
         rf_prediction = None
+        rf_base = dict(config.RF_REGRESSION_PARAMS)
+        if use_per_site:
+            rf_base = apply_site_rf_params(rf_base, site)
         if not skip_rf:
             try:
-                rf_base = dict(getattr(config, "RF_REGRESSION_PARAMS", {}))
-                if use_per_site:
-                    rf_base = apply_site_rf_params(rf_base, site)
                 rf_model = build_rf_regressor(rf_base)
                 rf_model.fit(X_train_processed, y_train)
                 rf_raw = float(rf_model.predict(X_test_processed)[0])
@@ -1124,7 +1009,7 @@ class RawForecastEngine:
         naive_prediction = get_last_known_raw_da(
             real_train,
             anchor_date=anchor_date,
-            max_age_days=getattr(config, "PERSISTENCE_MAX_DAYS", None),
+            max_age_days=config.PERSISTENCE_MAX_DAYS,
         )
         if naive_prediction is None:
             return None
@@ -1159,13 +1044,13 @@ class RawForecastEngine:
 
         # Quantile intervals
         quantile_predictions = {}
-        enable_qi = getattr(config, "ENABLE_QUANTILE_INTERVALS", True)
+        enable_qi = config.ENABLE_QUANTILE_INTERVALS
         if enable_qi and not skip_quantiles:
             try:
                 for q in (0.1, 0.5, 0.9):
                     q_params = {
                         **model_params,
-                        "objective": "reg:quantile",
+                        "objective": "reg:quantileerror",
                         "quantile_alpha": q,
                     }
                     q_model = build_xgb_regressor(q_params)
@@ -1193,8 +1078,8 @@ class RawForecastEngine:
         spike_alert = None
         if config.SPIKE_CLASSIFIER_ENABLED:
             try:
-                X_pooled, y_pooled = self._build_pooled_spike_data(
-                    feature_frame, anchor_date,
+                X_pooled, y_pooled, pooled_transformer, pooled_columns = (
+                    self._build_pooled_spike_data(feature_frame, anchor_date)
                 )
                 if X_pooled is not None:
                     spike_result = (
@@ -1206,13 +1091,19 @@ class RawForecastEngine:
                         )
                     )
                     if spike_result is not None:
+                        # Encode the test row with the pooled transformer the classifier
+                        # was trained on (not the per-site one, whose scaling and feature
+                        # subset differ); missing features get the pooled median.
+                        X_test_spike = pooled_transformer.transform(
+                            test_row.reindex(columns=pooled_columns)
+                        )
                         spike_prob = (
                             self.classification_adapter.predict_spike_probability(
-                                spike_result, X_test_processed,
+                                spike_result, X_test_spike,
                             )
                         )
                         classifier_fires = spike_prob >= config.SPIKE_ALERT_PROB_THRESHOLD
-                        w_xgb, w_rf, _ = get_site_ensemble_weights(site)
+                        w_xgb, w_rf, _ = self._ensemble_weights(site)
                         rf_val = rf_prediction if rf_prediction is not None else prediction
                         ensemble_pred = w_xgb * prediction + w_rf * rf_val
                         regression_fires = ensemble_pred >= config.SPIKE_REGRESSION_ALERT_THRESHOLD
@@ -1222,7 +1113,7 @@ class RawForecastEngine:
 
         # Regression-only fallback when classifier is unavailable
         if spike_alert is None:
-            w_xgb, w_rf, _ = get_site_ensemble_weights(site)
+            w_xgb, w_rf, _ = self._ensemble_weights(site)
             rf_val = rf_prediction if rf_prediction is not None else prediction
             ensemble_pred = w_xgb * prediction + w_rf * rf_val
             if ensemble_pred >= config.SPIKE_REGRESSION_ALERT_THRESHOLD:
@@ -1249,7 +1140,26 @@ class RawForecastEngine:
             "spike_alert": spike_alert,
         }
 
+        if return_internals:
+            result["_internals"] = {
+                "train_data": train_data,
+                "X_train": X_train,
+                "X_train_processed": X_train_processed,
+                "X_test_processed": X_test_processed,
+                "y_train": y_train,
+                "postprocess": _postprocess,
+                "xgb_params": xgb_params_final,
+                "rf_params": rf_base,
+            }
         return {**result, **quantile_predictions}
+
+    @staticmethod
+    def _ensemble_weights(site: str) -> tuple[float, float, float]:
+        """(w_xgb, w_rf, w_naive): per-site weights, or an equal XGB/RF split when
+        USE_PER_SITE_MODELS is off (naive persistence is an external baseline)."""
+        if config.USE_PER_SITE_MODELS:
+            return get_site_ensemble_weights(site)
+        return 0.5, 0.5, 0.0
 
     def _tune_xgb_params(
         self,
@@ -1300,9 +1210,10 @@ class RawForecastEngine:
             if not valid.empty:
                 r2 = r2_score(valid["actual_da"], valid["predicted_da"])
                 mae = mean_absolute_error(valid["actual_da"], valid["predicted_da"])
-                yt = (valid["actual_da"] > config.SPIKE_THRESHOLD).astype(int)
-                yp = (valid["predicted_da"] > config.SPIKE_THRESHOLD).astype(int)
-                f1_val = f1_score(yt, yp, zero_division=0)
+                f1_val = detection_scores(
+                    exceeds(valid["actual_da"], config.SPIKE_THRESHOLD),
+                    exceeds(valid["predicted_da"], config.SPIKE_REGRESSION_ALERT_THRESHOLD),
+                )["f1"]
                 logger.info(
                     "Regression — R2: %.4f  MAE: %.4f  Spike F1: %.4f",
                     r2,

@@ -14,90 +14,13 @@ Each site can override:
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from forecasting.oad_features import OAD_FEATURES_ALL
+import config
+from forecasting.logging_config import get_logger
 
+logger = get_logger(__name__)
 
-# --------------------------------------------------------------------------
-# Feature group definitions (for readable subset selection)
-# --------------------------------------------------------------------------
-
-PERSISTENCE_FEATURES = [
-    'last_observed_da_raw',
-    'weeks_since_last_spike',
-]
-
-# Observation-order lag features (replacing grid-shift lags)
-LAG_FEATURES_SHORT = [
-    'da_raw_prev_obs_1',
-    'da_raw_prev_obs_2',
-    'da_raw_prev_obs_diff_1_2',
-]
-
-LAG_FEATURES_FULL = [
-    'da_raw_prev_obs_1',
-    'da_raw_prev_obs_2',
-    'da_raw_prev_obs_3',
-    'da_raw_prev_obs_4',
-    'da_raw_prev_obs_2_weeks_ago',
-    'da_raw_prev_obs_3_weeks_ago',
-    'da_raw_prev_obs_diff_1_2',
-]
-
-ROLLING_FEATURES_SHORT = [
-    'raw_obs_roll_mean_4',
-    'raw_obs_roll_max_4',
-]
-
-ROLLING_FEATURES_FULL = [
-    'raw_obs_roll_mean_4',
-    'raw_obs_roll_std_4',
-    'raw_obs_roll_max_4',
-    'raw_obs_roll_std_8',
-    'raw_obs_roll_max_8',
-    'raw_obs_roll_std_12',
-    'raw_obs_roll_max_12',
-]
-
-ENV_FEATURES_CORE = [
-    'modis-sst',
-    'pdo',
-    'beuti',
-]
-
-TEMPORAL_FEATURES_CORE = [
-    'sin_day_of_year',
-    'cos_day_of_year',
-    'month',
-]
-
-# Conservative RF params for sites where RF R2 < 0.1
-RF_CONSERVATIVE = {
-    'n_estimators': 200,
-    'max_depth': 6,
-    'min_samples_split': 10,
-    'min_samples_leaf': 5,
-    'max_features': 0.5,
-}
-
-# --------------------------------------------------------------------------
-# Climate & anomaly feature groups
-# --------------------------------------------------------------------------
-
-CLIMATE_FEATURES_CORE = [
-    'oni',
-    'sst-anom',
-]
-
-# Columbia River discharge (global gauge, negative proxy for DA flushing)
-# Strongest signal at northern sites (lat > 46.5°N)
-DISCHARGE_FEATURES = [
-    'discharge',
-]
-
-# Pseudo-nitzschia log transform (compresses heavy-tailed distribution)
-PN_FEATURES = [
-    'pn_log',
-]
+# (site, missing-columns) pairs already reported, so each problem is logged once
+_WARNED_MISSING_FEATURES: set = set()
 
 
 # --------------------------------------------------------------------------
@@ -107,8 +30,6 @@ PN_FEATURES = [
 # SITE_SPECIFIC_CONFIGS is now loaded from config/tuned_hyperparameters.json.
 # To change values: edit that JSON (or regenerate via scripts/tune/tune_all.py),
 # do NOT add hardcoded literals back here. Env-var overlays below still apply.
-# The feature group constants above (PERSISTENCE_FEATURES, etc.) are kept for
-# reference / external scripts; the JSON contains the resolved flat feature lists.
 from forecasting.tuned_config import get_per_site as _get_per_site
 SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
     site: dict(cfg) for site, cfg in _get_per_site().items()
@@ -143,19 +64,6 @@ elif _feature_mode == "minimal":
     for _sc in SITE_SPECIFIC_CONFIGS.values():
         _sc['feature_subset'] = _MINIMAL
 
-# DATECT_OAD_ON_SMALL_N=true appends OAD_FEATURES_ALL to the 4 small-N sites'
-# feature_subsets (Coos Bay, Cannon Beach, Gold Beach, Newport). Default leaves
-# them as handcrafted minimal subsets. Used by the "with_oad_on_small_n"
-# ablation slot to test whether OAD acts as synthetic data that helps despite
-# tiny per-site sample counts (N=61-144 vs N>>140 for high-N sites).
-_oad_small_n = _os.environ.get("DATECT_OAD_ON_SMALL_N", "").lower() in ("1", "true", "yes")
-if _oad_small_n:
-    _SMALL_N_SITES = ["Coos Bay", "Cannon Beach", "Gold Beach", "Newport"]
-    for _site in _SMALL_N_SITES:
-        _cfg = SITE_SPECIFIC_CONFIGS.get(_site)
-        if _cfg and _cfg.get("feature_subset") is not None:
-            _cfg["feature_subset"] = list(_cfg["feature_subset"]) + list(OAD_FEATURES_ALL)
-
 # DATECT_HPARAM_OVERRIDE_JSON: path to a JSON file with structure
 # {"<site>": {"xgb_params": {...}, "rf_params": {...},
 #             "ensemble_weights": [w_xgb, w_rf, 0.0], ...}, ...}
@@ -175,13 +83,8 @@ if _hparam_path and _os.path.exists(_hparam_path):
                 _v = tuple(_v)
             SITE_SPECIFIC_CONFIGS[_site][_k] = _v
 
-_clip_override = _os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")
-if _clip_override == "none":
-    for _sc in SITE_SPECIFIC_CONFIGS.values():
-        _sc['prediction_clip_q'] = None
-        _sc['prediction_clip_max'] = None
-elif _clip_override:
-    _cq = float(_clip_override)
+if config.CLIP_Q_OVERRIDE is not None:
+    _cq = None if config.CLIP_Q_OVERRIDE == "none" else config.CLIP_Q_OVERRIDE
     for _sc in SITE_SPECIFIC_CONFIGS.values():
         _sc['prediction_clip_q'] = _cq
         _sc['prediction_clip_max'] = None
@@ -254,6 +157,10 @@ def compute_site_drop_cols(
 
     drops = set(base_drop_cols)
     subset_set = set(subset)
+    missing = tuple(sorted(subset_set - set(all_columns)))
+    if missing and (site, missing) not in _WARNED_MISSING_FEATURES:
+        _WARNED_MISSING_FEATURES.add((site, missing))
+        logger.warning("feature_subset for %s lists columns not in the data: %s", site, missing)
     for col in all_columns:
         if col not in subset_set and col not in drops:
             drops.add(col)

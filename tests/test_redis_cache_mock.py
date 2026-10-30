@@ -7,18 +7,15 @@ connection drops or fails to initialize.
 """
 
 import os
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 
 # Mock out Redis before importing redis_cache to ensure we can test in any env
 with patch.dict(os.environ, {"REDIS_URL": "redis://localhost:6379/0"}):
-    from backend.redis_cache import RedisCacheManager, get_redis_cache
+    from backend.redis_cache import RedisCacheManager
     from backend.cache_manager import CacheManager
 
 

@@ -60,7 +60,7 @@ $^{2}$ \quad Applied Physics Laboratory, University of Washington, Seattle, WA 9
 %  ABSTRACT
 % ══════════════════════════════════════════════════════════════════════════════
 \abstract{
-Domoic acid (DA) contamination of shellfish is a recurring public health crisis along the U.S.\ Pacific Northwest coast, yet no quantitative forecasting system has been published for the region. We present DATect, a one-week-ahead site-specific DA forecasting system for 10 monitoring sites spanning \SI{600}{\kilo\meter} of Washington and Oregon coast, trained on 21 years (2003--2023) of satellite, climate, hydrological, and biological data. DATect couples a per-site XGBoost + Random Forest ensemble with a transition-focused binary classifier; all per-site configuration is selected by leak-free chronological cross-validation on pre-2022 data, making the 2022--2023 temporal holdout fully unbiased. On that holdout (every real DA measurement, $N = 404$), the regression ensemble achieves pooled $R^2 = 0.485$ [95\% CI: 0.330, 0.604], MAE $= \SI{6.76}{\microgrampeg}$, and spike recall $= 0.857$ at the \SI{20}{\microgrampeg} regulatory threshold, with 9 of 10 sites measurably positive. Combining the regression with the transition classifier raises hybrid-alert recall to 87.6\% on the full retrospective panel. DATect is deployed as a publicly accessible web dashboard.
+Domoic acid (DA) contamination of shellfish is a recurring public health crisis along the U.S.\ Pacific Northwest coast, yet no quantitative forecasting system has been published for the region. We present DATect, a one-week-ahead site-specific DA forecasting system for 10 monitoring sites spanning \SI{600}{\kilo\meter} of Washington and Oregon coast, trained on 21 years (2003--2023) of satellite, climate, hydrological, and biological data. DATect couples a per-site XGBoost + Random Forest ensemble with a transition-focused binary classifier; all per-site configuration is selected by leak-free chronological cross-validation on pre-2022 data, making the 2022--2023 temporal holdout fully unbiased. On that holdout (every real DA measurement, $N = 409$), the regression ensemble achieves pooled $R^2 = 0.419$ [95\% CI: 0.247, 0.546], MAE $= \SI{7.49}{\microgrampeg}$, and spike recall $= 0.774$ for the \SI{20}{\microgrampeg} regulatory threshold (alerting at a forecast of \SI{12}{\microgrampeg}), with positive skill at 8 of the 9 sites that have holdout measurements. Combining the regression with the transition classifier detects 92.1\% of spikes and 76.3\% of new spike onsets on a 2,105-point retrospective sample, versus 11.8\% of onsets for na\"ive persistence. DATect is deployed as a publicly accessible web dashboard.
 }
 
 \keyword{domoic acid; harmful algal blooms; machine learning; ensemble forecasting; \textit{Pseudo-nitzschia}; Pacific Northwest; XGBoost; data leakage prevention}
@@ -208,18 +208,18 @@ Table~\ref{tab:sites} lists the 10 monitoring sites with their coordinates and t
 \toprule
 \textbf{Site} & \textbf{State} & \textbf{Latitude (\textdegree N)} & \textbf{Longitude (\textdegree W)} & \textbf{$N$ (validation)} \\
 \midrule
-Kalaloch       & WA & 47.586 & 124.379 & 235 \\
-Quinault       & WA & 47.284 & 124.236 & 181 \\
-Copalis        & WA & 47.106 & 124.181 & 277 \\
-Twin Harbors   & WA & 46.792 & 124.100 & 225 \\
+Kalaloch       & WA & 47.586 & 124.379 & 222 \\
+Quinault       & WA & 47.284 & 124.236 & 196 \\
+Copalis        & WA & 47.106 & 124.181 & 275 \\
+Twin Harbors   & WA & 46.792 & 124.100 & 216 \\
 Long Beach     & WA & 46.558 & 124.061 & 209 \\
-Clatsop Beach  & OR & 46.029 & 123.917 & 354 \\
-Cannon Beach   & OR & 45.882 & 123.959 & 116 \\
-Newport        & OR & 44.600 & 124.050 & 218 \\
-Coos Bay       & OR & 43.376 & 124.237 & 109 \\
-Gold Beach     & OR & 42.377 & 124.414 & 257 \\
+Clatsop Beach  & OR & 46.029 & 123.917 & 309 \\
+Cannon Beach   & OR & 45.882 & 123.959 & 118 \\
+Newport        & OR & 44.600 & 124.050 & 208 \\
+Coos Bay       & OR & 43.376 & 124.237 & 110 \\
+Gold Beach     & OR & 42.377 & 124.414 & 242 \\
 \midrule
-\multicolumn{4}{l}{\textbf{Total validation samples}} & \textbf{2,181} \\
+\multicolumn{4}{l}{\textbf{Total validation samples}} & \textbf{2,105} \\
 \bottomrule
 \end{tabular*}
 \end{table}
@@ -309,7 +309,7 @@ DATect employs a per-site model selection framework, formalized as a weighted tw
 \hat{y} = w_{\text{XGB}} \cdot \hat{y}_{\text{XGB}} + w_{\text{RF}} \cdot \hat{y}_{\text{RF}}
 \label{eq:ensemble}
 \end{equation}
-where $w_{\text{XGB}} + w_{\text{RF}} = 1$ and the weights are site-specific (Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config}). In the current configuration, all sites resulted in single-model assignments ($w \in \{0, 1\}$) based on development-set performance, making this effectively a per-site model selection between XGBoost and Random Forest. Blended weights (e.g., 50/50 or 60/40) were tested but produced no improvement over single-model selection ($\Delta R^2 = -0.004$ held-out, $-0.010$ temporal holdout), consistent with the two models being too correlated on the same feature set to benefit from averaging; the ensemble formulation is retained for generality. Na\"ive persistence is reported separately as a standalone external baseline (Section~\ref{sec:results-overall}).
+where $w_{\text{XGB}} + w_{\text{RF}} = 1$ and the weights are site-specific (Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config}). In the current configuration, the leak-free grid search (Section~\ref{sec:results-temporal-holdout}) assigned a single model ($w \in \{0, 1\}$) at nine sites and a 0.25/0.75 XGBoost/RF blend at Twin Harbors, making this mostly a per-site model selection between XGBoost and Random Forest, consistent with the two models being too correlated on the same feature set to benefit much from averaging; the ensemble formulation is retained for generality. Na\"ive persistence is reported separately as a standalone external baseline (Section~\ref{sec:results-overall}).
 
 \textbf{XGBoost} \cite{Chen2016}: A gradient boosted tree model using the histogram-based training method (\texttt{tree\_method=hist}) with global base hyperparameters ($n_{\text{estimators}} = 400$, max depth $= 6$, learning rate $= 0.05$, subsample $= 0.85$, colsample\_bytree $= 0.85$, colsample\_bylevel $= 0.8$, $\alpha = 0.1$, $\lambda = 1.0$, $\gamma = 0.1$, min\_child\_weight $= 3$) and per-site overrides (Appendix~\ref{app:hyperparams}). During retrospective evaluation, per-anchor hyperparameter selection uses a calibration fraction of 30\% of training data (maximum 20 rows), searching over a site-specific candidate grid of 1--3 configurations. In real-time deployment, per-site hyperparameters are used directly without per-anchor tuning; this simplification is justified because the perturbation study (Appendix~\ref{app:perturbation-sensitivity}) shows that XGBoost performance is insensitive to small hyperparameter variations within the tested range. XGBoost's native handling of missing values and its L1/L2 regularization make it well-suited for the noisy, gap-filled environmental feature space.
 
@@ -321,7 +321,7 @@ where $w_{\text{XGB}} + w_{\text{RF}} = 1$ and the weights are site-specific (Ta
 
 A distinguishing feature of DATect is that each of the 10 monitoring sites receives a custom configuration encompassing: (1) XGBoost and Random Forest hyperparameter overrides, (2) a curated feature subset, (3) ensemble weights $(w_{\text{XGB}}, w_{\text{RF}})$ in Equation~\eqref{eq:ensemble}, and (4) prediction clipping parameters. This per-site approach acknowledges that the 10 sites exhibit fundamentally different DA dynamics due to their distinct oceanographic settings, sampling histories, and bloom characteristics. A single global model would be forced to compromise across these diverse regimes, while per-site customization allows each site's model to specialize.
 
-Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config} summarizes the per-site configuration. In the final paper configuration, six sites select Random Forest and four select XGBoost, so the ``ensemble'' acts as a site-wise model selector rather than a blended average. Most moderate- and low-skill sites also use stronger clipping or regularization, reflecting the need for more conservative predictions when data are sparse or highly variable.
+Table~\ref{tab:ensemble-config} in Appendix~\ref{app:model-config} summarizes the per-site configuration. In the final paper configuration, six sites select XGBoost, three select Random Forest and Twin Harbors blends the two, so the ``ensemble'' acts mostly as a site-wise model selector rather than a blended average. Every site clips predictions at the 0.95 or 0.97 quantile of its training targets.
 
 \textbf{Configuration selection procedure.} Per-site configurations were selected through iterative manual evaluation on a development test set (seed = 42, 20\% sampling fraction) using the leak-free retrospective protocol described in Section~\ref{sec:validation}.
 
@@ -375,12 +375,13 @@ DATect enforces nine explicit data-leakage prevention mechanisms, summarized in 
 The central concept is the \textit{anchor date}, defined as $t_{\text{anchor}} = t_{\text{forecast}} - 7$ days. All training data must satisfy date $\leq t_{\text{anchor}}$, and the test date must satisfy $t_{\text{test}} > t_{\text{anchor}}$. This is verified by an assertion function called for every prediction, raising an error if violated. Safeguard \#8 (fresh model per test point) is particularly aggressive---rather than training a single model and applying it to multiple test points, DATect retrains from scratch for each prediction, ensuring that no information from future test points can influence earlier predictions through model state.
 
 \subsubsection{Retrospective Evaluation}
+\label{sec:retro-eval}
 
-Model performance is evaluated through leak-free retrospective validation using a two-stage protocol. Per-site configurations (ensemble weights, feature subsets, hyperparameter overrides) were developed using a \textit{development} test set (seed = 42, 20\% sampling fraction). All results reported in this paper are evaluated on a separate \textit{held-out} test set drawn with a different random seed (seed = 123) and a larger sampling fraction (40\%), ensuring that no reported metric informed configuration selection. For each site, 40\% of raw DA measurements are sampled as candidate test points, subject to a history requirement that $\geq 33\%$ of the site's total record must precede the test date. At each test point, a fresh model is trained on all data up to the anchor date, predictions are generated, and metrics are computed. Bootstrap 95\% confidence intervals ($B = 10{,}000$; percentile method \cite{Efron1979}) are reported for key metrics as \emph{row-resampling} summaries: each replicate draws prediction rows with replacement, so intervals reflect sampling variability over the fixed held-out row set rather than a hierarchical model, temporal block bootstrap, or full spatial--temporal dependence structure, particularly at sites with limited sample sizes.
+Model performance is evaluated through leak-free retrospective validation using a two-stage protocol. Per-site configurations (ensemble weights, feature subsets, hyperparameter overrides) were developed using a \textit{development} test set (seed = 42, 20\% sampling fraction). All results reported in this paper are evaluated on a separate \textit{held-out} test set drawn with a different random seed (seed = 123) and a larger sampling fraction (40\%), ensuring that no reported metric informed configuration selection. For each site, 40\% of raw DA measurements are sampled as candidate test points, subject to a history requirement that $\geq 33\%$ of the site's total record must precede the test date. At each test point, a fresh model is trained on all data up to the anchor date, predictions are generated, and metrics are computed. Test targets are raw measurements, one per site and day: about 1,200 site-days carry several samples that often disagree (the records identify neither species nor sampling station), and these are collapsed to their daily maximum, consistent with the weekly maximum used for training targets. Results reported as below detection (``$<$1'') are set to half the detection limit, \SI{0.5}{\microgrampeg}. Bootstrap 95\% confidence intervals ($B = 10{,}000$; percentile method \cite{Efron1979}) are reported for key metrics as \emph{row-resampling} summaries: each replicate draws prediction rows with replacement, so intervals reflect sampling variability over the fixed held-out row set rather than a hierarchical model, temporal block bootstrap, or full spatial--temporal dependence structure, particularly at sites with limited sample sizes.
 
 As additional validation, we report a \textit{three-window chronological evaluation} that separates the dataset into a pre-2019 training/diagnostic pool, a 2019--2022 validation window (used by hyperparameter-tuning experiments as the objective surface; see Section~\ref{sec:results-ablation}), and a 2022--2023 holdout window that is downstream of the latest per-site configuration adjustment and was never inspected during configuration development. The 2022--2023 window therefore serves as the most conservative unbiased estimate of post-deployment forecast skill (Table~\ref{tab:temporal-holdout}). Training for each anchor still uses all data preceding that anchor, so the chronological designation affects only which dates appear as test points, not the expanding-window training mechanism.
 
-To quantify how much single-seed point estimates can drift due to random-anchor sampling alone, we run all retrospective evaluations under a 5-seed bootstrap (seeds 42--46) and report the mean and standard deviation across seeds wherever the per-seed $N$ is small (typically $\leq 200$ test points). Section~\ref{sec:results-temporal-holdout} demonstrates that holdout $R^2$ at $N \approx 160$ has an inter-seed std of $\approx 0.15$, so single-seed claims at this $N$ are not statistically reliable; the multi-seed mean $\pm$ std is the publishable quantity.
+To quantify how much single-seed point estimates can drift due to random-anchor sampling alone, we run all retrospective evaluations under a 5-seed bootstrap (seeds 42--46) and report the mean and standard deviation across seeds wherever the per-seed $N$ is small (typically $\leq 200$ test points). Section~\ref{sec:results-temporal-holdout} demonstrates that holdout $R^2$ at $N \approx 115$ has an inter-seed std of $\approx 0.10$, so single-seed claims at this $N$ are not statistically reliable; the multi-seed mean $\pm$ std is the publishable quantity.
 
 Figure~\ref{fig:ml-pipeline} summarizes the per-prediction workflow. For each forecast, the system (1)~sets the anchor date to 7 days before the target, (2)~selects all training data at or before the anchor, (3)~recomputes persistence and lag features from training data only, (4)~runs the leakage assertion, (5)~trains a fresh site-specific model, and (6)~post-processes the prediction with clipping, confidence bands, and risk classification.
 
@@ -409,28 +410,28 @@ DATect is deployed as a publicly accessible web dashboard providing real-time fo
 \subsection{Overall Model Performance}
 \label{sec:results-overall}
 
-Table~\ref{tab:model-comparison} compares the five model variants evaluated under leak-free retrospective validation on the held-out test set ($n = 2{,}181$). The two-model ML ensemble achieves $R^2 = 0.238$ [95\% CI: 0.150, 0.340], MAE $= \SI{6.53}{\microgrampeg}$, and RMSE $= \SI{17.52}{\microgrampeg}$. Figure~\ref{fig:site-performance} visualizes the site-to-site split that drives this pooled result. Single-seed pooled $R^2$ is noisy at this $N$ (5-seed bootstrap spans 0.32--0.55 across seeds 42--46 on the post-2022 holdout, std $\approx 0.09$); we therefore caveat all single-number claims with the multi-seed range in Section~\ref{sec:results-temporal-holdout}.
+Table~\ref{tab:model-comparison} compares the five model variants evaluated under leak-free retrospective validation on the held-out test set ($n = 2{,}105$). The two-model ML ensemble achieves $R^2 = 0.337$ [95\% CI: 0.257, 0.416], MAE $= \SI{6.53}{\microgrampeg}$, and RMSE $= \SI{19.42}{\microgrampeg}$. Figure~\ref{fig:site-performance} visualizes the site-to-site split that drives this pooled result. Single-seed $R^2$ is noisy (on the post-2022 holdout rows, the 5-seed bootstrap spans 0.29--0.55 across seeds 42--46, std $\approx 0.10$); we therefore caveat all single-number claims with the multi-seed range in Section~\ref{sec:results-temporal-holdout}.
 
 \begin{table}[H]
-\caption{Overall regression performance of five model variants under leak-free retrospective validation on the held-out test set ($n = 2{,}181$, seed = 123).}
+\caption{Overall regression performance of five model variants under leak-free retrospective validation on the held-out test set ($n = 2{,}105$, seed = 123).}
 \label{tab:model-comparison}
 \centering\scriptsize
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcccc}
 \toprule
 \textbf{Model} & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [CI]} & \textbf{RMSE} & $\boldsymbol{\Delta R^2}$ \textbf{vs.\ ens.} \\
 \midrule
-\textbf{Per-site sel.}$^{\dagger}$ & \textbf{0.238} [.150, .340] & \textbf{6.53} [5.91, 7.23] & \textbf{17.52} & --- \\
-XGBoost          & 0.242 [.162, .332] & 6.70 [6.01, 7.40] & 17.48 & $-$.004 [$-$.018, $+$.010] \\
-Random Forest    & 0.213 [.115, .315] & 6.46 [5.81, 7.20] & 17.81 & $+$.025 [$+$.005, $+$.046] \\
-Linear (Ridge)   & 0.202 [.107, .300] & 6.66 [5.96, 7.45] & 17.94 & $+$.036 [$+$.005, $+$.067] \\
-Na\"ive Persist. & $-$.426 [$-$.951, $-$.034] & 7.73 [6.84, 8.76] & 23.98 & $+$.664 [$+$.310, $+$1.16] \\
+\textbf{Per-site sel.}$^{\dagger}$ & \textbf{0.337} [.257, .416] & \textbf{6.53} [5.78, 7.29] & \textbf{19.42} & --- \\
+XGBoost          & 0.331 [.257, .410] & 6.78 [6.04, 7.58] & 19.51 & $+$.006 [$-$.006, $+$.017] \\
+Random Forest    & 0.330 [.247, .415] & 6.42 [5.67, 7.23] & 19.52 & $+$.007 [$-$.009, $+$.021] \\
+Linear (Ridge)   & 0.325 [.242, .410] & 6.61 [5.84, 7.37] & 19.59 & $+$.012 [$-$.007, $+$.032] \\
+Na\"ive Persist. & 0.150 [$-$.142, .384] & 6.68 [5.83, 7.60] & 22.00 & $+$.188 [$-$.019, $+$.484] \\
 \bottomrule
 \end{tabular*}
 \vspace{0.3em}\\
-\footnotesize{$^\dagger$ All per-site weights are $w \in \{0,1\}$, so ``Per-site selection'' acts as a site-wise model selector (XGBoost at 4 sites, RF at 6 sites); the ensemble formulation is retained for generality (Section~\ref{sec:model-selection}). $\Delta R^2 = R^2_{\text{comp}} - R^2_{\text{ens}}$: positive = ensemble outperforms. MAE in \si{\microgrampeg}.}
+\footnotesize{$^\dagger$ Nine of the ten per-site weight pairs are $w \in \{0,1\}$, so ``Per-site selection'' acts mostly as a site-wise model selector (XGBoost at 6 sites, RF at 3; Twin Harbors blends XGBoost 0.25 and RF 0.75); the ensemble formulation is retained for generality (Section~\ref{sec:model-selection}). $\Delta R^2 = R^2_{\text{ens}} - R^2_{\text{comp}}$ (paired bootstrap): positive = ensemble outperforms. MAE in \si{\microgrampeg}.}
 \end{table}
 
-XGBoost achieves the highest individual model $R^2 = 0.242$, statistically indistinguishable from the ensemble ($R^2 = 0.238$; $\Delta = -0.004$ [$-0.018, +0.010$]). Random Forest ($R^2 = 0.213$) and Linear/Ridge ($R^2 = 0.202$) trail slightly but all four ML strategies overlap in 95\% CI. Na\"ive persistence achieves $R^2 = -0.426$ at the pooled held-out scale, indicating that simply predicting the most recent DA observation is not sufficient once all sites are combined. This pooled result does not imply that persistence is useless at every site; rather, it underscores the importance of per-site modeling under strong regional heterogeneity. Paired bootstrap differences between the ensemble and individual ML models are small and statistically consistent with zero (Table~\ref{tab:model-comparison}), while the ensemble's advantage over na\"ive persistence is large and clearly significant ($\Delta R^2 = +0.664$\, $[+0.310,\, +1.16]$), reflecting the value of per-site model selection and feature engineering over raw autocorrelation.
+The per-site ensemble has the highest point estimate, but XGBoost ($R^2 = 0.331$), Random Forest ($R^2 = 0.330$) and Ridge ($R^2 = 0.325$) are statistically indistinguishable from it: every paired bootstrap difference has a 95\% CI that includes zero (Table~\ref{tab:model-comparison}). Na\"ive persistence reaches $R^2 = 0.150$ with an MAE close to the ensemble's (6.68 vs.\ \SI{6.53}{\microgrampeg}). The ensemble's $R^2$ advantage over persistence is large ($\Delta R^2 = +0.188$) but imprecise ($[-0.019,\, +0.484]$), because a few extreme spikes dominate the pooled squared error; persistence is strong where DA is autocorrelated (Washington; Table~\ref{tab:predictability-ceiling}) and weak where it is not. The models' clearer advantage is in anticipating threshold crossings, which persistence cannot do by construction (Section~\ref{sec:results-spike}).
 
 \subsection{Per-Site Regression Performance}
 \label{sec:results-per-site}
@@ -438,27 +439,27 @@ XGBoost achieves the highest individual model $R^2 = 0.242$, statistically indis
 Table~\ref{tab:per-site-results} presents detailed per-site ensemble performance. Sites naturally partition into three tiers:
 
 \begin{table}[H]
-\caption{Per-site ensemble regression and classification performance on the held-out test set (seed = 123, $n = 2{,}181$), ordered by $R^2$ and grouped into performance tiers.}
+\caption{Per-site ensemble regression and classification performance on the held-out test set (seed = 123, $n = 2{,}105$), ordered by $R^2$ and grouped into performance tiers.}
 \label{tab:per-site-results}
 \centering\scriptsize
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrccrrl}
 \toprule
 \textbf{Site} & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ \textbf{[95\% CI]} & \textbf{MAE [CI]} & \textbf{RMSE} & \textbf{Acc.} & \textbf{Tier} \\
 \midrule
-Copalis       & 277 & \textbf{.787} [.700, .842] & 2.73 [2.22, 3.30] & 5.31  & .801 & High \\
-Twin Harbors  & 225 & \textbf{.512} [.394, .714] & 4.84 [3.38, 6.57] & 13.38 & .800 & High \\
-Kalaloch      & 235 & \textbf{.480} [.348, .641] & 3.77 [2.72, 5.08] & 10.14 & .809 & High \\
-Long Beach    & 209 & \textbf{.410} [.288, .568] & 4.92 [3.65, 6.31] & 10.92 & .727 & High \\
-Quinault      & 181 & \textbf{.286} [.178, .535] & 4.79 [3.22, 6.75] & 13.27 & .751 & High \\
+Copalis       & 275 & \textbf{.737} [.649, .824] & 2.15 [1.65, 2.72] & 4.98  & .855 & High \\
+Kalaloch      & 222 & \textbf{.603} [.468, .674] & 2.98 [2.10, 4.00] & 7.99  & .865 & High \\
+Twin Harbors  & 216 & \textbf{.486} [.359, .768] & 4.67 [2.92, 6.81] & 15.37 & .792 & High \\
+Long Beach    & 209 & \textbf{.484} [.354, .656] & 3.71 [2.59, 4.93] & 9.52  & .809 & High \\
+Quinault      & 196 & \textbf{.462} [.289, .774] & 3.05 [2.06, 4.33] & 8.67  & .781 & High \\
+Clatsop Bch   & 309 & \textbf{.455} [.361, .548] & 5.77 [4.35, 7.48] & 15.30 & .783 & High \\
 \addlinespace
-Clatsop Bch   & 354 & .260 [.042, .412] & 6.15 [4.86, 7.60] & 14.35 & .703 & Mod. \\
-Coos Bay      & 109 & .150 [$-$.225, .355] & 22.70 [17.50, 27.98] & 36.30 & .486 & Mod. \\
-Gold Beach    & 257 & .040 [$-$.182, .202] & 8.45 [5.95, 11.34] & 23.53 & .774 & Mod. \\
+Coos Bay      & 110 & .311 [.156, .440] & 24.91 [18.95, 31.42] & 42.20 & .582 & Mod. \\
 \addlinespace
-Cannon Bch    & 116 & $-$.044 [$-$.090, $-$.009] & 3.91 [1.40, 6.97] & 16.14 & .922 & Low \\
-Newport       & 218 & $-$.081 [$-$.651, .061] & 10.75 [8.08, 14.49] & 26.38 & .541 & Low \\
+Newport       & 208 & .085 [$-$.176, .275] & 11.21 [8.99, 13.73] & 20.30 & .548 & Low \\
+Gold Beach    & 242 & .062 [$-$.040, .207] & 12.16 [8.25, 16.77] & 36.18 & .789 & Low \\
+Cannon Bch    & 118 & $-$.021 [$-$.070, .145] & 2.72 [1.05, 5.03] & 12.22 & .898 & Low \\
 \midrule
-\textbf{Overall} & \textbf{2,181} & \textbf{.238} [.150, .340] & \textbf{6.53} [5.91, 7.23] & \textbf{17.52} & \textbf{.742} & --- \\
+\textbf{Overall} & \textbf{2,105} & \textbf{.337} [.257, .416] & \textbf{6.53} [5.78, 7.29] & \textbf{19.42} & \textbf{.778} & --- \\
 \bottomrule
 \end{tabular*}
 \vspace{0.3em}\\
@@ -466,7 +467,7 @@ Newport       & 218 & $-$.081 [$-$.651, .061] & 10.75 [8.08, 14.49] & 26.38 & .5
 \end{table}
 
 \begin{table}[H]
-\caption{Per-site ensemble performance on the 2022--2023 temporal holdout under two protocols: deterministic chronological (every real DA measurement, $N = 404$) and a 5-seed random-anchor bootstrap (20\% per seed, $N \approx 160$/seed).}
+\caption{Per-site ensemble performance on the 2022--2023 temporal holdout under two protocols: deterministic chronological (every real DA measurement, $N = 409$) and a 5-seed random-anchor bootstrap (20\% per seed, $N \approx 115$ holdout rows per seed).}
 \label{tab:temporal-holdout}
 \centering\scriptsize
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrccrc}
@@ -475,63 +476,62 @@ Newport       & 218 & $-$.081 [$-$.651, .061] & 10.75 [8.08, 14.49] & 26.38 & .5
 \cmidrule(lr){2-4} \cmidrule(lr){5-6}
               & $\boldsymbol{N}$ & $\boldsymbol{R^2}$ \textbf{[CI]} & \textbf{MAE} & $\boldsymbol{R^2}$ \textbf{mean} $\pm$ \textbf{std} & \textbf{Tier} \\
 \midrule
-Twin Harbors  & 42  & \textbf{.633} [.327, .798] & 3.26  & .525 $\pm$ .178 & High \\
-Coos Bay      & 35  & \textbf{.630} [.451, .863] & 14.08 & .673 $\pm$ .113 & High$^\dagger$ \\
-Copalis       & 59  & \textbf{.598} [.358, .777] & 2.82  & .532 $\pm$ .141 & High \\
-Quinault      & 55  & \textbf{.549} [.237, .750] & 3.12  & .582 $\pm$ .133 & High \\
-Long Beach    & 44  & \textbf{.531} [.219, .842] & 3.51  & .549 $\pm$ .166 & High \\
-Clatsop Bch   & 48  & \textbf{.515} [.325, .700] & 5.66  & .532 $\pm$ .192 & High \\
-Kalaloch      & 31  & \textbf{.493} [.225, .694] & 2.30  & .414 $\pm$ .171 & High \\
+Quinault      & 55  & \textbf{.708} [.518, .832] & 2.96  & .579 $\pm$ .178 & High \\
+Coos Bay      & 35  & \textbf{.634} [.451, .869] & 13.84 & .652 $\pm$ .212 & High$^\dagger$ \\
+Twin Harbors  & 42  & \textbf{.596} [.342, .755] & 3.82  & .383 $\pm$ .392 & High \\
+Copalis       & 60  & \textbf{.589} [.383, .758] & 3.25  & .623 $\pm$ .167 & High \\
+Kalaloch      & 35  & \textbf{.537} [.331, .727] & 2.10  & .366 $\pm$ .187 & High \\
+Long Beach    & 44  & \textbf{.526} [.204, .843] & 3.63  & .732 $\pm$ .216 & High \\
+Clatsop Bch   & 48  & \textbf{.500} [.300, .693] & 5.76  & .466 $\pm$ .209 & High \\
 \addlinespace
-Newport       & 48  & .170 [$-$.321, .393] & 19.09 & $-$0.36 $\pm$ 0.69 & Mod.$^\ddagger$ \\
-\addlinespace
-Gold Beach    & 40  & $-$.235 [$-$12.1, .181] & 8.81 & $-$2.63 $\pm$ 4.17 & Low$^\ddagger$ \\
-Cannon Bch    & --- & no spikes in holdout & --- & --- & N/A$^*$ \\
+Newport       & 48  & .041 [$-$.321, .289] & 22.62 & $-$.032 $\pm$ .279 & Low$^\ddagger$ \\
+Gold Beach    & 40  & $-$.273 [$-$2.29, .058] & 11.66 & $-$4.19 $\pm$ 5.43 & Low$^\ddagger$ \\
+Cannon Bch    & 2   & too few measurements & --- & --- & N/A$^*$ \\
 \midrule
-\textbf{Overall} & \textbf{404} & \textbf{.485 [.330, .604]} & \textbf{6.76} & \textbf{.433 $\pm$ .092} & --- \\
+\textbf{Overall} & \textbf{409} & \textbf{.419 [.247, .546]} & \textbf{7.49} & \textbf{.377 $\pm$ .105} & --- \\
 \bottomrule
 \end{tabular*}
 \vspace{0.3em}\\
-\footnotesize{Deterministic columns: row-level bootstrap CIs ($B = 10{,}000$). MAE in \si{\microgrampeg}. The two protocols measure different kinds of noise: deterministic quantifies which-dates-are-measurable noise; multi-seed quantifies sampling-fraction noise. $^\dagger$Coos Bay's high apparent $R^2$ is partly driven by a small handful of large 2022--2023 spike events; MAE of 14 µg/g reflects the magnitude scale. $^\ddagger$Newport recovers from catastrophic multi-seed $R^2 = -0.36$ to a modest deterministic $+0.17$, indicating the multi-seed negative was largely a small-per-seed-N amplification artifact. Gold Beach remains negative under both protocols, indicating genuine model failure on its near-zero-autocorrelation series. $^*$Cannon Beach has no spike events in 2022--2023.}
+\footnotesize{Deterministic columns: row-level bootstrap CIs ($B = 10{,}000$). MAE in \si{\microgrampeg}. The two protocols measure different kinds of noise: deterministic quantifies which-dates-are-measurable noise; multi-seed quantifies sampling-fraction noise. Multi-seed per-site $N$ is 10--17 holdout rows per seed. $^\dagger$14 of Coos Bay's 35 holdout measurements are spikes, so its $R^2$ rests on a few large events; the MAE of \SI{13.8}{\microgrampeg} reflects that magnitude scale. $^\ddagger$Newport is near zero and Gold Beach negative under both protocols, consistent with their near-zero autocorrelation (Table~\ref{tab:predictability-ceiling}); Gold Beach's multi-seed spread shows how one missed spike dominates $R^2$ at $N \approx 10$. $^*$Cannon Beach has two measurements in 2022--2023.}
 \end{table}
 
 \begin{table}[H]
-\caption{Persistence-forecast $R^2$ ceiling per site, computed as the squared lag-1 autocorrelation ($\rho^2$) of consecutive raw DA measurements; models with environmental predictors can exceed this persistence-only bound.}
+\caption{Persistence-forecast $R^2$ ceiling per site, computed as the squared lag-1 autocorrelation ($\rho^2$) of consecutive raw DA measurements (one per site-day); models with environmental predictors can exceed this persistence-only bound.}
 \label{tab:predictability-ceiling}
 \centering\small
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrrrr}
 \toprule
 \textbf{Site} & $\boldsymbol{N}$ & $\boldsymbol{\rho}$ \textbf{(lag-1)} & $\boldsymbol{R^2}$ \textbf{ceiling} ($\rho^2$) & \textbf{Held-out} $\boldsymbol{R^2}$ \\
 \midrule
-Copalis       & 834 & 0.909 & 0.826 & 0.787 \\
-Kalaloch      & 654 & 0.883 & 0.780 & 0.480 \\
-Long Beach    & 698 & 0.881 & 0.776 & 0.410 \\
-Twin Harbors  & 690 & 0.863 & 0.744 & 0.512 \\
-Quinault      & 564 & 0.836 & 0.698 & 0.286 \\
+Copalis       & 687 & 0.901 & 0.813 & 0.737 \\
+Kalaloch      & 553 & 0.886 & 0.785 & 0.603 \\
+Quinault      & 489 & 0.877 & 0.770 & 0.462 \\
+Long Beach    & 522 & 0.854 & 0.730 & 0.484 \\
+Twin Harbors  & 538 & 0.852 & 0.726 & 0.486 \\
+Clatsop Beach & 772 & 0.840 & 0.705 & 0.455 \\
 \addlinespace
-Clatsop Beach & 1087 & 0.501 & 0.251 & 0.260 \\
-Cannon Beach  &  305 & 0.443 & 0.197 & $-$0.044 \\
-Newport       &  708 & 0.191 & 0.036 & $-$0.081 \\
-Coos Bay      &  335 & 0.054 & 0.003 & 0.150 \\
-Gold Beach    &  717 & 0.038 & 0.002 & 0.040 \\
+Coos Bay      & 273 & 0.505 & 0.255 & 0.311 \\
+Cannon Beach  & 293 & 0.481 & 0.232 & $-$0.021 \\
+Gold Beach    & 603 & 0.219 & 0.048 & 0.062 \\
+Newport       & 518 & 0.218 & 0.047 & 0.085 \\
 \bottomrule
 \end{tabular*}
 \vspace{0.3em}\\
-\footnotesize{$\rho$ computed on consecutively paired raw DA observations (non-interpolated), excluding gaps $> 28$ days. WA mean ceiling: 0.765. OR mean ceiling: 0.098. Held-out $R^2$ from Table~\ref{tab:per-site-results} (seed = 123).}
+\footnotesize{$N$: measured site-days. $\rho$ computed on consecutive pairs of raw (non-interpolated) measurements at most 28 days apart. WA mean ceiling: 0.765. OR mean ceiling: 0.257. Held-out $R^2$ from Table~\ref{tab:per-site-results} (seed = 123).}
 \end{table}
 
-On the all-years paper sample (Table~\ref{tab:per-site-results}, seed = 123, $N = 2{,}181$), all five Washington sites fall in the \textbf{high-skill} tier with $R^2$ point estimates spanning 0.286--0.787 and all upper-bound CIs $\geq 0.535$; Copalis leads at $R^2 = 0.787$ [0.700, 0.842], and Figure~\ref{fig:pred-vs-obs} illustrates how the ensemble tracks observed DA dynamics at this site over the full 21-year record. The Quinault and Long Beach point estimates ($R^2 = 0.286$ and $0.410$) sit at the lower end of this band on this single-seed sample, but their bootstrap CIs overlap the WA cluster. Clatsop Beach ($R^2 = 0.260$), Coos Bay ($R^2 = 0.150$), and Gold Beach ($R^2 = 0.040$) form the \textbf{moderate-skill} tier, while Cannon Beach ($R^2 = -0.044$) and Newport ($R^2 = -0.081$) form the \textbf{low-skill} tier on this sample.
+On the all-years paper sample (Table~\ref{tab:per-site-results}, seed = 123, $N = 2{,}105$), the five Washington sites and Clatsop Beach form the \textbf{high-skill} tier with $R^2$ between 0.455 and 0.737; Copalis leads at $R^2 = 0.737$ [0.649, 0.824], and Figure~\ref{fig:pred-vs-obs} illustrates how the ensemble tracks observed DA dynamics at this site over the full 21-year record. Coos Bay ($R^2 = 0.311$) is the \textbf{moderate-skill} tier, while Newport ($R^2 = 0.085$), Gold Beach ($R^2 = 0.062$) and Cannon Beach ($R^2 = -0.021$) form the \textbf{low-skill} tier. The tiers follow the persistence ceiling (Table~\ref{tab:predictability-ceiling}): the six high-skill sites all have $\rho^2 \geq 0.70$, the other four $\rho^2 \leq 0.26$. At Coos Bay, Newport and Gold Beach the held-out $R^2$ exceeds that ceiling, so the environmental features add signal beyond persistence, but at Newport and Gold Beach not enough for useful skill.
 
-The more conservative deterministic 2022--2023 holdout evaluation (Table~\ref{tab:temporal-holdout}, $N = 404$ real DA measurements) shows a cleaner picture: all five Washington sites, Clatsop Beach, and Coos Bay cluster in $R^2 = 0.49$--$0.63$; Newport recovers to a modest $R^2 = +0.170$; only Gold Beach remains genuinely negative ($R^2 = -0.235$) on its near-zero-autocorrelation series; and Cannon Beach has no spike events in the holdout window, so cannot be evaluated. Nine of the 10 sites are therefore measurably positive on the unbiased deterministic holdout. The contrast between the single-seed paper sample (where Quinault and Long Beach single-seed point estimates dip to 0.29 and 0.41) and the deterministic holdout (where both recover to 0.55 and 0.53) reflects sampling noise at small per-site $N$ rather than genuine site instability, as confirmed by the overlapping bootstrap CIs.
+The deterministic 2022--2023 holdout evaluation (Table~\ref{tab:temporal-holdout}, $N = 409$ real DA measurements) gives the same picture: the five Washington sites, Clatsop Beach and Coos Bay reach $R^2 = 0.50$--$0.71$; Newport is near zero ($R^2 = +0.041$) and Gold Beach negative ($R^2 = -0.273$) on their near-zero-autocorrelation series; and Cannon Beach has only two measurements in the window, so cannot be evaluated. Eight of the nine evaluable sites are therefore positive on the unbiased holdout. Coos Bay's holdout $R^2$ rests on 35 measurements, 14 of them spikes, and is less stable than its point estimate suggests.
 
 \subsection{Temporal Holdout and Multi-Seed Sensitivity}
 \label{sec:results-temporal-holdout}
 
-The 2022--2023 temporal holdout (Table~\ref{tab:temporal-holdout}) provides the strictest unbiased validation: it is downstream of the leak-free grid-search selection window. Two complementary protocols are reported. The \emph{deterministic chronological} evaluation uses every real DA measurement in the holdout window ($N = 404$), giving a single point estimate per metric with row-level bootstrap CIs: pooled $R^2 = 0.485$ [0.330, 0.604], MAE $= 6.76$, spike recall $= 0.857$, spike F2 $= 0.699$. The complementary \emph{5-seed bootstrap} (20\% random-anchor sampling, $N \approx 160$ per seed) directly quantifies how much single-seed point estimates can vary at smaller sample sizes: pooled $R^2 = 0.433 \pm 0.092$ (single-seed range 0.32--0.55). The two estimates are statistically consistent (the deterministic value sits within the multi-seed CI); the deterministic is slightly higher because using 100\% of available data reduces sampling noise. The standard-eval value of 0.238 (Table~\ref{tab:model-comparison}, single seed 123 from the 40\% random-anchor sample across all years) and the post-2022 holdout numbers are not directly comparable as point estimates---they sample different test sets at different $N$---but the deterministic holdout $R^2$ of $0.485$ is the publishable headline measure of generalization skill.
+The 2022--2023 temporal holdout (Table~\ref{tab:temporal-holdout}) provides the strictest unbiased validation: it is downstream of the leak-free grid-search selection window. Two complementary protocols are reported. The \emph{deterministic chronological} evaluation uses every real DA measurement in the holdout window ($N = 409$, 84 spikes), giving a single point estimate per metric with row-level bootstrap CIs: pooled $R^2 = 0.419$ [0.247, 0.546], MAE $= \SI{7.49}{\microgrampeg}$, spike recall $= 0.774$, spike F2 $= 0.693$ (alert at a forecast $\geq \SI{12}{\microgrampeg}$). The complementary \emph{5-seed bootstrap} (20\% random-anchor sampling, $N \approx 115$ holdout rows per seed) quantifies how much single-seed point estimates vary at smaller sample sizes: pooled $R^2 = 0.377 \pm 0.105$ (single-seed range 0.29--0.55). The two estimates are statistically consistent: the deterministic value lies within one inter-seed standard deviation of the multi-seed mean. The standard-eval value of 0.337 (Table~\ref{tab:model-comparison}, single seed 123 from the 40\% random-anchor sample across all years) and the post-2022 holdout numbers are not directly comparable as point estimates---they sample different test sets at different $N$---but the deterministic holdout $R^2$ of $0.419$ is the headline measure of generalization skill. On the 2019--2021 validation window the same evaluation gives $R^2 = 0.329$ [0.203, 0.465] ($N = 635$).
 
-Five Washington sites form a stable high-skill cluster with 5-seed mean $R^2$ between 0.42 and 0.56 and inter-seed std $\approx 0.17$. Oregon sites split: Clatsop Beach achieves comparable skill to WA (0.50 $\pm$ 0.20), Coos Bay shows high apparent $R^2$ that is unreliable due to small $N \approx 10$, and Newport and Gold Beach exhibit catastrophic negative $R^2$ driven by small holdout samples amplifying any prediction miscalibration. Cannon Beach has insufficient 2022--2023 data with no spike events (\textgreater\SI{20}{\microgrampeg}) to evaluate as a regression target.
+Per site, the multi-seed estimates are much noisier than the deterministic ones because each seed contributes only 10--17 holdout rows per site. The five Washington sites have 5-seed mean $R^2$ between 0.37 and 0.73 with inter-seed std 0.17--0.39. Oregon sites split: Clatsop Beach is comparable to Washington ($0.47 \pm 0.21$), Coos Bay's high apparent $R^2$ ($0.65 \pm 0.21$) rests on $N \approx 10$ per seed, Newport is near zero ($-0.03 \pm 0.28$), and Gold Beach is strongly negative ($-4.2 \pm 5.4$) because a single missed spike dominates $R^2$ at this sample size. Cannon Beach has only two 2022--2023 measurements and cannot be evaluated as a regression target.
 
-The per-site outer configuration (ensemble weights, prediction clip quantile, prediction clip ceiling) was selected by a constrained 3-dimensional grid search tuned strictly on pre-2022 data via chronological 3-fold cross-validation (Limitations item 3). This protocol guarantees that no design decision could have inspected the 2022--2023 holdout. As a defensive check, we also ran a prior hand-tuned configuration (selected on a seed-42 development sample across all years) on the same 5-seed bootstrap: hand-tuned scored $R^2 = 0.386 \pm 0.145$ on the holdout versus $0.433 \pm 0.092$ for the grid winners ($\Delta = +0.05 \pm 0.07$, within seed noise), and the hand-tuned configuration scored 0.06 R$^2$ \textit{higher} on the 2019--2022 validation window---the expected signature of the implicit val-window peek in the all-year sampling. Spike-detection metrics (recall and F2) were identical between the two configurations to three decimal places. We retain the grid winners because they require no post-hoc leakage analysis to defend.
+The per-site outer configuration (ensemble weights, prediction clip quantile, prediction clip ceiling) was selected by a constrained 3-dimensional grid search tuned strictly on pre-2022 data via chronological 3-fold cross-validation (Limitations item 3). This protocol guarantees that no design decision could have inspected the 2022--2023 holdout. As a defensive check, made before the final data corrections (Section~\ref{sec:retro-eval}), we also ran a prior hand-tuned configuration (selected on a seed-42 development sample across all years) on the same 5-seed bootstrap: hand-tuned scored $R^2 = 0.386 \pm 0.145$ on the holdout versus $0.433 \pm 0.092$ for the grid winners ($\Delta = +0.05 \pm 0.07$, within seed noise), and the hand-tuned configuration scored 0.06 R$^2$ \textit{higher} on the 2019--2022 validation window---the expected signature of the implicit val-window peek in the all-year sampling. Spike-detection metrics (recall and F2) were identical between the two configurations to three decimal places. We retain the grid winners because they require no post-hoc leakage analysis to defend.
 
 \begin{figure}[H]
 \centering
@@ -550,22 +550,22 @@ The per-site outer configuration (ensemble weights, prediction clip quantile, pr
 \subsection{Classification Performance}
 \label{sec:results-classification}
 
-Threshold-based four-category performance is summarized in Appendix~\ref{app:classification-details} (Tables~\ref{tab:classification} and \ref{tab:confusion}). Overall accuracy is 75.1\% on the held-out test set, driven largely by reliable identification of the Low category (F1 $= 0.862$). Higher-risk categories remain more difficult because of limited samples and class imbalance. Most errors occur between adjacent categories, but 15 of 108 Extreme samples (13.9\%) are misclassified as Low---a safety-relevant failure mode that motivates the dedicated spike analysis below and is revisited in Section~\ref{sec:discussion-limitations}.
+Threshold-based four-category performance is summarized in Appendix~\ref{app:classification-details} (Tables~\ref{tab:classification} and \ref{tab:confusion}). Overall accuracy is 77.8\% on the held-out test set, driven largely by reliable identification of the Low category (F1 $= 0.892$). Higher-risk categories remain more difficult because of limited samples and class imbalance. Most errors occur between adjacent categories, but 11 of 118 Extreme samples (9.3\%) are misclassified as Low---a safety-relevant failure mode that motivates the dedicated spike analysis below and is revisited in Section~\ref{sec:discussion-limitations}.
 
 \subsection{Spike Transition Detection}
 \label{sec:results-spike}
 
-While regression metrics characterize average forecasting skill, the operationally critical question is whether DATect can anticipate \emph{spike transitions}---the moment DA crosses from below to at or above the \SI{20}{\microgrampeg} regulatory threshold. These below-to-above crossings are exactly the events that trigger beach closures, and early detection would provide the advance warning that current reactive monitoring cannot. Two distinct event cohorts are used in this section: environmental lead-signal analysis uses all raw-observation threshold crossings identified from consecutive site-level DA measurements (385 events), while forecast evaluation uses only held-out retrospective test rows corresponding to below-to-above-threshold crossings at the same site (89 events, seed = 123).
+While regression metrics characterize average forecasting skill, the operationally critical question is whether DATect can anticipate \emph{spike transitions}---the moment DA crosses from below to at or above the \SI{20}{\microgrampeg} regulatory threshold. These below-to-above crossings are exactly the events that trigger beach closures, and early detection would provide the advance warning that current reactive monitoring cannot. Two distinct event cohorts are used in this section: environmental lead-signal analysis uses all raw-observation threshold crossings identified from consecutive site-level DA measurements (224 events), while forecast evaluation uses only held-out retrospective test rows corresponding to below-to-above-threshold crossings at the same site (93 events, seed = 123).
 
 \subsubsection{Environmental Lead Signals}
 \label{sec:results-env-lead}
 
-Analysis of 385 spike transition events across all 10 sites reveals that environmental features change detectably in the 1--4 weeks \emph{before} DA crosses the regulatory threshold. The Pacific Decadal Oscillation (PDO) showed the strongest pre-spike signal with rank-biserial effect size $r = 0.50$, followed by SST anomaly ($r = 0.40$), BEUTI ($r = 0.32$), and Columbia River discharge ($r = 0.27$, Washington sites only). All seven environmental features tested showed statistically significant \emph{nominal} deviations from baseline ($p < 0.05$, Wilcoxon signed-rank test) during the four weeks preceding spike transitions; a Bonferroni-adjusted familywise threshold of $0.05/7 \approx 0.007$ would be more conservative, and we do not claim simultaneous significance across all tests. This analysis is exploratory---it uses the full dataset, not the held-out test set---and is intended to confirm that pre-spike environmental signal exists in the feature space, not to provide out-of-sample estimates of classifier performance. These lead signals are consistent with the environmental information needed for anticipatory spike detection being present in the feature set.
+Analysis of 224 spike transition events across all 10 sites reveals that most environmental features change detectably in the 1--4 weeks \emph{before} DA crosses the regulatory threshold. The largest pre-spike rank-biserial effect sizes (maximum over the four leads) are for SST anomaly ($r = 0.45$), the Pacific Decadal Oscillation (PDO; $r = 0.43$), river discharge ($r = 0.35$, below baseline), SST ($r = 0.30$) and BEUTI ($r = 0.24$); \textit{Pseudo-nitzschia} counts sit below the site baseline before a spike ($r = 0.56$), so their pre-spike signal is a decline rather than a rise. Six of the seven features show \emph{nominal} deviations from baseline ($p < 0.05$, Wilcoxon signed-rank test) at three or more of the four leads; ONI shows none ($p \geq 0.43$ at every lead). A Bonferroni-adjusted familywise threshold of $0.05/7 \approx 0.007$ would be more conservative, and we do not claim simultaneous significance across all tests. This analysis is exploratory---it uses the full dataset, not the held-out test set---and is intended to confirm that pre-spike environmental signal exists in the feature space, not to provide out-of-sample estimates of classifier performance. These lead signals are consistent with the environmental information needed for anticipatory spike detection being present in the feature set.
 
 \subsubsection{Regression Threshold Limitations}
 \label{sec:results-threshold-limit}
 
-Despite this, the regression ensemble's spike transition recall at the standard \SI{20}{\microgrampeg} decision threshold is poor: only 14.5\% of held-out transition events are correctly predicted as spikes (seed = 123). Na\"ive persistence achieves 23.6\%. The ensemble \emph{does} predict elevated values before spikes---mean predicted DA for transition events is \SI{13.1}{\microgrampeg}---but the conservative bias inherent in MSE-optimized regression prevents predictions from crossing the regulatory threshold. A threshold sensitivity analysis confirms this: lowering the decision boundary from 20 to \SI{12}{\microgrampeg} increases transition recall substantially while maintaining acceptable precision (this threshold is motivated further in Section~\ref{sec:results-spike-classifier}).
+Despite this, the regression ensemble's spike transition recall at the standard \SI{20}{\microgrampeg} decision threshold is poor: only 8.6\% of held-out transition events (8 of 93) are correctly predicted as spikes (seed = 123). Na\"ive persistence achieves 11.8\%. The ensemble \emph{does} predict elevated values before spikes---mean predicted DA for transition events is \SI{10.8}{\microgrampeg}, against a mean observed \SI{50.2}{\microgrampeg}---but the conservative bias inherent in MSE-optimized regression prevents predictions from crossing the regulatory threshold. A threshold sensitivity analysis confirms this: lowering the decision boundary from 20 to \SI{12}{\microgrampeg} raises overall spike recall from 0.51 to 0.76 while precision falls from 0.74 to 0.57 (this threshold is motivated further in Section~\ref{sec:results-spike-classifier}).
 
 \subsubsection{Transition-Focused Binary Classifier}
 \label{sec:results-spike-classifier}
@@ -574,23 +574,24 @@ To exploit the pre-spike environmental signals without the regression's conserva
 
 The deployed \emph{hybrid} alert fires if either the classifier probability exceeds a fixed threshold of $0.10$ or the regression prediction reaches \SI{12}{\microgrampeg}; both are fixed constants in the system configuration (applied identically to every retrospective row). The \SI{12}{\microgrampeg} regression arm is motivated by the systematic under-prediction in the transition band (Section~\ref{sec:results-diagnostics}) and the sensitivity of transition recall to lowering the regression decision boundary (Section~\ref{sec:results-threshold-limit}). Table~\ref{tab:spike-transition} reports metrics on the seed-123 held-out set under this \emph{fixed} policy; we did not optimize these thresholds on that held-out row set to maximize the reported recalls. Absolute recall and precision should therefore be read as conditional on this operating point.
 
-Table~\ref{tab:spike-transition} compares spike transition detection across approaches on the held-out retrospective panel (seed = 123, $n = 1{,}177$, 66 below-to-above-threshold transitions). Figure~\ref{fig:spike-summary} shows the same operating-point tradeoff.
+Table~\ref{tab:spike-transition} compares spike transition detection across approaches on the held-out retrospective panel (seed = 123, $n = 2{,}105$, 278 spikes, 93 below-to-above-threshold transitions). Figure~\ref{fig:spike-summary} shows the same operating-point tradeoff.
 
 \begin{table}[H]
-\caption{Spike transition detection performance on the held-out retrospective panel ($n = 1{,}177$, 66 below-to-above-threshold transitions; seed = 123), each approach evaluated at its own canonical alert threshold.}
+\caption{Spike transition detection performance on the held-out retrospective panel ($n = 2{,}105$, 93 below-to-above-threshold transitions; seed = 123), each approach evaluated at its own canonical alert threshold.}
 \label{tab:spike-transition}
 \centering\footnotesize
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcccc}
 \toprule
 \textbf{Approach} & \textbf{Trans.\ Rec.} & \textbf{Spike Rec.} & \textbf{Prec.} & \textbf{F2} \\
 \midrule
-Na\"ive persistence ($\geq$20 \si{\microgrampeg})        & 0.236 & 0.739 & 0.553 & 0.693 \\
-Ensemble ($\geq$20 \si{\microgrampeg})                  & 0.145 & 0.522 & 0.632 & 0.541 \\
-Hybrid alert (cls.\ $\cup$ regression $\geq$12 \si{\microgrampeg}) & \textbf{0.803} & \textbf{0.876} & 0.318 & 0.649 \\
+Na\"ive persistence ($\geq$20 \si{\microgrampeg})        & 0.118 & 0.701 & 0.666 & 0.694 \\
+Ensemble ($\geq$20 \si{\microgrampeg})                  & 0.086 & 0.511 & 0.736 & 0.544 \\
+Spike classifier ($p \geq 0.10$)                         & 0.731 & 0.910 & 0.483 & 0.773 \\
+Hybrid alert (cls.\ $\cup$ regression $\geq$12 \si{\microgrampeg}) & \textbf{0.763} & \textbf{0.921} & 0.474 & \textbf{0.775} \\
 \bottomrule
 \end{tabular*}
 \vspace{0.3em}\\
-\footnotesize{F2 weights recall twice as heavily as precision ($\beta = 2$). The hybrid's advantage is concentrated in \textit{transition} recall (0.803 vs.\ 0.236, a 3.4$\times$ improvement), which F2 does not separately capture.}
+\footnotesize{F2 weights recall twice as heavily as precision ($\beta = 2$). The hybrid's advantage is concentrated in \textit{transition} recall (0.763 vs.\ 0.118, a 6.5$\times$ improvement), which F2 does not separately capture.}
 \end{table}
 
 \begin{figure}[H]
@@ -600,7 +601,7 @@ Hybrid alert (cls.\ $\cup$ regression $\geq$12 \si{\microgrampeg}) & \textbf{0.8
 \label{fig:spike-summary}
 \end{figure}
 
-The hybrid alert---combining the transition-focused classifier with a regression trigger at \SI{12}{\microgrampeg}---achieves 80.3\% transition recall compared to 23.6\% for na\"ive persistence (at the \SI{20}{\microgrampeg} regulatory threshold) and 14.5\% for the standard regression ensemble. This 3.4$\times$ improvement in transition recall over na\"ive persistence comes at the cost of lower precision (0.318 hybrid vs.\ 0.553 naive at the same operational threshold), and the hybrid's overall F2 score (0.649) is therefore \textit{lower} than na\"ive persistence (0.693), because F2 does not separately capture transition detection. The classifier's top features are rolling DA maximum over 4 weeks (gain importance 0.41--0.45 across the five evaluation seeds: 42, 123, 456, 789, 1337), consistent with the biological mechanism where gradual toxin accumulation precedes a threshold crossing (Figure~\ref{fig:feature-importance}). Environmental features including PDO, BEUTI, and fluorescence contribute meaningfully when persistence features are excluded by the safe-baseline filter.
+The hybrid alert---combining the transition-focused classifier with a regression trigger at \SI{12}{\microgrampeg}---achieves 76.3\% transition recall compared to 11.8\% for na\"ive persistence (at the \SI{20}{\microgrampeg} regulatory threshold) and 8.6\% for the standard regression ensemble. This 6.5$\times$ improvement in transition recall over na\"ive persistence comes at the cost of lower precision (0.474 hybrid vs.\ 0.666 naive), roughly one false alarm per true alert. Because F2 weights recall twice as heavily as precision, the hybrid's overall F2 (0.775) still exceeds na\"ive persistence (0.694). The classifier alone captures most of this (transition recall 0.731); the regression arm at \SI{12}{\microgrampeg} adds three more onsets. On the deterministic 2022--2023 holdout ($N = 409$, 29 transitions) the hybrid alert detects 89.3\% of spikes and 20 of the 29 onsets (69.0\%). The classifier's top features are rolling DA maximum over 4 weeks (gain importance 0.41--0.45 across the five evaluation seeds: 42, 123, 456, 789, 1337), consistent with the biological mechanism where gradual toxin accumulation precedes a threshold crossing (Figure~\ref{fig:feature-importance}). Environmental features including PDO, BEUTI, and fluorescence contribute meaningfully when persistence features are excluded by the safe-baseline filter.
 
 \subsection{Ablation Study}
 \label{sec:results-ablation}
@@ -615,7 +616,7 @@ A fine-grained per-feature ablation (Appendix~\ref{app:feature-ablation}, Table~
 \subsection{Diagnostic Findings}
 \label{sec:results-diagnostics}
 
-Two diagnostic analyses characterize where the ensemble fails. An episodic-error decomposition shows that 88.6\% of total squared error concentrates in the top 5\% of worst-performing test weeks ($n = 110$ rows)---all Oregon observations exceeding \SI{100}{\microgrampeg}, consistent with near-zero autocorrelation ceilings at those sites (Table~\ref{tab:predictability-ceiling}). A bias analysis in the 12--30~\si{\microgrampeg} transition zone ($n = 311$ observations) reveals a systematic $+2.2$~\si{\microgrampeg} under-prediction, a predictable consequence of MSE-optimized regression on a right-skewed target and the primary motivation for the hybrid alert's transition-focused classifier.
+Two diagnostic analyses characterize where the ensemble fails. An episodic-error decomposition on the seed-123 sample shows that 90.6\% of total squared error concentrates in the worst 5\% of test rows ($n = 105$). Most of these are at Oregon sites (82\%, chiefly Coos Bay, Gold Beach and Newport) and most are under-predicted extreme events (76\% have observed DA $\geq \SI{40}{\microgrampeg}$), consistent with the low autocorrelation ceilings at those sites (Table~\ref{tab:predictability-ceiling}). A bias analysis in the 12--30~\si{\microgrampeg} transition zone ($n = 273$ observations) reveals a systematic under-prediction of \SI{4.8}{\microgrampeg} (mean observed minus predicted), a predictable consequence of MSE-optimized regression on a right-skewed target and the primary motivation for the hybrid alert's transition-focused classifier.
 
 % ══════════════════════════════════════════════════════════════════════════════
 %  5. DISCUSSION
@@ -625,15 +626,15 @@ Two diagnostic analyses characterize where the ensemble fails. An episodic-error
 
 \subsection{Data Quality and Site Heterogeneity}
 
-The clearest pattern in the held-out results is the Washington--Oregon performance gradient, but it is softer under the deterministic chronological protocol than under random-anchor sampling. As reported in Section~\ref{sec:results-per-site}, 9 of 10 sites are measurably positive on the 2022--2023 deterministic holdout, with 7 clustered in $R^2 = 0.49$--$0.63$. The catastrophic per-site negatives that appeared under the multi-seed protocol (Newport $-1.06$, Gold Beach $-2.14$) are largely small-per-seed-$N$ amplification artifacts: at $N \approx 20$ per site per seed, a single mispredicted spike week can dominate the residual sum and crush the per-site $R^2$. Under the deterministic protocol at $N \approx 40$ per site, only Gold Beach remains genuinely negative.
+The clearest pattern in the held-out results is a gradient from the Washington coast and the Columbia River mouth (Clatsop Beach) to the southern Oregon sites. As reported in Section~\ref{sec:results-per-site}, 8 of the 9 evaluable sites are positive on the 2022--2023 deterministic holdout, with 7 in $R^2 = 0.50$--$0.71$. The strongly negative per-site values under the multi-seed protocol (Gold Beach $-4.2 \pm 5.4$) are largely small-per-seed-$N$ amplification: at $N \approx 10$ per site per seed, a single mispredicted spike week can dominate the residual sum and crush the per-site $R^2$. Under the deterministic protocol at $N \approx 40$ per site, Newport is near zero and only Gold Beach remains negative.
 
-The most parsimonious explanation for the residual Washington--Oregon gradient is data quality: Washington records from WDFW and Tribal monitoring are denser and more temporally regular, so persistence, lag, and rolling features can be estimated more reliably. Oregon records are sparser and less regular, reducing the effective information content available to both linear and nonlinear models. Genuine oceanographic differences may also contribute: Washington beaches are influenced by the Juan de Fuca eddy and the Columbia River plume, both of which may increase DA persistence or provide stronger environmental structure \cite{Trainer2009, McCabe2023}. Even so, monitoring density is likely the primary constraint on forecast skill, and better-sampled Oregon records would likely improve performance more than a more complex model family.
+The gradient follows the persistence ceiling more closely than the state line: Clatsop Beach has Washington-like autocorrelation ($\rho^2 = 0.71$) and skill, while Newport and Gold Beach have $\rho^2 \approx 0.05$ (Table~\ref{tab:predictability-ceiling}). One plausible contributor is data quality: Washington records from WDFW and Tribal monitoring are denser and more temporally regular, so persistence, lag, and rolling features can be estimated more reliably. Oregon records are sparser and less regular, reducing the effective information content available to both linear and nonlinear models. Genuine oceanographic differences may also contribute: Washington beaches are influenced by the Juan de Fuca eddy and the Columbia River plume, both of which may increase DA persistence or provide stronger environmental structure \cite{Trainer2009, McCabe2023}. Even so, monitoring density is likely the primary constraint on forecast skill, and better-sampled Oregon records would likely improve performance more than a more complex model family.
 
 \subsection{Persistence, Model Choice, and ML Contribution}
 
-The difference between the standard single-seed paper sample ($R^2 = 0.238$ at seed = 123, all-years) and the post-2022 deterministic holdout ($R^2 = 0.485$ on $N = 404$ real DA measurements in 2022--2023) is large and worth interpreting. First, the windows differ: the paper sample mixes all years 2003--2023, including periods with sparse Oregon coverage; the deterministic holdout is restricted to 2022--2023 when monitoring was relatively dense. Second, the paper sample is a single 40\% draw at one seed; the deterministic holdout uses every real DA measurement in the window. Across the two protocols on the post-2022 window, Washington sites consistently fall in the $R^2 = 0.49$--$0.63$ range on the deterministic protocol and $0.42$--$0.58$ on the 5-seed bootstrap. These ranges agree within bootstrap CI: tuned configurations generalize where data quality permits, and the aggregate single-seed $R^2 = 0.238$ on the paper sample reflects Oregon data sparsity and small-per-site $N$, not overfitting. The 5-seed bootstrap on the post-2022 holdout (Table~\ref{tab:temporal-holdout}) confirms this: across seeds 42--46, pooled $R^2$ ranges 0.32--0.55 with mean $0.433 \pm 0.092$, fully consistent with the deterministic point estimate.
+The difference between the standard single-seed paper sample ($R^2 = 0.337$ at seed = 123, all-years) and the post-2022 deterministic holdout ($R^2 = 0.419$ on $N = 409$ real DA measurements in 2022--2023) is worth interpreting. First, the windows differ: the paper sample mixes all years 2003--2023, including periods with sparse Oregon coverage; the deterministic holdout is restricted to 2022--2023 when monitoring was relatively dense. Second, the paper sample is a single 40\% draw at one seed; the deterministic holdout uses every real DA measurement in the window. Across the two protocols on the post-2022 window, Washington sites fall in the $R^2 = 0.53$--$0.71$ range on the deterministic protocol and $0.37$--$0.73$ on the 5-seed bootstrap. These ranges agree within bootstrap CI: tuned configurations generalize where data quality permits, and the lower aggregate single-seed $R^2 = 0.337$ on the paper sample reflects the low-skill southern Oregon sites and small per-site $N$, not overfitting. The 5-seed bootstrap on the post-2022 holdout rows (Table~\ref{tab:temporal-holdout}) confirms this: across seeds 42--46, pooled $R^2$ ranges 0.29--0.55 with mean $0.377 \pm 0.105$, consistent with the deterministic point estimate.
 
-Strong persistence at several Washington sites is biologically plausible. DA depuration from razor clam tissue occurs over weeks to months \cite{Drum1993, Wekell1994}, so one-week-ahead DA often remains close to the most recent observation during sustained bloom periods. DATect therefore treats na\"ive persistence as a serious external baseline rather than a straw man. The pooled held-out result ($R^2 = -0.426$) should not be read as evidence that persistence is never useful; rather, it reflects the fact that persistence is highly site-dependent and degrades sharply at the low-skill Oregon sites.
+Strong persistence at several Washington sites is biologically plausible. DA depuration from razor clam tissue occurs over weeks to months \cite{Drum1993, Wekell1994}, so one-week-ahead DA often remains close to the most recent observation during sustained bloom periods. DATect therefore treats na\"ive persistence as a serious external baseline rather than a straw man. Its pooled held-out $R^2$ of 0.150, well below the ensemble's 0.337 but with an overlapping CI, reflects that persistence is highly site-dependent: strong where DA is autocorrelated, and close to useless at Newport and Gold Beach.
 
 The near-tie between the tree-based models and Ridge regression further shows that most forecast signal comes from the feature set and the per-site design, not from an intrinsically superior model family. Removing per-site customization costs $\Delta R^2 = -0.187$ in the component ablation under the current grid-winner config ($-0.158$ under the prior hand-tuned baseline; Table~\ref{tab:ablation}), far more than any other single component. Likewise, model-selection robustness in Appendix~\ref{app:weight-robustness} shows that choosing XGBoost versus Random Forest per site changes aggregate $R^2$ only modestly.
 
@@ -642,7 +643,7 @@ This perspective also helps interpret the ablations. Interpolated training provi
 \subsection{Spike Detection and Management Relevance}
 \label{sec:discussion-spike}
 
-The spike results reveal a different operational problem from regression accuracy. The regression ensemble's spike recall at the operationally-tuned \SI{12}{\microgrampeg} alert threshold reaches 0.857 on the deterministic 2022--2023 holdout (Table~\ref{tab:temporal-holdout}), but thresholding at the regulatory \SI{20}{\microgrampeg} limit catches only a small fraction of held-out below-to-above-threshold transitions even though the model often predicts elevated pre-spike values (Section~\ref{sec:results-spike}). This is a predictable consequence of MSE-optimized regression on an imbalanced target: the model is rewarded for shrinking extreme values toward the center of the distribution. For closure-relevant early warning, that conservative bias is a feature for average error but a liability for threshold crossings.
+The spike results reveal a different operational problem from regression accuracy. The regression ensemble's spike recall at the operationally-tuned \SI{12}{\microgrampeg} alert threshold reaches 0.774 on the deterministic 2022--2023 holdout (Table~\ref{tab:temporal-holdout}), but thresholding at the regulatory \SI{20}{\microgrampeg} limit catches only a small fraction of held-out below-to-above-threshold transitions even though the model often predicts elevated pre-spike values (Section~\ref{sec:results-spike}). This is a predictable consequence of MSE-optimized regression on an imbalanced target: the model is rewarded for shrinking extreme values toward the center of the distribution. For closure-relevant early warning, that conservative bias is a feature for average error but a liability for threshold crossings.
 
 The transition-focused classifier addresses that failure mode by changing the task definition, relying on environmental precursors and gradual toxin accumulation rather than simple persistence (Section~\ref{sec:results-spike-classifier}). The hybrid alert (classifier $\cup$ regression trigger at \SI{12}{\microgrampeg}) yields a substantial increase in transition recall over na\"ive persistence, at the cost of lower precision than either component alone. This tradeoff is appropriate for a decision-support system: a false alert increases sampling attention, whereas a missed transition can leave managers reacting only after DA has crossed the regulatory limit.
 
@@ -652,8 +653,8 @@ That distinction matters for management value. Quantitative one-week forecasts c
 \label{sec:discussion-limitations}
 
 \begin{enumerate}[nosep]
-    \item \textbf{Per-site skill on the small-$N$ Oregon coast}: On the single-seed paper sample (Table~\ref{tab:per-site-results}, all years), Cannon Beach and Newport show negative $R^2$, with Coos Bay and Gold Beach near zero. On the deterministic post-2022 holdout (Table~\ref{tab:temporal-holdout}), the picture is substantially better: Coos Bay and Clatsop Beach reach $R^2 \approx 0.5$--$0.6$, Newport recovers to $+0.17$, and only Gold Beach remains modestly negative ($R^2 = -0.24$). Cannon Beach has no spike events in the 2022--2023 window and is not evaluable. The lag-1 autocorrelation analysis (Table~\ref{tab:predictability-ceiling}) reveals persistence-forecast $R^2$ ceilings of 0.002--0.036 for Newport, Coos Bay, and Gold Beach, indicating that consecutive DA measurements at these sites carry very little information about the next observation. This does not preclude improvement from environmental predictors---Gold Beach exceeds its persistence ceiling ($R^2 = 0.040 > \rho^2 = 0.002$) via SST and BEUTI features---but the low autocorrelation structure means persistence-based signal contributes little. The paper cannot fully separate data sparsity from true regional oceanographic complexity; denser Oregon monitoring records and richer environmental predictors may yet reveal exploitable structure currently obscured by irregular sampling.
-    \item \textbf{High-risk category weakness}: The High and Extreme DA categories remain difficult, with F1 scores of 0.445 and 0.440, and 13.9\% of Extreme events are misclassified as Low under threshold-based four-category classification.
+    \item \textbf{Per-site skill on the small-$N$ Oregon coast}: On the single-seed paper sample (Table~\ref{tab:per-site-results}, all years), Newport, Gold Beach and Cannon Beach have $R^2$ near zero ($-0.02$ to $0.09$) and Coos Bay is moderate (0.31). On the deterministic post-2022 holdout (Table~\ref{tab:temporal-holdout}), Coos Bay and Clatsop Beach reach $R^2 \approx 0.5$--$0.6$, Newport is near zero ($+0.04$), and Gold Beach is negative ($R^2 = -0.27$). Cannon Beach has only two measurements in the 2022--2023 window and is not evaluable. The lag-1 autocorrelation analysis (Table~\ref{tab:predictability-ceiling}) gives persistence-forecast $R^2$ ceilings of 0.05 for Newport and Gold Beach and 0.23--0.26 for Cannon Beach and Coos Bay, so consecutive DA measurements at these sites carry little information about the next observation. This does not preclude improvement from environmental predictors---Coos Bay, Newport and Gold Beach all exceed their persistence ceilings (e.g., Coos Bay $R^2 = 0.311 > \rho^2 = 0.255$)---but the low autocorrelation structure means persistence-based signal contributes little. The paper cannot fully separate data sparsity from true regional oceanographic complexity; denser Oregon monitoring records and richer environmental predictors may yet reveal exploitable structure currently obscured by irregular sampling.
+    \item \textbf{High-risk category weakness}: The High and Extreme DA categories remain difficult, with F1 scores of 0.404 and 0.448, and 9.3\% of Extreme events are misclassified as Low under threshold-based four-category classification.
     \item \textbf{Per-site outer configuration is selected by leak-free grid search}: The per-site values in \texttt{per\_site\_models.py} (ensemble weights, prediction clip quantile, prediction clip ceiling) were selected by a constrained 3-dimensional grid search (75 configurations per site) tuned strictly on pre-2022 data via chronological 3-fold cross-validation (folds: 2019, 2020, 2021); the 2022--2023 holdout window was never inspected during selection. The defensive comparison against the prior hand-tuned configuration (Section~\ref{sec:results-temporal-holdout}) showed a small validation-window leak in the all-year hand-tuning that reversed on the holdout, within seed noise; we retain the grid-search winners because they remove the indirect-leak concern by construction. A more aggressive 18-dimensional Optuna search over per-anchor XGB and Random Forest hyperparameters using the same protocol produced gains on the validation window ($+0.07$ R$^2$) that fully reversed on the holdout ($-0.16$ R$^2$), indicating the model is feature-limited rather than hyperparameter-limited under broader search.
     \item \textbf{Uncertainty summaries are not full probabilistic guarantees}: The quantile bands used for forecasts are hybrid empirical intervals, and the bootstrap confidence intervals reported for retrospective metrics resample held-out prediction rows with replacement (Section~\ref{sec:validation}). They summarize variability across the sampled test rows under that scheme; they are not block-bootstrap intervals over time or space and do not establish exact calibration under temporal or spatial dependence.
     \item \textbf{Operational deployment remains simplified}: The current system relies on pre-computed cache and a seven-day forecast horizon aligned with the PNW HAB Bulletin. Real-time ingestion and longer forecast horizons remain open engineering and scientific challenges.
@@ -679,9 +680,9 @@ Additional gains may come from richer observing systems. PACE hyperspectral ocea
 \section{Conclusions}
 \label{sec:conclusions}
 
-DATect provides the first quantitative one-week-ahead domoic acid forecasting system for Washington and Oregon. Under a leak-free 3-window chronological evaluation, the per-site ensemble achieves pooled $R^2 = 0.485$ [95\% CI: 0.330, 0.604] on the 2022--2023 temporal holdout ($N = 404$ deterministic, all real DA measurements; consistent 5-seed bootstrap confirmation $R^2 = 0.433 \pm 0.092$). Nine of 10 sites achieve measurably positive holdout skill; 7 sites fall in the $R^2 = 0.49$--$0.63$ band, including all five Washington sites and two Oregon sites (Clatsop Beach, Coos Bay). The resulting scientific message is not simply that DATect can forecast DA, but that regional monitoring quality currently places the strongest upper bound on forecast skill.
+DATect provides the first quantitative one-week-ahead domoic acid forecasting system for Washington and Oregon. Under a leak-free 3-window chronological evaluation, the per-site ensemble achieves pooled $R^2 = 0.419$ [95\% CI: 0.247, 0.546] on the 2022--2023 temporal holdout ($N = 409$ deterministic, all real DA measurements; consistent 5-seed bootstrap confirmation $R^2 = 0.377 \pm 0.105$). Eight of the 9 evaluable sites achieve positive holdout skill; 7 sites fall in the $R^2 = 0.50$--$0.71$ band, including all five Washington sites and two Oregon sites (Clatsop Beach, Coos Bay). The resulting scientific message is not simply that DATect can forecast DA, but that regional monitoring quality currently places the strongest upper bound on forecast skill.
 
-The paper's main operational result is that magnitude forecasting and closure-warning are related but distinct tasks. Regression-only spike recall reaches 0.857 at the \SI{12}{\microgrampeg} threshold on the deterministic holdout, but thresholding the regression ensemble at \SI{20}{\microgrampeg} catches only a fraction of the below-to-above-threshold transitions that trigger harvest closures, because MSE-optimized regression conservatively under-predicts extremes (Section~\ref{sec:results-spike}). A dedicated transition-focused classifier substantially improves transition recall, and the resulting hybrid alert (classifier $\cup$ regression trigger) achieves 87.6\% recall on the full retrospective panel. DATect therefore contributes both a quantitative forecasting pipeline and a transition-focused early-warning layer that can complement the qualitative PNW HAB Bulletin, with the entire tuning workflow (per-site configurations, evaluation windows, classifier thresholds) reproducible end-to-end from a single source-of-truth JSON file.
+The paper's main operational result is that magnitude forecasting and closure-warning are related but distinct tasks. Regression-only spike recall reaches 0.774 at the \SI{12}{\microgrampeg} threshold on the deterministic holdout, but thresholding the regression ensemble at \SI{20}{\microgrampeg} catches only a fraction of the below-to-above-threshold transitions that trigger harvest closures, because MSE-optimized regression conservatively under-predicts extremes (Section~\ref{sec:results-spike}). A dedicated transition-focused classifier substantially improves transition recall, and the resulting hybrid alert (classifier $\cup$ regression trigger) detects 92.1\% of spikes and 76.3\% of new spike onsets on the retrospective panel, against 11.8\% of onsets for na\"ive persistence. DATect therefore contributes both a quantitative forecasting pipeline and a transition-focused early-warning layer that can complement the qualitative PNW HAB Bulletin, with the entire tuning workflow (per-site configurations, evaluation windows, classifier thresholds) reproducible end-to-end from a single source-of-truth JSON file.
 
 
 % ══════════════════════════════════════════════════════════════════════════════
@@ -713,32 +714,32 @@ The paper's main operational result is that magnitude forecasting and closure-wa
 \section{Per-Site Model Configuration}
 \label{app:model-config}
 
-Table~\ref{tab:ensemble-config} summarizes the site-wise model selection, clipping rules, and development-set performance tiers used during configuration selection.
+Table~\ref{tab:ensemble-config} summarizes the site-wise model weights and clipping rules selected by the leak-free grid search (Section~\ref{sec:results-temporal-holdout}), with each site's held-out performance tier.
 
 \begin{table}[H]
-\caption{Per-site ensemble configuration showing model selection, prediction clipping, and development-set performance tier used during configuration selection (see Table~\ref{tab:per-site-results} for held-out test-set $R^2$).}
+\caption{Per-site ensemble configuration (grid-search winners in \texttt{config/tuned\_hyperparameters.json}) and held-out performance tier from Table~\ref{tab:per-site-results}.}
 \label{tab:ensemble-config}
 \centering\footnotesize
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcccrl}
 \toprule
 \textbf{Site} & $\boldsymbol{w_{\text{XGB}}}$ & $\boldsymbol{w_{\text{RF}}}$ & \textbf{Clip $q$} & \textbf{Clip max} & \textbf{Tier} \\
 \midrule
-Copalis       & 0.00 & 1.00 & 0.97 & --- & High \\
-Twin Harbors  & 0.00 & 1.00 & 0.98 & --- & High \\
-Quinault      & 0.00 & 1.00 & 0.98 & --- & High \\
-Long Beach    & 1.00 & 0.00 & 0.98 & --- & High \\
-Kalaloch      & 0.00 & 1.00 & 0.95 & 80  & High \\
+Copalis       & 1.00 & 0.00 & 0.97 & --- & High \\
+Kalaloch      & 0.00 & 1.00 & 0.95 & --- & High \\
+Twin Harbors  & 0.25 & 0.75 & 0.97 & --- & High \\
+Long Beach    & 1.00 & 0.00 & 0.95 & --- & High \\
+Quinault      & 1.00 & 0.00 & 0.95 & --- & High \\
+Clatsop Bch   & 1.00 & 0.00 & 0.95 & --- & High \\
 \addlinespace
-Clatsop Bch   & 1.00 & 0.00 & --- & --- & Mod. \\
-Gold Beach    & 1.00 & 0.00 & 0.95 & --- & Mod. \\
+Coos Bay      & 0.00 & 1.00 & 0.95 & --- & Mod. \\
 \addlinespace
-Cannon Bch    & 0.00 & 1.00 & 0.95 & 80  & Low \\
-Coos Bay      & 0.00 & 1.00 & 0.97 & --- & Low \\
-Newport       & 1.00 & 0.00 & 0.98 & --- & Low \\
+Newport       & 1.00 & 0.00 & 0.95 & --- & Low \\
+Gold Beach    & 1.00 & 0.00 & 0.97 & --- & Low \\
+Cannon Bch    & 0.00 & 1.00 & 0.95 & --- & Low \\
 \bottomrule
 \end{tabular*}
 \vspace{0.3em}\\
-\footnotesize{Clip~$q$: predictions clipped to this quantile of training targets. ``---'' = global default ($q = 0.99$) or no hard ceiling. Clip max in \si{\microgrampeg}. Blended weights did not improve over single-model selection (Appendix~\ref{app:weight-robustness}).}
+\footnotesize{Clip~$q$: predictions clipped to this quantile of training targets. ``---'' = no hard ceiling (the global default quantile, used when a site sets none, is $q = 0.99$). Clip max in \si{\microgrampeg}. Model-family choice changes pooled skill little (Appendix~\ref{app:weight-robustness}).}
 \end{table}
 
 \section{Classification Details}
@@ -755,26 +756,26 @@ Newport       & 1.00 & 0.00 & 0.98 & --- & Low \\
 Low      & 0--5   & Safe for harvest \\
 Moderate & 5--20  & Monitor closely \\
 High     & 20--40 & Elevated toxicity; closures likely \\
-Extreme  & $>$40  & Dangerous; immediate closure \\
+Extreme  & $\geq$40  & Dangerous; immediate closure \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \begin{table}[H]
-\caption{Per-category classification performance on the held-out test set ($n = 2{,}181$).}
+\caption{Per-category classification performance on the held-out test set ($n = 2{,}105$). Categories are left-closed: a value of exactly \SI{20}{\microgrampeg} is High.}
 \label{tab:classification}
 \centering\small
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrrrrr}
 \toprule
 \textbf{Category} & \textbf{DA Range} & $\boldsymbol{N}$ & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
 \midrule
-Low      & 0--5 \si{\microgrampeg}  & 1{,}382 & 0.865 & 0.858 & 0.862 \\
-Moderate & 5--20 \si{\microgrampeg} & 523 & 0.593 & 0.642 & 0.617 \\
-High     & 20--40 \si{\microgrampeg} & 168 & 0.456 & 0.435 & 0.445 \\
-Extreme  & $\geq$40 \si{\microgrampeg}  & 108 & 0.506 & 0.389 & 0.440 \\
+Low      & 0--5 \si{\microgrampeg}  & 1{,}370 & 0.871 & 0.914 & 0.892 \\
+Moderate & 5--20 \si{\microgrampeg} & 457 & 0.603 & 0.626 & 0.614 \\
+High     & 20--40 \si{\microgrampeg} & 160 & 0.438 & 0.375 & 0.404 \\
+Extreme  & $\geq$40 \si{\microgrampeg}  & 118 & 0.696 & 0.331 & 0.448 \\
 \midrule
-\multicolumn{2}{l}{\textbf{Overall (macro)}} & \textbf{2,181} & \textbf{0.605} & \textbf{0.581} & \textbf{0.591} \\
-\multicolumn{2}{l}{Overall accuracy} & & \multicolumn{3}{r}{75.1\%} \\
+\multicolumn{2}{l}{\textbf{Overall (macro)}} & \textbf{2,105} & \textbf{0.652} & \textbf{0.561} & \textbf{0.590} \\
+\multicolumn{2}{l}{Overall accuracy} & & \multicolumn{3}{r}{77.8\%} \\
 \bottomrule
 \end{tabular*}
 \end{table}
@@ -787,10 +788,10 @@ Extreme  & $\geq$40 \si{\microgrampeg}  & 108 & 0.506 & 0.389 & 0.440 \\
 \toprule
 \textbf{Actual \textbackslash\ Predicted} & \textbf{Low} & \textbf{Moderate} & \textbf{High} & \textbf{Extreme} \\
 \midrule
-Low      & 1183 & 142 & 27 & 30 \\
-Moderate & 164  & 327 & 30 & 2 \\
-High     & 16   & 80  & 67 & 5 \\
-Extreme  & 15   & 22  & 32 & 39 \\
+Low      & 1252 & 83  & 24 & 11 \\
+Moderate & 155  & 286 & 15 & 1 \\
+High     & 20   & 75  & 60 & 5 \\
+Extreme  & 11   & 30  & 38 & 39 \\
 \bottomrule
 \end{tabular*}
 \end{table}
@@ -917,13 +918,13 @@ Additional temporal encodings (\texttt{quarter}, \texttt{is\_bloom\_season}, sin
 \label{fig:architecture}
 \end{figure}
 
-The DATect backend serves forecast requests, retrospective evaluation results, and visualization data (correlation heatmaps, sensitivity analyses, spectral analyses, feature importance rankings). A pre-computed cache system stores results from computationally intensive retrospective evaluations as JSON and Parquet files, with an optional Redis backend providing 100$\times$ faster cache reads for production deployments. The retrospective evaluation cache---encompassing all 2,181 validation points across 10 sites and 8 model configurations---was pre-computed on the University of Washington Hyak high-performance computing cluster (\textit{klone} partition, STF allocation). Because each test point requires training a fresh ensemble on its own chronological training subset, the per-anchor computation is embarrassingly parallel and well-suited to HPC execution; running the full retrospective evaluation sequentially on a laptop would require several days, whereas the Hyak cluster completes the computation in approximately 2--3 hours across parallel jobs.
+The DATect backend serves forecast requests, retrospective evaluation results, and visualization data (correlation heatmaps, sensitivity analyses, spectral analyses, feature importance rankings). A pre-computed cache system stores results from computationally intensive retrospective evaluations as JSON and Parquet files, with an optional Redis backend providing 100$\times$ faster cache reads for production deployments. The retrospective evaluation cache---1,054 test points across 10 sites (the seed-42, 20\% development sample) for 8 model configurations---was pre-computed on the University of Washington Hyak high-performance computing cluster (\textit{klone} partition, STF allocation). Because each test point requires training a fresh ensemble on its own chronological training subset, the per-anchor computation is embarrassingly parallel and well-suited to HPC execution; running the full retrospective evaluation sequentially on a laptop would require several days, whereas the Hyak cluster completes the computation in approximately 2--3 hours across parallel jobs.
 
 The system is containerized with Docker and deployed on Google Cloud Run, a serverless platform that scales to zero when idle and scales up to three concurrent instances under load. Cold start time is approximately 10--15 seconds. The deployment pipeline uses Google Cloud Build for continuous integration.
 
 \subsection*{Operational Modes}
 
-The dashboard supports two modes. In \textbf{real-time forecasting mode}, users select a target date and monitoring site; DATect trains a fresh model on all data up to the anchor date, returning a point prediction, 90\% confidence interval, risk category, and per-category probability distribution. In \textbf{retrospective analysis mode}, users select a model type and task to browse pre-computed validation results across all 2,181 test points, with interactive Plotly charts for scatter plots, confusion matrices, residual distributions, and time series overlays, filterable by site, date range, and DA risk category. Seven additional visualization types---including correlation heatmaps, sensitivity analyses, spectral density plots, SHAP-style feature waterfalls, and an interactive geographic map---are available for exploratory analysis. The live interface is available at the repository URL listed in the Data Availability Statement.
+The dashboard supports two modes. In \textbf{real-time forecasting mode}, users select a target date and monitoring site; DATect trains a fresh model on all data up to the anchor date, returning a point prediction, 90\% confidence interval, risk category, and per-category probability distribution. In \textbf{retrospective analysis mode}, users select a model type and task to browse pre-computed validation results across all 1,054 cached test points, with interactive Plotly charts for scatter plots, confusion matrices, residual distributions, and time series overlays, filterable by site, date range, and DA risk category. Seven additional visualization types---including correlation heatmaps, sensitivity analyses, spectral density plots, SHAP-style feature waterfalls, and an interactive geographic map---are available for exploratory analysis. The live interface is available at the repository URL listed in the Data Availability Statement.
 
 
 \section{Individual Feature Ablation}
@@ -960,7 +961,7 @@ All low-imp.\ combined (8)$^\dagger$ & 0.453 & $-0.004$ & 6.19 & $+0.04$ \\
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/fig6_feature_importance.png}
-\caption{Mean feature importance (gain) across all development-set predictions ($n = 1{,}177$), averaged over per-site ensemble models and color-coded by category (see Section~\ref{sec:results-ablation} for interpretation).}
+\caption{Mean feature importance (gain) across all development-set predictions ($n = 1{,}054$), averaged over per-site ensemble models and color-coded by category (see Section~\ref{sec:results-ablation} for interpretation).}
 \label{fig:feature-importance}
 \end{figure}
 
@@ -968,25 +969,25 @@ All low-imp.\ combined (8)$^\dagger$ & 0.453 & $-0.004$ & 6.19 & $+0.04$ \\
 \section{Model Selection Robustness}
 \label{app:weight-robustness}
 
-Since DATect assigns each site a single model (XGBoost or Random Forest) based on development-set performance, weight robustness reduces to model-selection robustness: how sensitive are aggregate results to the per-site XGB vs.\ RF choice? Table~\ref{tab:weight-robustness} compares three strategies evaluated on the held-out test set ($n = 2{,}181$, seed = 123).
+Since DATect assigns each site a single model (XGBoost or Random Forest) based on development-set performance, weight robustness reduces to model-selection robustness: how sensitive are aggregate results to the per-site XGB vs.\ RF choice? Table~\ref{tab:weight-robustness} compares four strategies evaluated on the held-out test set ($n = 2{,}105$, seed = 123).
 
 \begin{table}[H]
-\caption{Model-selection robustness on the held-out test set ($n = 2{,}181$, seed = 123).}
+\caption{Model-selection robustness on the held-out test set ($n = 2{,}105$, seed = 123).}
 \label{tab:weight-robustness}
 \centering\small
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lccc}
 \toprule
 \textbf{Strategy} & \textbf{$R^2$} & \textbf{MAE (\si{\microgrampeg})} & \textbf{RMSE (\si{\microgrampeg})} \\
 \midrule
-XGBoost at all sites                    & 0.276 & 6.58 & 17.08 \\
-RF at all sites                         & 0.195 & 6.46 & 18.02 \\
-Per-site dev-set selection (this paper) & 0.238 & 6.53 & 17.52 \\
-Linear/Ridge at all sites               & 0.203 & 6.61 & 17.93 \\
+XGBoost at all sites                    & 0.331 & 6.78 & 19.51 \\
+RF at all sites                         & 0.330 & 6.42 & 19.52 \\
+Per-site dev-set selection (this paper) & 0.337 & 6.53 & 19.42 \\
+Linear/Ridge at all sites               & 0.325 & 6.61 & 19.59 \\
 \bottomrule
 \end{tabular*}
 \end{table}
 
-The near-equivalence of these strategies ($R^2 = 0.195$--$0.276$, all within their pairwise bootstrap CIs) confirms that model-family selection is not a meaningful source of variance. Per-site dev-set selection (the ensemble formulation used throughout this paper) sits between XGBoost-everywhere (0.276) and RF-everywhere (0.195): on the held-out seed = 123 sample, XGB-everywhere narrowly wins, but this difference is well within the multi-seed 5-seed bootstrap dispersion ($\sigma \approx 0.08$ at this $N$; see Section~\ref{sec:results-temporal-holdout}). The ensemble formulation is retained for generality and because per-site selection enables site-specific feature subsets and clipping (Appendix~\ref{app:hyperparams}); choosing XGB-everywhere would slightly degrade per-site fit at WA sites where RF performs comparably with lower prediction variance.
+The near-equivalence of these strategies ($R^2 = 0.325$--$0.337$, all within their pairwise bootstrap CIs; Table~\ref{tab:model-comparison}) confirms that model-family selection is not a meaningful source of variance. Per-site dev-set selection (the ensemble formulation used throughout this paper) has the highest point estimate, ahead of XGBoost-everywhere (0.331) and RF-everywhere (0.330), but the differences are well within the 5-seed bootstrap dispersion ($\sigma \approx 0.05$ at this $N$; see Section~\ref{sec:results-temporal-holdout}). The ensemble formulation is retained for generality and because per-site selection enables site-specific feature subsets and clipping (Appendix~\ref{app:hyperparams}).
 
 
 \section{Perturbation Sensitivity Analysis}

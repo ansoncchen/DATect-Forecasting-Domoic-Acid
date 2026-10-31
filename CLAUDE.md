@@ -146,8 +146,9 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
   expires). Conda env `/gscratch/stf/ac283/envs/datect_scratch/bin/python` (Python 3.10).
 - Submit sbatch files from the repo root: they `cd "$SLURM_SUBMIT_DIR"` and accept
   `DATECT_PY`. Prefer `--partition=ckpt --account=stf-ckpt --requeue`; exclusive nodes can
-  wait hours on a busy queue, and results do not depend on core count. `logs/` must exist
-  (it is tracked) because Slurm opens `--output=logs/...` before the job runs.
+  wait hours on a busy queue, and results do not depend on core count. Keep requests small
+  (16 cores, 32 GB): evals peak under 6 GB RSS, and 32 cores / 96 GB sat pending for hours.
+  `logs/` must exist (it is tracked) because Slurm opens `--output=logs/...` before the job runs.
 - Run long jobs in a disposable worktree (`golden_baseline.sh <ref> <label> [sbatch]`) so
   relative outputs never dirty a checkout. Parallel jobs must not write the same file (four
   chains writing `final_output.parquet` once corrupted it).

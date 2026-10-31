@@ -1,0 +1,10 @@
+feature_set,complex,simple,d_auc,lo,hi
+F1,rf,linear,0.0185,-0.0225,0.0646
+F1,xgb,linear,0.0338,-0.0062,0.0774
+F1,xgb,rf,0.0153,-0.0223,0.0581
+F2 vs F1,linear,linear,0.0326,-0.0058,0.0733
+F2 vs F1,rf,rf,-0.0094,-0.0318,0.0126
+F2 vs F1,xgb,xgb,0.0122,-0.0107,0.0418
+F2,rf,linear,-0.0235,-0.0761,0.0337
+F2,xgb,linear,0.0134,-0.0313,0.0590
+F2,xgb,rf,0.0370,-0.0084,0.0841

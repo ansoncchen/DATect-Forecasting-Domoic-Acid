@@ -238,6 +238,28 @@ and the level forecast's own onset AUC (can one output serve both purposes?).
    that excludes zero.
 3. The holdout is run once for every cell and reported in full; it is not used to choose.
 
+**Validation result (recorded before the holdout run).** 635 rows, 520 with last known
+< 20, 34 onsets. Source: `results/experiments/pooled_val.csv`, `pooled_val_pairwise.csv`.
+
+| Candidate | Onset AUC | ΔAUC vs last-value [95% CI] | Onset recall @10% / @20% FA | Gain vs last-value @20% | Level R² [95% CI] | MAE | F2 (≥ 12) | Level output as onset score: AUC |
+|---|---|---|---|---|---|---|---|---|
+| Last-value rule / naive persistence | 0.651 | — | 0.41 / 0.62 | — | 0.213 [−0.214, 0.518] | 6.83 | 0.742 | 0.651 |
+| Current engine (classifier / per-site ensemble) | 0.864 | +0.213 [+0.085, +0.346] | 0.56 / 0.79 | +6.0 | 0.324 [0.208, 0.452] | 7.19 | 0.734 | 0.738 |
+| F1 linear | 0.740 | +0.089 [−0.040, +0.225] | 0.50 / 0.62 | +0.0 | 0.364 [0.192, 0.522] | 8.03 | 0.728 | 0.712 |
+| F1 RF | 0.759 | +0.108 [−0.022, +0.244] | 0.53 / 0.62 | +0.0 | 0.437 [0.218, 0.587] | 7.05 | 0.767 | 0.752 |
+| F1 XGBoost | 0.774 | +0.123 [−0.002, +0.255] | 0.50 / 0.62 | +0.0 | 0.378 [0.143, 0.552] | 7.47 | 0.764 | 0.773 |
+| F2 linear | 0.773 | +0.122 [+0.009, +0.251] | 0.56 / 0.62 | +0.0 | 0.359 [0.186, 0.523] | 8.31 | 0.731 | 0.779 |
+| F2 RF | 0.749 | +0.098 [−0.036, +0.237] | 0.56 / 0.59 | −1.0 | 0.455 [0.249, 0.605] | 6.94 | 0.781 | 0.759 |
+| F2 XGBoost | 0.786 | +0.135 [+0.009, +0.268] | 0.50 / 0.62 | +0.0 | 0.427 [0.213, 0.586] | 7.12 | 0.775 | 0.766 |
+
+Pairwise onset ΔAUC on F1: RF − linear +0.018 [−0.023, +0.065], XGBoost − linear
++0.034 [−0.006, +0.077], XGBoost − RF +0.015 [−0.022, +0.058]. F2 − F1: linear +0.033
+[−0.006, +0.073], RF −0.009, XGBoost +0.012 (all CIs include 0).
+
+**The declared rule selects F1 linear** (logistic onset classifier + Ridge level): the
+three families are statistically tied on onsets, so the simplest wins, and F2 does not
+clear its bar.
+
 <!-- POOLED -->
 
 ## 4. Shortlist and one-time holdout check

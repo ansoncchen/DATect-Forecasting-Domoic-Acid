@@ -237,32 +237,69 @@ def recompute_test_row_persistence_features(
     spike_threshold: float,
 ) -> pd.DataFrame:
     """
-    Overwrite persistence features in test_row from ``observations``: real DA
-    measurements (columns ``date``, ``da_raw``) dated on or before the anchor,
-    sorted by date. The engine passes daily raw measurements so a sample taken
-    earlier in the anchor's week still counts and one taken after it does not.
+    Overwrite every persistence feature in test_row from ``observations``: real
+    DA measurements (columns ``date``, ``da_raw``) dated on or before the anchor.
+    The engine passes daily raw measurements so a sample taken earlier in the
+    anchor's week still counts and one taken after it does not.
 
-    Only these features can leak the target:
-    - last_observed_da_raw: the anchor row's value comes from its weekly bucket
-    - weeks_since_last_spike: likewise
+    The features are built as build_raw_feature_frame builds them for the
+    training row of the target's week (Monday M): from weekly maxima of the
+    measurements in weeks before M, where the anchor's week holds only the days
+    up to the anchor. The anchor row's own lags and rolling statistics stop at
+    that row's Monday, one to two weeks before M, so using them as they were
+    fed forecasts older information than training rows ever see.
 
-    NOTE: Rolling features (raw_obs_roll_*) exclude each row's own week in
-    build_raw_feature_frame, and the anchor row's week ends by the anchor, so
-    they are not recomputed here.
+    Lag and rolling columns are written only where test_row has them, which
+    respects DATECT_LAG_FEATURES and USE_ROLLING_FEATURES.
     """
     if observations.empty:
         return test_row
     test_row = test_row.copy()
-    test_row_date = test_row["date"].iloc[0]
-    last_da = float(observations["da_raw"].iloc[-1])
-    test_row["last_observed_da_raw"] = last_da
-    spike_mask = observations["da_raw"] >= spike_threshold
-    if spike_mask.any():
-        last_spike_date = observations.loc[spike_mask, "date"].max()
-        test_row["weeks_since_last_spike"] = (test_row_date - last_spike_date).days / 7.0
-    else:
-        test_row["weeks_since_last_spike"] = 999.0
-    # NOTE: Do NOT recompute rolling features - they already use shift(1) and don't leak
+    target_date = pd.Timestamp(test_row["date"].iloc[0])
+    target_week = target_date - pd.Timedelta(days=target_date.weekday())
+    obs = pd.Series(
+        observations["da_raw"].astype(float).to_numpy(),
+        index=pd.DatetimeIndex(observations["date"]),
+    )
+    weekly = obs.groupby(obs.index - pd.to_timedelta(obs.index.weekday, unit="D")).max()
+    weekly = weekly[weekly.index < target_week]
+    if weekly.empty:
+        return test_row
+    weeks, values = weekly.index, weekly.to_numpy()
+
+    def weeks_before_target(week) -> float:
+        return (target_week - week).days / 7.0
+
+    test_row["last_observed_da_raw"] = values[-1]
+    spike_weeks = weeks[values >= spike_threshold]
+    test_row["weeks_since_last_spike"] = (
+        weeks_before_target(spike_weeks[-1]) if len(spike_weeks) else 999.0
+    )
+
+    # Observation-order lags, as in RawDataProcessor.create_raw_lag_features
+    for i in range(1, 5):
+        lag = f"da_raw_prev_obs_{i}"
+        if lag in test_row.columns:
+            test_row[lag] = values[-i] if len(values) >= i else np.nan
+        if f"{lag}_weeks_ago" in test_row.columns:
+            test_row[f"{lag}_weeks_ago"] = (
+                weeks_before_target(weeks[-i]) if len(values) >= i else np.nan
+            )
+    if "da_raw_prev_obs_diff_1_2" in test_row.columns:
+        test_row["da_raw_prev_obs_diff_1_2"] = (
+            test_row["da_raw_prev_obs_1"] - test_row["da_raw_prev_obs_2"]
+        )
+
+    # Rolling statistics over last_observed_da_raw for the k weeks ending at the
+    # target week: each week's value is the latest measured week before it.
+    for k in (4, 8, 12):
+        grid = target_week - pd.to_timedelta(7 * np.arange(k), unit="D")
+        pos = np.searchsorted(weeks.values, grid.values, side="left") - 1
+        window = pd.Series(np.where(pos >= 0, values[np.maximum(pos, 0)], np.nan))
+        for stat in ("mean", "std", "max"):
+            col = f"raw_obs_roll_{stat}_{k}"
+            if col in test_row.columns:
+                test_row[col] = getattr(window, stat)()
     return test_row
 
 

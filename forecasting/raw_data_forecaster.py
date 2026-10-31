@@ -140,18 +140,24 @@ def build_raw_feature_frame(
     # ablation confirmed all have |ΔR²| ≤ 0.005. They have been removed
     # from the pipeline. See paper_feature_ablation_results.json.
 
-    # Add persistence features from raw measurements (no interpolation)
+    # Persistence features from raw measurements (no interpolation), using only
+    # observations before the row's own week. Including the row itself made the
+    # feature equal the training target (and weeks_since_last_spike 0 exactly on
+    # spike rows), which never happens at forecast time.
     merged = merged.sort_values(["site", "date"])
-    merged["last_observed_da_raw"] = merged.groupby("site")["da_raw"].ffill()
+    previous_da = merged.groupby("site")["da_raw"].shift(1)
+    merged["last_observed_da_raw"] = previous_da.groupby(merged["site"]).ffill()
 
-    last_spike_date = merged["date"].where(merged["da_raw"] >= config.SPIKE_THRESHOLD)
+    spike_date = merged["date"].where(merged["da_raw"] >= config.SPIKE_THRESHOLD)
+    last_spike_date = spike_date.groupby(merged["site"]).shift(1)
     last_spike_date = last_spike_date.groupby(merged["site"]).ffill()
     merged["weeks_since_last_spike"] = (merged["date"] - last_spike_date).dt.days / 7.0
     merged["weeks_since_last_spike"] = merged["weeks_since_last_spike"].fillna(999.0)
 
     if config.USE_ROLLING_FEATURES:
         rolling_windows = (4, 8, 12)
-        shifted = merged.groupby("site")["last_observed_da_raw"].shift(1)
+        # Already excludes the row's own value (same series the old shift(1) produced)
+        shifted = merged["last_observed_da_raw"]
         for window in rolling_windows:
             rolling_group = shifted.groupby(merged["site"]).rolling(window, min_periods=1)
             # Rolling mean only needed for window=4 (8/12 are negligible)
@@ -175,6 +181,17 @@ def build_raw_feature_frame(
     return merged
 
 
+# A weekly row is labelled with its Monday but aggregates Monday-Sunday, so it
+# can hold measurements up to six days after its date. A row may be used at an
+# anchor only once its whole week has passed.
+WEEK_END_OFFSET = pd.Timedelta(days=6)
+
+
+def week_complete_by(dates: pd.Series, anchor_date) -> pd.Series:
+    """True where the weekly row dated ``dates`` ends on or before ``anchor_date``."""
+    return dates + WEEK_END_OFFSET <= pd.Timestamp(anchor_date)
+
+
 def get_site_training_frame(
     feature_frame: pd.DataFrame,
     site: str,
@@ -189,11 +206,14 @@ def get_site_training_frame(
     Real measurements are always preferred; interpolated values fill gaps.
     A ``_is_interpolated`` marker column is added so downstream code can
     filter to real-only rows for persistence feature recomputation.
+
+    Only weeks that end by ``anchor_date`` are used: the anchor's own week can
+    contain measurements taken after the anchor.
     """
     anchor_date = pd.Timestamp(anchor_date)
     site_data = feature_frame[feature_frame["site"] == site].copy()
     site_data = site_data.sort_values("date")
-    train_data = site_data[site_data["date"] <= anchor_date].copy()
+    train_data = site_data[week_complete_by(site_data["date"], anchor_date)].copy()
 
     if config.USE_INTERPOLATED_TRAINING:
         # Keep rows that have either real or interpolated DA
@@ -213,32 +233,32 @@ def get_site_training_frame(
 
 def recompute_test_row_persistence_features(
     test_row: pd.DataFrame,
-    train_data: pd.DataFrame,
+    observations: pd.DataFrame,
     spike_threshold: float,
 ) -> pd.DataFrame:
     """
-    Overwrite persistence features in test_row using only data from train_data
-    (date <= anchor_date) to prevent target leakage.
+    Overwrite persistence features in test_row from ``observations``: real DA
+    measurements (columns ``date``, ``da_raw``) dated on or before the anchor,
+    sorted by date. The engine passes daily raw measurements so a sample taken
+    earlier in the anchor's week still counts and one taken after it does not.
 
     Only these features can leak the target:
-    - last_observed_da_raw: ffill includes target if measurement exists at test_date
-    - weeks_since_last_spike: would be 0 if target is a spike
+    - last_observed_da_raw: the anchor row's value comes from its weekly bucket
+    - weeks_since_last_spike: likewise
 
-    NOTE: Rolling features (raw_obs_roll_*) are computed using shift(1) in
-    build_raw_feature_frame, so they already use only data from T-1 and earlier.
-    We do NOT recompute them here to preserve correct semantics.
+    NOTE: Rolling features (raw_obs_roll_*) exclude each row's own week in
+    build_raw_feature_frame, and the anchor row's week ends by the anchor, so
+    they are not recomputed here.
     """
-    if train_data.empty:
+    if observations.empty:
         return test_row
     test_row = test_row.copy()
     test_row_date = test_row["date"].iloc[0]
-    # Last known DA (from training data only)
-    last_da = float(train_data["da_raw"].iloc[-1])
+    last_da = float(observations["da_raw"].iloc[-1])
     test_row["last_observed_da_raw"] = last_da
-    # Last spike date from training only
-    spike_mask = train_data["da_raw"] >= spike_threshold
+    spike_mask = observations["da_raw"] >= spike_threshold
     if spike_mask.any():
-        last_spike_date = train_data.loc[spike_mask, "date"].max()
+        last_spike_date = observations.loc[spike_mask, "date"].max()
         test_row["weeks_since_last_spike"] = (test_row_date - last_spike_date).days / 7.0
     else:
         test_row["weeks_since_last_spike"] = 999.0
@@ -256,9 +276,10 @@ def get_site_anchor_row(
     """
     Build a leak-free test row for forecasting validation.
 
-    Environmental features (SST, chlorophyll, BEUTI, etc.) come from the
-    closest processed row AT or BEFORE anchor_date — information that would
-    actually be available at prediction time.
+    Environmental features (SST, chlorophyll, BEUTI, PN, etc.) come from the
+    latest processed row whose week ends by anchor_date — information that would
+    actually be available at prediction time (a weekly PN maximum labelled with
+    the anchor's Monday can include samples taken after the anchor).
 
     The row's ``date`` is set to ``test_date`` so that deterministic calendar
     features (sin_day_of_year, month, ...) are computed correctly downstream.
@@ -270,8 +291,8 @@ def get_site_anchor_row(
     site_data = feature_frame[feature_frame["site"] == site].copy()
     site_data = site_data.sort_values("date")
 
-    # Environmental features from anchor date or earlier
-    past_data = site_data[site_data["date"] <= anchor_date].copy()
+    # Environmental features from weeks that ended by the anchor
+    past_data = site_data[week_complete_by(site_data["date"], anchor_date)].copy()
     if past_data.empty:
         return None
 

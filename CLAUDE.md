@@ -34,9 +34,12 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
    `scripts/data/rebuild_final_output.py` for anything derived from local files.
 2. **Heavy compute runs on Hyak** (`precompute_cache.py`, retrospective/multi-seed/ablation
    evals). The laptop is for editing, tests and the dashboard.
-3. **Leak-free, past-only training is non-negotiable.** Training uses `date <= anchor_date`
-   (`anchor = test_date - 7 days`); persistence features and the naive baseline come from
-   real observations only; test points are raw DA measurements only. Any new feature or
+3. **Leak-free, past-only training is non-negotiable.** A weekly row is labelled with its
+   Monday but aggregates Monday-Sunday, so training and the anchor row use only weeks that
+   end by the anchor (`date + 6 days <= anchor_date`, `anchor = test_date - 7 days`;
+   `week_complete_by`). Test-time persistence features and the naive baseline come from raw
+   daily measurements dated `<= anchor_date`; in training rows they use only earlier weeks.
+   Test points are raw DA measurements only. Any new feature or
    imputer needs an explicit story for why it cannot see the future.
 4. **Behavior-neutral refactors must reproduce the golden baseline exactly**
    (`compare_golden.py`: prediction parquets byte-identical; metric tables may differ only
@@ -187,8 +190,8 @@ feature because the score correlates with cloud cover (r ~ 0.4-0.5).
 ## Results
 
 All current numbers, their protocol and history are in `docs/CORRECTED_NUMBERS.md`.
-Headline (2022–2023 holdout, every real measurement, commit `a2de8dac`): R² 0.419
-[0.247, 0.546], MAE 7.49 ug/g, spike recall 0.774, F2 0.693, N = 409.
+Headline (2022–2023 holdout, every real measurement, commit `2688fb8d`): R² 0.497
+[0.365, 0.601], MAE 7.60 ug/g, spike recall 0.833, F2 0.729, N = 409.
 `tests/test_chronological_eval_smoke.py` pins it; change both together.
 
 ## Docs

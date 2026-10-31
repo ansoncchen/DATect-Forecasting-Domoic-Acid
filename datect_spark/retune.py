@@ -10,8 +10,9 @@ grid_search_weights_clip.py runs 2,250 full retrospectives), this:
    measurement in the window. Each task trains that point's models exactly as
    the retrospective evaluation does (RawForecastEngine._run_single_retrospective)
    with clipping switched off, and returns the raw XGB and RF predictions plus
-   the 0.95/0.97/0.99 quantiles of its training targets. Rows go to Delta.
-2. ``score``: applies the 75 weight x clip configurations to the tuning rows
+   the 0.95/0.97/0.99 quantiles and the maximum of its training targets. Rows
+   go to Delta.
+2. ``score``: applies the 100 weight x clip configurations to the tuning rows
    in Spark SQL and scores each (site, configuration) on yearly folds
    2015-2021. The original grid search used only 2019-2021, but that leaves
    11-32 points per site and fold (none at Cannon Beach in 2019-2020); seven
@@ -48,12 +49,14 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(REPO_ROOT, "results", "tuning_provenance", "retune_spark")
 
 W_XGB_GRID = [0.0, 0.25, 0.5, 0.75, 1.0]
-CLIP_Q_GRID = [0.95, 0.97, 0.99]
+# 1.0 clips at the largest training target, which the engine supports as-is
+# (np.quantile(y, 1.0)): in practice no quantile clip
+CLIP_Q_GRID = [0.95, 0.97, 0.99, 1.0]
 CLIP_MAX_GRID = [None, 60.0, 80.0, 100.0, 120.0]
 
 PRED_SCHEMA = (
     "site string, date string, actual_da double, xgb_raw double, rf_raw double, "
-    "q95 double, q97 double, q99 double, n_train int, task_seconds double, "
+    "q95 double, q97 double, q99 double, q100 double, n_train int, task_seconds double, "
     "host string, ok boolean"
 )
 # First tuning fold; the last is the year before the holdout (eval_windows.validation_end)
@@ -130,7 +133,8 @@ def _predict_partition(batches):
                 y = out["_internals"]["train_data"]["da_raw"].astype(float).to_numpy()
                 row.update(xgb_raw=out["predicted_da"], rf_raw=out["predicted_da_rf"],
                            q95=float(np.quantile(y, 0.95)), q97=float(np.quantile(y, 0.97)),
-                           q99=float(np.quantile(y, 0.99)), n_train=len(y))
+                           q99=float(np.quantile(y, 0.99)), q100=float(np.quantile(y, 1.0)),
+                           n_train=len(y))
             row["task_seconds"] = time.time() - t0
             rows.append(row)
         yield pd.DataFrame(rows).reindex(columns=[c.split()[0] for c in PRED_SCHEMA.split(", ")])
@@ -212,7 +216,8 @@ def _log_forecast_runs(parent, preds: pd.DataFrame) -> int:
 def _apply(preds: pd.DataFrame, cfg: dict) -> np.ndarray:
     """The engine's post-processing: per-model clip at the training quantile and
     optional hard ceiling, then the weighted blend."""
-    q = {0.95: preds["q95"], 0.97: preds["q97"], 0.99: preds["q99"]}[cfg["prediction_clip_q"]]
+    q = {0.95: preds["q95"], 0.97: preds["q97"], 0.99: preds["q99"],
+         1.0: preds["q100"]}[cfg["prediction_clip_q"]]
     cap = cfg.get("prediction_clip_max")
 
     def clip(x):
@@ -272,7 +277,8 @@ def score() -> None:
         [(w, q, m) for w in W_XGB_GRID for q in CLIP_Q_GRID for m in CLIP_MAX_GRID],
         "w_xgb double, clip_q double, clip_max double")
     q = (F.when(F.col("clip_q") == 0.95, F.col("q95"))
-         .when(F.col("clip_q") == 0.97, F.col("q97")).otherwise(F.col("q99")))
+         .when(F.col("clip_q") == 0.97, F.col("q97"))
+         .when(F.col("clip_q") == 0.99, F.col("q99")).otherwise(F.col("q100")))
 
     def clip(c):
         # least() skips nulls, so clip_max = null means no hard ceiling

@@ -583,7 +583,7 @@ All experiment code is in `scripts/experiments/`; nothing in `forecasting/` or
 
 | Script | Purpose |
 |---|---|
-| `harness.py` | One-change variants of the engine's forecast (`--window val|dev|holdout`, `--variants a,b,a+b`, `--verify`) |
+| `harness.py` | One-change variants of the engine's forecast (`--window` val, dev or holdout; `--variants a,b,a+b`; `--verify`) |
 | `pooled_study.py` | Declared pooled comparison; `--ablation F1:<family>` for the feature-group diagnostic |
 | `rescore.py` | Clip / blend / bias / threshold rescoring and paired comparisons → `results/experiments/summary_*.csv` |
 | `pooled_report.py` | Full pooled table, pairwise ΔAUC, declared selection rule, ablation table |

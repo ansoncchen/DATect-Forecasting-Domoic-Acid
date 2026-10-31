@@ -18,7 +18,8 @@
 #                                          -> results/spike_classifier/importance_by_seed.csv
 # One job per study; they write different files, so they can run at once:
 #   sbatch --export=ALL,STUDY=features scripts/eval/paper_sensitivity_study.sbatch
-# The two ablation studies skip finished experiments, so a ckpt requeue resumes.
+# The two ablation studies skip experiments already finished at this commit, so a
+# ckpt requeue resumes; results committed by an older commit are recomputed.
 set -euo pipefail
 
 PY=${DATECT_PY:-/gscratch/stf/ac283/envs/datect_scratch/bin/python}

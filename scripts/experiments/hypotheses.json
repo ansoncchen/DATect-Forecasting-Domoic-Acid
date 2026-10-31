@@ -33,5 +33,13 @@
   "xgb_more_trees": "Twice the XGBoost trees (all sites).",
   "rf_leaf1": "Fully grown RF leaves (min_samples_leaf 1) track extremes better.",
   "seed43": "Noise floor: the baseline configuration with model seed 43 (XGBoost subsampling and RF bootstraps change, nothing else).",
-  "seed44": "Noise floor: as seed43 with model seed 44."
+  "seed44": "Noise floor: as seed43 with model seed 44.",
+  "no_oni": "ONI(m-2) may not be published yet for rows in the first days of a month; if dropping ONI costs nothing, the lag cannot matter.",
+  "no_discharge": "One Columbia River gauge serves every site; if dropping discharge costs nothing, the single gauge cannot matter.",
+  "no_sat": "Satellite SST, SST anomaly and FLH (12-43% NaN, median-imputed) add little.",
+  "cls_baseline": "Engine classifier re-implemented (reproduces the committed spike_probability).",
+  "cls_safe_fixed": "Apply the documented safe-baseline filter (previous measurement < 20) on unscaled values; as run it is applied to MinMax-scaled values and keeps every row.",
+  "cls_refresh": "Classifier test row with lag/rolling features recomputed from every measurement up to the anchor.",
+  "cls_asof": "Classifier trained and scored on rows built as of target - 7 days (horizon-consistent).",
+  "cls_asof_safe_fixed": "cls_asof plus the corrected safe-baseline filter."
 }

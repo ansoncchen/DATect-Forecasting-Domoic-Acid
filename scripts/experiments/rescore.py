@@ -186,6 +186,44 @@ def variant_rows(raw_dir: Path, window: str, base: pd.DataFrame, names: list[str
     return rows
 
 
+def hybrid_rows(raw_dir: Path, window: str, base: pd.DataFrame, prob_threshold: float = 0.10) -> list[dict]:
+    """Hybrid alert (classifier >= 0.10 OR ensemble >= 12) for each classifier variant."""
+    from sklearn.metrics import roc_auc_score
+    from forecasting.metrics import detection_scores
+    rows = []
+    regs = {"baseline": base}
+    for name in ("asof", "refresh"):
+        r = load(raw_dir, window, name)
+        if r is not None:
+            regs[name] = r
+    cls_names = sorted(p.name.split("__", 1)[1][:-8] for p in raw_dir.glob(f"{window}__cls_*.parquet"))
+    committed = base[["site", "date", "spike_probability"]].rename(columns={"spike_probability": "spike_prob"})
+    sources = [("committed classifier", committed)] + [(n, load(raw_dir, window, n)) for n in cls_names]
+    for reg_name, reg in regs.items():
+        ens = pd.DataFrame({"site": reg["site"], "date": reg["date"], "actual_da": reg["actual_da"],
+                            "ens": ensemble(reg)})
+        for cls_name, cls in sources:
+            if cls is None or cls["spike_prob"].isna().all():
+                continue
+            m = base[["site", "date"]].merge(ens, on=["site", "date"]).merge(
+                cls[["site", "date", "spike_prob"]], on=["site", "date"]).sort_values(["date", "site"])
+            y = m["actual_da"].to_numpy(float)
+            spike = y >= SPIKE
+            tr = transition_mask(m)
+            alert = (m["spike_prob"].to_numpy() >= prob_threshold) | (m["ens"].to_numpy() >= ALERT)
+            det = detection_scores(spike, alert)
+            rows.append({
+                "experiment": f"hybrid: {cls_name} + {reg_name} regression", "n": len(m),
+                "recall": det["recall"], "precision": det["precision"], "f2": det["f2"],
+                "trans_recall": float(alert[tr].mean()) if tr.any() else np.nan,
+                "cls_only_recall": float((m["spike_prob"].to_numpy() >= prob_threshold)[spike].mean()),
+                "cls_only_trans_recall": float((m["spike_prob"].to_numpy() >= prob_threshold)[tr].mean()) if tr.any() else np.nan,
+                "auc": roc_auc_score(spike, m["spike_prob"]) if 0 < spike.sum() < len(spike) else np.nan,
+                "n_alerts": int(alert.sum()),
+            })
+    return rows
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--window", default="val")
@@ -195,7 +233,7 @@ def main() -> int:
     raw_dir = Path(args.raw_dir)
     base = load(raw_dir, args.window, "baseline")
     names = sorted(p.name.split("__", 1)[1][:-8] for p in raw_dir.glob(f"{args.window}__*.parquet"))
-    names = [n for n in names if n != "baseline"]
+    names = [n for n in names if n != "baseline" and not n.startswith("cls_")]
     rows = postprocessing_rows(base) + variant_rows(raw_dir, args.window, base, names)
     out = pd.DataFrame(rows)
     path = Path(args.out) if args.out else ROOT / "results" / "experiments" / f"summary_{args.window}.csv"
@@ -204,6 +242,10 @@ def main() -> int:
     pd.set_option("display.width", 220)
     cols = ["experiment", "n", "r2", "d_r2", "d_r2_lo", "d_r2_hi", "mae", "d_mae", "f2", "trans_recall", "verdict"]
     print(out[cols].round(3).to_string(index=False))
+    if base["spike_probability"].notna().all():
+        hyb = pd.DataFrame(hybrid_rows(raw_dir, args.window, base))
+        hyb.to_csv(path.with_name(path.stem + "_hybrid.csv"), index=False, float_format="%.4f")
+        print(hyb.round(3).to_string(index=False))
     return 0
 
 

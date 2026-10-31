@@ -80,6 +80,9 @@ VARIANTS: dict[str, dict] = {
     "no_oad": {"drop_prefix": OAD_PREFIX},
     "no_env": {"drop": PN_COLS + ENV_COLS, "drop_prefix": OAD_PREFIX},
     "no_lags": {"drop": [c for c in PERSIST_COLS if c.startswith("da_raw_prev_obs")]},
+    "no_oni": {"drop": ["oni"]},
+    "no_discharge": {"drop": ["discharge"]},
+    "no_sat": {"drop": ["modis-sst", "sst-anom", "modis-flr"]},
     "all_features": {"feature_subset_mode": "all"},
     "no_monotone": {"monotone": False},
     "no_per_site": {"per_site": False},
@@ -105,6 +108,12 @@ VARIANTS: dict[str, dict] = {
     # noise floor: identical configuration, different model seed
     "seed43": {"seed": 43},
     "seed44": {"seed": 44},
+    # pooled spike classifier only (combined with a regression run in rescore.py)
+    "cls_baseline": {"classifier_only": True},
+    "cls_safe_fixed": {"classifier_only": True, "cls_safe_fixed": True},
+    "cls_refresh": {"classifier_only": True, "cls_features": "refresh"},
+    "cls_asof": {"classifier_only": True, "cls_features": "asof"},
+    "cls_asof_safe_fixed": {"classifier_only": True, "cls_features": "asof", "cls_safe_fixed": True},
 }
 
 
@@ -473,11 +482,69 @@ def predict_pooled(points: list[dict], v: dict) -> list[dict]:
     return out
 
 
+def spike_probability(point: dict, v: dict) -> dict | None:
+    """Pooled spike classifier as in RawForecastEngine (classifier-only variants).
+
+    ``cls_features``: "base" (engine), "refresh" or "asof" (training and test rows
+    built as of target - 7 days). ``cls_safe_fixed`` applies the documented
+    safe-baseline filter on the *unscaled* da_raw_prev_obs_1; the engine applies it
+    to the MinMax-scaled column, where every value is < 20, so it keeps all rows.
+    """
+    from sklearn.utils.class_weight import compute_class_weight
+    from xgboost import XGBClassifier
+    ctx = context()
+    ff = ctx["ff"]
+    site, D = point["site"], pd.Timestamp(point["date"])
+    A = D - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
+    feats = v.get("cls_features", "base")
+    built = training_and_test(point, {"features": feats})
+    if built is None:
+        return None
+    _, test, naive, _ = built
+    if feats == "asof":
+        parts = [asof_table(s, False) for s in sorted(ff["site"].unique())]
+        all_train = pd.concat(parts, ignore_index=True)
+        all_train = all_train[all_train["_known_by"] <= A].copy()
+    else:
+        all_train = ff[week_complete_by(ff["date"], A) & ff["da_raw"].notna()].copy()
+    if len(all_train) < 30:
+        return None
+    all_train = add_temporal_features(all_train)
+    y = all_train["da_raw"].astype(float)
+    drop = ["date", "site", "da_raw", "da", "_is_interpolated", "_known_by"] + list(config.ZERO_IMPORTANCE_FEATURES)
+    drop += list(v.get("cls_drop", []))
+    transformer, X = create_transformer(all_train, drop)
+    cols = list(X.columns)
+    Xs = transformer.fit_transform(X)
+    thr = config.SPIKE_THRESHOLD
+    if v.get("cls_safe_fixed"):
+        mask = all_train["da_raw_prev_obs_1"].fillna(0).to_numpy() < thr
+    else:
+        mask = (Xs["da_raw_prev_obs_1"].fillna(0) < thr).to_numpy()
+    leaky = [c for c in ("last_observed_da_raw", "weeks_since_last_spike") if c in Xs.columns]
+    X_safe = Xs.loc[mask].drop(columns=leaky)
+    y_safe = (y.to_numpy()[mask] >= thr).astype(int)
+    if len(y_safe) < 10 or len(np.unique(y_safe)) < 2:
+        return None
+    classes = np.unique(y_safe)
+    cw = dict(zip(classes, compute_class_weight("balanced", classes=classes, y=y_safe)))
+    model = XGBClassifier(**dict(config.SPIKE_CLASSIFIER_PARAMS), random_state=config.MODEL_SEED,
+                          verbosity=0, use_label_encoder=False)
+    model.fit(X_safe, y_safe, sample_weight=np.array([cw[c] for c in y_safe]))
+    X_te = transformer.transform(test.reindex(columns=cols)).reindex(columns=list(X_safe.columns), fill_value=0)
+    proba = model.predict_proba(X_te)
+    return {"site": site, "date": D, "anchor_date": A, "actual_da": float(point["actual_da"]),
+            "naive_prediction": float(naive), "spike_prob": float(proba[0, 1]) if proba.shape[1] > 1 else 0.0,
+            "n_cls_train": int(len(y_safe))}
+
+
 def _run_chunk(points: list[dict], variant: dict) -> list[dict]:
     import warnings
     warnings.simplefilter("ignore")
     if variant.get("pooled"):
         return predict_pooled(points, variant)
+    if variant.get("classifier_only"):
+        return [r for r in (spike_probability(p, variant) for p in points) if r is not None]
     res = []
     for p in points:
         r = predict_point(p, variant)

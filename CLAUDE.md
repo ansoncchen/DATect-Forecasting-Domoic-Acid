@@ -110,7 +110,7 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 | `DATECT_USE_MONOTONIC_CONSTRAINTS` | `false` drops XGBoost monotone constraints |
 | `DATECT_LAG_FEATURES` | lag list, e.g. `1,2`; `none` disables lag features |
 | `DATECT_EXTRA_DROP_FEATURES` | CSV of extra features to drop |
-| `DATECT_CLIP_Q_OVERRIDE` | `none` disables clipping; a number replaces every clip quantile |
+| `DATECT_CLIP_Q_OVERRIDE` | a number clips forecasts at that training quantile (default: no clip); `none` = default |
 | `DATECT_RF_PARAMS_JSON` / `DATECT_SPIKE_CLASSIFIER_JSON` | overlay RF / spike-classifier params |
 | `DATECT_HPARAM_OVERRIDE_JSON` | per-site overrides, incl. `feature_subset` |
 | `DATECT_FEATURE_SUBSET_MODE` | `all` removes per-site subsets; `minimal` forces a 4-feature subset |
@@ -131,8 +131,8 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
   (`multi_seed_baseline.py`, seeds 42-46 at 20%). Single-seed R² at N~1,000 is noise-dominated
   (std across seeds ~0.05 pooled, ~0.10 on the holdout rows); never report one seed alone.
 - **Never tune all dimensions at once.** A full Optuna search over 18 dims overfit badly
-  (validation +0.07 R², holdout -0.16). Tune only ensemble weights and clip parameters with
-  constrained chronological CV (`grid_search_weights_clip.py`), and verify on the holdout
+  (validation +0.07 R², holdout -0.16). Tune only ensemble weights with constrained
+  chronological CV (`grid_search_weights_clip.py`; forecasts are no longer clipped), and verify on the holdout
   (`validate_tuned_on_holdout.py`). Per-site fold CV with < 50 test points per fold is
   unreliable.
 - **Results files:** `results/chronological` (headline), `results/multi_seed`,

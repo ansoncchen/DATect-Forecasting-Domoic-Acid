@@ -55,24 +55,24 @@ All fitted models are seeded with `config.MODEL_SEED` (42).
 | Naive persistence | Last real DA at or before the anchor (`PERSISTENCE_MAX_DAYS = None`, no age cap). External baseline, never blended. If a site has no prior real measurement the point is dropped. |
 | Ridge (`linear`) | `LINEAR_REGRESSION_ALPHA` on the full preprocessed feature set; a competitor, not part of the ensemble. Logistic regression is its classification counterpart. |
 
-**Post-processing** (`_postprocess`, applied to XGB, RF and Ridge): floor at 0; cap at the `prediction_clip_q` quantile of the training `da_raw` (site value, else `PREDICTION_CLIP_Q = 0.99`); cap at `prediction_clip_max` if set (no site sets one today). `DATECT_CLIP_Q_OVERRIDE` replaces or (`none`) disables clipping for ablations.
+**Post-processing** (`_postprocess`, applied to XGB, RF and Ridge): floor at 0. There is no upper clip: `prediction_clip_q`, `prediction_clip_max` and `PREDICTION_CLIP_Q` are null. The clip they once set capped forecasts at a quantile of the training `da_raw`, which is mostly gap-filled (Coos Bay q95 81 µg/g vs 145 over real measurements), and removing it raised R² in every window (`docs/CORRECTED_NUMBERS.md`). `DATECT_CLIP_Q_OVERRIDE=<q>` restores a clip at quantile *q* for ablations.
 
 ## 6. Ensemble weights
 
-`ensemble = w_xgb · XGB + w_rf · RF` with per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` is always 0). They are winners of the constrained grid search in `scripts/eval/grid_search_weights_clip.py`. Current values:
+`ensemble = w_xgb · XGB + w_rf · RF` with per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` is always 0). They are winners of the constrained grid search in `scripts/eval/grid_search_weights_clip.py`, which chose them jointly with the clip quantiles that were later removed. Current values:
 
-| Site | w_xgb | w_rf | clip quantile |
-|---|---|---|---|
-| Copalis | 1.00 | 0.00 | 0.97 |
-| Quinault | 1.00 | 0.00 | 0.95 |
-| Long Beach | 1.00 | 0.00 | 0.95 |
-| Clatsop Beach | 1.00 | 0.00 | 0.95 |
-| Newport | 1.00 | 0.00 | 0.95 |
-| Gold Beach | 1.00 | 0.00 | 0.97 |
-| Twin Harbors | 0.25 | 0.75 | 0.97 |
-| Kalaloch | 0.00 | 1.00 | 0.95 |
-| Coos Bay | 0.00 | 1.00 | 0.95 |
-| Cannon Beach | 0.00 | 1.00 | 0.95 |
+| Site | w_xgb | w_rf |
+|---|---|---|
+| Copalis | 1.00 | 0.00 |
+| Quinault | 1.00 | 0.00 |
+| Long Beach | 1.00 | 0.00 |
+| Clatsop Beach | 1.00 | 0.00 |
+| Newport | 1.00 | 0.00 |
+| Gold Beach | 1.00 | 0.00 |
+| Twin Harbors | 0.25 | 0.75 |
+| Kalaloch | 0.00 | 1.00 |
+| Coos Bay | 0.00 | 1.00 |
+| Cannon Beach | 0.00 | 1.00 |
 
 The JSON is authoritative; re-check it after any re-tune. `RawForecastEngine._ensemble_weights()` serves these to evaluation, the spike alert and the API. With `USE_PER_SITE_MODELS=false` every site uses 0.5 / 0.5.
 

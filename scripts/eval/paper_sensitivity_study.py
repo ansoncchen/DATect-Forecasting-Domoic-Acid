@@ -94,8 +94,8 @@ def experiments(study: str, tmpdir: str) -> list:
     runs += [
         ("all_features", "All features at every site", {"DATECT_FEATURE_SUBSET_MODE": "all"}),
         ("minimal_features", "Minimal features (4)", {"DATECT_FEATURE_SUBSET_MODE": "minimal"}),
-        ("relax_clipping", "Clip at q = 0.99 everywhere", {"DATECT_CLIP_Q_OVERRIDE": "0.99"}),
-        ("no_clipping", "No prediction clipping", {"DATECT_CLIP_Q_OVERRIDE": "none"}),
+        ("clip_q95", "Clip at the 0.95 training quantile everywhere", {"DATECT_CLIP_Q_OVERRIDE": "0.95"}),
+        ("clip_q99", "Clip at the 0.99 training quantile everywhere", {"DATECT_CLIP_Q_OVERRIDE": "0.99"}),
         ("monotonic_off", "No monotonic constraints", {"DATECT_USE_MONOTONIC_CONSTRAINTS": "false"}),
     ]
     return runs

@@ -350,7 +350,9 @@ MIN_TRAINING_FOR_TUNING = int(os.environ.get(
 
 # Prediction clipping — default applies when a site has no prediction_clip_q.
 # Per-site overrides live in SITE_SPECIFIC_CONFIGS via per_site_models.py.
-PREDICTION_CLIP_Q = float(_tuned["prediction_clip_q_default"])
+# Null everywhere in the tuned JSON: forecasts are not clipped (only floored at 0).
+_clip_default = _tuned["prediction_clip_q_default"]
+PREDICTION_CLIP_Q = None if _clip_default is None else float(_clip_default)
 # DATECT_CLIP_Q_OVERRIDE (ablations): "none" disables clipping; a number replaces the global and
 # every per-site clip quantile (per_site_models.py reads CLIP_Q_OVERRIDE). None = no override.
 _clip_override = os.environ.get("DATECT_CLIP_Q_OVERRIDE", "")

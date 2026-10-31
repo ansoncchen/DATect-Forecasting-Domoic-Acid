@@ -179,10 +179,18 @@ def variant_rows(raw_dir: Path, window: str, base: pd.DataFrame, names: list[str
         b = base.merge(m[["site", "date"]], on=["site", "date"], how="inner")
         y = b["actual_da"].to_numpy(float)
         tr = transition_mask(b)
-        hyp = HYPOTHESES.get(name, "")
+        hyp = HYPOTHESES.get(name, HYPOTHESES.get(name.split("+")[-1], ""))
         tag = "" if len(m) == len(base) else f" [{len(m)}/{len(base)} rows]"
         rows.append(row(name + tag, hyp, y, ensemble(b), ensemble(m), tr))
         rows.append(row(name + " (both clip=none)" + tag, hyp, y, ensemble(b, "none"), ensemble(m, "none"), tr))
+        if "+" in name:  # also against the combination without its last part
+            ref_name = name.rsplit("+", 1)[0]
+            ref = load(raw_dir, window, ref_name)
+            if ref is not None:
+                mm = ref[["site", "date"]].merge(m, on=["site", "date"])
+                rr = ref.merge(mm[["site", "date"]], on=["site", "date"])
+                rows.append(row(f"{name} vs {ref_name}", hyp, rr["actual_da"].to_numpy(float),
+                                ensemble(rr), ensemble(mm), transition_mask(rr)))
     return rows
 
 

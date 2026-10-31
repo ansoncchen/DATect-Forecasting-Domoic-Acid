@@ -584,9 +584,23 @@ def test_points(window: str) -> pd.DataFrame:
     return df[["site", "date", "actual_da", "predicted_da", "spike_probability", "spike_alert"]]
 
 
+def resolve(name: str) -> dict:
+    """A variant name, or several joined by '+' (later parts win; nested dicts merge)."""
+    out: dict = {}
+    for part in name.split("+"):
+        for k, val in VARIANTS[part].items():
+            if isinstance(val, dict) and isinstance(out.get(k), dict):
+                out[k] = {**out[k], **val}
+            elif isinstance(val, list) and isinstance(out.get(k), list):
+                out[k] = out[k] + val
+            else:
+                out[k] = val
+    return out
+
+
 def run_variant(name: str, window: str, n_jobs: int, limit: int | None, outdir: Path) -> pd.DataFrame:
     from joblib import Parallel, delayed
-    v = VARIANTS[name]
+    v = resolve(name)
     pts = test_points(window).sort_values(["site", "date"]).reset_index(drop=True)
     if limit:
         pts = pts.groupby("site", group_keys=False).head(max(1, limit // pts["site"].nunique()))

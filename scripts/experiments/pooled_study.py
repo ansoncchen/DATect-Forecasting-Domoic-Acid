@@ -33,7 +33,30 @@ from forecasting.raw_model_factory import build_rf_regressor, build_xgb_regresso
 FAMILIES = ("linear", "rf", "xgb")
 FEATURE_SETS = {"F1": {}, "F2": {"regional": True, "pn_asof": True}}
 DROP = ["date", "site", "da_raw", "da", "_is_interpolated", "_known_by"]
+# Feature groups for the ablation diagnostic (drop one at a time; "all_env" drops every
+# environmental group together). OAD columns are matched by prefix.
+GROUPS = {
+    "satellite": ["modis-sst", "sst-anom", "modis-flr"],
+    "climate": ["pdo", "oni"],
+    "beuti": ["beuti"],
+    "discharge": ["discharge"],
+    "pn": ["pn", "pn_log", "pn_last_log", "pn_max14_log", "pn_age_days", "pn_nb_max14_log", "pn_rise_log"],
+    "oad": ["oad_*"],
+    "rolling": ["raw_obs_roll_mean_4", "raw_obs_roll_std_4", "raw_obs_roll_max_4", "raw_obs_roll_std_8",
+                "raw_obs_roll_max_8", "raw_obs_roll_std_12", "raw_obs_roll_max_12"],
+    "calendar": ["sin_day_of_year", "cos_day_of_year", "month"],
+}
+GROUPS["all_env"] = [c for g in ("satellite", "climate", "beuti", "discharge", "pn", "oad") for c in GROUPS[g]]
 _ROWS: dict = {}
+
+
+def group_columns(columns, group: str | None) -> list[str]:
+    if not group:
+        return []
+    cols = []
+    for pat in GROUPS[group]:
+        cols += [c for c in columns if c.startswith(pat[:-1])] if pat.endswith("*") else [pat]
+    return cols
 
 
 def sites() -> list[str]:
@@ -116,13 +139,14 @@ def fit_predict(fam: str, X_tr, y_lvl, X_on, y_on, X_te) -> tuple[np.ndarray, np
     return clf.predict_proba(X_te)[:, 1], np.maximum(reg.predict(X_te), 0.0)
 
 
-def run_anchor(anchor: pd.Timestamp, points: list[dict]) -> list[dict]:
+def run_anchor(anchor: pd.Timestamp, points: list[dict], feature_sets=tuple(FEATURE_SETS),
+               families=FAMILIES, drop_group: str | None = None) -> list[dict]:
     import warnings
     warnings.simplefilter("ignore")
     out = {(p["site"], pd.Timestamp(p["date"])): {
         "site": p["site"], "date": pd.Timestamp(p["date"]), "anchor_date": anchor,
         "actual_da": float(p["actual_da"])} for p in points}
-    for fs in FEATURE_SETS:
+    for fs in feature_sets:
         rows = pooled_rows(fs)
         train = rows[rows["_known_by"] <= anchor]
         built = [(p, test_row(p, fs)) for p in points]
@@ -130,14 +154,14 @@ def run_anchor(anchor: pd.Timestamp, points: list[dict]) -> list[dict]:
         if len(train) < 30 or not built:
             continue
         test = pd.concat([b[0] for _, b in built], ignore_index=True)
-        drop = DROP + list(config.ZERO_IMPORTANCE_FEATURES)
+        drop = DROP + list(config.ZERO_IMPORTANCE_FEATURES) + group_columns(train.columns, drop_group)
         transformer, X = create_transformer(train, drop)
         X_tr = transformer.fit_transform(X)
         X_te = transformer.transform(test.drop(columns=drop, errors="ignore").reindex(columns=X.columns, fill_value=0))
         y_lvl = train["da_raw"].to_numpy(float)
         cand = train["last_observed_da_raw"].fillna(0).to_numpy(float) < config.SPIKE_THRESHOLD
         y_on = (y_lvl[cand] >= config.SPIKE_THRESHOLD).astype(int)
-        for fam in FAMILIES:
+        for fam in families:
             p_on, lvl = fit_predict(fam, X_tr, y_lvl, X_tr[cand], y_on, X_te)
             for i, (p, b) in enumerate(built):
                 rec = out[(p["site"], pd.Timestamp(p["date"]))]
@@ -149,10 +173,10 @@ def run_anchor(anchor: pd.Timestamp, points: list[dict]) -> list[dict]:
     return [r for r in out.values() if "naive_prediction" in r]
 
 
-def _run_groups(groups: list[tuple[pd.Timestamp, list[dict]]]) -> list[dict]:
+def _run_groups(groups: list[tuple[pd.Timestamp, list[dict]]], **kw) -> list[dict]:
     res = []
     for a, pts in groups:
-        res.extend(run_anchor(a, pts))
+        res.extend(run_anchor(a, pts, **kw))
     return res
 
 
@@ -163,6 +187,8 @@ def main() -> int:
     ap.add_argument("--n-jobs", type=int, default=-1)
     ap.add_argument("--limit", type=int, default=None, help="at most this many anchor dates")
     ap.add_argument("--out-dir", default=os.environ.get("EXP_OUT", "results/experiments/raw"))
+    ap.add_argument("--ablation", default=None,
+                    help="'<feature_set>:<family>[,<family>]': drop each feature group in turn (diagnostic)")
     args = ap.parse_args()
     pts = H.test_points(args.window)
     pts["anchor"] = pts["date"] - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
@@ -171,15 +197,25 @@ def main() -> int:
         groups = groups[:: max(1, len(groups) // args.limit)][: args.limit]
     n_workers = args.n_jobs if args.n_jobs > 0 else os.cpu_count()
     chunks = [groups[i::n_workers * 2] for i in range(n_workers * 2)]
-    t0 = time.time()
-    parts = Parallel(n_jobs=args.n_jobs, backend="loky")(delayed(_run_groups)(c) for c in chunks if c)
-    res = pd.DataFrame([r for part in parts for r in part]).sort_values(["date", "site"]).reset_index(drop=True)
     committed = pts[["site", "date", "predicted_da", "spike_probability", "spike_alert"]]
-    res = res.merge(committed.rename(columns={"predicted_da": "committed_ensemble"}), on=["site", "date"], how="left")
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    res.to_parquet(out / f"{args.window}__pooled_study.parquet", index=False)
-    print(f"{args.window} pooled_study n={len(res)}/{len(pts)} anchors={len(groups)} {time.time() - t0:.0f}s", flush=True)
+    if args.ablation:
+        fs, fams = args.ablation.split(":")
+        runs = [(g, {"feature_sets": (fs,), "families": tuple(fams.split(",")), "drop_group": g}) for g in GROUPS]
+    else:
+        runs = [(None, {})]
+    for group, kw in runs:
+        name = f"{args.window}__pooled_study.parquet" if group is None else f"{args.window}__pooled_drop-{group}.parquet"
+        if (out / name).exists() and group is not None:
+            print(f"{name} exists, skipped", flush=True)
+            continue
+        t0 = time.time()
+        parts = Parallel(n_jobs=args.n_jobs, backend="loky")(delayed(_run_groups)(c, **kw) for c in chunks if c)
+        res = pd.DataFrame([r for part in parts for r in part]).sort_values(["date", "site"]).reset_index(drop=True)
+        res = res.merge(committed.rename(columns={"predicted_da": "committed_ensemble"}), on=["site", "date"], how="left")
+        res.to_parquet(out / name, index=False)
+        print(f"{name} n={len(res)}/{len(pts)} anchors={len(groups)} {time.time() - t0:.0f}s", flush=True)
     return 0
 
 

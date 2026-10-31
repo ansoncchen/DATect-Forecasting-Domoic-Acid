@@ -175,3 +175,28 @@ def r2_ci(y, p, n_boot: int = N_BOOT, seed: int = 0) -> tuple[float, float, floa
     n = len(y)
     s = np.array([r2(y[idx], p[idx]) for idx in (rng.integers(0, n, size=n) for _ in range(n_boot))])
     return r2(y, p), float(np.percentile(s, 2.5)), float(np.percentile(s, 97.5))
+
+
+def _recall_at_far(on: np.ndarray, s: np.ndarray, far: float) -> float:
+    quiet = np.sort(s[~on])[::-1]
+    n_fa = int(np.floor(far * len(quiet)))
+    thr = quiet[n_fa] if n_fa < len(quiet) else -np.inf
+    return float((s[on] > thr).mean()) if on.any() else float("nan")
+
+
+def paired_delta_recall_at_far(naive, actual, s_base, s_new, far: float = 0.20,
+                               n_boot: int = N_BOOT, seed: int = 0):
+    """Onset recall at a fixed quiet-week false-alarm rate: new - base, paired bootstrap CI."""
+    naive = np.asarray(naive, float)
+    cand = naive < SPIKE
+    on = np.asarray(actual, float)[cand] >= SPIKE
+    a, b = np.asarray(s_base, float)[cand], np.asarray(s_new, float)[cand]
+    rng = np.random.default_rng(seed)
+    n = len(on)
+    d = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        if on[idx].any() and (~on[idx]).any():
+            d.append(_recall_at_far(on[idx], b[idx], far) - _recall_at_far(on[idx], a[idx], far))
+    return (_recall_at_far(on, b, far) - _recall_at_far(on, a, far),
+            float(np.percentile(d, 2.5)), float(np.percentile(d, 97.5)))

@@ -52,7 +52,7 @@ except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import config  # noqa: E402
-from forecasting.metrics import bootstrap_samples, detection_scores, exceeds  # noqa: E402
+from forecasting.metrics import bootstrap_samples, detection_scores, exceeds, onset_scores  # noqa: E402
 from forecasting.raw_forecast_engine import RawForecastEngine  # noqa: E402
 
 
@@ -65,6 +65,29 @@ def _bootstrap_ci(y_true: np.ndarray, y_pred: np.ndarray, metric_fn, B: int = 10
     lo = float(np.percentile(samples, 100 * (alpha / 2)))
     hi = float(np.percentile(samples, 100 * (1 - alpha / 2)))
     return float(metric_fn(y_true, y_pred)), lo, hi
+
+
+def _alert_scores(sub: pd.DataFrame, y: np.ndarray, p: np.ndarray,
+                  yt: np.ndarray, yp: np.ndarray) -> dict:
+    """The deployed hybrid alert's spike scores, plus onset detection (last value
+    known at the anchor < threshold, measurement >= threshold) for the
+    regression alert, the hybrid alert and, as a reference ranking, the last
+    known value itself."""
+    thr = config.SPIKE_THRESHOLD
+    last = sub["naive_prediction"].astype(float).to_numpy()
+    hybrid = sub["spike_alert"].astype(bool).to_numpy()
+    prob = sub["spike_probability"].astype(float).to_numpy()
+    det = detection_scores(yt, hybrid)
+    return {
+        "hybrid_spike_recall": det["recall"],
+        "hybrid_spike_precision": det["precision"],
+        "hybrid_spike_f2": det["f2"],
+        "onset": {
+            "regression_alert": onset_scores(last, y, yp, p, thr),
+            "hybrid_alert": onset_scores(last, y, hybrid, None if np.isnan(prob).any() else prob, thr),
+            "last_value_auc": onset_scores(last, y, score=last, threshold=thr).get("onset_auc"),
+        },
+    }
 
 
 def run_chronological(window_start: str, window_end: str, task: str, model_type: str,
@@ -117,6 +140,8 @@ def run_chronological(window_start: str, window_end: str, task: str, model_type:
                 "r2": _bootstrap_ci(y, p, r2_score),
                 "mae": _bootstrap_ci(y, p, mean_absolute_error),
                 "rmse": _bootstrap_ci(y, p, lambda a, b: float(np.sqrt(mean_squared_error(a, b)))),
+                # A few large values dominate R² (most rows are near 0); log1p weighs every row
+                "r2_log1p": _bootstrap_ci(np.log1p(y), np.log1p(p), r2_score),
             }
             if yt.sum() >= 1:
                 det = detection_scores(yt, yp)
@@ -125,6 +150,8 @@ def run_chronological(window_start: str, window_end: str, task: str, model_type:
                     "spike_precision": det["precision"],
                     "spike_f2": det["f2"],
                 })
+            if label == "overall" and "spike_alert" in ssub:
+                block.update(_alert_scores(ssub, y, p, yt, yp))
             if label == "overall":
                 out["overall"] = block
             else:
@@ -151,6 +178,13 @@ def run_chronological(window_start: str, window_end: str, task: str, model_type:
         if ns >= 1:
             print(f"  spike recall = {ov['spike_recall']:.3f}", flush=True)
             print(f"  spike F2     = {ov['spike_f2']:.3f}", flush=True)
+        if "onset" in ov:
+            print(f"  log1p R² = {ov['r2_log1p'][0]:+.3f}", flush=True)
+            for name in ("regression_alert", "hybrid_alert"):
+                o = ov["onset"][name]
+                print(f"  onsets ({name}): {o['onsets_caught']}/{o['n_onsets']} caught, "
+                      f"{o['quiet_alarm_rate']:.1%} of {o['n_quiet']} quiet weeks alarmed, "
+                      f"AUC {o.get('onset_auc', float('nan')):.3f}", flush=True)
     return out
 
 

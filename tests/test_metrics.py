@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from sklearn.metrics import f1_score, fbeta_score, precision_score, recall_score
 
-from forecasting.metrics import bootstrap_samples, detection_scores, exceeds
+from forecasting.metrics import bootstrap_samples, detection_scores, exceeds, onset_scores
 
 
 def _sklearn_scores(actual, predicted):
@@ -72,3 +72,15 @@ def test_bootstrap_samples_keeps_pairs_and_rng_stream():
     got = bootstrap_samples((a,), lambda x: float(x.sum()), 5, rng_a)
     want = [float(a[rng_b.integers(0, 10, size=10)].sum()) for _ in range(5)]
     assert got.tolist() == want
+
+
+def test_onset_scores_counts_only_rows_below_threshold_at_the_anchor():
+    last = [5.0, 5.0, 25.0, 19.9, np.nan, 0.5]
+    actual = [30.0, 3.0, 40.0, 20.0, 50.0, 1.0]  # onsets: rows 0 and 3 (20 counts)
+    alert = [True, True, True, False, True, False]
+    score = [0.9, 0.2, 0.99, 0.6, 0.5, 0.1]
+    out = onset_scores(last, actual, alert, score)
+    assert (out["n_onsets"], out["n_quiet"]) == (2, 2)
+    assert out["onsets_caught"] == 1 and out["onset_recall"] == 0.5
+    assert out["quiet_alarm_rate"] == 0.5
+    assert out["onset_auc"] == 1.0  # both onsets outrank both quiet weeks

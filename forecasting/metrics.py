@@ -74,3 +74,29 @@ def bootstrap_samples(
         idx = rng.integers(0, n, size=n)
         samples[i] = statistic(*(a[idx] for a in arrays))
     return samples
+
+
+def onset_scores(last_known, actual, alert=None, score=None, threshold: float = 20.0) -> dict:
+    """How well spike *onsets* are caught: rows whose last value known at the
+    anchor was below ``threshold`` and whose measurement reached it.
+
+    The other below-threshold rows are the quiet weeks, the onsets' negatives.
+    Rows already at or above the threshold (and rows with no known value) are
+    left out, because carrying the last value forward catches those for free.
+    ``alert`` (boolean per row) gives onset recall and the quiet-week alarm
+    rate; ``score`` (e.g. the classifier probability) gives the onset AUC.
+    """
+    last = np.asarray(last_known, dtype=float)
+    reached = exceeds(actual, threshold)
+    below = ~np.isnan(last) & ~exceeds(last, threshold)
+    onset, quiet = below & reached, below & ~reached
+    out = {"n_onsets": int(onset.sum()), "n_quiet": int(quiet.sum())}
+    if alert is not None:
+        alert = np.asarray(alert, dtype=bool)
+        out["onsets_caught"] = int((alert & onset).sum())
+        out["onset_recall"] = out["onsets_caught"] / out["n_onsets"] if out["n_onsets"] else 0.0
+        out["quiet_alarm_rate"] = float((alert & quiet).sum() / out["n_quiet"]) if out["n_quiet"] else 0.0
+    if score is not None and onset.any() and quiet.any():
+        from sklearn.metrics import roc_auc_score
+        out["onset_auc"] = float(roc_auc_score(onset[below], np.asarray(score, dtype=float)[below]))
+    return out

@@ -38,6 +38,8 @@ from .raw_data_forecaster import (
     get_site_anchor_row,
     get_site_training_frame,
     recompute_test_row_persistence_features,
+    WEEK_END_OFFSET,
+    week_complete_by,
 )
 from .raw_model_factory import (
     build_xgb_regressor,
@@ -82,12 +84,13 @@ def _quiet_warnings(fn):
 # ---------------------------------------------------------------------------
 
 def _verify_no_data_leakage(train_data, test_date, anchor_date):
-    """Assert no training data leaks past the anchor date."""
+    """Assert no training week extends past the anchor date."""
     anchor = pd.Timestamp(anchor_date)
-    if train_data["date"].max() > anchor:
+    last_week_end = train_data["date"].max() + WEEK_END_OFFSET
+    if last_week_end > anchor:
         raise AssertionError(
-            f"TEMPORAL LEAK: training data max date "
-            f"{train_data['date'].max().date()} > anchor {anchor.date()}"
+            f"TEMPORAL LEAK: training week ending {last_week_end.date()} "
+            f"is after anchor {anchor.date()}"
         )
     test = pd.Timestamp(test_date)
     if test <= anchor:
@@ -165,6 +168,17 @@ class RawForecastEngine:
         )
         return feature_frame
 
+    def _observations_up_to(self, site: str, anchor_date: pd.Timestamp) -> pd.DataFrame:
+        """Real DA measurements at ``site`` dated on or before ``anchor_date``
+        (one per day), sorted by date: the source of persistence features and
+        the naive baseline, at daily rather than weekly resolution."""
+        if self._raw_data_cache is None:
+            self._raw_data_cache = load_raw_da_measurements()
+        raw = self._raw_data_cache
+        obs = raw[(raw["site"] == site) & (pd.to_datetime(raw["date"]) <= anchor_date)].copy()
+        obs["date"] = pd.to_datetime(obs["date"])
+        return obs.sort_values("date")
+
     # ------------------------------------------------------------------
     # Pooled cross-site training data for spike classifier
     # ------------------------------------------------------------------
@@ -187,7 +201,7 @@ class RawForecastEngine:
         on. Returns four Nones if there is too little data.
         """
         anchor_date = pd.Timestamp(anchor_date)
-        all_train = feature_frame[feature_frame["date"] <= anchor_date].copy()
+        all_train = feature_frame[week_complete_by(feature_frame["date"], anchor_date)].copy()
 
         # Only real measurements — can't define "spike" from interpolated DA
         all_train = all_train[all_train["da_raw"].notna()].copy()
@@ -931,13 +945,10 @@ class RawForecastEngine:
         if test_row is None:
             return None
 
-        # Recompute persistence features from real observations only
-        if "_is_interpolated" in train_data.columns:
-            real_train = train_data[~train_data["_is_interpolated"]]
-        else:
-            real_train = train_data
+        # Persistence features from real measurements dated on or before the anchor
+        observations = self._observations_up_to(site, anchor_date)
         test_row = recompute_test_row_persistence_features(
-            test_row, real_train, config.SPIKE_THRESHOLD
+            test_row, observations, config.SPIKE_THRESHOLD
         )
 
         train_data = add_temporal_features(train_data)
@@ -1010,7 +1021,7 @@ class RawForecastEngine:
 
         # Naive (always use real observations only)
         naive_prediction = get_last_known_raw_da(
-            real_train,
+            observations,
             anchor_date=anchor_date,
             max_age_days=config.PERSISTENCE_MAX_DAYS,
         )

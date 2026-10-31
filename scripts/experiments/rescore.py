@@ -179,6 +179,13 @@ def postprocessing_rows(base: pd.DataFrame) -> list[dict]:
         tag = "mult" if mult else "add"
         rows.append(row(f"online bias ({tag}, last {k})", HYPOTHESES["bias"], y, ens,
                         online_bias(base, ens, k=k, mult=mult), tr, naive=naive))
+    # Stacking the post-processing winners (each also scored alone above).
+    for rule in ("site_real", "none"):
+        e = ensemble(base, rule)
+        b5 = online_bias(base, e, k=5)
+        rows.append(row(f"clip={rule} + online bias (add, last 5)", HYPOTHESES["bias"], y, ens, b5, tr, naive=naive))
+        rows.append(row(f"clip={rule} + naive_blend=0.1 + online bias (add, last 5)", HYPOTHESES["bias"], y, ens,
+                        online_bias(base, 0.9 * e + 0.1 * naive, k=5), tr, naive=naive))
     for t in (8.0, 10.0, 14.0, 16.0, 20.0):
         rows.append(row(f"alert threshold {t:g}", HYPOTHESES["threshold"], y, ens, ens, tr, alert=t, naive=naive))
     return rows
@@ -268,7 +275,13 @@ def main() -> int:
     raw_dir = Path(args.raw_dir)
     base = load(raw_dir, args.window, "baseline")
     names = sorted(p.name.split("__", 1)[1][:-8] for p in raw_dir.glob(f"{args.window}__*.parquet"))
-    names = [n for n in names if n != "baseline" and not n.startswith("cls_")]
+    names = [n for n in names if n != "baseline" and not n.startswith("cls_") and not n.startswith("pooled_")]
+    ref_cls = load(raw_dir, args.window, "cls_baseline")
+    if base["spike_probability"].isna().all() and ref_cls is not None:
+        # No committed classifier for this window: the re-implemented one is the reference.
+        base = base.drop(columns="spike_probability").merge(
+            ref_cls[["site", "date", "spike_prob"]].rename(columns={"spike_prob": "spike_probability"}),
+            on=["site", "date"], how="inner")
     rows = postprocessing_rows(base) + variant_rows(raw_dir, args.window, base, names)
     out = pd.DataFrame(rows)
     path = Path(args.out) if args.out else ROOT / "results" / "experiments" / f"summary_{args.window}.csv"
@@ -277,12 +290,6 @@ def main() -> int:
     pd.set_option("display.width", 220)
     cols = ["experiment", "n", "r2", "d_r2", "d_r2_lo", "d_r2_hi", "mae", "d_mae", "f2", "trans_recall", "verdict"]
     print(out[cols].round(3).to_string(index=False))
-    ref_cls = load(raw_dir, args.window, "cls_baseline")
-    if base["spike_probability"].isna().all() and ref_cls is not None:
-        # No committed classifier for this window: the re-implemented one is the reference.
-        base = base.drop(columns="spike_probability").merge(
-            ref_cls[["site", "date", "spike_prob"]].rename(columns={"spike_prob": "spike_probability"}),
-            on=["site", "date"], how="inner")
     if base["spike_probability"].notna().all():
         hyb = pd.DataFrame(hybrid_rows(raw_dir, args.window, base))
         hyb.to_csv(path.with_name(path.stem + "_hybrid.csv"), index=False, float_format="%.4f")

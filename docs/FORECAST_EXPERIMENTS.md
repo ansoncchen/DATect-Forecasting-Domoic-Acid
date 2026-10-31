@@ -183,6 +183,63 @@ Hybrid alert (committed): validation recall 0.912, precision 0.495, transition r
 
 <!-- EXPERIMENTS -->
 
+## 3b. One pooled model: declared comparison
+
+The user asked for one model instead of per-site picking, with the model family chosen
+by a small comparison declared in advance. **This subsection was written and committed
+before any pooled model was run**; results are reported below it in full, for every
+candidate, on validation and on the holdout.
+
+**Rows (same for every candidate).** Pooled across all 10 sites. One training row per
+real DA measurement (site-day, daily max), built exactly like a forecast row: features
+as of the measurement date − 7 days (`asof` construction, A1). A row is usable at an
+anchor once its measurement date is on or before the anchor. No gap-filled rows, no
+clipping, no per-site weights, quantiles, feature subsets or hyperparameters.
+
+**Features (same for every candidate).** Imputed by the training median and
+MinMax-scaled (the engine's transformer), refit at every anchor.
+- **F1 (core):** the 16 persistence features, calendar (sin/cos day of year, month),
+  `oni`, `pdo`, `discharge`, `beuti`, `modis-sst`, `sst-anom`, `modis-flr`, `pn`, `pn_log`,
+  the 16 OAD features, and a one-hot site indicator. The project's six zero-importance
+  columns stay dropped.
+- **F2:** F1 plus the cross-site DA features (`nb_*`, `coast_*`) and the raw-PN lead
+  features (`pn_last_log`, `pn_max14_log`, `pn_age_days`, `pn_nb_max14_log`, `pn_rise_log`).
+
+**Two outputs per family.**
+- **Onset:** P(DA ≥ 20) from a classifier trained only on rows whose last known value
+  at their own cutoff is < 20 (the population it is scored on), with balanced class
+  weights.
+- **Level:** a regressor of DA (µg/g) trained on all rows, floored at 0.
+
+**Candidates.** One fixed hyperparameter set each, project defaults:
+1. **Linear:** logistic regression (L2, C = 1, balanced) / Ridge (α = 1, the project's
+   `linear_regression_alpha`).
+2. **Random Forest:** the project's `rf_base_params` (400 trees, depth 12, leaf 3, max
+   features 0.85); classifier with `class_weight="balanced_subsample"`.
+3. **XGBoost:** classifier with the project's `spike_classifier_params` (300 trees,
+   depth 4); regressor with the global `xgb_base_params` (400 trees, depth 6); no
+   monotone constraints.
+4. **Baselines:** naive persistence for the level, and the last-value rule (rank
+   candidate rows by last known value) for onsets.
+
+The current engine (per-site ensemble plus the committed pooled classifier and hybrid
+alert) is shown on the same rows for reference.
+
+**Metrics.** Primary: onset AUC on rows with last known < 20, onset recall at 10% and
+20% quiet-week false-alarm rates, and the gain over the last-value rule at the same
+alert count. Secondary: level R² [95% CI], MAE, spike F2 (actual ≥ 20, forecast ≥ 12),
+and the level forecast's own onset AUC (can one output serve both purposes?).
+
+**Selection rule (validation only).**
+1. The family with the highest validation onset AUC wins, unless its paired ΔAUC CI
+   against a simpler family includes zero; then the simpler family wins (linear < RF <
+   XGBoost).
+2. F2 is preferred over F1 only if it raises that family's onset AUC with a paired CI
+   that excludes zero.
+3. The holdout is run once for every cell and reported in full; it is not used to choose.
+
+<!-- POOLED -->
+
 ## 4. Shortlist and one-time holdout check
 
 <!-- HOLDOUT -->

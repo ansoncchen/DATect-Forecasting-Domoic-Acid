@@ -23,7 +23,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "experiments"))
 
 from scoring import (  # noqa: E402
-    ALERT, SPIKE, paired_delta_mae, paired_delta_r2, r2, summarize, transition_mask,
+    ALERT, SPIKE, onset_metrics, paired_delta_auc, paired_delta_mae, paired_delta_r2, r2,
+    summarize, transition_mask,
 )
 
 
@@ -104,7 +105,20 @@ def online_bias(res: pd.DataFrame, pred: np.ndarray, k: int = 10, shrink: float 
 # Comparison table
 # ---------------------------------------------------------------------------
 
-def row(name: str, hypothesis: str, y, base, new, trans, alert: float = ALERT, base_alert: float = ALERT) -> dict:
+def onset_cols(naive, y, base_score, new_score, alert=None) -> dict:
+    """Onset columns for a score (higher = more alarming) vs the baseline score."""
+    m = onset_metrics(naive, y, new_score, alert=alert)
+    da, dalo, dahi = paired_delta_auc(naive, y, base_score, new_score)
+    out = {"onset_auc": m["onset_auc"], "d_onset_auc": da, "d_onset_auc_lo": dalo, "d_onset_auc_hi": dahi,
+           "onset_recall_far10": m["onset_recall_far10"], "onset_recall_far20": m["onset_recall_far20"],
+           "onset_vs_lastvalue_far20": m["onset_vs_lastvalue_far20"], "n_onset": m["n_onset"]}
+    if alert is not None:
+        out.update({k: m[k] for k in ("alert_onset_recall", "alert_quiet_far", "alert_vs_lastvalue")})
+    return out
+
+
+def row(name: str, hypothesis: str, y, base, new, trans, alert: float = ALERT, base_alert: float = ALERT,
+        naive=None) -> dict:
     d, lo, hi = paired_delta_r2(y, base, new)
     dm, dmlo, dmhi = paired_delta_mae(y, base, new)
     s = summarize(y, new, trans, alert)
@@ -122,6 +136,7 @@ def row(name: str, hypothesis: str, y, base, new, trans, alert: float = ALERT, b
         "d_mae_lo": dmlo, "d_mae_hi": dmhi, "bias": s["bias"],
         "recall": s["recall"], "precision": s["precision"], "f2": s["f2"], "d_f2": s["f2"] - sb["f2"],
         "trans_recall": s.get("trans_recall", np.nan), "verdict": verdict,
+        **(onset_cols(naive, y, base, new, alert=np.asarray(new, float) >= alert) if naive is not None else {}),
     }
 
 
@@ -142,30 +157,30 @@ def postprocessing_rows(base: pd.DataFrame) -> list[dict]:
     y = base["actual_da"].to_numpy(float)
     tr = transition_mask(base)
     ens = ensemble(base)
-    rows = [row("baseline (committed engine)", "reference", y, ens, ens, tr)]
     naive = base["naive_prediction"].to_numpy(float)
+    rows = [row("baseline (committed engine)", "reference", y, ens, ens, tr, naive=naive)]
     for rule in ("none", "site_real", "q99", "max", "real_max"):
-        rows.append(row(f"clip={rule}", HYPOTHESES["clip"], y, ens, ensemble(base, rule), tr))
+        rows.append(row(f"clip={rule}", HYPOTHESES["clip"], y, ens, ensemble(base, rule), tr, naive=naive))
     for w in ("half", "xgb", "rf"):
-        rows.append(row(f"weights={w} (diagnostic)", HYPOTHESES["weights"], y, ens, ensemble(base, "site", w), tr))
+        rows.append(row(f"weights={w} (diagnostic)", HYPOTHESES["weights"], y, ens, ensemble(base, "site", w), tr, naive=naive))
     for w in (0.1, 0.2, 0.3, 0.5):
-        rows.append(row(f"naive_blend={w}", HYPOTHESES["naive_blend"], y, ens, (1 - w) * ens + w * naive, tr))
+        rows.append(row(f"naive_blend={w}", HYPOTHESES["naive_blend"], y, ens, (1 - w) * ens + w * naive, tr, naive=naive))
     nc = ensemble(base, "none")
     for w in (0.2, 0.3):
-        rows.append(row(f"clip=none + naive_blend={w}", HYPOTHESES["naive_blend"], y, ens, (1 - w) * nc + w * naive, tr))
+        rows.append(row(f"clip=none + naive_blend={w}", HYPOTHESES["naive_blend"], y, ens, (1 - w) * nc + w * naive, tr, naive=naive))
     for s in (1.1, 1.2, 1.3):
-        rows.append(row(f"scale x{s}", HYPOTHESES["scale"], y, ens, s * ens, tr))
+        rows.append(row(f"scale x{s}", HYPOTHESES["scale"], y, ens, s * ens, tr, naive=naive))
     if base["spike_probability"].notna().all():
         p = base["spike_probability"].to_numpy(float)
         for g in (10, 20, 40):
-            rows.append(row(f"ens + {g}*spike_prob", HYPOTHESES["spike_prob"], y, ens, ens + g * p, tr))
-            rows.append(row(f"clip=none + {g}*spike_prob", HYPOTHESES["spike_prob"], y, ens, nc + g * p, tr))
+            rows.append(row(f"ens + {g}*spike_prob", HYPOTHESES["spike_prob"], y, ens, ens + g * p, tr, naive=naive))
+            rows.append(row(f"clip=none + {g}*spike_prob", HYPOTHESES["spike_prob"], y, ens, nc + g * p, tr, naive=naive))
     for k, mult in ((10, False), (5, False), (10, True)):
         tag = "mult" if mult else "add"
         rows.append(row(f"online bias ({tag}, last {k})", HYPOTHESES["bias"], y, ens,
-                        online_bias(base, ens, k=k, mult=mult), tr))
+                        online_bias(base, ens, k=k, mult=mult), tr, naive=naive))
     for t in (8.0, 10.0, 14.0, 16.0, 20.0):
-        rows.append(row(f"alert threshold {t:g}", HYPOTHESES["threshold"], y, ens, ens, tr, alert=t))
+        rows.append(row(f"alert threshold {t:g}", HYPOTHESES["threshold"], y, ens, ens, tr, alert=t, naive=naive))
     return rows
 
 
@@ -181,8 +196,9 @@ def variant_rows(raw_dir: Path, window: str, base: pd.DataFrame, names: list[str
         tr = transition_mask(b)
         hyp = HYPOTHESES.get(name, HYPOTHESES.get(name.split("+")[-1], ""))
         tag = "" if len(m) == len(base) else f" [{len(m)}/{len(base)} rows]"
-        rows.append(row(name + tag, hyp, y, ensemble(b), ensemble(m), tr))
-        rows.append(row(name + " (both clip=none)" + tag, hyp, y, ensemble(b, "none"), ensemble(m, "none"), tr))
+        rows.append(row(name + tag, hyp, y, ensemble(b), ensemble(m), tr, naive=b["naive_prediction"].to_numpy(float)))
+        rows.append(row(name + " (both clip=none)" + tag, hyp, y, ensemble(b, "none"), ensemble(m, "none"), tr,
+                        naive=b["naive_prediction"].to_numpy(float)))
         if "+" in name:  # also against the combination without its last part
             ref_name = name.rsplit("+", 1)[0]
             ref = load(raw_dir, window, ref_name)
@@ -190,7 +206,8 @@ def variant_rows(raw_dir: Path, window: str, base: pd.DataFrame, names: list[str
                 mm = ref[["site", "date"]].merge(m, on=["site", "date"])
                 rr = ref.merge(mm[["site", "date"]], on=["site", "date"])
                 rows.append(row(f"{name} vs {ref_name}", hyp, rr["actual_da"].to_numpy(float),
-                                ensemble(rr), ensemble(mm), transition_mask(rr)))
+                                ensemble(rr), ensemble(mm), transition_mask(rr),
+                                naive=rr["naive_prediction"].to_numpy(float)))
     return rows
 
 
@@ -220,8 +237,18 @@ def hybrid_rows(raw_dir: Path, window: str, base: pd.DataFrame, prob_threshold: 
             tr = transition_mask(m)
             alert = (m["spike_prob"].to_numpy() >= prob_threshold) | (m["ens"].to_numpy() >= ALERT)
             det = detection_scores(spike, alert)
+            m = m.merge(base[["site", "date", "naive_prediction", "spike_probability"]], on=["site", "date"])
+            naive = m["naive_prediction"].to_numpy(float)
+            p = m["spike_prob"].to_numpy(float)
+            hyb_score = np.maximum(p / prob_threshold, m["ens"].to_numpy() / ALERT)
+            committed_score = np.maximum(m["spike_probability"].to_numpy(float) / prob_threshold,
+                                         ensemble(base.merge(m[["site", "date"]], on=["site", "date"])) / ALERT)
+            cls_on = onset_cols(naive, y, m["spike_probability"].to_numpy(float), p)
+            hyb_on = onset_cols(naive, y, committed_score, hyb_score, alert=alert)
             rows.append({
                 "experiment": f"hybrid: {cls_name} + {reg_name} regression", "n": len(m),
+                **{f"cls_{k}": v for k, v in cls_on.items() if k != "n_onset"},
+                **{f"hyb_{k}": v for k, v in hyb_on.items() if k != "n_onset"},
                 "recall": det["recall"], "precision": det["precision"], "f2": det["f2"],
                 "trans_recall": float(alert[tr].mean()) if tr.any() else np.nan,
                 "cls_only_recall": float((m["spike_prob"].to_numpy() >= prob_threshold)[spike].mean()),
@@ -250,6 +277,12 @@ def main() -> int:
     pd.set_option("display.width", 220)
     cols = ["experiment", "n", "r2", "d_r2", "d_r2_lo", "d_r2_hi", "mae", "d_mae", "f2", "trans_recall", "verdict"]
     print(out[cols].round(3).to_string(index=False))
+    ref_cls = load(raw_dir, args.window, "cls_baseline")
+    if base["spike_probability"].isna().all() and ref_cls is not None:
+        # No committed classifier for this window: the re-implemented one is the reference.
+        base = base.drop(columns="spike_probability").merge(
+            ref_cls[["site", "date", "spike_prob"]].rename(columns={"spike_prob": "spike_probability"}),
+            on=["site", "date"], how="inner")
     if base["spike_probability"].notna().all():
         hyb = pd.DataFrame(hybrid_rows(raw_dir, args.window, base))
         hyb.to_csv(path.with_name(path.stem + "_hybrid.csv"), index=False, float_format="%.4f")

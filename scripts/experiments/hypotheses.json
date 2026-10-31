@@ -41,5 +41,14 @@
   "cls_safe_fixed": "Apply the documented safe-baseline filter (previous measurement < 20) on unscaled values; as run it is applied to MinMax-scaled values and keeps every row.",
   "cls_refresh": "Classifier test row with lag/rolling features recomputed from every measurement up to the anchor.",
   "cls_asof": "Classifier trained and scored on rows built as of target - 7 days (horizon-consistent).",
-  "cls_asof_safe_fixed": "cls_asof plus the corrected safe-baseline filter."
+  "cls_asof_safe_fixed": "cls_asof plus the corrected safe-baseline filter.",
+  "regional": "Blooms hit neighbouring sites together (2020-10 hit all WA sites); max / count-above-20 / rise of DA at the same-group and coast-wide sites up to the anchor anticipates onsets.",
+  "pn_asof": "Raw daily PN as of the anchor (last value, 14-day max, regional max, last change), instead of the anchor week's gap-filled weekly PN, leads DA onsets.",
+  "delta": "Learn the change (target - last known value) instead of the level, so the model is not anchored to persistence.",
+  "cls_onset": "Dedicated onset classifier: pooled, horizon-consistent (asof) rows whose last known value is < 20 only, last value kept as a feature.",
+  "cls_onset_regional": "cls_onset plus cross-site DA features.",
+  "cls_onset_pn": "cls_onset plus raw-PN lead features.",
+  "cls_onset_regional_pn": "cls_onset plus cross-site DA and raw-PN features.",
+  "cls_regional": "Engine classifier plus cross-site DA features.",
+  "cls_asof_regional": "Classifier on asof rows (all rows) plus cross-site DA features."
 }

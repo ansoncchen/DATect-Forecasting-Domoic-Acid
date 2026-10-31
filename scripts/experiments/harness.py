@@ -114,6 +114,19 @@ VARIANTS: dict[str, dict] = {
     "cls_refresh": {"classifier_only": True, "cls_features": "refresh"},
     "cls_asof": {"classifier_only": True, "cls_features": "asof"},
     "cls_asof_safe_fixed": {"classifier_only": True, "cls_features": "asof", "cls_safe_fixed": True},
+    # onset-focused (dedicated onset classifier = asof rows with last known < 20)
+    "regional": {"regional": True},
+    "pn_asof": {"pn_asof": True},
+    "delta": {"target": "delta"},
+    "cls_onset": {"classifier_only": True, "cls_features": "asof", "cls_safe_fixed": True, "cls_keep_last": True},
+    "cls_onset_regional": {"classifier_only": True, "cls_features": "asof", "cls_safe_fixed": True,
+                           "cls_keep_last": True, "regional": True},
+    "cls_onset_pn": {"classifier_only": True, "cls_features": "asof", "cls_safe_fixed": True,
+                     "cls_keep_last": True, "pn_asof": True},
+    "cls_onset_regional_pn": {"classifier_only": True, "cls_features": "asof", "cls_safe_fixed": True,
+                              "cls_keep_last": True, "regional": True, "pn_asof": True},
+    "cls_regional": {"classifier_only": True, "regional": True},
+    "cls_asof_regional": {"classifier_only": True, "cls_features": "asof", "regional": True},
 }
 
 
@@ -134,12 +147,149 @@ def context() -> dict:
         raw["date"] = pd.to_datetime(raw["date"])
         raw = raw.sort_values(["site", "date"]).reset_index(drop=True)
         obs = {s: (g["date"].to_numpy(), g["da_raw"].to_numpy(float)) for s, g in raw.groupby("site")}
-        _CTX = {"ff": ff, "raw": raw, "obs": obs, "asof": {}}
+        _CTX = {"ff": ff, "raw": raw, "obs": obs, "asof": {}, "pn": load_raw_pn()}
     return _CTX
+
+
+def load_raw_pn() -> dict:
+    """Raw PN cell counts per site (one value per site-day, the max), sorted by date."""
+    import warnings
+    from forecasting.measurements import parse_dates, parse_pn_values
+    out = {}
+    for key, path in config.ORIGINAL_PN_FILES.items():
+        if not os.path.exists(path):
+            continue
+        d = pd.read_csv(path)
+        col = [c for c in d.columns if "pseudo" in str(c).lower() and "nitzschia" in str(c).lower()]
+        if "Date" not in d.columns or len(col) != 1:
+            continue
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            dates = parse_dates(d["Date"])
+        df = pd.DataFrame({"date": dates, "pn": parse_pn_values(d[col[0]])}).dropna()
+        df = df.groupby("date", as_index=False)["pn"].max().sort_values("date")
+        site = key.replace("-pn", "").replace("-", " ").title()
+        out[site] = (df["date"].to_numpy(), df["pn"].to_numpy(float))
+    return out
 
 
 def monday(ts: pd.Timestamp) -> pd.Timestamp:
     return ts - pd.Timedelta(days=ts.weekday())
+
+
+# Coastal groups for cross-site features (north to south).
+REGIONS = {
+    "WA": ["Kalaloch", "Quinault", "Copalis", "Twin Harbors", "Long Beach"],
+    "N_OR": ["Clatsop Beach", "Cannon Beach"],
+    "S_OR": ["Newport", "Coos Bay", "Gold Beach"],
+}
+SITE_REGION = {s: r for r, ss in REGIONS.items() for s in ss}
+REGIONAL_COLS = ["nb_max_14", "nb_max_28", "nb_last_mean", "nb_n_hi_14", "nb_rise_14",
+                 "coast_max_14", "coast_n_hi_14"]
+PN_ASOF_COLS = ["pn_last_log", "pn_max14_log", "pn_age_days", "pn_nb_max14_log", "pn_rise_log"]
+
+
+def _window_stats(dates: np.ndarray, vals: np.ndarray, cutoff: np.datetime64, days: int):
+    lo = np.searchsorted(dates, cutoff - np.timedelta64(days, "D"), side="right")
+    hi = np.searchsorted(dates, cutoff, side="right")
+    return vals[lo:hi], hi
+
+
+def context_features(site: str, cutoffs, v: dict) -> pd.DataFrame:
+    """Cross-site DA and raw-PN features from measurements dated <= each cutoff.
+
+    regional: other sites in the same coastal group ("nb_") and on the whole coast
+    ("coast_"): max DA in the last 14/28 days, mean of each neighbour's latest value
+    (if <= 28 days old), number of neighbours with a value >= 20 in 14 days, and the
+    largest latest-minus-previous rise among neighbours in 14 days.
+    pn_asof: own-site last PN (log1p) and its age, 14-day max (log1p), the 14-day max
+    over the coastal group, and the change between the last two PN samples.
+    """
+    ctx = context()
+    cutoffs = pd.to_datetime(pd.Series(cutoffs)).to_numpy("datetime64[ns]")
+    rows = []
+    nbrs = [s for s in REGIONS[SITE_REGION[site]] if s != site]
+    others = [s for s in ctx["obs"] if s != site]
+    thr = config.SPIKE_THRESHOLD
+    cache = ctx.setdefault("ctx_cache", {})
+    flags = (bool(v.get("regional")), bool(v.get("pn_asof")))
+    for c in cutoffs:
+        key = (site, c, flags)
+        if key in cache:
+            rows.append(cache[key])
+            continue
+        f = {}
+        if v.get("regional"):
+            for prefix, group, windows in (("nb", nbrs, (14, 28)), ("coast", others, (14,))):
+                mx = {w: -np.inf for w in windows}
+                n_hi, lasts, rise = 0, [], -np.inf
+                for s in group:
+                    od, ov = ctx["obs"][s]
+                    for w in windows:
+                        vals, hi = _window_stats(od, ov, c, w)
+                        if len(vals):
+                            mx[w] = max(mx[w], vals.max())
+                    vals14, hi = _window_stats(od, ov, c, 14)
+                    n_hi += int(len(vals14) and vals14.max() >= thr)
+                    if hi > 0 and (c - od[hi - 1]) <= np.timedelta64(28, "D"):
+                        lasts.append(ov[hi - 1])
+                        if len(vals14) >= 1 and hi > 1:
+                            rise = max(rise, ov[hi - 1] - ov[hi - 2])
+                for w in windows:
+                    f[f"{prefix}_max_{w}"] = mx[w] if np.isfinite(mx[w]) else np.nan
+                f[f"{prefix}_n_hi_14"] = n_hi
+                if prefix == "nb":
+                    f["nb_last_mean"] = np.mean(lasts) if lasts else np.nan
+                    f["nb_rise_14"] = rise if np.isfinite(rise) else np.nan
+        if v.get("pn_asof"):
+            f.update({k: np.nan for k in PN_ASOF_COLS})
+            if site in ctx["pn"]:
+                pd_, pv = ctx["pn"][site]
+                hi = np.searchsorted(pd_, c, side="right")
+                if hi > 0:
+                    f["pn_last_log"] = np.log1p(pv[hi - 1])
+                    f["pn_age_days"] = (c - pd_[hi - 1]) / np.timedelta64(1, "D")
+                    if hi > 1:
+                        f["pn_rise_log"] = np.log1p(pv[hi - 1]) - np.log1p(pv[hi - 2])
+                vals, _ = _window_stats(pd_, pv, c, 14)
+                if len(vals):
+                    f["pn_max14_log"] = np.log1p(vals.max())
+            mx = -np.inf
+            for s in REGIONS[SITE_REGION[site]]:
+                if s in ctx["pn"]:
+                    vals, _ = _window_stats(*ctx["pn"][s], c, 14)
+                    if len(vals):
+                        mx = max(mx, vals.max())
+            f["pn_nb_max14_log"] = np.log1p(mx) if np.isfinite(mx) else np.nan
+        cache[key] = f
+        rows.append(f)
+    return pd.DataFrame(rows)
+
+
+def added_columns(v: dict) -> list[str]:
+    cols = []
+    if v.get("add_obs_age"):
+        cols.append("days_since_last_obs")
+    if v.get("regional"):
+        cols += REGIONAL_COLS
+    if v.get("pn_asof"):
+        cols += PN_ASOF_COLS
+    return cols
+
+
+def add_context(train: pd.DataFrame, test: pd.DataFrame, site: str, A, v: dict, feats: str):
+    """Append cross-site / PN columns, each computed as of its row's information cutoff."""
+    if not (v.get("regional") or v.get("pn_asof")):
+        return train, test
+    lag = config.FORECAST_HORIZON_DAYS if feats == "asof" else 1
+    cut = pd.to_datetime(train["date"]) - pd.Timedelta(days=lag)
+    extra = context_features(site, cut, v)
+    extra.index = train.index
+    train = pd.concat([train, extra], axis=1)
+    te = context_features(site, [A], v)
+    te.index = test.index
+    test = pd.concat([test.drop(columns=[c for c in te.columns if c in test.columns]), te], axis=1)
+    return train, test
 
 
 def asof_persistence(od: np.ndarray, ov: np.ndarray, cutoff, ref, grid_monday) -> dict:
@@ -269,7 +419,7 @@ def _drop_cols(train: pd.DataFrame, site: str, v: dict) -> list[str]:
     drop = ["date", "site", "da_raw", "da", "_is_interpolated", "_known_by"] + list(config.ZERO_IMPORTANCE_FEATURES)
     if v.get("per_site", True) and v.get("feature_subset_mode") != "all":
         cols = train.columns.tolist()
-        extra = ["days_since_last_obs"] if v.get("add_obs_age") else []
+        extra = added_columns(v)
         drop = compute_site_drop_cols(drop, cols, site)
         drop = [c for c in drop if c not in extra]
     drop += list(v.get("drop", []))
@@ -367,6 +517,7 @@ def training_and_test(point: dict, v: dict):
         pd.DataFrame({"date": od, "da_raw": ov}), anchor_date=A, max_age_days=config.PERSISTENCE_MAX_DAYS)
     if naive is None:
         return None
+    train, test = add_context(train, test, site, A, v, feats)
     train = add_temporal_features(train)
     test = add_temporal_features(test)
     return train, test, naive, A
@@ -387,10 +538,15 @@ def predict_point(point: dict, v: dict) -> dict | None:
         return None
     y = train["da_raw"].astype(float).to_numpy()
     yt = _transform_target(y, v)
+    # Change target: learn (target - last known value), add the forecast row's last value back.
+    delta = v.get("target") == "delta"
+    base_tr = train["last_observed_da_raw"].fillna(0).to_numpy(float) if delta else 0.0
+    base_te = float(np.nan_to_num(test["last_observed_da_raw"].iloc[0])) if delta else 0.0
+    yt = yt - base_tr
     sw = _sample_weight(train, A, v)
 
     xgb_params = _xgb_params(site, v)
-    if v.get("monotone", True) and config.USE_MONOTONIC_CONSTRAINTS:
+    if v.get("monotone", True) and config.USE_MONOTONIC_CONSTRAINTS and not delta:
         cmap = config.MONOTONIC_FEATURE_CONSTRAINTS
         mono = tuple(cmap.get(c, 0) for c in X_tr.columns)
         if any(mono):
@@ -403,7 +559,7 @@ def predict_point(point: dict, v: dict) -> dict | None:
     if v.get("smear"):
         res = yt - xgb.predict(X_tr)
         smear = float(np.mean(np.exp(res)))
-    xgb_raw = float(_inverse_target(xgb.predict(X_te), v, smear)[0])
+    xgb_raw = float(_inverse_target(xgb.predict(X_te), v, smear)[0]) + base_te
 
     rf_raw = np.nan
     w_xgb, w_rf, _ = _weights(site, v)
@@ -412,10 +568,10 @@ def predict_point(point: dict, v: dict) -> dict | None:
         if "seed" in v:
             rf.set_params(random_state=v["seed"])
         rf.fit(X_tr, yt, sample_weight=sw)
-        rf_raw = float(_inverse_target(rf.predict(X_te), v)[0])
+        rf_raw = float(_inverse_target(rf.predict(X_te), v)[0]) + base_te
     lin = build_linear_regressor()
     lin.fit(X_tr, yt, sample_weight=sw)
-    lin_raw = float(_inverse_target(lin.predict(X_te), v)[0])
+    lin_raw = float(_inverse_target(lin.predict(X_te), v)[0]) + base_te
 
     sq, sm = get_site_clip_params(site) if v.get("per_site", True) else (None, None)
     real_y = y[~train["_is_interpolated"].to_numpy(bool)]
@@ -497,7 +653,8 @@ def spike_probability(point: dict, v: dict) -> dict | None:
     site, D = point["site"], pd.Timestamp(point["date"])
     A = D - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
     feats = v.get("cls_features", "base")
-    built = training_and_test(point, {"features": feats})
+    ctx_opts = {k: v[k] for k in ("regional", "pn_asof") if v.get(k)}
+    built = training_and_test(point, {"features": feats, **ctx_opts})
     if built is None:
         return None
     _, test, naive, _ = built
@@ -509,6 +666,14 @@ def spike_probability(point: dict, v: dict) -> dict | None:
         all_train = ff[week_complete_by(ff["date"], A) & ff["da_raw"].notna()].copy()
     if len(all_train) < 30:
         return None
+    if ctx_opts:
+        lag = config.FORECAST_HORIZON_DAYS if feats == "asof" else 1
+        pieces = []
+        for s_name, g in all_train.groupby("site"):
+            extra = context_features(s_name, pd.to_datetime(g["date"]) - pd.Timedelta(days=lag), ctx_opts)
+            extra.index = g.index
+            pieces.append(pd.concat([g, extra], axis=1))
+        all_train = pd.concat(pieces).sort_index()
     all_train = add_temporal_features(all_train)
     y = all_train["da_raw"].astype(float)
     drop = ["date", "site", "da_raw", "da", "_is_interpolated", "_known_by"] + list(config.ZERO_IMPORTANCE_FEATURES)
@@ -521,7 +686,8 @@ def spike_probability(point: dict, v: dict) -> dict | None:
         mask = all_train["da_raw_prev_obs_1"].fillna(0).to_numpy() < thr
     else:
         mask = (Xs["da_raw_prev_obs_1"].fillna(0) < thr).to_numpy()
-    leaky = [c for c in ("last_observed_da_raw", "weeks_since_last_spike") if c in Xs.columns]
+    leaky = [] if v.get("cls_keep_last") else [
+        c for c in ("last_observed_da_raw", "weeks_since_last_spike") if c in Xs.columns]
     X_safe = Xs.loc[mask].drop(columns=leaky)
     y_safe = (y.to_numpy()[mask] >= thr).astype(int)
     if len(y_safe) < 10 or len(np.unique(y_safe)) < 2:

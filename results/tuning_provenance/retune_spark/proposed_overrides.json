@@ -1,0 +1,92 @@
+{
+  "Cannon Beach": {
+    "ensemble_weights": [
+      0.0,
+      1.0,
+      0.0
+    ],
+    "prediction_clip_q": 1.0,
+    "prediction_clip_max": null
+  },
+  "Clatsop Beach": {
+    "ensemble_weights": [
+      0.25,
+      0.75,
+      0.0
+    ],
+    "prediction_clip_q": 1.0,
+    "prediction_clip_max": 100.0
+  },
+  "Coos Bay": {
+    "ensemble_weights": [
+      0.25,
+      0.75,
+      0.0
+    ],
+    "prediction_clip_q": 0.99,
+    "prediction_clip_max": 120.0
+  },
+  "Copalis": {
+    "ensemble_weights": [
+      0.5,
+      0.5,
+      0.0
+    ],
+    "prediction_clip_q": 1.0,
+    "prediction_clip_max": 60.0
+  },
+  "Gold Beach": {
+    "ensemble_weights": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "prediction_clip_q": 0.97,
+    "prediction_clip_max": 60.0
+  },
+  "Kalaloch": {
+    "ensemble_weights": [
+      0.25,
+      0.75,
+      0.0
+    ],
+    "prediction_clip_q": 1.0,
+    "prediction_clip_max": null
+  },
+  "Long Beach": {
+    "ensemble_weights": [
+      0.5,
+      0.5,
+      0.0
+    ],
+    "prediction_clip_q": 1.0,
+    "prediction_clip_max": 60.0
+  },
+  "Newport": {
+    "ensemble_weights": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "prediction_clip_q": 0.95,
+    "prediction_clip_max": null
+  },
+  "Quinault": {
+    "ensemble_weights": [
+      0.25,
+      0.75,
+      0.0
+    ],
+    "prediction_clip_q": 1.0,
+    "prediction_clip_max": 80.0
+  },
+  "Twin Harbors": {
+    "ensemble_weights": [
+      0.75,
+      0.25,
+      0.0
+    ],
+    "prediction_clip_q": 1.0,
+    "prediction_clip_max": 100.0
+  }
+}

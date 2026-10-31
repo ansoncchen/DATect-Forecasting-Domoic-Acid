@@ -181,7 +181,157 @@ Hybrid alert (committed): validation recall 0.912, precision 0.495, transition r
 
 ## 3. Experiments
 
-<!-- EXPERIMENTS -->
+**Protocol.** `scripts/experiments/harness.py` re-implements the engine's single-point
+forecast with one switch per experiment; on Hyak its baseline reproduces the committed
+validation predictions exactly (max |difference| 0.0 over 635 rows), and its classifier
+reproduces the committed `spike_probability` (ΔAUC 0.000). Every experiment changes one
+thing against the committed engine and is scored on identical rows with a paired
+bootstrap (2,000 resamples): validation `[2019-01-01, 2022-01-01)` (635 points, 114
+spikes, 34 onsets) for selection, and 2015–2018 (942 points, 74 onsets) as a consistency
+check. The per-site configs were curated on pre-2019 data, so 2015–2018 is not independent
+of them. Retrained experiments are also compared with both runs unclipped, because the clip
+(A3) interacts with almost everything. Onsets follow the definition the user asked for:
+rows whose last known value at the anchor is < 20 are candidates, and onsets are the
+candidates measured ≥ 20.
+
+**Noise floor.** Re-running the baseline with model seeds 43 and 44 moves ΔR² by up to
+0.007 and onset AUC by up to 0.008, and on 2015–2018 one seed's row-bootstrap CI excludes
+zero. The row bootstrap ignores model-seed variance, so the mechanical verdicts below
+require |Δ| ≥ 0.01 as well as a CI that excludes zero. A verdict of "better" also needs
+the validation CI to exclude zero with 2015–2018 agreeing in sign; "lean" needs |Δ| ≥ 0.02
+in both windows. Raw outputs: `/gscratch/scrubbed/ac283/experiments/raw/` (Hyak); summaries:
+`results/experiments/summary_{val,dev}.csv` and `summary_{val,dev}_hybrid.csv`.
+
+**Post-processing (rescoring of the baseline run; no retraining)**
+
+| Experiment | Val ΔR² [95% CI] | Val ΔR², both unclipped | Dev ΔR² [95% CI] | Val MAE (Δ) | Val F2 | Val trans. recall | Val Δ onset AUC [95% CI] | Dev Δ onset AUC | R² verdict | Onset verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Clip off | +0.102 [-0.029, +0.207] | same | +0.090 [+0.030, +0.149] | 6.55 (-0.64) | 0.734 | 0.39 | +0.000 [+0.000, +0.000] | +0.006 | lean better | tie |
+| Clip quantile over real rows only | +0.017 [+0.004, +0.030] | same | +0.057 [+0.007, +0.102] | 7.14 (-0.05) | 0.734 | 0.39 | +0.000 [+0.000, +0.000] | +0.002 | **better** | tie |
+| Clip at q = 0.99 everywhere | +0.092 [-0.026, +0.188] | same | +0.082 [+0.027, +0.133] | 6.68 (-0.51) | 0.734 | 0.39 | +0.000 [+0.000, +0.000] | +0.006 | lean better | tie |
+| Weights 50/50 at every site (diagnostic) | +0.019 [-0.013, +0.053] | same | +0.001 [-0.014, +0.017] | 7.04 (-0.15) | 0.737 | 0.42 | +0.010 [-0.043, +0.080] | +0.009 | tie | tie |
+| RF only at every site (diagnostic) | +0.018 [-0.047, +0.079] | same | +0.016 [-0.004, +0.036] | 7.02 (-0.17) | 0.751 | 0.48 | -0.006 [-0.069, +0.069] | +0.014 | tie | tie |
+| 10% persistence blend | +0.024 [+0.001, +0.045] | same | +0.026 [+0.006, +0.045] | 7.05 (-0.14) | 0.733 | 0.39 | +0.001 [-0.011, +0.014] | -0.003 | **better** | tie |
+| 30% persistence blend | +0.049 [-0.030, +0.113] | same | +0.037 [-0.034, +0.095] | 6.83 (-0.36) | 0.761 | 0.45 | -0.013 [-0.046, +0.018] | -0.013 | lean better | tie |
+| Scale forecasts ×1.2 | +0.009 [-0.029, +0.035] | same | +0.029 [+0.007, +0.046] | 7.63 (+0.44) | 0.740 | 0.48 | +0.000 [+0.000, +0.000] | +0.000 | tie | tie |
+| Add 10 × P(spike) | +0.020 [-0.033, +0.051] | same | +0.041 [+0.021, +0.059] | 7.67 (+0.47) | 0.760 | 0.52 | +0.057 [+0.019, +0.113] | +0.026 | lean better | **better** |
+| Add 20 × P(spike) | -0.047 [-0.190, +0.031] | same | +0.030 [-0.018, +0.070] | 8.73 (+1.53) | 0.776 | 0.58 | +0.076 [+0.028, +0.139] | +0.037 | tie | **better** |
+| Online per-site bias (additive, last 5 verified) | +0.054 [-0.014, +0.113] | same | +0.070 [+0.032, +0.101] | 7.02 (-0.17) | 0.741 | 0.42 | -0.001 [-0.069, +0.074] | -0.003 | lean better | tie |
+| Online per-site bias (multiplicative, last 10) | -0.103 [-0.453, +0.091] | same | +0.058 [-0.034, +0.129] | 7.50 (+0.31) | 0.752 | 0.42 | -0.009 [-0.036, +0.011] | -0.002 | tie | tie |
+| Clip over real rows + online bias | +0.059 [-0.017, +0.123] | same | +0.088 [+0.008, +0.149] | 7.00 (-0.19) | 0.741 | 0.42 | -0.001 [-0.069, +0.074] | -0.008 | lean better | tie |
+| Clip off + online bias | +0.078 [-0.064, +0.189] | same | +0.094 [+0.003, +0.165] | 6.63 (-0.56) | 0.734 | 0.39 | -0.029 [-0.077, +0.005] | -0.010 | lean better | tie |
+| Clip off + 20% persistence | +0.093 [-0.046, +0.201] | same | +0.074 [-0.010, +0.148] | 6.46 (-0.73) | 0.740 | 0.39 | -0.006 [-0.029, +0.017] | -0.003 | lean better | tie |
+| Regression alert at 10 (F2 only) | +0.000 [+0.000, +0.000] | same | +0.000 [+0.000, +0.000] | 7.19 (+0.00) | 0.740 | 0.48 | +0.000 [+0.000, +0.000] | +0.000 | tie | tie |
+| Regression alert at 14 (F2 only) | +0.000 [+0.000, +0.000] | same | +0.000 [+0.000, +0.000] | 7.19 (+0.00) | 0.718 | 0.32 | +0.000 [+0.000, +0.000] | +0.000 | tie | tie |
+
+**Training rows and features (retrained)**
+
+| Experiment | Val ΔR² [95% CI] | Val ΔR², both unclipped | Dev ΔR² [95% CI] | Val MAE (Δ) | Val F2 | Val trans. recall | Val Δ onset AUC [95% CI] | Dev Δ onset AUC | R² verdict | Onset verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Forecast-row lags recomputed to the anchor (A1, test side only) | -0.001 [-0.024, +0.019] | -0.003 | -0.010 [-0.024, +0.004] | 7.15 (-0.04) | 0.745 | 0.45 | +0.014 [+0.001, +0.033] | +0.018 | tie | **better** |
+| Training rows built like forecast rows (A1), real rows only | +0.037 [-0.034, +0.094] | -0.005 | -0.006 [-0.044, +0.033] | 7.74 (+0.55) | 0.750 | 0.52 | +0.048 [-0.006, +0.116] | -0.003 | tie | tie |
+| asof + gap-filled rows | +0.024 [-0.015, +0.061] | +0.012 | -0.019 [-0.040, +0.001] | 7.08 (-0.11) | 0.752 | 0.45 | +0.058 [+0.011, +0.123] | -0.010 | tie | tie |
+| Real-measurement rows only (engine rows) | +0.016 [-0.040, +0.056] | -0.013 | +0.029 [-0.023, +0.074] | 7.79 (+0.59) | 0.751 | 0.52 | +0.023 [-0.011, +0.064] | +0.002 | tie | tie |
+| Add age of the last measurement | -0.003 [-0.018, +0.008] | -0.004 | -0.005 [-0.010, +0.001] | 7.20 (+0.01) | 0.729 | 0.39 | +0.011 [-0.002, +0.028] | +0.001 | tie | tie |
+| Drop observation-order lags 1–4 | -0.003 [-0.025, +0.016] | -0.005 | -0.011 [-0.024, +0.001] | 7.27 (+0.08) | 0.728 | 0.39 | +0.016 [+0.003, +0.034] | -0.001 | tie | tie |
+| Add cross-site DA features | +0.007 [-0.002, +0.018] | +0.008 | -0.004 [-0.014, +0.006] | 7.07 (-0.12) | 0.741 | 0.39 | +0.025 [-0.001, +0.055] | -0.018 | tie | tie |
+| Add raw-PN lead features | +0.005 [-0.000, +0.010] | +0.004 | -0.005 [-0.015, +0.005] | 7.16 (-0.03) | 0.721 | 0.35 | -0.002 [-0.014, +0.011] | +0.006 | tie | tie |
+| asof + cross-site DA | +0.031 [-0.047, +0.095] | -0.001 | +0.002 [-0.041, +0.042] | 7.79 (+0.60) | 0.783 | 0.65 | +0.064 [+0.005, +0.142] | +0.002 | tie | **better** |
+| asof + raw-PN | +0.034 [-0.032, +0.088] | -0.005 | +0.004 [-0.046, +0.046] | 7.75 (+0.56) | 0.753 | 0.52 | +0.041 [-0.016, +0.112] | +0.007 | tie | tie |
+| asof + cross-site DA + raw-PN | +0.036 [-0.037, +0.098] | +0.004 | +0.016 [-0.038, +0.061] | 7.74 (+0.55) | 0.773 | 0.61 | +0.077 [+0.015, +0.154] | +0.017 | tie | **better** |
+| Drop PN | -0.000 [-0.001, +0.001] | +0.000 | -0.001 [-0.002, -0.000] | 7.21 (+0.02) | 0.734 | 0.39 | +0.001 [-0.003, +0.005] | -0.001 | tie | tie |
+| Drop the 16 OAD features | +0.009 [-0.011, +0.027] | +0.007 | -0.016 [-0.033, -0.001] | 7.07 (-0.12) | 0.719 | 0.35 | +0.003 [-0.012, +0.019] | -0.008 | tie | tie |
+| Drop ONI | +0.002 [-0.000, +0.004] | +0.002 | -0.000 [-0.002, +0.001] | 7.17 (-0.02) | 0.734 | 0.39 | +0.005 [-0.001, +0.011] | +0.002 | tie | tie |
+| Drop discharge | +0.001 [-0.001, +0.003] | +0.000 | +0.000 [-0.001, +0.001] | 7.17 (-0.03) | 0.735 | 0.39 | +0.004 [-0.001, +0.010] | -0.000 | tie | tie |
+| Drop satellite SST, SST anomaly, FLH | -0.000 [-0.010, +0.008] | -0.002 | -0.003 [-0.007, +0.002] | 7.22 (+0.02) | 0.728 | 0.35 | +0.006 [-0.007, +0.020] | +0.002 | tie | tie |
+| Drop every environmental feature | +0.005 [-0.024, +0.035] | +0.004 | -0.018 [-0.036, -0.000] | 7.07 (-0.12) | 0.728 | 0.39 | +0.000 [-0.016, +0.016] | +0.005 | tie | tie |
+| All features at every site | +0.009 [-0.019, +0.040] | +0.009 | -0.002 [-0.018, +0.013] | 7.18 (-0.01) | 0.730 | 0.42 | +0.011 [-0.013, +0.040] | +0.012 | tie | tie |
+| No monotone constraints | -0.001 [-0.003, +0.002] | -0.000 | +0.001 [+0.000, +0.003] | 7.22 (+0.03) | 0.750 | 0.45 | +0.005 [-0.002, +0.012] | +0.011 | tie | tie |
+| No per-site configuration | +0.024 [-0.188, +0.162] | -0.084 | +0.024 [-0.079, +0.104] | 6.73 (-0.47) | 0.719 | 0.45 | +0.003 [-0.083, +0.090] | -0.022 | lean better | tie |
+
+**Targets and losses (retrained)**
+
+| Experiment | Val ΔR² [95% CI] | Val ΔR², both unclipped | Dev ΔR² [95% CI] | Val MAE (Δ) | Val F2 | Val trans. recall | Val Δ onset AUC [95% CI] | Dev Δ onset AUC | R² verdict | Onset verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| log1p target | -0.040 [-0.105, +0.030] | -0.030 | -0.112 [-0.160, -0.062] | 6.75 (-0.44) | 0.659 | 0.23 | -0.091 [-0.164, -0.029] | -0.128 | worse | worse |
+| log1p target + smearing | -0.019 [-0.061, +0.029] | -0.010 | -0.087 [-0.126, -0.043] | 7.03 (-0.16) | 0.691 | 0.26 | -0.061 [-0.099, -0.027] | -0.091 | worse | worse |
+| sqrt target | -0.016 [-0.056, +0.033] | -0.013 | -0.050 [-0.083, -0.016] | 6.77 (-0.42) | 0.729 | 0.35 | -0.074 [-0.139, -0.018] | -0.081 | worse | worse |
+| Tweedie loss (RF Poisson criterion) | -0.002 [-0.027, +0.031] | +0.001 | -0.029 [-0.050, -0.007] | 7.06 (-0.14) | 0.714 | 0.35 | -0.023 [-0.050, +0.001] | -0.049 | worse | worse |
+| Poisson loss | +0.000 [-0.035, +0.041] | +0.002 | -0.039 [-0.070, -0.008] | 7.24 (+0.05) | 0.731 | 0.42 | +0.021 [-0.005, +0.049] | -0.033 | tie | tie |
+| Pseudo-Huber loss (slope 10) | -0.011 [-0.056, +0.042] | -0.013 | -0.048 [-0.084, -0.011] | 6.79 (-0.40) | 0.730 | 0.32 | -0.051 [-0.107, -0.004] | -0.045 | worse | worse |
+| Change target (actual − last known) | -0.071 [-0.140, -0.024] | -0.181 | -0.079 [-0.128, -0.032] | 7.40 (+0.21) | 0.720 | 0.32 | -0.131 [-0.252, -0.026] | -0.189 | worse | worse |
+| asof + change target | -0.004 [-0.070, +0.043] | -0.078 | +0.002 [-0.070, +0.067] | 7.58 (+0.38) | 0.749 | 0.45 | -0.040 [-0.108, +0.023] | -0.040 | tie | lean worse |
+| Spike rows weighted ×3 | -0.026 [-0.100, +0.022] | -0.028 | +0.016 [-0.009, +0.037] | 7.96 (+0.77) | 0.732 | 0.45 | +0.019 [-0.016, +0.057] | +0.016 | tie | tie |
+
+**Training window, pooling, hyperparameters, noise floor (retrained)**
+
+| Experiment | Val ΔR² [95% CI] | Val ΔR², both unclipped | Dev ΔR² [95% CI] | Val MAE (Δ) | Val F2 | Val trans. recall | Val Δ onset AUC [95% CI] | Dev Δ onset AUC | R² verdict | Onset verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Recency weights, 5-year half-life | +0.006 [-0.013, +0.020] | +0.004 | -0.005 [-0.013, +0.003] | 7.18 (-0.01) | 0.726 | 0.32 | +0.013 [-0.012, +0.040] | -0.021 | tie | tie |
+| Recency weights, 10-year half-life | +0.004 [-0.005, +0.011] | +0.002 | -0.002 [-0.006, +0.003] | 7.17 (-0.02) | 0.727 | 0.35 | +0.013 [-0.003, +0.031] | -0.011 | tie | tie |
+| Last 8 years only | +0.025 [-0.013, +0.053] | -0.003 | -0.098 [-0.158, -0.051] | 7.19 (-0.01) | 0.720 | 0.35 | +0.013 [-0.014, +0.045] | -0.032 | tie | tie |
+| One XGBoost across sites (engine rows, site one-hot) | -0.036 [-0.119, +0.026] | -0.085 | -0.051 [-0.089, -0.011] | 6.91 (-0.29) | 0.737 | 0.39 | -0.039 [-0.134, +0.042] | -0.111 | worse | worse |
+| XGBoost depth 3 | +0.002 [-0.017, +0.017] | -0.000 | -0.004 [-0.011, +0.003] | 7.06 (-0.14) | 0.740 | 0.42 | +0.002 [-0.012, +0.014] | -0.008 | tie | tie |
+| XGBoost ×2 trees | -0.019 [-0.047, +0.002] | -0.020 | +0.005 [-0.010, +0.017] | 7.20 (+0.00) | 0.733 | 0.39 | -0.036 [-0.071, -0.007] | -0.013 | tie | worse |
+| RF min leaf 1 | -0.001 [-0.006, +0.002] | -0.002 | -0.003 [-0.010, +0.003] | 7.22 (+0.03) | 0.720 | 0.35 | -0.003 [-0.012, +0.005] | -0.021 | tie | worse |
+| Model seed 43 (noise floor) | -0.002 [-0.017, +0.010] | -0.001 | -0.003 [-0.007, +0.001] | 7.20 (+0.01) | 0.727 | 0.39 | +0.008 [-0.005, +0.023] | -0.003 | tie | tie |
+| Model seed 44 (noise floor) | -0.003 [-0.011, +0.005] | -0.002 | -0.007 [-0.013, -0.002] | 7.18 (-0.01) | 0.735 | 0.39 | -0.006 [-0.016, +0.003] | -0.006 | tie | tie |
+
+**Spike classifier and hybrid alert (classifier ≥ 0.10 OR regression ≥ 12)**
+
+| Classifier | Val onset AUC | Val ΔAUC [95% CI] | Dev ΔAUC [95% CI] | Val onset recall @20% FA | Val hybrid: onsets caught / quiet-week alarms | Dev hybrid: onsets / alarms | Val F2 | Val trans. recall |
+|---|---|---|---|---|---|---|---|---|
+| Engine (committed) | 0.864 | +0.000 [+0.000, +0.000] | +0.000 [+0.000, +0.000] | 0.79 | 24/34 at 14.6% | 55/74 at 23.2% | 0.781 | 0.68 |
+| Safe-baseline filter applied (A2) | 0.840 | -0.023 [-0.046, -0.002] | -0.004 [-0.024, +0.017] | 0.74 | 23/34 at 14.8% | 50/74 at 24.0% | 0.773 | 0.65 |
+| Forecast-row lags refreshed (A1) | 0.874 | +0.010 [-0.016, +0.038] | +0.018 [-0.006, +0.045] | 0.82 | 27/34 at 14.8% | 54/74 at 23.3% | 0.798 | 0.77 |
+| asof rows | 0.806 | -0.058 [-0.130, +0.011] | +0.026 [-0.019, +0.073] | 0.68 | 23/34 at 15.4% | 53/74 at 24.9% | 0.770 | 0.68 |
+| asof rows + safe-baseline filter | 0.775 | -0.089 [-0.164, -0.023] | -0.011 [-0.049, +0.028] | 0.62 | 23/34 at 17.1% | 51/74 at 27.4% | 0.761 | 0.68 |
+| Onset-only (asof, last < 20) | 0.787 | -0.076 [-0.147, -0.011] | +0.004 [-0.030, +0.040] | 0.62 | 23/34 at 15.0% | 53/74 at 27.8% | 0.772 | 0.68 |
+| Onset-only + cross-site DA | 0.802 | -0.061 [-0.133, +0.004] | — | 0.65 | 23/34 at 16.9% | — | 0.762 | 0.68 |
+| Onset-only + raw PN | 0.772 | -0.092 [-0.169, -0.029] | — | 0.65 | 23/34 at 15.6% | — | 0.769 | 0.68 |
+| Onset-only + cross-site DA + raw PN | 0.785 | -0.078 [-0.159, -0.010] | — | 0.62 | 23/34 at 16.5% | — | 0.764 | 0.68 |
+| Engine + cross-site DA | 0.851 | -0.012 [-0.053, +0.020] | — | 0.76 | 25/34 at 17.3% | — | 0.772 | 0.71 |
+| asof rows + cross-site DA | 0.778 | -0.086 [-0.165, -0.011] | — | 0.65 | 22/34 at 17.3% | — | 0.753 | 0.65 |
+
+**What the experiments say**
+
+- **Level forecast: the clip is the dominant problem.** No clip gives +0.10 R² on both
+  windows, and a q = 0.99 clip gets most of it. Computing the existing quantile over real
+  rows (A3) is a smaller fix that is significant in both windows. The online bias
+  correction, the persistence blend and the ×1.2 scale help only under the committed clip:
+  on top of no clip, bias correction is −0.024 (validation) and +0.004 (2015–2018), and a
+  20% persistence blend is −0.009. They compensate for the clip and are not worth porting
+  once it is relaxed. This matches the parent's Spark re-tune (commit `e76647bd`,
+  `results/tuning_provenance/retune_spark/`): 7 of 10 sites chose no quantile clip, and
+  after that per-site weights could not be told apart from one shared rule.
+- **Structural changes are ties for R²:** the per-site feature subsets, monotone
+  constraints, recency weights, hyperparameter nudges, OAD, ONI, discharge, PN, satellite
+  and even all environmental features together all stay inside ±0.02, as in the pre-fix
+  ablation. ONI's publication lag, the single discharge gauge and the all-years OAD encoder
+  (A7) therefore cannot be moving the forecast.
+- **Losses and target transforms make things worse.** log1p, sqrt, Huber, Tweedie and the
+  change target all lose R² and, more clearly, onset AUC (−0.05 to −0.19 on 2015–2018):
+  compressing the tail removes exactly the signal onsets need.
+- **Onsets.** For the regression, horizon-consistent rows plus cross-site DA (and raw PN)
+  raise onset AUC on validation (+0.064 to +0.077, CIs exclude 0) and transition recall
+  (0.39 → 0.61–0.65), but only +0.002 to +0.017 on 2015–2018, and MAE rises by about 0.55
+  because those runs train on real rows only. Refreshing the forecast-row lags (A1) helps
+  onset ranking in both windows (+0.014 [+0.001, +0.033] and +0.018) at no cost.
+- **Spike classifier.** The engine's pooled classifier is the best single onset ranker on
+  validation (AUC 0.864), but its lead over the horizon-consistent and onset-only
+  variants (−0.06 to −0.09 on validation) reverses on 2015–2018 (−0.01 to +0.03). With 34
+  and 74 onsets these differences are noise. Applying the documented safe-baseline filter
+  (A2) slightly *hurts* in both windows (−0.023 [−0.046, −0.002], −0.004), so the fix for
+  A2 is the documentation, not the code. Refreshing the classifier's forecast-row lags is
+  the only change positive in both windows; on validation the hybrid alert then catches
+  27 instead of 24 of 34 onsets at the same false-alarm rate (14.8%).
+- **Adding 10 × P(spike) to the level forecast** improves R² and onset ranking in both
+  windows (+0.020 / +0.041 R²; +0.057 / +0.026 onset AUC). One number can carry most of
+  the alert information without a separate output.
+- **The ESP offshore pDA and NEMO mooring sources** from the pre-cleanup experiments were
+  not re-tested: their input files (`ChaBa ESP database.xlsx`, `ChaBa_pCO2ALLdata.mat`) no
+  longer exist locally or on Hyak.
+
 
 ## 3b. One pooled model: declared comparison
 

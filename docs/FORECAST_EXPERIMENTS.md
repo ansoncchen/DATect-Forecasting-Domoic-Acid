@@ -24,7 +24,7 @@ pre-declared pooled comparison.
 | A2 | The classifier's documented safe-baseline filter runs on MinMax-scaled values and keeps every row | High for the paper (the described model is not the evaluated one) | Applying it as documented *hurts*: ΔAUC −0.023 [−0.046, −0.002] / −0.004; fix the text, not the code |
 | A5 | Holdout R² 0.497 is 0.292 without Coos Bay; the top 10 rows hold ~60% of squared error | Medium (reporting) | — |
 | A4 | Forecast SD is 0.54–0.62 of observed; ≥ 40 µg/g under-predicted by ~45; onsets forecast at ~10 vs ~40 observed | Medium | Mostly the clip plus MSE shrinkage; losses and transforms do not fix it |
-| A6–A7 | Concurrent PN/env in training rows, ONI publication lag, one discharge gauge, all-years OAD encoder, satellite NaNs, BEUTI | Low | Dropping each group is a tie (ΔR² within ±0.02, Δ onset AUC within ±0.01) |
+| A6–A7 | Concurrent PN/env in training rows, ONI publication lag, one discharge gauge, all-years OAD encoder, satellite NaNs, BEUTI | Low | Dropping each group is a tie (ΔR² within ±0.02, Δ onset AUC within ±0.01); in the pooled models no environmental group lowers onset AUC by more than 0.004, and dropping all of them raises it (+0.013 to +0.032) |
 
 **Worth porting** (numbers are ΔR² or Δ onset AUC, validation / 2015–2018 / holdout):
 
@@ -56,6 +56,13 @@ hyperparameter nudges and feature-group drops (ties). The safe-baseline filter f
 unclipped per-site ensemble on validation (+0.011 to +0.028) and trails it on the holdout
 (−0.079 [−0.263, +0.055]). The parent's re-tune shows that per-site *weights* do not
 matter; whether per-site *models* matter cannot be resolved with these windows.
+
+**At a one-week lead, onset skill comes from DA history, not from the environmental
+features** (validation-only diagnostic, §3b ablation). In the pooled models, dropping the
+rolling DA features lowers onset AUC in all three families (linear −0.029
+[−0.057, −0.007]). Dropping all environmental groups at once raises it (+0.032
+[+0.001, +0.068] linear, +0.013 RF, +0.029 XGBoost). The ESP offshore pDA and NEMO mooring
+sources could not be re-tested because their input files no longer exist.
 
 ## 1. Audit: problems found
 
@@ -364,7 +371,8 @@ in both windows. Raw outputs: `/gscratch/scrubbed/ac283/experiments/raw/` (Hyak)
   constraints, recency weights, hyperparameter nudges, OAD, ONI, discharge, PN, satellite
   and even all environmental features together all stay inside ±0.02, as in the pre-fix
   ablation. ONI's publication lag, the single discharge gauge and the all-years OAD encoder
-  (A7) therefore cannot be moving the forecast.
+  (A7) therefore cannot be moving the forecast. Scored on onsets in the pooled models,
+  the same holds; only the DA history matters (§3b, feature-group ablation).
 - **Losses and target transforms make things worse.** log1p, sqrt, Huber, Tweedie and the
   change target all lose R² and, more clearly, onset AUC (−0.05 to −0.19 on 2015–2018):
   compressing the tail removes exactly the signal onsets need.
@@ -535,6 +543,60 @@ Pooled level models against the unclipped per-site ensemble: validation +0.011
   and the holdout, but 0.13 behind on validation. A single level model can rank onsets
   (one output). A calibrated probability for the alert threshold still needs the
   classifier, so two outputs from one feature pipeline is the practical design.
+
+
+### Feature-group ablation scored on onsets (diagnostic, validation only)
+
+Run as a diagnostic, not a selection step. Each F1 pooled model above is refit at every
+anchor with one feature group removed; rows, anchors and everything else stay the same.
+Δ = (without the group) − (with it), so **a positive Δ means the model does better
+without the group.** 635 validation rows, 520 with last known < 20, 34 onsets: one onset
+is 0.029 of recall. CIs are paired row bootstraps (2000 resamples). They ignore
+model-seed noise (about ±0.008 onset AUC for tree models), and the table holds 81
+comparisons, so a few CIs that exclude 0 are expected by chance. Bold means the CI
+excludes 0; no recall CI does.
+
+Groups:
+- **Satellite:** `modis-sst`, `sst-anom`, `modis-flr`. The other MODIS columns are among
+  the six always-dropped.
+- **All environmental:** satellite, climate, BEUTI, discharge, PN and OAD together. This
+  leaves DA history, calendar and site.
+
+Full-feature references (linear / RF / XGBoost): onset AUC 0.740 / 0.759 / 0.774, level
+R² 0.364 / 0.437 / 0.378. Sources: `results/experiments/pooled_ablation_val_F1_{linear,rf,xgb}.csv`.
+
+| Group dropped | Linear: Δ onset AUC [95% CI] | RF: Δ onset AUC [95% CI] | XGBoost: Δ onset AUC [95% CI] | Δ onset recall @20% FA (lin / RF / XGB) | Δ level R² (lin / RF / XGB) |
+|---|---|---|---|---|---|
+| Satellite (SST, SST anomaly, FLH) | +0.009 [−0.009, +0.028] | +0.004 [−0.019, +0.025] | +0.001 [−0.023, +0.025] | +0.00 / +0.00 / +0.00 | +0.002 / −0.007 / +0.017 |
+| Climate indices (PDO, ONI) | −0.003 [−0.023, +0.015] | +0.002 [−0.024, +0.026] | +0.007 [−0.022, +0.039] | −0.06 / −0.03 / +0.03 | −0.003 / +0.005 / **+0.066** |
+| BEUTI | +0.001 [−0.001, +0.003] | +0.012 [−0.001, +0.027] | +0.016 [−0.003, +0.038] | +0.00 / −0.03 / +0.00 | +0.000 / −0.008 / −0.005 |
+| River discharge | +0.003 [−0.003, +0.008] | −0.004 [−0.013, +0.005] | **+0.022 [+0.001, +0.046]** | +0.00 / −0.03 / +0.00 | +0.000 / −0.000 / +0.005 |
+| PN (`pn`, `pn_log`) | −0.003 [−0.013, +0.007] | +0.012 [−0.002, +0.030] | +0.008 [−0.011, +0.029] | −0.03 / −0.03 / +0.03 | +0.000 / +0.005 / +0.045 |
+| OAD (16) | −0.002 [−0.023, +0.017] | +0.004 [−0.040, +0.051] | +0.012 [−0.019, +0.048] | +0.00 / +0.00 / −0.03 | +0.011 / −0.026 / −0.047 |
+| Rolling DA history (7) | **−0.029 [−0.057, −0.007]** | −0.014 [−0.049, +0.026] | −0.008 [−0.037, +0.019] | −0.06 / −0.09 / −0.06 | **+0.045** / −0.000 / +0.045 |
+| Calendar (3) | +0.001 [−0.011, +0.011] | −0.008 [−0.023, +0.008] | +0.005 [−0.017, +0.027] | +0.00 / −0.03 / +0.00 | −0.001 / −0.002 / +0.004 |
+| All environmental | **+0.032 [+0.001, +0.068]** | +0.013 [−0.041, +0.071] | +0.029 [−0.009, +0.068] | +0.00 / +0.06 / +0.09 | **+0.021** / −0.002 / −0.037 |
+
+- **No environmental group carries detectable onset skill on validation.**
+  - Removing any single environmental group lowers onset AUC by at most 0.004 in every
+    family.
+  - Removing all six together *raises* onset AUC in all three families: +0.032
+    [+0.001, +0.068] linear, +0.013 RF, +0.029 XGBoost.
+  - Onset recall at 20% FA stays the same or rises (0 to +3 of 34 onsets).
+  - The per-site engine runs agree (§3): each environmental drop, and dropping all of
+    them, stays within ±0.01 onset AUC there.
+- **DA history is the only group onset ranking depends on.** Dropping the seven rolling
+  DA features lowers onset AUC in every family (−0.029 [−0.057, −0.007] linear, −0.014
+  RF, −0.008 XGBoost) and costs 2–3 of 34 onsets at 20% FA. Ridge's level R² *rises*
+  without them (+0.045 [+0.011, +0.084]), which fits a linear model extrapolating from
+  rolling max/SD at high values. It does not mean the features are useless.
+- **The other cells that clear zero are XGBoost only:** dropping discharge (+0.022 AUC)
+  and climate indices (+0.066 R²). Among 81 comparisons, with no agreement across
+  families, they are not evidence on their own.
+- **What this does not license.** It is validation-only with 34 onsets, so it does not
+  justify dropping features. If a simpler single model is wanted, the next step is one
+  declared candidate, "F0: DA history + calendar + site", checked against F1 on 2015–2018
+  and the holdout under the §3b rule.
 
 
 ## 4. Shortlist and one-time holdout check

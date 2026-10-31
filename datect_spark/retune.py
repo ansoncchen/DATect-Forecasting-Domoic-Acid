@@ -168,17 +168,43 @@ def predict(window: str, limit: int | None = None) -> None:
     parity = _parity(preds, window)
 
     mlflow = _mlflow()
-    with mlflow.start_run(run_name=f"predict-{window}"):
+    with mlflow.start_run(run_name=f"predict-{window}") as parent:
         mlflow.log_params({"window": window, "start": start, "end": end, "git_sha": _git_sha(),
                            "spark_master": sc.master, "default_parallelism": sc.defaultParallelism,
                            "delta_table": table})
         mlflow.log_metrics({"n_points": len(preds), "n_ok": int(preds["ok"].sum()),
                             "wall_seconds": wall, "task_seconds_total": float(preds["task_seconds"].sum()),
                             "hosts": preds["host"].nunique(), **parity})
+        n_runs = _log_forecast_runs(parent, preds)
+        mlflow.log_metric("n_child_runs", n_runs)
     print(f"{window}: {int(preds['ok'].sum())}/{len(preds)} points in {wall:.0f}s wall "
           f"({preds['task_seconds'].sum():.0f}s of task time on {preds['host'].nunique()} host(s)); "
-          f"parity {parity}")
+          f"parity {parity}; {n_runs} forecast runs logged to MLflow")
     spark.stop()
+
+
+def _log_forecast_runs(parent, preds: pd.DataFrame) -> int:
+    """One MLflow child run per trained forecast (XGBoost + Random Forest pair)."""
+    from mlflow.entities import Metric, Param
+    from mlflow.tracking import MlflowClient
+
+    client = MlflowClient()
+    ok = preds[preds["ok"]].copy()
+    ok["ensemble"] = _ensemble(ok, _current_configs())
+    now = int(time.time() * 1000)
+    for r in ok.itertuples(index=False):
+        child = client.create_run(parent.info.experiment_id, run_name=f"{r.site}|{r.date}",
+                                  tags={"mlflow.parentRunId": parent.info.run_id,
+                                        "site": r.site, "host": r.host})
+        values = {"actual_da": r.actual_da, "xgb_raw": r.xgb_raw, "rf_raw": r.rf_raw,
+                  "ensemble_current": r.ensemble, "abs_error_current": abs(r.actual_da - r.ensemble),
+                  "train_q99": r.q99, "task_seconds": r.task_seconds}
+        client.log_batch(child.info.run_id,
+                         metrics=[Metric(k, float(v), now, 0) for k, v in values.items()],
+                         params=[Param("site", r.site), Param("test_date", r.date),
+                                 Param("n_train", str(r.n_train))])
+        client.set_terminated(child.info.run_id)
+    return len(ok)
 
 
 # ── Applying a configuration to raw predictions (pandas, for parity/holdout) ─

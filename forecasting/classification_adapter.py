@@ -152,13 +152,16 @@ class ClassificationAdapter:
         """
         Train a binary XGBoost classifier for spike detection.
 
-        Uses a **safe-baseline** approach: trains only on rows where the
-        previous observation (``da_raw_prev_obs_1``) was below
-        *spike_threshold*.  This forces the model to learn from
-        environmental and rolling features rather than persistence.
+        Trains on every row it is given: all real measurements, including
+        weeks that were already above *spike_threshold*. ``X_train`` is the
+        pooled matrix after MinMax scaling. An earlier "safe-baseline" filter
+        compared the scaled ``da_raw_prev_obs_1`` (always in [0, 1]) with the
+        threshold in ug/g, so it never removed a row. Applied to unscaled
+        values it lowered validation onset AUC by 0.023, so it was removed
+        rather than fixed.
 
-        Leaky features (``last_observed_da_raw``, ``weeks_since_last_spike``)
-        are dropped before fitting so the classifier cannot cheat.
+        ``last_observed_da_raw`` and ``weeks_since_last_spike`` are dropped
+        before fitting; the lag and rolling DA features stay.
 
         Returns
         -------
@@ -169,37 +172,17 @@ class ClassificationAdapter:
             spike_threshold = float(config.SPIKE_THRESHOLD)
 
         # Binary target from raw DA values
-        y_spike = (y_da_raw >= spike_threshold).astype(int)
+        y_safe = (y_da_raw >= spike_threshold).astype(int)
 
-        # Identify which columns to drop (leaky persistence features)
-        # distance_to_threshold = SPIKE_THRESHOLD - last_observed_da_raw, also leaky
+        # distance_to_threshold = SPIKE_THRESHOLD - last_observed_da_raw
         leaky_cols = {"last_observed_da_raw", "weeks_since_last_spike", "distance_to_threshold"}
-        prev_obs_col = "da_raw_prev_obs_1"
-
-        # Safe-baseline: keep only rows where previous obs < threshold
-        if prev_obs_col in X_train.columns:
-            safe_mask = X_train[prev_obs_col].fillna(0) < spike_threshold
-        else:
-            # If prev_obs_col was already dropped, fall back to full training set
-            logger.warning(
-                "Safe-baseline filter bypassed: %s not in feature set. "
-                "Classifier will train on all rows including already-spiked states.",
-                prev_obs_col,
-            )
-            safe_mask = pd.Series(True, index=X_train.index)
-
-        X_safe = X_train.loc[safe_mask].copy()
-        y_safe = y_spike.loc[safe_mask].copy()
-
-        # Drop leaky columns from features
-        cols_to_drop = [c for c in leaky_cols if c in X_safe.columns]
-        if cols_to_drop:
-            X_safe = X_safe.drop(columns=cols_to_drop)
+        cols_to_drop = [c for c in leaky_cols if c in X_train.columns]
+        X_safe = X_train.drop(columns=cols_to_drop)
 
         # Need at least 2 classes and minimum samples
         if len(y_safe) < 10 or y_safe.nunique() < 2:
             logger.debug(
-                "Spike classifier: insufficient safe-baseline data for %s "
+                "Spike classifier: insufficient training data for %s "
                 "(n=%d, classes=%d)",
                 site or "unknown",
                 len(y_safe),
@@ -213,8 +196,7 @@ class ClassificationAdapter:
         class_weight_dict = dict(zip(classes, class_weights))
         sample_weights = np.array([class_weight_dict[y] for y in y_safe])
 
-        # Use spike-specific params (shallower trees, tuned for small
-        # safe-baseline datasets in per-test-point training)
+        # Use spike-specific params (shallower trees, refit per test point)
         from xgboost import XGBClassifier
         spike_params = dict(config.SPIKE_CLASSIFIER_PARAMS)
         model = XGBClassifier(

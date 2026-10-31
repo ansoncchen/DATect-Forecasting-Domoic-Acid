@@ -242,6 +242,20 @@ and the level forecast's own onset AUC (can one output serve both purposes?).
 
 ## 4. Shortlist and one-time holdout check
 
+**Shortlist, fixed from validation (with the 2015–2018 window as a consistency check)
+and committed before the holdout was run.** Each is checked alone against the
+committed engine on the 409 holdout rows.
+
+| # | Change | Why it is on the list (validation; dev) | Kind |
+|---|---|---|---|
+| S1 | Clip quantile over real rows only | ΔR² +0.017 [+0.004, +0.030]; +0.057 [+0.007, +0.102] | engine fix (rescoring) |
+| S2 | No clip | ΔR² +0.102 [−0.029, +0.207]; +0.090 [+0.030, +0.149] | reference for the parent's re-tune (rescoring) |
+| S3 | Level forecast + 10 × P(spike) | ΔR² +0.020 / +0.041; Δ onset AUC +0.057 [+0.019, +0.113] / +0.026 | one output for level and onset (rescoring) |
+| S4 | Classifier with forecast-row lags refreshed to the anchor (A1) | Δ onset AUC +0.010 / +0.018; hybrid 27 vs 24 of 34 onsets at the same alarm rate | engine fix (classifier) |
+| S5 | Regression on horizon-consistent rows + cross-site DA + raw PN | Δ onset AUC +0.077 [+0.015, +0.154] / +0.017; transition recall 0.39 → 0.61 / 0.58 → 0.71; ΔR² tie; MAE +0.55 | engine change (retrain) |
+
+The declared pooled comparison (§3b) is run on the holdout separately, for every cell.
+
 <!-- HOLDOUT -->
 
 ## 5. Reproducing

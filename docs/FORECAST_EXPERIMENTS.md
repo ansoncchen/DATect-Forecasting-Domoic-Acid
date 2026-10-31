@@ -410,6 +410,76 @@ Pairwise onset ΔAUC on F1: RF − linear +0.018 [−0.023, +0.065], XGBoost −
 three families are statistically tied on onsets, so the simplest wins, and F2 does not
 clear its bar.
 
+**Holdout result (run once, after the validation pick was committed).** 409 rows, 319
+with last known < 20, 27 onsets. Source: `results/experiments/pooled_holdout.csv`.
+
+| Candidate | Onset AUC | ΔAUC vs last-value [95% CI] | Onset recall @10% / @20% FA | Gain vs last-value @20% | Level R² [95% CI] | MAE | F2 (≥ 12) | Level output as onset score: AUC |
+|---|---|---|---|---|---|---|---|---|
+| Last-value rule / naive persistence | 0.550 | — | 0.30 / 0.37 | — | 0.225 [−0.267, 0.516] | 7.89 | 0.674 | 0.550 |
+| Current engine (classifier / per-site ensemble) | 0.758 | +0.208 [+0.044, +0.371] | 0.33 / 0.52 | +3.9 | 0.497 [0.364, 0.604] | 7.60 | 0.729 | 0.747 |
+| **F1 linear (declared pick)** | 0.744 | +0.195 [+0.023, +0.358] | 0.30 / 0.52 | +3.9 | 0.447 [0.286, 0.583] | 8.35 | 0.661 | 0.679 |
+| F1 RF | 0.755 | +0.205 [+0.041, +0.366] | 0.37 / 0.56 | +4.8 | 0.471 [0.164, 0.639] | 7.88 | 0.721 | 0.764 |
+| F1 XGBoost | 0.799 | +0.250 [+0.091, +0.400] | 0.44 / 0.59 | +5.6 | 0.456 [0.185, 0.619] | 8.17 | 0.712 | 0.760 |
+| F2 linear | 0.787 | +0.237 [+0.075, +0.391] | 0.37 / 0.63 | +6.5 | 0.454 [0.297, 0.586] | 8.36 | 0.664 | 0.732 |
+| F2 RF | 0.730 | +0.180 [+0.028, +0.334] | 0.41 / 0.52 | +3.9 | 0.468 [0.181, 0.632] | 7.82 | 0.723 | 0.737 |
+| F2 XGBoost | 0.790 | +0.240 [+0.087, +0.384] | 0.48 / 0.59 | +5.6 | 0.402 [0.042, 0.600] | 8.41 | 0.713 | 0.745 |
+
+Pairwise onset ΔAUC on the holdout, F1: RF − linear +0.011 [−0.074, +0.095], XGBoost −
+linear +0.055 [−0.022, +0.135], XGBoost − RF +0.044 [−0.003, +0.091].
+
+**All three windows** (2015–2018 run with the same code; `results/experiments/pooled_dev.csv`):
+
+| Onset AUC (rows with last known < 20) | Validation (34 onsets) | 2015–2018 (74) | Holdout (27) |
+|---|---:|---:|---:|
+| Last-value rule | 0.651 | 0.508 | 0.550 |
+| Engine regression (per-site ensemble as the score) | 0.738 | 0.729 | 0.747 |
+| Engine pooled classifier (committed) | **0.864** | 0.736 | 0.758 |
+| Engine pooled classifier, refreshed lags (S4) | **0.874** | **0.754** | 0.773 |
+| F1 linear (declared pick) | 0.740 | 0.736 | 0.744 |
+| F1 RF | 0.759 | 0.722 | 0.755 |
+| F1 XGBoost | 0.774 | 0.737 | **0.799** |
+| F2 linear | 0.773 | 0.727 | 0.787 |
+| F2 RF | 0.749 | 0.742 | 0.730 |
+| F2 XGBoost | 0.786 | 0.742 | 0.790 |
+
+| Level R² | Validation | 2015–2018 | Holdout |
+|---|---:|---:|---:|
+| Naive persistence | 0.213 | −0.111 | 0.225 |
+| Engine, committed (per-site, clipped) | 0.324 | 0.230 | 0.497 |
+| Engine, no clip (S2) | 0.426 | 0.320 | **0.550** |
+| F1 linear (Ridge) | 0.364 | 0.276 | 0.447 |
+| F1 RF | 0.437 | 0.284 | 0.471 |
+| F1 XGBoost | 0.378 | 0.261 | 0.456 |
+| F2 RF | **0.455** | 0.280 | 0.468 |
+
+Pooled level models against the unclipped per-site ensemble: validation +0.011
+[−0.135, +0.147] (F1 RF) and +0.028 [−0.107, +0.161] (F2 RF); holdout −0.079
+[−0.263, +0.055] (F1 RF), −0.103 [−0.213, +0.028] (Ridge).
+
+**Reading.**
+- **Family choice barely matters for onsets.** On F1, the declared comparison, no
+  family-vs-family difference is significant in any window. XGBoost has the highest point
+  estimate on validation and the holdout, and ties on 2015–2018; within F2, XGBoost beats
+  RF on the holdout (+0.060 [+0.012, +0.108]) but not elsewhere. The declared pick,
+  one pooled logistic regression, ties the engine's classifier on 2015–2018 (0.736 vs
+  0.736) and on the holdout (0.744 vs 0.758), and trails it on validation (0.740 vs 0.864).
+- **The onset half of the engine is already "one model".** The engine's spike classifier
+  is a single pooled XGBoost across all sites with one hyperparameter set and uniform
+  features. It is the best or tied onset ranker in every window, and refreshing its
+  forecast-row lags (S4) makes it the best in two of three. So per-site picking only ever
+  lived in the level regression.
+- **For the level forecast, one pooled model is not proven equivalent.** It ties the
+  unclipped per-site ensemble on validation (RF +0.01 to +0.03) but trails it by about 0.08
+  on the holdout, with CIs including 0. The parent's re-tune found that the per-site
+  *weights* do not matter once the clip is gone; whether per-site *training* (separate
+  models, per-site hyperparameters and feature subsets) matters is not settled by 409 rows.
+- **One output or two?** For tree models, the pooled level forecast ranks onsets about as
+  well as the dedicated classifier (holdout RF 0.764 vs 0.755, XGBoost 0.760 vs 0.799).
+  For the engine, its per-site regression is within 0.01 of its classifier on 2015–2018
+  and the holdout, but 0.13 behind on validation. A single level model can rank onsets
+  (one output). A calibrated probability for the alert threshold still needs the
+  classifier, so two outputs from one feature pipeline is the practical design.
+
 <!-- POOLED -->
 
 ## 4. Shortlist and one-time holdout check
@@ -427,6 +497,28 @@ committed engine on the 409 holdout rows.
 | S5 | Regression on horizon-consistent rows + cross-site DA + raw PN | Δ onset AUC +0.077 [+0.015, +0.154] / +0.017; transition recall 0.39 → 0.61 / 0.58 → 0.71; ΔR² tie; MAE +0.55 | engine change (retrain) |
 
 The declared pooled comparison (§3b) is run on the holdout separately, for every cell.
+
+**Holdout results (409 rows, run once).** The harness baseline reproduces the committed
+holdout predictions exactly (max |difference| 0.0). Sources:
+`results/experiments/holdout_shortlist.csv`, `holdout_shortlist_classifier.csv`.
+
+| # | Change | ΔR² [95% CI] | MAE (Δ) | F2 | Trans. recall | Δ onset AUC [95% CI] | Same direction as validation? |
+|---|---|---|---|---|---|---|---|
+| S0 | Committed engine | R² 0.497 | 7.60 | 0.729 | 0.55 | AUC 0.747 (regression) | — |
+| S1 | Clip quantile over real rows | +0.046 [−0.002, +0.110] | 7.43 (−0.17) | 0.729 | 0.55 | 0 | yes (val +0.017, dev +0.057) |
+| S2 | No clip | +0.053 [−0.013, +0.118] | 7.39 (−0.22) | 0.729 | 0.55 | 0 | yes (val +0.102, dev +0.090) |
+| S3 | Level + 10 × P(spike) | −0.000 [−0.067, +0.037] | 8.41 (+0.81) | 0.721 | 0.59 | +0.016 [−0.008, +0.046] | partly: onset yes, R² no, MAE worse |
+| S5 | Horizon-consistent rows + cross-site DA + raw PN | −0.010 [−0.080, +0.046] (−0.063 both unclipped) | 8.00 (+0.39) | 0.721 | 0.62 | +0.014 [−0.042, +0.081] | no for R²/MAE; onset small |
+
+| # | Spike classifier inside the hybrid alert | Onset AUC | ΔAUC [95% CI] | Hybrid: onsets caught / quiet-week alarms | Spike recall / precision / F2 | Trans. recall |
+|---|---|---:|---|---|---|---:|
+| S0 | Committed classifier | 0.758 | — | 18/27 at 30.5% | 0.893 / 0.381 / 0.704 | 0.69 |
+| S4 | Forecast-row lags refreshed to the anchor | 0.773 | +0.015 [−0.033, +0.065] | 19/27 at 29.1% | 0.905 / 0.392 / 0.717 | 0.72 |
+
+**Verdict.** S1/S2 (the clip) and S4 (refreshed forecast-row lags for the classifier) hold
+up in all three windows. S3 helps onset ranking but costs MAE and R² on the holdout, so it
+is not worth porting as is. S5 does not hold up: its validation onset gain shrinks to
+noise and it costs R² and MAE.
 
 <!-- HOLDOUT -->
 

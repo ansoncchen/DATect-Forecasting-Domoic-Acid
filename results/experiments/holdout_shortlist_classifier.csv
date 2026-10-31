@@ -1,0 +1,3 @@
+classifier,onset_auc,d_auc,d_lo,d_hi,recall_far20,hyb_onsets,hyb_quiet_far,hyb_vs_lastvalue,recall,precision,f2,trans_recall,n_onset
+S0 committed classifier,0.7579,0.0000,0.0000,0.0000,0.5185,0.6667,0.3048,4.0000,0.8929,0.3807,0.7036,0.6897,27
+"S4 classifier, refreshed lags",0.7731,0.0153,-0.0326,0.0653,0.4815,0.7037,0.2911,5.0000,0.9048,0.3918,0.7170,0.7241,27

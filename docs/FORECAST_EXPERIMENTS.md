@@ -6,7 +6,56 @@ one-week-ahead DA forecast and many small one-change-at-a-time experiments, so t
 winners can be ported to the main line. `docs/CORRECTED_NUMBERS.md` stays the source of
 reported numbers.
 
-<!-- SUMMARY -->
+## Summary
+
+**Objective.** The user made onset detection primary: forecasting the week DA first
+crosses 20, scored on rows whose last known value at the anchor is < 20. The level
+forecast (R², MAE) is secondary, and the user wants one model rather than per-site
+picking. Selection used validation (2019–2021) only, with 2015–2018 as a consistency check;
+the 2022–2023 holdout was run once for a shortlist fixed in advance and for the
+pre-declared pooled comparison.
+
+**Top problems** (§1):
+
+| | Problem | Severity | Measured effect |
+|---|---|---|---|
+| A3 | The clip bound is a quantile of training targets that are ~59% gap-filled, so it caps forecasts far below real highs (Coos Bay q95 81 vs 145) | **High for the level forecast** | No clip: ΔR² +0.102 / +0.090 / **+0.053** (val / dev / holdout); quantile over real rows: +0.017 / +0.057 / **+0.046** |
+| A1 | Forecast rows reuse the last complete week's lags (13–19 days old); training rows see measurements up to their own week; `da_raw_prev_obs_1` = last value in 100% of training rows, 49% of forecast rows | High as a correctness issue, small in skill | Refreshing the forecast-row lags: R² tie; onset AUC +0.010 / +0.018 / +0.015 for the classifier |
+| A2 | The classifier's documented safe-baseline filter runs on MinMax-scaled values and keeps every row | High for the paper (the described model is not the evaluated one) | Applying it as documented *hurts*: ΔAUC −0.023 [−0.046, −0.002] / −0.004; fix the text, not the code |
+| A5 | Holdout R² 0.497 is 0.292 without Coos Bay; the top 10 rows hold ~60% of squared error | Medium (reporting) | — |
+| A4 | Forecast SD is 0.54–0.62 of observed; ≥ 40 µg/g under-predicted by ~45; onsets forecast at ~10 vs ~40 observed | Medium | Mostly the clip plus MSE shrinkage; losses and transforms do not fix it |
+| A6–A7 | Concurrent PN/env in training rows, ONI publication lag, one discharge gauge, all-years OAD encoder, satellite NaNs, BEUTI | Low | Dropping each group is a tie (ΔR² within ±0.02, Δ onset AUC within ±0.01) |
+
+**Worth porting** (numbers are ΔR² or Δ onset AUC, validation / 2015–2018 / holdout):
+
+1. **Drop the quantile clip (S2), or compute it over real rows wherever a quantile stays (S1).**
+   S2: +0.102 / +0.090 / +0.053 R², MAE −0.64 / −0.86 / −0.22. S1: +0.017 [+0.004, +0.030]
+   / +0.057 / +0.046. The parent's Spark re-tune reaches the same place (7 of 10 sites chose
+   no quantile clip).
+2. **Recompute the forecast row's lag and rolling features from every measurement up to
+   the anchor (A1, test side only), at least for the spike classifier (S4).** Onset AUC
+   +0.010 / +0.018 / +0.015. The hybrid alert catches 27 vs 24 (val) and 19 vs 18 (holdout)
+   onsets at the same or a lower false-alarm rate; holdout F2 0.704 → 0.717 and
+   transition recall 0.69 → 0.72. Low risk: a test-row change, no new features.
+3. **For "one model": keep the existing pooled spike classifier as the single onset
+   model.** It already is one XGBoost across all sites with one hyperparameter set, and it
+   is best or tied in every window. A pre-declared comparison of pooled linear / RF / XGBoost
+   (§3b) found no significant family difference; the rule's pick, pooled logistic
+   regression, ties it on 2015–2018 (0.736 vs 0.736) and the holdout (0.744 vs 0.758).
+4. **Correct the paper and `PIPELINE_DEEP_DIVE.md` description of the classifier (A2)** and
+   report onset metrics plus per-site and log-scale R² next to the pooled R² (A5).
+
+**Not worth porting:** log1p / sqrt / Tweedie / Poisson / Huber / change targets (worse,
+up to −0.19 onset AUC); online bias correction, persistence blending and scaling (they
+compensate for the clip and stop helping once it is gone); horizon-consistent training
+rows (`asof`) with or without cross-site and raw-PN features (S5: no holdout gain, +0.39
+MAE); recency weights, shorter windows, monotone constraints, per-site feature subsets,
+hyperparameter nudges and feature-group drops (ties). The safe-baseline filter fix (hurts).
+
+**One model for the level forecast is not settled.** Pooled RF without a clip ties the
+unclipped per-site ensemble on validation (+0.011 to +0.028) and trails it on the holdout
+(−0.079 [−0.263, +0.055]). The parent's re-tune shows that per-site *weights* do not
+matter; whether per-site *models* matter cannot be resolved with these windows.
 
 ## 1. Audit: problems found
 
@@ -39,6 +88,11 @@ So the model learns `prev_obs_1 == last_observed` and short lags, and is then fe
 two-week-old lags that disagree with `last_observed` half the time. This is the same
 class of bug as `e14db2eb`, one step further along. The pooled spike classifier is hit
 hardest: its top features are `raw_obs_roll_max_4/8/12` (57% of gain).
+**Measured:** refreshing the forecast row's lags (`refresh`, `cls_refresh`) is an R² tie
+and a small, consistent onset gain (classifier ΔAUC +0.010 / +0.018 / +0.015 on validation
+/ 2015–2018 / holdout); fully horizon-consistent training rows (`asof`) are an R² tie with
+inconsistent onset effects (§3). The skew is real but the models lean on
+`last_observed_da_raw`, which is already fresh.
 The fix tested here (`asof`) builds every training row exactly like a forecast row:
 one row per real measurement on day *d*, with features as of *d* − 7 (same feature
 definitions; checked equal to the feature frame on 1,500 rows when the cutoff is
@@ -57,6 +111,8 @@ equal to the last measurement in training rows, is never dropped either. So the
 classifier that runs is a general spike classifier with persistence features, and the
 paper's statement that environmental features matter little "once persistence features
 are excluded by the safe-baseline filter" describes a model that is not the one evaluated.
+**Measured:** applying the filter as documented lowers onset AUC (−0.023 [−0.046, −0.002]
+validation, −0.004 on 2015–2018), so the fix is to describe what runs, not to change it.
 
 ### A3. Medium: the clip bound comes from targets that are mostly gap-filled
 
@@ -480,7 +536,6 @@ Pooled level models against the unclipped per-site ensemble: validation +0.011
   (one output). A calibrated probability for the alert threshold still needs the
   classifier, so two outputs from one feature pipeline is the practical design.
 
-<!-- POOLED -->
 
 ## 4. Shortlist and one-time holdout check
 
@@ -520,8 +575,35 @@ up in all three windows. S3 helps onset ranking but costs MAE and R² on the hol
 is not worth porting as is. S5 does not hold up: its validation onset gain shrinks to
 noise and it costs R² and MAE.
 
-<!-- HOLDOUT -->
 
 ## 5. Reproducing
 
-<!-- REPRO -->
+All experiment code is in `scripts/experiments/`; nothing in `forecasting/` or
+`config/` was changed.
+
+| Script | Purpose |
+|---|---|
+| `harness.py` | One-change variants of the engine's forecast (`--window val|dev|holdout`, `--variants a,b,a+b`, `--verify`) |
+| `pooled_study.py` | Declared pooled comparison; `--ablation F1:<family>` for the feature-group diagnostic |
+| `rescore.py` | Clip / blend / bias / threshold rescoring and paired comparisons → `results/experiments/summary_*.csv` |
+| `pooled_report.py` | Full pooled table, pairwise ΔAUC, declared selection rule, ablation table |
+| `holdout_check.py` | The one-time holdout check (S1–S5 only) |
+| `diagnostics.py` | §2 breakdowns of the committed predictions |
+| `doc_tables.py`, `report_tables.py` | Markdown tables for this page |
+| `run_experiments.sbatch`, `run_pooled.sbatch` | Hyak (`ckpt`) jobs; outputs on `/gscratch/scrubbed/ac283/experiments/` |
+
+```bash
+# Hyak, from a worktree of this branch (a window takes ~3 min per variant on 16 CPUs)
+WINDOWS=val VARIANTS=baseline,refresh EXP_OUT=/gscratch/scrubbed/$USER/experiments/raw \
+  sbatch --cpus-per-task=16 --mem=32G scripts/experiments/run_experiments.sbatch
+WINDOWS=val EXP_OUT=/gscratch/scrubbed/$USER/experiments/raw \
+  sbatch --cpus-per-task=16 --mem=32G scripts/experiments/run_pooled.sbatch
+# laptop: rescoring and reports from the copied raw directory
+python scripts/experiments/rescore.py --window val --raw-dir <raw>
+python scripts/experiments/pooled_report.py --window val --raw-dir <raw>
+python scripts/experiments/holdout_check.py --raw-dir <raw>
+```
+
+Hyak jobs: round 1 42629724–27, onset round 42630120–21, pooled 42630238–39 and 42632004,
+shortlist holdout 42631685, ablation 42632793–95.
+

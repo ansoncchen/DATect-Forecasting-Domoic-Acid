@@ -8,8 +8,8 @@ Sensitivity studies for the paper appendix (seed 42, 20% development sample).
 Each experiment runs in a fresh subprocess through paper_ablation_study.run_ablation,
 so every change travels as a DATECT_* environment variable that joblib workers
 also read. The results file is rewritten after each experiment and finished
-experiments are skipped on restart, so a preempted ckpt job resumes where it
-stopped.
+experiments of the same commit are skipped on restart, so a preempted ckpt job
+resumes where it stopped.
 
 Usage (from repository root; run on Hyak):
     python3 scripts/eval/paper_sensitivity_study.py --study features
@@ -21,6 +21,7 @@ Output: results/ablation/paper_{features,perturbations}_results.json
 import argparse
 import json
 import os
+import subprocess
 import tempfile
 
 from paper_ablation_study import run_ablation
@@ -94,8 +95,8 @@ def experiments(study: str, tmpdir: str) -> list:
     runs += [
         ("all_features", "All features at every site", {"DATECT_FEATURE_SUBSET_MODE": "all"}),
         ("minimal_features", "Minimal features (4)", {"DATECT_FEATURE_SUBSET_MODE": "minimal"}),
-        ("relax_clipping", "Clip at q = 0.99 everywhere", {"DATECT_CLIP_Q_OVERRIDE": "0.99"}),
-        ("no_clipping", "No prediction clipping", {"DATECT_CLIP_Q_OVERRIDE": "none"}),
+        ("clip_q95", "Clip at the 0.95 training quantile everywhere", {"DATECT_CLIP_Q_OVERRIDE": "0.95"}),
+        ("clip_q99", "Clip at the 0.99 training quantile everywhere", {"DATECT_CLIP_Q_OVERRIDE": "0.99"}),
         ("monotonic_off", "No monotonic constraints", {"DATECT_USE_MONOTONIC_CONSTRAINTS": "false"}),
     ]
     return runs
@@ -112,11 +113,14 @@ def main():
 
     out_path = os.path.join("results", "ablation", f"paper_{args.study}_results.json")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    saved = {"study": args.study, "seed": args.seed, "runs": {}}
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    saved = {"study": args.study, "seed": args.seed, "git_sha": sha, "runs": {}}
     if os.path.exists(out_path):
         with open(out_path) as f:
             previous = json.load(f)
-        if previous.get("seed") == args.seed:
+        # Resume only a run of this commit: in a fresh checkout the file holds the
+        # committed results of an older commit, which are not progress
+        if previous.get("seed") == args.seed and previous.get("git_sha") == sha:
             saved = previous
 
     with tempfile.TemporaryDirectory() as tmpdir:

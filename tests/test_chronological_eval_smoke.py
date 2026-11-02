@@ -54,10 +54,10 @@ def test_chronological_metrics_match_paper():
     ov = data["overall"]
     assert ov["n"] == 409
     assert ov["n_spikes"] == 84
-    assert ov["r2"][0] == pytest.approx(0.497, abs=5e-4)
-    assert ov["mae"][0] == pytest.approx(7.60, abs=5e-3)
-    assert ov["spike_recall"] == pytest.approx(0.833, abs=5e-4)
-    assert ov["spike_f2"] == pytest.approx(0.729, abs=5e-4)
+    assert ov["r2"][0] == pytest.approx(0.5162, abs=5e-4)
+    assert ov["mae"][0] == pytest.approx(7.441, abs=5e-3)
+    assert ov["spike_recall"] == pytest.approx(0.8452, abs=5e-4)
+    assert ov["spike_f2"] == pytest.approx(0.7365, abs=5e-4)
 
 
 @pytest.mark.skipif(

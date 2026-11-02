@@ -110,7 +110,7 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 | `DATECT_USE_MONOTONIC_CONSTRAINTS` | `false` drops XGBoost monotone constraints |
 | `DATECT_LAG_FEATURES` | lag list, e.g. `1,2`; `none` disables lag features |
 | `DATECT_EXTRA_DROP_FEATURES` | CSV of extra features to drop |
-| `DATECT_CLIP_Q_OVERRIDE` | `none` disables clipping; a number replaces every clip quantile |
+| `DATECT_CLIP_Q_OVERRIDE` | a number clips forecasts at that training quantile (default: no clip); `none` = default |
 | `DATECT_RF_PARAMS_JSON` / `DATECT_SPIKE_CLASSIFIER_JSON` | overlay RF / spike-classifier params |
 | `DATECT_HPARAM_OVERRIDE_JSON` | per-site overrides, incl. `feature_subset` |
 | `DATECT_FEATURE_SUBSET_MODE` | `all` removes per-site subsets; `minimal` forces a 4-feature subset |
@@ -131,8 +131,8 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
   (`multi_seed_baseline.py`, seeds 42-46 at 20%). Single-seed R² at N~1,000 is noise-dominated
   (std across seeds ~0.05 pooled, ~0.10 on the holdout rows); never report one seed alone.
 - **Never tune all dimensions at once.** A full Optuna search over 18 dims overfit badly
-  (validation +0.07 R², holdout -0.16). Tune only ensemble weights and clip parameters with
-  constrained chronological CV (`grid_search_weights_clip.py`), and verify on the holdout
+  (validation +0.07 R², holdout -0.16). Tune only ensemble weights with constrained
+  chronological CV (`grid_search_weights_clip.py`; forecasts are no longer clipped), and verify on the holdout
   (`validate_tuned_on_holdout.py`). Per-site fold CV with < 50 test points per fold is
   unreliable.
 - **Results files:** `results/chronological` (headline), `results/multi_seed`,
@@ -146,8 +146,9 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
   expires). Conda env `/gscratch/stf/ac283/envs/datect_scratch/bin/python` (Python 3.10).
 - Submit sbatch files from the repo root: they `cd "$SLURM_SUBMIT_DIR"` and accept
   `DATECT_PY`. Prefer `--partition=ckpt --account=stf-ckpt --requeue`; exclusive nodes can
-  wait hours on a busy queue, and results do not depend on core count. `logs/` must exist
-  (it is tracked) because Slurm opens `--output=logs/...` before the job runs.
+  wait hours on a busy queue, and results do not depend on core count. Keep requests small
+  (16 cores, 32 GB): evals peak under 6 GB RSS, and 32 cores / 96 GB sat pending for hours.
+  `logs/` must exist (it is tracked) because Slurm opens `--output=logs/...` before the job runs.
 - Run long jobs in a disposable worktree (`golden_baseline.sh <ref> <label> [sbatch]`) so
   relative outputs never dirty a checkout. Parallel jobs must not write the same file (four
   chains writing `final_output.parquet` once corrupted it).
@@ -190,8 +191,9 @@ feature because the score correlates with cloud cover (r ~ 0.4-0.5).
 ## Results
 
 All current numbers, their protocol and history are in `docs/CORRECTED_NUMBERS.md`.
-Headline (2022–2023 holdout, every real measurement, commit `2688fb8d`): R² 0.497
-[0.365, 0.601], MAE 7.60 ug/g, spike recall 0.833, F2 0.729, N = 409.
+Headline (2022–2023 holdout, every real measurement, commit `93518c7d`): R² 0.516
+[0.308, 0.654], MAE 7.44 ug/g, spike recall 0.845, F2 0.737, N = 409; the hybrid alert
+catches 19 of 27 onsets (last known value < 20, measurement ≥ 20).
 `tests/test_chronological_eval_smoke.py` pins it; change both together.
 
 ## Docs

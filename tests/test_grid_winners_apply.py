@@ -23,17 +23,19 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 # and were promoted to config/tuned_hyperparameters.json in commit cdc2a32c.
 # If a future grid search produces different winners, update both this
 # fixture AND the JSON in the same commit.
+# The clip quantiles the search chose were later removed (null everywhere):
+# they were quantiles of mostly gap-filled targets and cost R² in every window.
 EXPECTED_GRID_WINNERS = {
-    "Cannon Beach":  {"ensemble_weights": (0.00, 1.00, 0.00), "prediction_clip_q": 0.95, "prediction_clip_max": None},
-    "Clatsop Beach": {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": 0.95, "prediction_clip_max": None},
-    "Coos Bay":      {"ensemble_weights": (0.00, 1.00, 0.00), "prediction_clip_q": 0.95, "prediction_clip_max": None},
-    "Copalis":       {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": 0.97, "prediction_clip_max": None},
-    "Gold Beach":    {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": 0.97, "prediction_clip_max": None},
-    "Kalaloch":      {"ensemble_weights": (0.00, 1.00, 0.00), "prediction_clip_q": 0.95, "prediction_clip_max": None},
-    "Long Beach":    {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": 0.95, "prediction_clip_max": None},
-    "Newport":       {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": 0.95, "prediction_clip_max": None},
-    "Quinault":      {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": 0.95, "prediction_clip_max": None},
-    "Twin Harbors":  {"ensemble_weights": (0.25, 0.75, 0.00), "prediction_clip_q": 0.97, "prediction_clip_max": None},
+    "Cannon Beach":  {"ensemble_weights": (0.00, 1.00, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
+    "Clatsop Beach": {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
+    "Coos Bay":      {"ensemble_weights": (0.00, 1.00, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
+    "Copalis":       {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
+    "Gold Beach":    {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
+    "Kalaloch":      {"ensemble_weights": (0.00, 1.00, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
+    "Long Beach":    {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
+    "Newport":       {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
+    "Quinault":      {"ensemble_weights": (1.00, 0.00, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
+    "Twin Harbors":  {"ensemble_weights": (0.25, 0.75, 0.00), "prediction_clip_q": None, "prediction_clip_max": None},
 }
 
 

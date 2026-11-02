@@ -37,7 +37,7 @@ Every prediction trains fresh models; nothing is pre-trained.
 - **Anchor** = `test_date − FORECAST_HORIZON_DAYS` (7 days). The anchor is the knowledge cutoff.
 - **Training rows** (`get_site_training_frame`): the site's rows with `date <= anchor`. With `USE_INTERPOLATED_TRAINING` (default true, `DATECT_USE_INTERPOLATED_TRAINING`), every row with a non-null gap-filled `da` is kept; the target is the real `da_raw` where one exists, otherwise `da`. `_is_interpolated` marks the filled rows. At least `MIN_TRAINING_SAMPLES = 10` rows are required.
 - **Test row** (`get_site_anchor_row`): the processed row closest to, and not after, the anchor (at most 28 days earlier). Its `date` is reset to `test_date` so only the calendar features describe the target date.
-- **Persistence recompute** (`recompute_test_row_persistence_features`): `last_observed_da_raw` and `weeks_since_last_spike` are overwritten from **real** training measurements only. Rolling and lag features are taken from the anchor row as-is; they already use only earlier observations.
+- **Persistence recompute** (`recompute_test_row_persistence_features`): every persistence feature (`last_observed_da_raw`, `weeks_since_last_spike`, the observation-order lags and the rolling statistics) is rebuilt from real daily measurements dated on or before the anchor, exactly as `build_raw_feature_frame` builds the training row of the target's week: weekly maxima of the weeks before it, where the anchor's week holds only the days up to the anchor. The anchor row's own lags stop one to two weeks earlier, so they are not used (`tests/test_leakage_audit.py::TestTestRowMatchesTrainingRows`).
 - **Leak check** (`_verify_no_data_leakage`): raises if any training date is after the anchor or the test date is not after it.
 
 ## 4. Preprocessing (`create_transformer`)
@@ -55,24 +55,24 @@ All fitted models are seeded with `config.MODEL_SEED` (42).
 | Naive persistence | Last real DA at or before the anchor (`PERSISTENCE_MAX_DAYS = None`, no age cap). External baseline, never blended. If a site has no prior real measurement the point is dropped. |
 | Ridge (`linear`) | `LINEAR_REGRESSION_ALPHA` on the full preprocessed feature set; a competitor, not part of the ensemble. Logistic regression is its classification counterpart. |
 
-**Post-processing** (`_postprocess`, applied to XGB, RF and Ridge): floor at 0; cap at the `prediction_clip_q` quantile of the training `da_raw` (site value, else `PREDICTION_CLIP_Q = 0.99`); cap at `prediction_clip_max` if set (no site sets one today). `DATECT_CLIP_Q_OVERRIDE` replaces or (`none`) disables clipping for ablations.
+**Post-processing** (`_postprocess`, applied to XGB, RF and Ridge): floor at 0. There is no upper clip: `prediction_clip_q`, `prediction_clip_max` and `PREDICTION_CLIP_Q` are null. The clip they once set capped forecasts at a quantile of the training `da_raw`, which is mostly gap-filled (Coos Bay q95 81 µg/g vs 145 over real measurements), and removing it raised R² in every window (`docs/CORRECTED_NUMBERS.md`). `DATECT_CLIP_Q_OVERRIDE=<q>` restores a clip at quantile *q* for ablations.
 
 ## 6. Ensemble weights
 
-`ensemble = w_xgb · XGB + w_rf · RF` with per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` is always 0). They are winners of the constrained grid search in `scripts/eval/grid_search_weights_clip.py`. Current values:
+`ensemble = w_xgb · XGB + w_rf · RF` with per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` is always 0). They are winners of the constrained grid search in `scripts/eval/grid_search_weights_clip.py`, which chose them jointly with the clip quantiles that were later removed. Current values:
 
-| Site | w_xgb | w_rf | clip quantile |
-|---|---|---|---|
-| Copalis | 1.00 | 0.00 | 0.97 |
-| Quinault | 1.00 | 0.00 | 0.95 |
-| Long Beach | 1.00 | 0.00 | 0.95 |
-| Clatsop Beach | 1.00 | 0.00 | 0.95 |
-| Newport | 1.00 | 0.00 | 0.95 |
-| Gold Beach | 1.00 | 0.00 | 0.97 |
-| Twin Harbors | 0.25 | 0.75 | 0.97 |
-| Kalaloch | 0.00 | 1.00 | 0.95 |
-| Coos Bay | 0.00 | 1.00 | 0.95 |
-| Cannon Beach | 0.00 | 1.00 | 0.95 |
+| Site | w_xgb | w_rf |
+|---|---|---|
+| Copalis | 1.00 | 0.00 |
+| Quinault | 1.00 | 0.00 |
+| Long Beach | 1.00 | 0.00 |
+| Clatsop Beach | 1.00 | 0.00 |
+| Newport | 1.00 | 0.00 |
+| Gold Beach | 1.00 | 0.00 |
+| Twin Harbors | 0.25 | 0.75 |
+| Kalaloch | 0.00 | 1.00 |
+| Coos Bay | 0.00 | 1.00 |
+| Cannon Beach | 0.00 | 1.00 |
 
 The JSON is authoritative; re-check it after any re-tune. `RawForecastEngine._ensemble_weights()` serves these to evaluation, the spike alert and the API. With `USE_PER_SITE_MODELS=false` every site uses 0.5 / 0.5.
 
@@ -88,7 +88,7 @@ One convention everywhere (`forecasting/metrics.py`, `config.py`): **reaching a 
 
 - **Spike**: actual DA `>= SPIKE_THRESHOLD` (20 µg/g). `metrics.exceeds()` is always `>=`; `metrics.detection_scores()` computes recall, precision, F1, F2, FNR, FPR from confusion counts with scikit-learn's formulas.
 - **Regression alert**: ensemble prediction `>= SPIKE_REGRESSION_ALERT_THRESHOLD` (12 µg/g).
-- **Hybrid spike alert** (`spike_alert` in each result): pooled spike-classifier probability `>= SPIKE_ALERT_PROB_THRESHOLD` (0.1) **or** the regression alert. The classifier (`ClassificationAdapter.train_spike_binary_classifier`) is an XGBoost model trained per prediction on real measurements from all sites up to the anchor (at least 30 rows), restricted to rows whose previous observation was below 20 (it must learn onsets, not persistence), without `last_observed_da_raw` / `weeks_since_last_spike`, with balanced class weights and `SPIKE_CLASSIFIER_PARAMS`. If it cannot be trained, the regression rule alone decides.
+- **Hybrid spike alert** (`spike_alert` in each result): pooled spike-classifier probability `>= SPIKE_ALERT_PROB_THRESHOLD` (0.1) **or** the regression alert. The classifier (`ClassificationAdapter.train_spike_binary_classifier`) is an XGBoost model trained per prediction on real measurements from all sites up to the anchor (at least 30 rows), on every row, including weeks already above 20 (the lag and rolling DA features stay), without `last_observed_da_raw` / `weeks_since_last_spike`, with balanced class weights and `SPIKE_CLASSIFIER_PARAMS`. If it cannot be trained, the regression rule alone decides.
 - **Risk categories**: `DA_CATEGORY_BINS` with `pd.cut(..., right=False)`: Low `[0, 5)`, Moderate `[5, 20)`, High `[20, 40)`, Extreme `>= 40`. A value on a boundary belongs to the higher category. `ClassificationAdapter.threshold_classify` bins the regression prediction into `predicted_category`. Classification-task single forecasts also train a dedicated balanced XGBoost 4-class classifier (`predicted_category_ml` plus class probabilities); with `model_type="logistic"` a logistic regression supplies the category instead.
 
 ## 9. Single forecasts (dashboard and `/api/forecast*`)

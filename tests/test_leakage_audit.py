@@ -53,6 +53,8 @@ for _dep in _HEAVY_DEPS:
 # Now we can safely import from the forecasting package
 
 from forecasting.raw_data_forecaster import (  # noqa: E402
+    aggregate_raw_to_weekly,
+    build_raw_feature_frame,
     get_site_training_frame,
     recompute_test_row_persistence_features,
 )
@@ -197,6 +199,63 @@ class TestRecomputePersistenceFeatures:
         assert weeks == 999.0, (
             f"Expected sentinel 999.0 when no spikes in training, got {weeks}"
         )
+
+
+class TestTestRowMatchesTrainingRows:
+    """A forecast row's persistence features are built like a training row's."""
+
+    PERSISTENCE = ("last_observed_da_raw", "weeks_since_last_spike", "da_raw_prev_obs", "raw_obs_roll")
+
+    @staticmethod
+    def _frame():
+        rng = np.random.default_rng(1)
+        weeks = pd.date_range("2010-01-04", periods=40, freq="7D")  # Mondays
+        processed = pd.DataFrame({"date": weeks, "site": "Newport", "sst": rng.normal(12, 1, 40)})
+        # Irregular daily samples: gaps of several weeks, some weeks sampled twice
+        days = sorted(rng.choice(np.arange(0, 7 * 40), size=30, replace=False))
+        raw = pd.DataFrame({
+            "date": weeks[0] + pd.to_timedelta(days, unit="D"),
+            "site": "Newport",
+            "da_raw": rng.choice([0.5, 3.0, 8.0, 25.0, 60.0], size=30),
+        })
+        frame = build_raw_feature_frame(processed, aggregate_raw_to_weekly(raw))
+        return frame, raw
+
+    def test_rebuilt_features_equal_the_training_row(self):
+        """Rebuilt from the measurements before week T, a test row for a target in
+        week T equals the training row labelled T (lags, rolling stats, recency)."""
+        frame, raw = self._frame()
+        cols = [c for c in frame.columns if c.startswith(self.PERSISTENCE)]
+        assert len(cols) >= 10
+        for i, row in frame.iterrows():
+            week = row["date"]
+            obs = raw[raw["date"] < week][["date", "da_raw"]]
+            if obs.empty:
+                continue
+            test_row = frame.loc[[i]].copy()
+            test_row[cols] = -1.0  # must all be overwritten
+            test_row["date"] = week + pd.Timedelta(days=3)
+            out = recompute_test_row_persistence_features(test_row, obs, 20.0)
+            for c in cols:
+                expected, actual = row[c], out[c].iloc[0]
+                if pd.isna(expected):
+                    assert pd.isna(actual), f"{week.date()} {c}: expected NaN, got {actual}"
+                else:
+                    assert actual == pytest.approx(expected), f"{week.date()} {c}"
+
+    def test_anchor_week_counts_only_days_up_to_the_anchor(self):
+        """The anchor's own week contributes its samples dated on or before the anchor."""
+        frame, _ = self._frame()
+        test_row = frame.iloc[[-1]].copy()
+        test_row["date"] = pd.Timestamp("2010-02-10")  # Wednesday; anchor = 2010-02-03
+        obs = pd.DataFrame({
+            "date": pd.to_datetime(["2010-01-20", "2010-02-01", "2010-02-03"]),
+            "da_raw": [4.0, 30.0, 6.0],
+        })
+        out = recompute_test_row_persistence_features(test_row, obs, 20.0)
+        assert out["last_observed_da_raw"].iloc[0] == 30.0  # weekly max of Feb 1-3
+        assert out["da_raw_prev_obs_2"].iloc[0] == 4.0
+        assert out["weeks_since_last_spike"].iloc[0] == 1.0  # week of Feb 1 -> week of Feb 8
 
 
 # ---------------------------------------------------------------------------

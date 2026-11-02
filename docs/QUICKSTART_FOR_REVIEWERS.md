@@ -31,9 +31,8 @@ Run everything from the repository root. Locally, use a virtual environment with
 | How each tuned value was chosen | `config/tuned_hyperparameters.json` (`provenance`) and `results/tuning_provenance/` |
 | OAD vs ESP mooring correlations | [`../oad/OAD_STORYLINE.md`](../oad/OAD_STORYLINE.md), Chapter 9 |
 
-The headline, multi-seed, paper-sample and spike results come from the re-run
-after the leakage fixes at commit `2688fb8d`; the ablation and sensitivity studies
-from `a2de8dac`, before those fixes (golden baseline below). `results/holdout_validation/` and
+Every result, including the ablation and sensitivity studies, comes from the re-run
+at commit `93518c7d`, after the leakage fixes and the clip removal (golden baseline below). `results/holdout_validation/` and
 `results/tuning_provenance/` predate the cleanup: they document how the per-site
 configuration was chosen and are not re-run.
 

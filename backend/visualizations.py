@@ -15,6 +15,10 @@ import plotly.io as pio
 warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
 
+# Subtitle for charts drawn from final_output.parquet's weekly series, whose gaps
+# between measurements are filled by decay (not measurements).
+GAP_FILLED_NOTE = "Weekly maximum; gaps filled by decay"
+
 
 def generate_band_plot(band, forecast, xgb_prediction=None, rf_prediction=None, threshold=20.0):
     """Forecast with its conformal error band (docs/ERROR_BAND.md) and the spike line.
@@ -373,7 +377,7 @@ def generate_time_series_comparison(data, site=None):
     plot_data = {
         "data": traces,
         "layout": {
-            "title": title,
+            "title": {"text": f"{title}<br><sub>{GAP_FILLED_NOTE}</sub>"},
             "xaxis": {"title": "Date"},
             "yaxis": {
                 "title": "Normalized Value (0-1)",
@@ -464,7 +468,7 @@ def generate_waterfall_plot(data):
         "data": traces,
         "layout": {
             "title": {
-                "text": "Absolute DA Levels Variation by Site/Latitude Over Time<br><sub>Reference bars show DA=20, 50, 100 μg/g</sub>",
+                "text": f"Absolute DA Levels Variation by Site/Latitude Over Time<br><sub>Reference bars show DA=20, 50, 100 µg/g. {GAP_FILLED_NOTE}</sub>",
                 "font": {"size": 18}
             },
             "xaxis": {"title": "Date"},

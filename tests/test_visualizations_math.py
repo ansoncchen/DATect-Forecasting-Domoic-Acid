@@ -109,3 +109,18 @@ def test_spectral_analysis_short():
 
     plots = generate_spectral_analysis(df, site="Copalis")
     assert plots == []  # returns empty list for len < 20
+
+
+def test_weekly_figures_are_labelled_gap_filled():
+    """Charts drawn from the gap-filled weekly series say so in their title."""
+    df = pd.DataFrame({
+        "site": ["Copalis", "Kalaloch"] * 3,
+        "date": pd.to_datetime(["2023-01-01", "2023-01-01", "2023-01-08", "2023-01-08", "2023-01-15", "2023-01-15"]),
+        "da": [2.0, 5.0, 8.0, 12.0, 3.0, 4.0],
+        "pn": [100.0, 200.0, 300.0, 400.0, 150.0, 250.0],
+        "lat": [47.1, 47.5] * 3,
+    })
+    comparison = generate_time_series_comparison(df, site="Copalis")["layout"]["title"]
+    waterfall = generate_waterfall_plot(df)["layout"]["title"]
+    for title in (comparison, waterfall):
+        assert "gaps filled" in (title["text"] if isinstance(title, dict) else title)

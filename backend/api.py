@@ -288,47 +288,24 @@ def get_historical_data(
     end_date: Optional[date] = None,
     limit: int = 1000
 ):
-    """Get historical DA measurements for a site."""
-    try:
-        # Load data
-        data = get_data_copy()
-        data['date'] = pd.to_datetime(data['date'])
-        actual_site = resolve_site(site)
-        
-        # Filter by site
-        site_data = data[data['site'] == actual_site].copy()
-        
-        if site_data.empty:
-            raise HTTPException(status_code=404, detail=f"Site '{site}' not found")
-        
-        # Apply date filters
-        if start_date:
-            site_data = site_data[site_data['date'] >= pd.to_datetime(start_date)]
-        if end_date:
-            site_data = site_data[site_data['date'] <= pd.to_datetime(end_date)]
-        
-        # Limit results and sort by date
-        site_data = site_data.sort_values('date').tail(limit)
-        
-        # Build canonical-only payload
-        canonical = pd.DataFrame()
-        canonical['date'] = site_data['date'].dt.strftime('%Y-%m-%d')
-        canonical['actual_da'] = site_data['da']
-        if 'da-category' in site_data.columns:
-            canonical['actual_category'] = site_data['da-category']
+    """Real DA measurements at a site, one per site-day at the max: not the
+    gap-filled weekly series the models train on."""
+    actual_site = _known_site(site)
+    m = _raw_measurements()
+    rows = m[m["site"] == actual_site]
+    if start_date:
+        rows = rows[rows["date"] >= pd.Timestamp(start_date)]
+    if end_date:
+        rows = rows[rows["date"] <= pd.Timestamp(end_date)]
+    rows = rows.sort_values("date").tail(limit)
+    return {
+        "site": actual_site,
+        "series": "raw measurements, one per site-day at the max",
+        "count": len(rows),
+        "rows": [{"date": d.date().isoformat(), "value": float(v)} for d, v in zip(rows["date"], rows["da_raw"])],
+    }
 
-        return {
-            "site": site,
-            "count": len(canonical),
-            "data": canonical.to_dict('records')
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load historical data: {str(e)}")
 
-@lru_cache(maxsize=1)
 def _load_metrics_summary() -> dict:
     """Headline evaluation metrics, read from the committed results in results/.
 

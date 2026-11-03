@@ -151,8 +151,8 @@ class TestSiteParameterized:
             response = client.get(f"/api/historical/{site_slug}")
             assert response.status_code == 200
             data = response.json()
-            assert "data" in data
-            assert data["site"] == site_slug
+            assert data["rows"] and data["series"].startswith("raw measurements")
+            assert data["site"] == site
 
     # 4. End-to-End Pipeline Combinatorics (10 sites × 2 dates × 2 tasks × 5 models = 200 tests!)
     @pytest.mark.parametrize("site", SITES)

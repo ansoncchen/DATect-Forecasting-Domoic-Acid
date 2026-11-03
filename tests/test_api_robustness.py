@@ -161,3 +161,16 @@ def test_region_rollup_puts_clatsop_and_cannon_in_oregon():
             for s in ("Clatsop Beach", "Cannon Beach") for i in range(5)]
     regions = _compute_summary(rows, task="regression")["per_region"]
     assert regions["OR"]["n_sites"] == 2 and "WA" not in regions
+
+
+def test_historical_returns_raw_measurements():
+    """/api/historical serves the real measurements (one per site-day at the max), not the gap-filled weekly series."""
+    from forecasting.raw_data_forecaster import load_raw_da_measurements
+    m = load_raw_da_measurements()
+    expected = m[m["site"] == "Newport"].sort_values("date")
+    with TestClient(app) as client:
+        body = client.get("/api/historical/newport", params={"limit": 100000}).json()
+        assert client.get("/api/historical/atlantis").status_code == 404
+    assert body["site"] == "Newport" and "raw measurements" in body["series"]
+    assert body["rows"] == [{"date": d.date().isoformat(), "value": float(v)}
+                            for d, v in zip(expected["date"], expected["da_raw"])]

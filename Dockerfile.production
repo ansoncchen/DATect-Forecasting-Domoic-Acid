@@ -61,6 +61,7 @@ COPY config.py .
 # Evaluation results behind /api/metrics/summary (headline metrics shown on the dashboard)
 COPY results/chronological ./results/chronological
 COPY results/multi_seed ./results/multi_seed
+COPY results/conformal_band ./results/conformal_band
 
 # Precomputed store: Delta tables built on Spark (datect_spark/store.sbatch), served
 # when their config hash matches this image's; anything else is computed on demand

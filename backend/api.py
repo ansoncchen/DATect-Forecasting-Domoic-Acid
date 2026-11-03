@@ -21,6 +21,8 @@ from pydantic import BaseModel
 from forecasting import ForecastEngine, ModelFactory
 import config
 from backend.band import forecast_band
+from forecasting.metrics import alert_parts
+from forecasting.raw_data_forecaster import load_raw_da_measurements
 from backend.visualizations import (
     generate_correlation_heatmap,
     generate_sensitivity_analysis,
@@ -669,97 +671,94 @@ def get_site_map():
 
 
 
+CATEGORY_LABELS = ['Low (<5)', 'Moderate (5–<20)', 'High (20–<40)', 'Extreme (≥40)']
+
+
+@lru_cache(maxsize=1)
+def _raw_measurements() -> pd.DataFrame:
+    """Real DA measurements, one row per site-day at the max (``load_raw_da_measurements``)."""
+    return load_raw_da_measurements()
+
+
+def _recent_measurements(site: str, anchor_date, n: int = 6) -> list:
+    """The last ``n`` real measurements at ``site`` dated on or before the anchor, oldest first."""
+    m = _raw_measurements()
+    seen = m[(m["site"] == site) & (m["date"] <= pd.Timestamp(anchor_date))].sort_values("date").tail(n)
+    return [{"date": d.date().isoformat(), "value": float(v)} for d, v in zip(seen["date"], seen["da_raw"])]
+
+
+def _forecast_payload(site: str, forecast_date: pd.Timestamp, model_type: str) -> dict:
+    """One week's regression forecast with its conformal band, the alert's parts and
+    the measurements the forecast could see (dashboard design, section 6)."""
+    result, version = _single_forecast(site, forecast_date, "regression", model_type)
+    source = {"source": "precomputed" if version is not None else "computed", "model_version": version}
+    if result is None or "predicted_da" not in result:
+        anchor = forecast_date - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
+        return {"success": False, "forecast_date": forecast_date.strftime('%Y-%m-%d'), "site": site,
+                "error": f"No forecast: too little training data before {anchor.date().isoformat()}",
+                **source}
+
+    predicted = float(result["predicted_da"])
+    anchor = pd.Timestamp(result["anchor_date"])
+    recent = _recent_measurements(site, anchor)
+    last = recent[-1] if recent else None
+    band_info = forecast_band(predicted, anchor)
+    alert = alert_parts(
+        result.get("spike_probability"), float(result.get("ensemble_prediction", predicted)),
+        last["value"] if last else None,
+        prob_cutoff=config.SPIKE_ALERT_PROB_THRESHOLD,
+        regression_cutoff=config.SPIKE_REGRESSION_ALERT_THRESHOLD,
+        warning_cutoff=config.ALERT_WARNING_PROB_CUTOFF, threshold=config.SPIKE_THRESHOLD,
+    )
+
+    graphs = {}
+    if band_info is not None:
+        xgb_pred, rf_pred = result.get("xgb_prediction"), result.get("rf_prediction")
+        graphs["level_range"] = {
+            "type": "gradient_uncertainty",
+            "gradient_plot": generate_band_plot(
+                band_info, predicted,
+                xgb_prediction=float(xgb_pred) if xgb_pred is not None else None,
+                rf_prediction=float(rf_pred) if rf_pred is not None else None,
+                threshold=config.SPIKE_THRESHOLD),
+            "band": band_info,
+        }
+        graphs["category_range"] = {
+            "type": "category_range", "source": "range",
+            "predicted_category": int(np.searchsorted(config.DA_CATEGORY_BINS[1:-1], predicted, side="right")),
+            "class_probabilities": band_info["category_probabilities"],
+            "category_labels": CATEGORY_LABELS,
+        }
+
+    ensemble = {k: result[k] for k in ("naive_prediction", "xgb_prediction", "rf_prediction",
+                                       "ensemble_prediction", "ensemble_weights") if k in result}
+    return {
+        "success": True,
+        "forecast_date": forecast_date.strftime('%Y-%m-%d'),
+        "site": site,
+        "anchor_date": anchor.date().isoformat(),
+        "regression": result,
+        "ensemble": ensemble,
+        "band": band_info,
+        "band_p_exceed": band_info["p_exceed"] if band_info else None,
+        "category_probabilities": band_info["category_probabilities"] if band_info else None,
+        "alert": alert,
+        "last_measurement": last,
+        "recent_measurements": recent,
+        "graphs": graphs,
+        **source,
+    }
+
+
 @app.post("/api/forecast/enhanced")
 def generate_enhanced_forecast(request: ForecastRequest):
-    """Generate enhanced forecast with both regression and classification for frontend."""
+    """The dashboard's forecast: regression only (categories come from the band)."""
     try:
-        actual_site = resolve_site(request.site)
-        
-        forecast_date = pd.to_datetime(request.date)
-        
-        # Generate regression and classification forecasts
+        site = resolve_site(request.site)
         model_type = getattr(request, 'model', None) or config.FORECAST_MODEL or "ensemble"
-        if model_type == "linear":
-            classification_model = "logistic"
-        else:
-            classification_model = model_type
-
-        regression_result, regression_version = _single_forecast(
-            actual_site, forecast_date, "regression", model_type
-        )
-        classification_result, classification_version = _single_forecast(
-            actual_site, forecast_date, "classification", classification_model
-        )
-        served = regression_version is not None and classification_version is not None
-        
-        # Create response structure expected by frontend
-        response_data = {
-            "success": True,
-            "forecast_date": forecast_date.strftime('%Y-%m-%d'),
-            "site": actual_site,
-            "regression": clean_for_json(regression_result),
-            "classification": clean_for_json(classification_result),
-            "graphs": {},
-            "source": "precomputed" if served else "computed",
-            "model_version": regression_version if served else None,
-        }
-        
-        # Forecast chart: the conformal error band (backend/band.py)
-        if regression_result and 'predicted_da' in regression_result:
-            predicted_da = float(regression_result['predicted_da'])
-            band_info = forecast_band(predicted_da, regression_result.get('anchor_date'))
-            if band_info is not None:
-                xgb_pred = regression_result.get('xgb_prediction')
-                rf_pred = regression_result.get('rf_prediction')
-                response_data["graphs"]["level_range"] = {
-                    "type": "gradient_uncertainty",
-                    "gradient_plot": generate_band_plot(
-                        band_info, predicted_da,
-                        xgb_prediction=float(xgb_pred) if xgb_pred is not None else None,
-                        rf_prediction=float(rf_pred) if rf_pred is not None else None,
-                    ),
-                    "band": band_info,
-                }
-
-        # Add category_range graph for classification
-        if classification_result and 'predicted_category' in classification_result:
-            class_probs = classification_result.get('class_probabilities', [0.25, 0.25, 0.25, 0.25])
-            if isinstance(class_probs, np.ndarray):
-                class_probs = class_probs.tolist()
-            
-            response_data["graphs"]["category_range"] = {
-                "predicted_category": int(classification_result['predicted_category']),
-                "class_probabilities": class_probs,
-                "category_labels": ['Low (<5)', 'Moderate (5–<20)', 'High (20–<40)', 'Extreme (≥40)'],
-                "type": "category_range"
-            }
-
-        # Add ensemble breakdown if available
-        if regression_result:
-            ensemble_data = {}
-            if 'naive_prediction' in regression_result:
-                ensemble_data['naive_prediction'] = clean_for_json(regression_result['naive_prediction'])
-            if 'xgb_prediction' in regression_result:
-                ensemble_data['xgb_prediction'] = clean_for_json(regression_result['xgb_prediction'])
-            if 'rf_prediction' in regression_result:
-                ensemble_data['rf_prediction'] = clean_for_json(regression_result['rf_prediction'])
-            if 'ensemble_prediction' in regression_result:
-                ensemble_data['ensemble_prediction'] = clean_for_json(regression_result['ensemble_prediction'])
-            if 'ensemble_weights' in regression_result:
-                ensemble_data['ensemble_weights'] = regression_result['ensemble_weights']
-            if ensemble_data:
-                response_data['ensemble'] = ensemble_data
-
-        return response_data
-        
+        return clean_for_json(_forecast_payload(site, pd.to_datetime(request.date), model_type))
     except Exception as e:
-        return {
-            "success": False,
-            "forecast_date": request.date,
-            "site": request.site,
-            "error": str(e)
-        }
-
+        return {"success": False, "forecast_date": str(request.date), "site": request.site, "error": str(e)}
 
 
 @app.post("/api/retrospective")

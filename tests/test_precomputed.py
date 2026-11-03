@@ -196,12 +196,12 @@ def test_enhanced_endpoint_serves_hits_and_computes_misses(store, monkeypatch):
 
         monkeypatch.delenv(pf.STORE_ENV)
         computed = client.post("/api/forecast/enhanced", json=body).json()
-        assert len(engine.calls) == 2 and computed["source"] == "computed"
+        assert len(engine.calls) == 1 and computed["source"] == "computed"
         assert computed["model_version"] is None
 
         monkeypatch.setenv(pf.STORE_ENV, store)
         missed = client.post("/api/forecast/enhanced", json={**body, "model": "naive"}).json()
-        assert missed["source"] == "computed" and len(engine.calls) == 4
+        assert missed["source"] == "computed" and len(engine.calls) == 2
 
     # Same forecast either way: the responses differ only in where they came from
     strip = ("source", "model_version")

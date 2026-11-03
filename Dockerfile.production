@@ -4,7 +4,8 @@
 # ============================================
 # Stage 1: Python dependencies builder
 # ============================================
-FROM python:3.11-slim AS python-builder
+# Python 3.10: the Hyak Spark env that builds the precomputed store (config hash includes it)
+FROM python:3.10-slim AS python-builder
 
 WORKDIR /build
 
@@ -34,7 +35,7 @@ RUN NODE_OPTIONS="--max_old_space_size=4096" npm run build
 # ============================================
 # Stage 3: Production image
 # ============================================
-FROM python:3.11-slim AS production
+FROM python:3.10-slim AS production
 
 LABEL maintainer="DATect Team"
 LABEL description="DATect - Domoic Acid Forecasting System (Optimized Production)"
@@ -48,7 +49,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean
 
 # Copy Python packages from builder
-COPY --from=python-builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=python-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=python-builder /usr/local/bin /usr/local/bin
 
 # Copy application code
@@ -68,10 +69,14 @@ COPY store ./store
 # Copy built frontend
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 
-# Verify setup
+# Verify setup. A deployed store must be complete and current for this image (same
+# code, config, data and library versions), or every retrospective would be recomputed
+# on Cloud Run, which takes minutes; REQUIRE_CURRENT_STORE=0 only for CI's stub store.
+ARG REQUIRE_CURRENT_STORE=1
 RUN ls -la ./store/ && \
     ls -la ./frontend/dist/ && \
     python -c "import fastapi, granian, deltalake, config; print('Dependencies and config OK')" && \
+    if [ "$REQUIRE_CURRENT_STORE" = "1" ]; then python -m backend.precomputed check ./store; fi && \
     echo "✅ Build verification complete"
 
 # Create non-root user for security

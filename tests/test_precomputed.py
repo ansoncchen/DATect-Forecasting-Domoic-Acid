@@ -293,4 +293,63 @@ def test_unreadable_store_falls_back_without_retrying(tmp_path, monkeypatch):
     _reset(monkeypatch)
     assert pf.forecast("Newport", "2019-06-03", "regression", "ensemble") is None
     assert pf._loaded_root == str(tmp_path)  # remembered: no reload per request
-    assert pf.status()["error"]
+    assert "error" in pf.status()["tables"]["forecasts"]
+
+
+def test_check_requires_every_table_current(store, tmp_path):
+    # The image build runs this: a deployed store must be complete and current,
+    # or the API would recompute retrospectives (minutes each) on Cloud Run
+    problems = pf.check_store(store)
+    assert any("forecasts" in p and "stale" in p for p in problems)  # the fixture's stale row
+    assert pf.check_store(str(tmp_path / "nowhere")) == [f"{tmp_path / 'nowhere'}: no such directory"]
+    deltalake = pytest.importorskip("deltalake")
+    good = tmp_path / "good"
+    current = pf.config_hash()
+    for name, row in {"forecasts": {"site": "Newport", "forecast_date": datetime.date(2019, 6, 3),
+                                    "task": "regression", "model_type": "ensemble",
+                                    "result_json": pf.encode(None), "model_version": "v"},
+                      "retrospective": {"task": "regression", "model_type": "ensemble", "records_json": "[]"},
+                      "spectral": {"site": pf.ALL_SITES, "plots_json": "[]"},
+                      "correlation": {"site": "Newport", "plot_json": "{}"}}.items():
+        deltalake.write_deltalake(str(good / name), pd.DataFrame([{**row, "config_hash": current}]))
+    assert pf.check_store(str(good)) == []
+    assert pf.check_store(str(good), require=("forecasts", "nope")) == ["nope: missing"]
+
+
+def test_one_bad_table_does_not_disable_the_others(store, monkeypatch):
+    import shutil
+
+    shutil.rmtree(f"{store}/spectral/_delta_log")
+    import os
+    os.makedirs(f"{store}/spectral/_delta_log")
+    with open(f"{store}/spectral/_delta_log/00000000000000000000.json", "w") as f:
+        f.write("not json")
+    _reset(monkeypatch)
+    assert pf.correlation("Newport") == {"data": [{"z": [[1.0]]}]}
+    assert pf.spectral(None) is None
+    assert "error" in pf.status()["tables"]["spectral"]
+
+
+def test_config_hash_covers_row_serialization_and_python(monkeypatch, tmp_path):
+    import shutil
+
+    root = tmp_path / "repo"
+    for rel in ("forecasting", "config", "data/processed", "data/raw/da-input", "backend"):
+        (root / rel).mkdir(parents=True)
+    for f in pf.glob.glob(f"{pf.REPO_ROOT}/forecasting/*.py"):
+        shutil.copy(f, root / "forecasting")
+    for rel in ("config.py", "config/tuned_hyperparameters.json", "data/processed/final_output.parquet",
+                "backend/visualizations.py", "backend/records.py"):
+        shutil.copy(f"{pf.REPO_ROOT}/{rel}", root / rel)
+    first = pf.config_hash(str(root))
+    (root / "backend" / "records.py").write_text("# a different record format\n")
+    assert pf.config_hash(str(root)) != first
+    before = pf.config_hash()
+    monkeypatch.setattr(pf.platform, "python_version_tuple", lambda: ("3", "99", "0"))
+    assert pf.config_hash() != before
+
+
+def test_status_says_when_the_directory_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv(pf.STORE_ENV, str(tmp_path / "typo"))
+    _reset(monkeypatch)
+    assert pf.status()["exists"] is False

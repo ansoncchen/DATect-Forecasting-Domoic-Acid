@@ -79,7 +79,7 @@ It uses the fastest tools it finds: `uv` or `pip` for Python, `bun` or `npm` for
 
 ### Precomputed store (optional)
 
-Forecasts, retrospective views and spectral analyses are slow to compute on a laptop. The precomputed store (Delta tables) is built on Hyak with Spark, never locally, and `run_datect.py` serves it when `./store` exists (see [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)):
+Forecasts, retrospective views and spectral analyses are slow to compute on a laptop. The precomputed store (Delta tables) is built on Hyak with Spark, never locally, and the deployed image serves it; `run_datect.py` points the API at `./store` when it exists (see [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)). A store's rows are served only where the config hash matches: the same code, data, model-library versions (`constraints.txt`), Python version (3.10) and CPU architecture (x86_64) as the Hyak env that built it. On a laptop (arm64, other versions) every row shows as stale on `/health` and requests are computed; check a store against the image instead (`docker build --platform linux/amd64 ...`, whose build fails unless the store is complete and current).
 
 ```bash
 # On Hyak, at the commit you run (rows from other code, config or data are not served):
@@ -110,7 +110,7 @@ python run_datect.py
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `ALLOWED_ORIGINS` | unset | Comma-separated CORS origins; unset allows only localhost dev servers, so set it in production |
-| `DATECT_PRECOMPUTED_DIR` | `./store` if it exists | Directory of the precomputed store's Delta tables (forecasts, retrospective, spectral, correlation; built on Spark). Rows whose config hash matches are served; everything else is computed on demand |
+| `DATECT_PRECOMPUTED_DIR` | unset (`run_datect.py` sets `./store` if it exists) | Directory of the precomputed store's Delta tables (forecasts, retrospective, spectral, correlation; built on Spark). Rows whose config hash matches are served; everything else is computed on demand |
 | `DATECT_PER_ANCHOR_TUNING` | `false` | `true` runs a per-forecast XGBoost grid search (1–3 min per forecast). Off by default, which matches how every reported number was produced |
 
 Further `DATECT_*` variables for experiments (feature drops, per-site overrides, ablations) are documented in [CLAUDE.md](CLAUDE.md).

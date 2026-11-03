@@ -26,7 +26,8 @@ jobs:
         run: mkdir -p store && touch store/.keep
 
       - name: Build image
-        run: docker build -f Dockerfile.production -t datect:ci .
+        # The stub store is empty: skip the build's check that the store is current
+        run: docker build -f Dockerfile.production --build-arg REQUIRE_CURRENT_STORE=0 -t datect:ci .
 
       - name: Start container and check /health
         run: |
@@ -37,13 +38,23 @@ jobs:
           done
           echo "API did not become healthy"; docker logs datect; exit 1
 
-      - name: Config hash of the image
-        # A store built on Hyak at this commit is served only if its config_hash
-        # (results/store/precompute_*.json) equals this one.
-        run: docker run --rm datect:ci python -m backend.precomputed hash
+      - name: Config hash of the image vs the Hyak Spark env
+        # A store built on Hyak is served only if its rows' config_hash equals the
+        # image's. results/store/hyak_config_hash.txt records the Hyak env's hash at
+        # the commit that wrote it; a later change to hashed inputs makes it stale.
+        run: |
+          image=$(docker run --rm datect:ci python -m backend.precomputed hash)
+          echo "image: $image"
+          [ -f results/store/hyak_config_hash.txt ] && cat results/store/hyak_config_hash.txt
+          if grep -q "$image" results/store/hyak_config_hash.txt 2>/dev/null; then
+            echo "MATCH: a store built on Hyak at that commit is served by this image"
+          else
+            echo "no match: a hashed input differs from the recorded Hyak hash (expected after code or data changes)"
+          fi
 
       - name: Serve a precomputed forecast inside the container
         run: |
+          trap 'docker logs served || true' ERR
           mkdir -p /tmp/store && chmod 777 /tmp/store
           docker run --rm -v /tmp/store:/tmp/store datect:ci \
             python -m backend.precomputed sample /tmp/store --site Newport --date 2019-06-03

@@ -231,8 +231,18 @@ def _parity(preds: pd.DataFrame, window: str) -> dict:
     ok["rebuilt"] = _ensemble(ok, _current_weights())
     m = ok.merge(ref[["site", "date", "predicted_da"]], on=["site", "date"], how="outer", indicator=True)
     both = m[m["_merge"] == "both"]
+    diff = (both["rebuilt"] - both["predicted_da"]).abs()
+    # pandas' max skips NaN: a NaN on either side must fail parity, not vanish
+    max_diff = float(diff.max()) if diff.notna().all() else float("nan")
     return {"parity_rows_matched": len(both), "parity_rows_unmatched": int((m["_merge"] != "both").sum()),
-            "parity_max_abs_diff": float(np.abs(both["rebuilt"] - both["predicted_da"]).max())}
+            "parity_max_abs_diff": max_diff}
+
+
+def _nan_to_none(obj):
+    """Strict JSON: an undefined R2 (a site with no variance) is null, not NaN."""
+    if isinstance(obj, dict):
+        return {k: _nan_to_none(v) for k, v in obj.items()}
+    return None if isinstance(obj, float) and obj != obj else obj
 
 
 def _r2(y: np.ndarray, p: np.ndarray) -> float:
@@ -334,7 +344,7 @@ def holdout() -> None:
         for site, g in preds.groupby("site"):
             result["per_site"].setdefault(site, {})[name] = _r2(g["actual_da"].to_numpy(), p.loc[g.index].to_numpy())
     with open(os.path.join(OUT_DIR, "holdout_check.json"), "w") as f:
-        json.dump(result, f, indent=2)
+        json.dump(_nan_to_none(result), f, indent=2, allow_nan=False)
 
     mlflow = get_mlflow(EXPERIMENT)
     with mlflow.start_run(run_name="holdout-check"):

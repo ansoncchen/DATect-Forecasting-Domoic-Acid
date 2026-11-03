@@ -54,11 +54,15 @@ for step in ${STEPS:-forecasts parity retrospective visuals save}; do
                        ENABLE_PRECOMPUTED_CACHE=true CACHE_DIR=$JOB_DIR/old/cache \
                            $PY -u scripts/eval/endpoint_bodies.py --repo "$JOB_DIR/old" \
                            --out results/store/bodies_before.json ;;
-        save)          dest=${DATECT_STORE_OUT:-$HOME/datect-store}/$SHA
+        save)          # A smoke or limited run is not a store: save it apart from the real one
+                       dest=${DATECT_STORE_OUT:-$HOME/datect-store}/$SHA${SMOKE_SAMPLES:+-smoke}${LIMIT:+-smoke}
                        mkdir -p "$dest"
                        for t in forecasts retrospective spectral correlation; do
-                           [ -d "$DATECT_LAKE/gold/$t" ] && cp -r "$DATECT_LAKE/gold/$t" "$dest/" && echo "saved $t -> $dest"
-                       done; du -sh "$dest" ;;
+                           if [ -d "$DATECT_LAKE/gold/$t" ]; then
+                               rm -rf "$dest/$t"  # replace, never merge into an older copy
+                               cp -r "$DATECT_LAKE/gold/$t" "$dest/" && echo "saved $t -> $dest"
+                           fi
+                       done; du -sh --apparent-size "$dest" ;;
         *) echo "unknown step $step"; exit 1 ;;
     esac
 done

@@ -96,13 +96,15 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
 - **The precomputed store** (`backend/precomputed.py`, `DATECT_PRECOMPUTED_DIR`): four Delta tables
   (forecasts, retrospective, spectral, correlation) built on Spark by `datect_spark/store.sbatch`.
   A row is served only if its `config_hash` matches the running API's: a hash of
-  `forecasting/*.py`, `config.py`, `backend/visualizations.py`, the tuned JSON,
+  `forecasting/*.py`, `config.py`, `backend/visualizations.py`, `backend/records.py` (how stored
+  rows are written: change the row format there, never in `api.py`), the tuned JSON,
   `final_output.parquet`, the raw DA CSVs, the `DATECT_*` variables the engine reads (except
   `DATECT_PARALLEL_BACKEND` and `DATECT_TEMPORAL_HOLDOUT_CUTOFF`; plus the contents of `*_JSON`
-  override files), the numpy/pandas/sklearn/xgboost/scipy versions and the CPU architecture. Any
-  change there makes the store stale (misses, computed on demand; `/health` reports it) until it
-  is rebuilt. The image pins those libraries to the Hyak Spark env (`constraints.txt`); change
-  both together. Only the `ensemble` model's forecasts are precomputed; `linear`'s bootstrap
+  override files), the numpy/pandas/sklearn/xgboost/scipy versions, the CPU architecture and the
+  Python version. Any change there makes the store stale (misses, computed on demand; `/health`
+  reports it) until it is rebuilt, and the image build refuses a stale store. The image pins
+  those libraries and Python 3.10 to the Hyak Spark env (`constraints.txt`,
+  `datect_spark/env-freeze.txt`); change them together. Only the `ensemble` model's forecasts are precomputed; `linear`'s bootstrap
   interval uses the global NumPy RNG, so its on-demand output is not reproducible.
 - **Tests:** use the `fast_models` (class-scoped model shrinking, restored afterwards) and
   `fresh_import` (re-import config modules for one test, originals restored) fixtures in
@@ -194,7 +196,7 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
 | `backend/api.py` | FastAPI: forecasts, retrospective, visualizations, `/api/metrics/summary` |
 | `frontend/` | React + Vite dashboard (trimmed Plotly bundle in `src/utils/Plot.js`) |
 | `dataset-creation.py` | Full dataset build (downloads; see hard rule 1) |
-| `scripts/eval/`, `scripts/tune/`, `scripts/data/` | Evaluation, tuning, offline data tools |
+| `scripts/eval/`, `scripts/data/` | Evaluation, offline data tools (tuning: `datect_spark/retune.py`) |
 | `datect_spark/` | Spark 4 + Delta + MLflow on Hyak: weight tuner, MODIS -> Delta lake (makes `oad_cloud_fractions.parquet`), the precomputed store (`RESULTS.md`) |
 | `backend/precomputed.py` | The precomputed store: loads its Delta tables with deltalake (no JVM) for the API |
 | `oad/` | Ocean Anomaly Detection subproject (MODIS autoencoder; see `oad/README.md`) |

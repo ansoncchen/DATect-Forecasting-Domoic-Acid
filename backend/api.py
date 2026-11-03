@@ -4,7 +4,6 @@ FastAPI backend providing forecasting, visualization, and analysis endpoints
 """
 
 import logging
-import math
 import os
 from pathlib import Path
 from datetime import datetime, date
@@ -30,45 +29,10 @@ from backend.visualizations import (
     generate_gradient_uncertainty_plot,
 )
 from backend import precomputed
+from backend.records import clean_for_json, retrospective_records  # noqa: F401 (re-exported)
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-def clean_for_json(obj):
-    """
-    Clean values for JSON serialization - handles inf/nan, numpy types, and nested structures.
-    
-    Args:
-        obj: Value to clean (can be dict, list, numpy array, scalar, etc.)
-    
-    Returns:
-        JSON-serializable value
-    """
-    if obj is None:
-        return None
-    if isinstance(obj, dict):
-        return {k: clean_for_json(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [clean_for_json(item) for item in obj]
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    if isinstance(obj, pd.DataFrame):
-        return obj.head(10).to_dict('records') if not obj.empty else []
-    if isinstance(obj, (np.floating, np.integer)):
-        return obj.item()
-    if isinstance(obj, float):
-        if math.isinf(obj) or math.isnan(obj):
-            return None
-        return obj
-    # Check for pandas NA values
-    try:
-        if pd.isna(obj):
-            return None
-    except (TypeError, ValueError):
-        pass
-    return obj
-
-
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not os.path.isabs(config.FINAL_OUTPUT_PATH):
@@ -725,7 +689,7 @@ def generate_enhanced_forecast(request: ForecastRequest):
         classification_result, classification_version = _single_forecast(
             actual_site, forecast_date, "classification", classification_model
         )
-        precomputed = regression_version is not None and classification_version is not None
+        served = regression_version is not None and classification_version is not None
         
         # Create response structure expected by frontend
         response_data = {
@@ -735,8 +699,8 @@ def generate_enhanced_forecast(request: ForecastRequest):
             "regression": clean_for_json(regression_result),
             "classification": clean_for_json(classification_result),
             "graphs": {},
-            "source": "precomputed" if precomputed else "computed",
-            "model_version": regression_version if precomputed else None,
+            "source": "precomputed" if served else "computed",
+            "model_version": regression_version if served else None,
         }
         
         # Add level_range graph for regression (only when quantiles available)
@@ -860,26 +824,6 @@ def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequ
             "error": str(e)
         }
 
-def retrospective_records(results_df: pd.DataFrame) -> list:
-    """run_retrospective_evaluation's rows as the JSON records /api/retrospective
-    returns (canonical keys, floats cleaned); the precompute stores these too."""
-    records = []
-    for _, row in results_df.iterrows():
-        record = {
-            "date": row['date'].strftime('%Y-%m-%d') if pd.notnull(row['date']) else None,
-            "site": row['site'],
-            "actual_da": clean_for_json(row['actual_da']) if 'actual_da' in row and pd.notnull(row['actual_da']) else None,
-            "predicted_da": clean_for_json(row['predicted_da']) if 'predicted_da' in row and pd.notnull(row['predicted_da']) else None,
-            "actual_category": clean_for_json(row['actual_category']) if 'actual_category' in row and pd.notnull(row['actual_category']) else None,
-            "predicted_category": clean_for_json(row['predicted_category']) if 'predicted_category' in row and pd.notnull(row['predicted_category']) else None
-        }
-        if 'anchor_date' in results_df.columns and pd.notnull(row.get('anchor_date', None)):
-            record['anchor_date'] = row['anchor_date'].strftime('%Y-%m-%d')
-        if 'spike_probability' in results_df.columns and pd.notnull(row.get('spike_probability', None)):
-            record['spike_probability'] = clean_for_json(row['spike_probability'])
-            record['spike_alert'] = bool(row.get('spike_alert', False))
-        records.append(record)
-    return records
 
 
 def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:

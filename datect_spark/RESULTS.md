@@ -257,16 +257,19 @@ Delta tables, `DATECT_PRECOMPUTED_DIR`, read with deltalake (`backend/precompute
 | `spectral` | 11 (10 sites + all) | `precompute_store.py visuals`, one Spark task per chart |
 | `correlation` | 10 | same |
 
-Every table carries the config hash, which now also covers
-`backend/visualizations.py`, the contents of `*_JSON` override files and the CPU
-architecture. It no longer covers `DATECT_PARALLEL_BACKEND` or
-`DATECT_TEMPORAL_HOLDOUT_CUTOFF`, which never change a stored row.
+Every table carries the config hash. It now also covers `backend/visualizations.py`,
+`backend/records.py` (where stored rows are serialized), the contents of `*_JSON`
+override files, the CPU architecture and the Python version. It no longer covers
+`DATECT_PARALLEL_BACKEND` or `DATECT_TEMPORAL_HOLDOUT_CUTOFF`, which never change a
+stored row.
 
 The gate passed (job 42775261, commit 2401ecac). All **29 of 29** precomputed
-endpoint bodies served from the store are byte-identical to the old file cache's,
-built by `precompute_cache.py` at the PR #21 head (job 42774205): 8 retrospective
-slices, 11 spectral analyses and 10 correlation heatmaps, compared by sha256 without
-the fields that say where a body was served from. Build time on one 16-core node:
+endpoint bodies served from the store equal the old file cache's, built by
+`precompute_cache.py` at the PR #21 head (job 42774205): 8 retrospective slices, 11
+spectral analyses and 10 correlation heatmaps. Each body was parsed, stripped of the
+fields that say where it was served from, re-serialized with sorted keys and compared
+by sha256 (`results/store/bodies_*.json`). Build time on one 16-core node
+(`results/store/precompute_*.json`):
 
 | | Wall time |
 |---|---:|
@@ -277,7 +280,7 @@ the fields that say where a body was served from. Build time on one 16-core node
 Spark as joblib's executor is about 1.4× slower on one node, from per-batch Spark jobs
 and pickling the engine with its feature frame. The gain is one store and one build
 path, with the same bodies, not speed. The retrospective, spectral and correlation
-tables take 1.2 MB.
+tables take 1.2 MB (`results/store/saved_store.json`).
 
 **Serve live from Delta.**
 - The image copies `store/` (synced from `~/datect-store/<commit>/` on Hyak) and sets
@@ -286,13 +289,16 @@ tables take 1.2 MB.
   versions, so a store built there at the deployed commit matches the image's hash.
 - CI's docker job prints the image's hash, builds a two-entry forecasts table inside
   the image and checks that the container serves it and computes another date.
-- The dashboard's default date is now the latest weekly row, which is always
-  precomputed. Before, it was a Saturday, and `new Date()` shifted it a day in US time
-  zones.
+- The dashboard's default date is now the latest weekly row, which a current store
+  holds. Before, it was a Saturday, and `new Date()` shifted it a day in US time zones.
+- The image build refuses a store that is not complete and current for the image
+  (`python -m backend.precomputed check`). A stale store would otherwise make every
+  retrospective request recompute on Cloud Run, which takes minutes. The image uses
+  Python 3.10 like the Hyak env, and the env's packages are frozen in
+  `datect_spark/env-freeze.txt`.
 - The production table is not rebuilt here. `main`'s config hash changed when #19
   added `forecasting/conformal.py`, and the forecasting rework that follows will change
-  it again. The store is rebuilt once after that lands. Until then a stale table only
-  falls back to computing on demand.
+  it again. The store is rebuilt once after that lands, before the next deploy.
 
 ## Environment notes (Hyak)
 

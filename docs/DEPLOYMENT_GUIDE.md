@@ -19,7 +19,7 @@ The store is a directory of four Delta tables that the API reads with `deltalake
 | `spectral` | spectral analysis per site and for all sites | `datect_spark/precompute_store.py visuals` |
 | `correlation` | correlation heatmap per site | `datect_spark/precompute_store.py visuals` |
 
-Every row carries a **config hash**: a hash of `forecasting/*.py`, `config.py`, `backend/visualizations.py`, the tuned JSON, `final_output.parquet`, the raw DA CSVs, the `DATECT_*` variables the engine reads, the model-library versions and the CPU architecture. The API serves only rows whose hash equals its own; anything else is computed on demand, and `/health` reports stale rows. **Rebuild the store whenever code, config or data change** — at the commit you deploy. The image pins the model libraries to the versions the store is built with (`constraints.txt`, matching the Hyak Spark env), so a store built on Hyak at the deployed commit matches the image's hash (CI prints the image's hash).
+Every row carries a **config hash**: a hash of `forecasting/*.py`, `config.py`, `backend/visualizations.py`, `backend/records.py` (how rows are written), the tuned JSON, `final_output.parquet`, the raw DA CSVs, the `DATECT_*` variables the engine reads, the model-library versions, the CPU architecture and the Python version. The API serves only rows whose hash equals its own; anything else is computed on demand, and `/health` reports stale rows. **Rebuild the store whenever code, config or data change** — at the commit you deploy. The image pins the model libraries to the versions the store is built with (`constraints.txt`, matching the Hyak Spark env), and uses the same Python (3.10), so a store built on Hyak at the deployed commit matches the image's hash (CI prints both hashes; the image build refuses a stale or incomplete store).
 
 From any Hyak checkout at the commit to deploy (two jobs on two nodes, about 2.5 hours; each saves its tables to `~/datect-store/<commit>/`):
 
@@ -38,11 +38,12 @@ cd /path/to/DATect-Forecasting-Domoic-Acid
 rsync -a klone-login:datect-store/$(git rev-parse HEAD)/ ./store/
 ```
 
-Check it locally before deploying (`run_datect.py` points the API at `./store` when it exists; the library versions must match `constraints.txt` for the rows to be served):
+Check it against the image before deploying. A store's rows are served only where the config hash matches: the same code, data, model-library versions (`constraints.txt`), Python version (3.10) and CPU architecture (x86_64) as the Hyak env that built it. On a laptop (arm64, other versions) every row shows as stale on `/health` and requests are computed; check a store against the image instead (`docker build --platform linux/amd64 ...`, whose build fails unless the store is complete and current). The image build runs the same check (`python -m backend.precomputed check ./store`):
 
 ```bash
-python3 run_datect.py
-curl -s localhost:8000/health | python3 -m json.tool
+docker build --platform linux/amd64 -f Dockerfile.production -t datect .   # fails on a stale or incomplete store
+docker run --platform linux/amd64 -p 8080:8080 datect
+curl -s localhost:8080/health | python3 -m json.tool                       # tables, entries, stale rows
 ```
 
 ## 3. Deploy
@@ -56,7 +57,7 @@ export REGION=us-west1                 # optional, default us-west1
 
 What the script does:
 
-1. Stops if `./store` is missing or empty (build it on Hyak and copy it first).
+1. Stops if `./store` is missing or empty (build it on Hyak and copy it first). The image build itself fails unless the store is complete and current for the image (`REQUIRE_CURRENT_STORE`, on by default).
 2. Sets the gcloud project and region and enables the Cloud Build, Cloud Run and Container Registry APIs.
 3. Runs `gcloud builds submit --config=deploy/cloudbuild.yaml`. The upload is limited by `.gcloudignore` to the build inputs.
 4. Cloud Build (`deploy/cloudbuild.yaml`) builds `Dockerfile.production`, pushes `gcr.io/$PROJECT_ID/datect:latest`, and deploys the Cloud Run service `datect-api`.
@@ -70,9 +71,9 @@ Cloud Run settings (from `deploy/cloudbuild.yaml`): `--allow-unauthenticated`, 1
 
 Three stages:
 
-1. **Python deps** (`python:3.11-slim`): `uv pip install -r requirements.txt -c constraints.txt`.
+1. **Python deps** (`python:3.10-slim`, the Hyak Spark env's Python): `uv pip install -r requirements.txt -c constraints.txt`.
 2. **Frontend** (`node:22-slim`): `npm ci`, `npm run build` → `frontend/dist`.
-3. **Runtime** (`python:3.11-slim`): copies `backend/`, `forecasting/`, `data/`, `config/` (needed: `config.py` loads `config/tuned_hyperparameters.json` at import), `config.py`, `results/chronological` and `results/multi_seed` (read by `GET /api/metrics/summary`), `store/`, and the built frontend. The build fails early if `store/` or `frontend/dist` is missing or `import fastapi, granian, deltalake, config` fails. Runs as a non-root user on port 8080 with a `/health` healthcheck; starts Granian (`DATECT_USE_GRANIAN=1`, the default) or Uvicorn.
+3. **Runtime** (`python:3.10-slim`): copies `backend/`, `forecasting/`, `data/`, `config/` (needed: `config.py` loads `config/tuned_hyperparameters.json` at import), `config.py`, `results/chronological` and `results/multi_seed` (read by `GET /api/metrics/summary`), `store/`, and the built frontend. The build fails early if `store/` or `frontend/dist` is missing, `import fastapi, granian, deltalake, config` fails, or the store is not complete and current for the image (skipped with `--build-arg REQUIRE_CURRENT_STORE=0`, which CI's stub store uses). Runs as a non-root user on port 8080 with a `/health` healthcheck; starts Granian (`DATECT_USE_GRANIAN=1`, the default) or Uvicorn.
 
 Build inputs are whitelisted: `.dockerignore` (Docker build context) and `.gcloudignore` (Cloud Build upload) admit only what the Dockerfile copies. A new directory the image needs must be added to the Dockerfile **and** both ignore files.
 
@@ -83,7 +84,7 @@ docker build -f Dockerfile.production -t datect .
 docker run -p 8080:8080 datect          # http://localhost:8080
 ```
 
-**CI** (`.github/workflows/docker.yml`): on pushes and pull requests to `main` (except docs/papers-only changes) it builds the image with a stub `store/` and fails unless `/health` answers within about a minute. It then prints the image's config hash, builds a two-entry forecasts table inside the image (`python -m backend.precomputed sample`), and checks that the container serves that forecast from the store and computes another on demand.
+**CI** (`.github/workflows/docker.yml`): on pushes and pull requests to `main` (except docs/papers-only changes) it builds the image with a stub `store/` and fails unless `/health` answers within about a minute. It then prints the image's config hash next to the Hyak env's (`results/store/hyak_config_hash.txt`), builds a two-entry forecasts table inside the image (`python -m backend.precomputed sample`), and checks that the container serves that forecast from the store and computes another on demand.
 
 ## Environment variables
 

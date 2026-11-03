@@ -34,6 +34,8 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
+from backend.records import _dec, _enc, decode, encode, same  # noqa: F401 (re-exported)
+
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -47,74 +49,6 @@ COLUMNS = {
 ALL_SITES = "all_sites"
 
 
-# ── Lossless JSON for generate_single_forecast output ────────────────────────
-# Floats round-trip exactly through json (repr); numpy scalars, timestamps and
-# tuples are tagged so decode() returns the same types the engine returned. Types
-# are matched exactly: anything else (subclasses, numpy strings, n-d arrays) raises,
-# so the precompute stores an error row (a miss) instead of a lossy copy.
-_TAGS = ("__ts__", "__np__", "__nd__", "__tuple__")
-
-
-def _enc(obj):
-    kind = type(obj)
-    if obj is None or kind in (bool, str, int, float):
-        return obj
-    if kind is pd.Timestamp:
-        return {"__ts__": obj.isoformat()}
-    if isinstance(obj, np.generic) and obj.dtype.kind in "biuf":
-        return {"__np__": obj.dtype.str, "v": obj.item()}
-    if kind is np.ndarray and obj.ndim == 1 and obj.dtype.kind in "biuf":
-        return {"__nd__": obj.dtype.str, "v": [_enc(x) for x in obj.tolist()]}
-    if kind is tuple:
-        return {"__tuple__": [_enc(x) for x in obj]}
-    if kind is list:
-        return [_enc(x) for x in obj]
-    if kind is dict:
-        if not all(type(k) is str and k not in _TAGS for k in obj):
-            raise TypeError("dict keys must be str and not a codec tag")
-        return {k: _enc(v) for k, v in obj.items()}
-    raise TypeError(f"cannot encode {kind.__name__}")
-
-
-def _dec(obj):
-    if isinstance(obj, list):
-        return [_dec(x) for x in obj]
-    if not isinstance(obj, dict):
-        return obj
-    if "__ts__" in obj:
-        return pd.Timestamp(obj["__ts__"])
-    if "__np__" in obj:
-        return np.dtype(obj["__np__"]).type(obj["v"])
-    if "__nd__" in obj:
-        return np.array(obj["v"], dtype=np.dtype(obj["__nd__"]))
-    if "__tuple__" in obj:
-        return tuple(_dec(x) for x in obj["__tuple__"])
-    return {k: _dec(v) for k, v in obj.items()}
-
-
-def encode(result: dict | None) -> str:
-    return json.dumps(_enc(result), allow_nan=True)
-
-
-def decode(text: str) -> dict | None:
-    return _dec(json.loads(text))
-
-
-def same(a, b) -> bool:
-    """Exact equality with types (NaN equals NaN): the parity criterion."""
-    if type(a) is not type(b):
-        return False
-    if isinstance(a, dict):
-        return a.keys() == b.keys() and all(same(a[k], b[k]) for k in a)
-    if isinstance(a, (list, tuple)):
-        return len(a) == len(b) and all(same(x, y) for x, y in zip(a, b))
-    if isinstance(a, np.ndarray):
-        return a.dtype == b.dtype and np.array_equal(a, b, equal_nan=a.dtype.kind == "f")
-    if isinstance(a, (float, np.floating)) and a != a:
-        return b != b
-    return bool(a == b)
-
-
 # ── What a stored row depends on ─────────────────────────────────────────────
 
 # DATECT_* variables the engine reads that never change a stored row
@@ -122,10 +56,11 @@ NOT_ROW_INPUTS = {"DATECT_PARALLEL_BACKEND", "DATECT_TEMPORAL_HOLDOUT_CUTOFF"}
 
 
 def config_hash(repo_root: str = REPO_ROOT) -> str:
-    """sha256 over everything a stored row depends on: the engine, config and chart
-    source, the tuned hyperparameters, the input data, the DATECT_* variables the
-    engine reads (and the files the *_JSON ones point at), the model library versions
-    and the CPU architecture. A row carrying another hash is not served.
+    """sha256 over everything a stored row depends on: the engine, config, chart and
+    row-format source (backend/records.py), the tuned hyperparameters, the input data,
+    the DATECT_* variables the engine reads (and the files the *_JSON ones point at),
+    the model library versions, the CPU architecture and the Python version. A row
+    carrying another hash is not served.
 
     It is conservative: setting a variable to its default value also changes it."""
     import scipy
@@ -133,7 +68,8 @@ def config_hash(repo_root: str = REPO_ROOT) -> str:
     import xgboost
 
     sources = sorted(glob.glob(os.path.join(repo_root, "forecasting", "*.py")))
-    sources += [os.path.join(repo_root, "config.py"), os.path.join(repo_root, "backend", "visualizations.py")]
+    sources += [os.path.join(repo_root, "config.py"), os.path.join(repo_root, "backend", "visualizations.py"),
+                os.path.join(repo_root, "backend", "records.py")]
     data = [os.path.join(repo_root, "config", "tuned_hyperparameters.json"),
             os.path.join(repo_root, "data", "processed", "final_output.parquet")]
     data += sorted(glob.glob(os.path.join(repo_root, "data", "raw", "da-input", "*.csv")))
@@ -154,6 +90,7 @@ def config_hash(repo_root: str = REPO_ROOT) -> str:
     for module in (np, pd, sklearn, xgboost, scipy):
         h.update(f"{module.__name__}=={module.__version__}\0".encode())
     h.update(f"machine={platform.machine()}\0".encode())
+    h.update(f"python={'.'.join(platform.python_version_tuple()[:2])}\0".encode())
     return h.hexdigest()
 
 
@@ -168,40 +105,48 @@ class Store:
     """The four tables of one store directory, indexed in memory."""
 
     def __init__(self, root: str, expected_hash: str | None = None):
-        from deltalake import DeltaTable
-
         self.root = root
         self.expected_hash = expected_hash or config_hash()
         self.tables: dict[str, dict] = {}
         self._index: dict[str, dict] = {name: {} for name in COLUMNS}
         for name, columns in COLUMNS.items():
             path = os.path.join(root, name)
-            if not DeltaTable.is_deltatable(path):
-                continue
-            dt = DeltaTable(path)
-            rows = dt.to_pyarrow_table(columns=columns).to_pydict()
-            stale: dict[str, int] = {}
-            for values in zip(*(rows[c] for c in columns)):
-                row = dict(zip(columns, values))
-                if name == "forecasts":
-                    if row["result_json"] is None:
-                        continue  # the engine raised; on demand it raises again
-                    key = (row["site"], row["forecast_date"].isoformat(), row["task"], row["model_type"])
-                    payload = (row["result_json"], row["model_version"])
-                else:  # key columns, then the JSON payload, then the hash
-                    key, payload = tuple(row[c] for c in columns[:-2]), row[columns[-2]]
-                    if payload is None:
-                        continue
-                if row["config_hash"] != self.expected_hash:
-                    stale[row["config_hash"]] = stale.get(row["config_hash"], 0) + 1
+            if not os.path.isdir(path):
+                continue  # an optional table: its requests are computed
+            try:
+                self._load(name, columns, path)
+            except Exception as exc:  # one unreadable table must not disable the others
+                self._index[name] = {}
+                self.tables[name] = {"error": f"{type(exc).__name__}: {exc}"}
+                logger.warning("Precomputed table %s unreadable (%s); computing on demand", path, exc)
+
+    def _load(self, name: str, columns: list[str], path: str) -> None:
+        from deltalake import DeltaTable
+
+        dt = DeltaTable(path)
+        rows = dt.to_pyarrow_table(columns=columns).to_pydict()
+        stale: dict[str, int] = {}
+        for values in zip(*(rows[c] for c in columns)):
+            row = dict(zip(columns, values))
+            if name == "forecasts":
+                if row["result_json"] is None:
+                    continue  # the engine raised; on demand it raises again
+                key = (row["site"], row["forecast_date"].isoformat(), row["task"], row["model_type"])
+                payload = (row["result_json"], row["model_version"])
+            else:  # key columns, then the JSON payload, then the hash
+                key, payload = tuple(row[c] for c in columns[:-2]), row[columns[-2]]
+                if payload is None:
                     continue
-                self._index[name][key] = payload
-            self.tables[name] = {"version": dt.version(), "entries": len(self._index[name]),
-                                 "stale_rows": sum(stale.values()), "stale_config_hashes": stale}
+            if row["config_hash"] != self.expected_hash:
+                stale[row["config_hash"]] = stale.get(row["config_hash"], 0) + 1
+                continue
+            self._index[name][key] = payload
+        self.tables[name] = {"version": dt.version(), "entries": len(self._index[name]),
+                             "stale_rows": sum(stale.values()), "stale_config_hashes": stale}
 
     @property
     def stale_rows(self) -> int:
-        return sum(t["stale_rows"] for t in self.tables.values())
+        return sum(t.get("stale_rows", 0) for t in self.tables.values())
 
     def forecast(self, site: str, forecast_date, task: str, model_type: str) -> Hit | None:
         key = (site, pd.Timestamp(forecast_date).date().isoformat(), task, model_type)
@@ -256,10 +201,11 @@ def load_from_env() -> Store | None:
                 _load_error = f"{type(exc).__name__}: {exc}"
                 logger.warning("Precomputed store unavailable (%s); computing on demand", _load_error)
                 return None
-            empty = not any(t["entries"] for t in _store.tables.values())
+            empty = not any(t.get("entries") for t in _store.tables.values())
             log = logger.warning if _store.stale_rows or empty else logger.info
             log("Precomputed store %s: %s; this API's config hash %s", root,
-                {n: (t["entries"], f"{t['stale_rows']} stale") for n, t in _store.tables.items()} or "no tables",
+                {n: t.get("error") or (t["entries"], f"{t['stale_rows']} stale")
+                 for n, t in _store.tables.items()} or "no tables",
                 _store.expected_hash[:12])
         return _store
 
@@ -269,8 +215,31 @@ def status() -> dict | None:
     store = load_from_env()
     if store is None:
         root = os.environ.get(STORE_ENV)
-        return {"dir": root, "tables": {}, "error": _load_error} if root else None
-    return {"dir": store.root, "expected_config_hash": store.expected_hash, "tables": store.tables}
+        return {"dir": root, "exists": os.path.isdir(root), "tables": {}, "error": _load_error} if root else None
+    return {"dir": store.root, "exists": os.path.isdir(store.root),
+            "expected_config_hash": store.expected_hash, "tables": store.tables}
+
+
+def check_store(root: str, require: tuple[str, ...] = tuple(COLUMNS)) -> list[str]:
+    """Why ``root`` is not a complete store current for this environment (empty: it
+    is). The image build runs this, so a deploy never ships a store whose requests
+    would all be recomputed (a retrospective takes minutes)."""
+    if not os.path.isdir(root):
+        return [f"{root}: no such directory"]
+    store = Store(root)
+    problems = []
+    for name in require:
+        t = store.tables.get(name)
+        if t is None:
+            problems.append(f"{name}: missing")
+        elif "error" in t:
+            problems.append(f"{name}: unreadable ({t['error']})")
+        elif t["stale_rows"]:
+            problems.append(f"{name}: {t['stale_rows']} stale rows (built from other code, config, data or "
+                            f"library versions; this environment's config hash is {store.expected_hash[:12]})")
+        elif not t["entries"]:
+            problems.append(f"{name}: empty")
+    return problems
 
 
 def forecast(site: str, forecast_date, task: str, model_type: str) -> Hit | None:
@@ -336,11 +305,22 @@ def main() -> None:
     s.add_argument("--date", action="append", required=True)
     s.add_argument("--model", default="ensemble")
     sub.add_parser("hash", help="print this environment's config hash")
+    c = sub.add_parser("check", help="exit 1 unless the store is complete and current here")
+    c.add_argument("root")
     args = parser.parse_args()
+    if args.cmd == "check":
+        args.root = os.path.abspath(args.root)
     os.chdir(REPO_ROOT)  # config paths are relative to the repo root
     if args.cmd == "sample":
         n = write_sample(args.root, [(args.site, d) for d in args.date], args.model)
         print(f"wrote {n} forecasts to {os.path.join(args.root, 'forecasts')} (config hash {config_hash()[:12]})")
+    elif args.cmd == "check":
+        problems = check_store(args.root)
+        for problem in problems:
+            print(f"precomputed store: {problem}")
+        if problems:
+            raise SystemExit(1)
+        print(f"precomputed store {args.root} is complete and current (config hash {config_hash()[:12]})")
     else:
         print(config_hash())
 

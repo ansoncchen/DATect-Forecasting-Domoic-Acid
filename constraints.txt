@@ -8,3 +8,5 @@ scikit-learn==1.7.2
 xgboost==3.1.3
 scipy==1.15.3
 pyarrow==23.0.0
+# The API's store reader (not in the hash: a reader change falls back, never misreads)
+deltalake==1.6.6

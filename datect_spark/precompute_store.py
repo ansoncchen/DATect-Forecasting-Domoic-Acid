@@ -49,6 +49,8 @@ def _spark(name: str):
 
 
 def _write(spark, rows: list[dict], table: str) -> str:
+    if not rows:
+        raise SystemExit(f"nothing to write to {table}")
     path = lake_path("gold", table)
     spark.createDataFrame(pd.DataFrame(rows)).coalesce(1).write.format("delta") \
         .mode("overwrite").option("overwriteSchema", "true").save(path)
@@ -65,8 +67,9 @@ def retrospective(max_test_samples: int | None = None) -> dict:
     os.environ["DATECT_PARALLEL_BACKEND"] = "spark"
     from joblibspark import register_spark
 
-    from backend.api import get_forecast_engine, retrospective_records
+    from backend.api import get_forecast_engine
     from backend.precomputed import config_hash
+    from backend.records import retrospective_records
 
     spark = _spark("datect-store-retrospective")
     register_spark()
@@ -82,12 +85,14 @@ def retrospective(max_test_samples: int | None = None) -> dict:
         print(f"  {task}/{model}: {len(records or [])} records in {seconds:.0f}s", flush=True)
         if records is None:
             continue  # nothing to serve: on demand the API reports it too
+        # No default=str: a type json cannot write must fail here, not be stringified
         rows.append({"task": task, "model_type": model, "n_records": len(records),
-                     "records_json": json.dumps(records, default=str)})
-    path = _write(spark, _stamp(rows, config_hash(), git_sha(REPO_ROOT)), "retrospective")
+                     "records_json": json.dumps(records)})
+    chash = config_hash()
+    path = _write(spark, _stamp(rows, chash, git_sha(REPO_ROOT)), "retrospective")
     spark.stop()
-    return {"table": path, "slices": timings,
-            "total_seconds": sum(t["seconds"] for t in timings.values())}
+    return {"table": path, "config_hash": chash, "max_test_samples": max_test_samples,
+            "slices": timings, "total_seconds": sum(t["seconds"] for t in timings.values())}
 
 
 def _fresh_data() -> pd.DataFrame:
@@ -144,13 +149,13 @@ def visuals() -> dict:
     correlation = (sc.parallelize(sites, len(sites))
                    .map(lambda s: (s, _correlation(s)))
                    .filter(lambda kv: kv[1] is not None)
-                   .map(lambda kv: {"site": kv[0], "plot_json": json.dumps(kv[1], default=str)}).collect())
+                   .map(lambda kv: {"site": kv[0], "plot_json": json.dumps(kv[1])}).collect())
     seconds = time.time() - t0
     paths = {"spectral": _write(spark, _stamp(spectral, chash, sha), "spectral"),
              "correlation": _write(spark, _stamp(correlation, chash, sha), "correlation")}
     spark.stop()
-    return {"tables": paths, "spectral_rows": len(spectral), "correlation_rows": len(correlation),
-            "seconds": seconds}
+    return {"tables": paths, "config_hash": chash, "spectral_rows": len(spectral),
+            "correlation_rows": len(correlation), "seconds": seconds}
 
 
 def main() -> None:
@@ -167,10 +172,13 @@ def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(os.path.join(OUT_DIR, f"precompute_{args.step}.json"), "w") as f:
         json.dump(out, f, indent=2, default=str)
-    mlflow = get_mlflow(EXPERIMENT)
-    with mlflow.start_run(run_name=f"store-{args.step}"):
-        mlflow.log_param("git_sha", out["git_sha"])
-        mlflow.log_metric("wall_seconds", out["wall_seconds"])
+    try:  # the JSON above is the record; tracking must not stop the build before `save`
+        mlflow = get_mlflow(EXPERIMENT)
+        with mlflow.start_run(run_name=f"store-{args.step}"):
+            mlflow.log_param("git_sha", out["git_sha"])
+            mlflow.log_metric("wall_seconds", out["wall_seconds"])
+    except Exception as exc:
+        print(f"MLflow logging failed: {exc}")
     print(json.dumps(out, indent=2, default=str))
 
 

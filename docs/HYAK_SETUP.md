@@ -49,7 +49,7 @@ export DATECT_PY=/gscratch/stf/$USER/envs/datect_scratch/bin/python
 
 ## Submitting DATect jobs
 
-The sbatch files in `scripts/eval/` and `scripts/tune/` run the checkout they were **submitted from** (`$SLURM_SUBMIT_DIR`), so submit from the repo root:
+The sbatch files in `scripts/eval/` run the checkout they were **submitted from** (`$SLURM_SUBMIT_DIR`), so submit from the repo root:
 
 ```bash
 cd /gscratch/stf/$USER/DATect-Forecasting-Domoic-Acid

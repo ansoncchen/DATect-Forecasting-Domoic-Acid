@@ -1,0 +1,61 @@
+{
+  "step": "gold",
+  "git_sha": "4a99460c5e8aa8a749a5498a21804aea3e628ccb",
+  "host": "n3367",
+  "cpus": "16",
+  "wall_seconds": 26.087397575378418,
+  "seconds": 19.796375036239624,
+  "regions": [
+    {
+      "region_order": 0,
+      "region": "Overall (WA\u2013OR\u2013N. CA coastal)",
+      "lat_lo": 0,
+      "lat_hi": 320,
+      "lon_lo": 220,
+      "lon_hi": 320,
+      "region_pixels": 32421
+    },
+    {
+      "region_order": 1,
+      "region": "Olympic Coast (WA)",
+      "lat_lo": 240,
+      "lat_hi": 320,
+      "lon_lo": 220,
+      "lon_hi": 300,
+      "region_pixels": 6561
+    },
+    {
+      "region_order": 2,
+      "region": "SW Washington / Long Beach",
+      "lat_lo": 180,
+      "lat_hi": 240,
+      "lon_lo": 260,
+      "lon_hi": 320,
+      "region_pixels": 3721
+    },
+    {
+      "region_order": 3,
+      "region": "Central Oregon",
+      "lat_lo": 100,
+      "lat_hi": 180,
+      "lon_lo": 240,
+      "lon_hi": 300,
+      "region_pixels": 4941
+    },
+    {
+      "region_order": 4,
+      "region": "Southern OR / N CA",
+      "lat_lo": 0,
+      "lat_hi": 100,
+      "lon_lo": 220,
+      "lon_hi": 300,
+      "region_pixels": 8181
+    }
+  ],
+  "table": {
+    "files": 1,
+    "bytes": 273622,
+    "rows": 23460,
+    "bytes_on_disk": 279204
+  }
+}

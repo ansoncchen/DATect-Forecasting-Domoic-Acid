@@ -1,0 +1,46 @@
+{
+  "step": "bronze",
+  "git_sha": "4a99460c5e8aa8a749a5498a21804aea3e628ccb",
+  "host": "n3367",
+  "cpus": "16",
+  "wall_seconds": 437.8254313468933,
+  "raw_root": "/gscratch/stf/ac283/oad_current/data/raw",
+  "years": "all",
+  "n_files": 2563,
+  "bytes_ingested": 13904484780,
+  "bytes_per_channel": {
+    "chla": 4784496168,
+    "k490": 2566729896,
+    "nflh": 2633678492,
+    "sst": 3919580224
+  },
+  "skipped_appledouble_stubs": 29,
+  "skipped_appledouble_bytes": 4727,
+  "metadata_seconds": 109.99394226074219,
+  "n_file_rows": 2563,
+  "n_time_rows": 26417,
+  "grids": 1,
+  "pixels_seconds": 292.2373125553131,
+  "pixels": {
+    "files": 2584,
+    "bytes": 5850022204,
+    "rows": 1956017408,
+    "bytes_on_disk": 5897384424
+  },
+  "times_table": {
+    "files": 2563,
+    "bytes": 5097849,
+    "rows": 26417,
+    "bytes_on_disk": 6746540
+  },
+  "files_table": {
+    "files": 1,
+    "bytes": 214601,
+    "rows": 2563,
+    "bytes_on_disk": 221284
+  },
+  "grid_shape": [
+    321,
+    409
+  ]
+}

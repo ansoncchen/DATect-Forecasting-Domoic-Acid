@@ -1,0 +1,16 @@
+{
+  "step": "vacuum",
+  "git_sha": "4a99460c5e8aa8a749a5498a21804aea3e628ccb",
+  "host": "n3367",
+  "cpus": "16",
+  "wall_seconds": 34.70467257499695,
+  "pixels": {
+    "bytes_on_disk_before": 13721672147,
+    "bytes_on_disk_after": 7988102349
+  },
+  "cube": {
+    "bytes_on_disk_before": 8503489332,
+    "bytes_on_disk_after": 4411005147
+  },
+  "lake_bytes_on_disk": 12406534089
+}

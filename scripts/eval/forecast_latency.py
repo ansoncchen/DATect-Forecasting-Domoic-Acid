@@ -32,6 +32,11 @@ import numpy as np
 import pandas as pd
 import requests
 
+# Requests to the local API must not go through a proxy: Hyak compute nodes set
+# http_proxy, and its no_proxy lists localhost but not 127.0.0.1 (the proxy answers 503)
+HTTP = requests.Session()
+HTTP.trust_env = False
+
 
 def sample_requests(repo: str, n: int, seed: int) -> list[tuple[str, str]]:
     data = pd.read_parquet(os.path.join(repo, "data", "processed", "final_output.parquet"),
@@ -54,7 +59,7 @@ def _wait_healthy(url: str, proc: subprocess.Popen, timeout: float) -> float:
         if proc.poll() is not None:
             raise RuntimeError(f"API exited with code {proc.returncode}")
         try:
-            if requests.get(url + "/health", timeout=2).ok:
+            if HTTP.get(url + "/health", timeout=2).ok:
                 return time.perf_counter() - t0
         except requests.RequestException:
             pass
@@ -64,7 +69,7 @@ def _wait_healthy(url: str, proc: subprocess.Popen, timeout: float) -> float:
 
 def _post(url: str, site: str, date: str, model: str) -> tuple[float, dict]:
     t0 = time.perf_counter()
-    r = requests.post(url + "/api/forecast/enhanced",
+    r = HTTP.post(url + "/api/forecast/enhanced",
                       json={"date": date, "site": site, "task": "regression", "model": model},
                       timeout=600)
     elapsed = time.perf_counter() - t0

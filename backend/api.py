@@ -20,9 +20,11 @@ from pydantic import BaseModel
 
 from forecasting import ForecastEngine, ModelFactory
 import config
+from backend import band
 from backend.band import forecast_band
 from forecasting.metrics import alert_parts
 from forecasting.raw_data_forecaster import load_raw_da_measurements
+from forecasting.tuned_config import get_eval_windows
 from backend.visualizations import (
     generate_correlation_heatmap,
     generate_sensitivity_analysis,
@@ -356,6 +358,14 @@ def _load_metrics_summary() -> dict:
         held = df[(df["date"] >= start) & (df["date"] < end)]
         seed_r2.append(float(r2_score(held["actual_da"], held["predicted_da"])))
 
+    reliability = {}
+    for name in ("holdout", "validation"):
+        sites = sorted(track_record.window_rows(name)["site"].unique())
+        reliability[name] = {
+            "summary": track_record.window_summary(name),
+            "per_site": {site: track_record.window_summary(name, site) for site in sites},
+        }
+
     return {
         "holdout_window": {"start": start, "end": end},
         "overall": chrono["overall"],
@@ -364,6 +374,12 @@ def _load_metrics_summary() -> dict:
             "n_seeds": len(seed_r2),
             "r2_mean": float(np.mean(seed_r2)) if seed_r2 else None,
             "r2_std": float(np.std(seed_r2)) if seed_r2 else None,
+        },
+        "reliability": reliability,
+        "source": {
+            "chronological": f"results/chronological/chronological_regression_ensemble_{tag}.json",
+            "band": track_record.BAND_PREDICTIONS_PATH,
+            "multi_seed": "results/multi_seed/*_predictions.parquet",
         },
     }
 
@@ -418,7 +434,30 @@ def get_config():
         "forecast_horizon_weeks": config.FORECAST_HORIZON_WEEKS,
         "forecast_horizon_days": config.FORECAST_HORIZON_DAYS,
         "spike_threshold": config.SPIKE_THRESHOLD,
+        "regression_alert_threshold": config.SPIKE_REGRESSION_ALERT_THRESHOLD,
+        "classifier_alert_cutoff": config.SPIKE_ALERT_PROB_THRESHOLD,
+        "alert_levels": _alert_levels(),
+        "band_level": band.chosen_variant()["coverage"],
+        "category_bins": [0, *config.DA_CATEGORY_BINS[1:-1], None],
+        "category_labels": CATEGORY_LABELS,
+        "eval_windows": get_eval_windows(),
+        "sites_north_to_south": sorted(config.SITES, key=lambda site: -config.SITES[site][0]),
+        "newest_measurement_date": _raw_measurements()["date"].max().date().isoformat(),
+        "latest_forecast_week": pd.to_datetime(load_data_cached()["date"]).max().date().isoformat(),
     }
+
+
+def _alert_levels() -> list:
+    """The dashboard's alert levels, each with its rule and cutoff."""
+    p, r, w = (config.SPIKE_ALERT_PROB_THRESHOLD, config.SPIKE_REGRESSION_ALERT_THRESHOLD,
+               config.ALERT_WARNING_PROB_CUTOFF)
+    return [
+        {"name": "Quiet", "rule": "no alert condition holds", "cutoff": None, "placeholder": False},
+        {"name": "Watch", "rule": f"classifier probability >= {p:g} or forecast >= {r:g} µg/g",
+         "cutoff": p, "placeholder": False},
+        {"name": "Warning", "rule": f"classifier probability >= {w:g}", "cutoff": w,
+         "placeholder": True},
+    ]
 
 # Visualization endpoints
 # NOTE: More specific routes must come before generic parameter routes
@@ -926,14 +965,11 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
         # Per-region rollup: WA vs OR. Aggregates over coastal physiography
         # since pooling all 10 sites mixes ~0.6 R² WA with ~-0.5 R² OR.
         try:
-            WA_SITES = {"Kalaloch","Quinault","Copalis","Twin Harbors","Long Beach","Clatsop Beach","Cannon Beach"}
-            OR_SITES = {"Newport","Coos Bay","Gold Beach"}
             region_groups = {"WA": [], "OR": []}
             for r in results_json:
-                if r.get("site") in WA_SITES:
-                    region_groups["WA"].append(r)
-                elif r.get("site") in OR_SITES:
-                    region_groups["OR"].append(r)
+                state = config.SITE_STATES.get(r.get("site"))
+                if state in region_groups:
+                    region_groups[state].append(r)
             region_metrics = {}
             for reg, rs in region_groups.items():
                 pairs = [(x.get("actual_da"), x.get("predicted_da")) for x in rs

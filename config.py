@@ -60,6 +60,10 @@ SITES = {
     "Gold Beach": [42.377222, -124.414167]
 }
 
+# State of each site (the Columbia River mouth, ~46.25 N, is the border): Clatsop
+# Beach and Cannon Beach are in Oregon.
+SITE_STATES = {site: ("WA" if lat > 46.25 else "OR") for site, (lat, _lon) in SITES.items()}
+
 # Date Ranges
 START_DATE = "2003-01-01"
 END_DATE = "2023-12-31"

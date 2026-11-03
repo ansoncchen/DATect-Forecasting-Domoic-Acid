@@ -31,7 +31,7 @@ from backend.visualizations import (
     generate_spectral_analysis,
     generate_band_plot,
 )
-from backend import precomputed
+from backend import precomputed, track_record
 from backend.records import clean_for_json, retrospective_records  # noqa: F401 (re-exported)
 
 # Configure logging
@@ -366,6 +366,37 @@ def _load_metrics_summary() -> dict:
             "r2_std": float(np.std(seed_r2)) if seed_r2 else None,
         },
     }
+
+
+def _known_site(site: str) -> str:
+    """Canonical site name, or 404 for a site DATect does not forecast."""
+    resolved = resolve_site(site)
+    if resolved not in config.SITES:
+        raise HTTPException(status_code=404, detail=f"Unknown site: {site}")
+    return resolved
+
+
+@app.get("/api/track-record")
+def get_track_record(window: track_record.Window = "holdout", site: str | None = None):
+    """Chronological forecasts for a window with every summary computed here:
+    overall (or one site's), per site, and the rows behind them."""
+    site = _known_site(site) if site is not None else None
+    start, end = track_record.window_bounds(window)
+    rows = track_record.window_rows(window, site)
+    per_site = {s: track_record.window_summary(window, s) for s in sorted(rows["site"].unique())}
+    return clean_for_json({
+        "window": {"name": window, "start": start, "end": end},
+        "summary": track_record.window_summary(window, site),
+        "per_site": per_site,
+        "rows": track_record.records(rows),
+    })
+
+
+@app.get("/api/sites/{site}/history")
+def get_site_history(site: str, since: str = "2019-01-01", until: str | None = None):
+    """Each real measurement at a site with the forecast made for it, its band and alert."""
+    site = _known_site(site)
+    return clean_for_json({"site": site, "rows": track_record.site_history(site, since, until)})
 
 
 @app.get("/api/metrics/summary")

@@ -1,0 +1,12 @@
+# Model-library versions the Spark precompute runs with (the Hyak env datect_spark).
+# The API image installs requirements.txt under these pins, so its config hash
+# (backend/precomputed.config_hash, which includes them) matches the precomputed
+# store's and the store is served. Change them together with that env.
+numpy==2.2.6
+pandas==2.3.3
+scikit-learn==1.7.2
+xgboost==3.1.3
+scipy==1.15.3
+pyarrow==23.0.0
+# The API's store reader (not in the hash: a reader change falls back, never misreads)
+deltalake==1.6.6

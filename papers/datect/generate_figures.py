@@ -8,9 +8,9 @@ Usage:
 Reads from:
     results/paper_metrics/table2_per_site.csv          (Figure 2; same run as Table 2)
     results/spike_metrics_seed123/spike_metrics_by_model.csv  (Figure 4; same run as Table 5)
-    cache/retrospective/*.parquet     (dashboard cache, seed 42 development sample)
-    cache/spectral/all_sites.json     (power spectral density)
-    cache/visualizations/*_correlation.json  (feature correlations)
+    results/multi_seed/baseline_seed42_predictions.parquet  (seed 42 development sample)
+    store/spectral, store/correlation (precomputed store, Delta tables synced from Hyak;
+                                       DATECT_PRECOMPUTED_DIR overrides store/)
     config.py                          (site coordinates)
 
 Outputs to:
@@ -64,7 +64,8 @@ plt.rcParams.update({
 OUTDIR = os.path.join(os.path.dirname(__file__), 'figures')
 os.makedirs(OUTDIR, exist_ok=True)
 
-CACHE_DIR = os.path.join(REPO_ROOT, 'cache')
+STORE_DIR = os.environ.get('DATECT_PRECOMPUTED_DIR', os.path.join(REPO_ROOT, 'store'))
+SEED42_PARQUET = os.path.join(REPO_ROOT, 'results', 'multi_seed', 'baseline_seed42_predictions.parquet')
 RESULTS_DIR = os.path.join(REPO_ROOT, 'results')
 
 # DA risk category colors
@@ -117,13 +118,25 @@ def get_feat_color(feat_name):
 
 
 def load_ensemble_parquet():
-    path = os.path.join(CACHE_DIR, 'retrospective', 'regression_ensemble.parquet')
-    return pd.read_parquet(path)
+    """The seed-42 retrospective of the ensemble (what the dashboard cache held)."""
+    return pd.read_parquet(SEED42_PARQUET)
 
 
 def load_xgboost_parquet():
-    path = os.path.join(CACHE_DIR, 'retrospective', 'regression_xgboost.parquet')
-    return pd.read_parquet(path)
+    """Per-point XGBoost feature importances: the same in every model's retrospective
+    (each point's XGBoost fit does not depend on the model reported), so the
+    ensemble run's column serves."""
+    return pd.read_parquet(SEED42_PARQUET)
+
+
+def load_store_chart(table, site):
+    """A chart's Plotly JSON from the precomputed store (read as stored: the paper
+    figures use whatever store is synced, whatever its config hash)."""
+    from deltalake import DeltaTable
+
+    df = DeltaTable(os.path.join(STORE_DIR, table)).to_pandas()
+    row = df[df['site'] == site].iloc[0]
+    return json.loads(row['plots_json' if table == 'spectral' else 'plot_json'])
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -326,7 +339,7 @@ def generate_fig3_architecture():
     # ═══ Row 5: Serving (ordered left→right) ═══
     with dot.subgraph() as s:
         s.attr(rank='same')
-        s.node('cache', 'Pre-computed Cache\n(+ optional Redis)', fillcolor=C_SERVE)
+        s.node('cache', 'Precomputed store\n(Delta tables)', fillcolor=C_SERVE)
         s.node('api', 'FastAPI Backend\n(api.py)', fillcolor=C_SERVE)
         s.node('frontend', 'React Frontend\n(dashboard)', fillcolor=C_SERVE)
 
@@ -678,12 +691,10 @@ def generate_fig6_feature_heatmap():
 # ═════════════════════════════════════════════════════════════════════════════
 
 def generate_fig7_correlation():
-    """Feature correlation heatmap for Twin Harbors, converted from Plotly cache."""
+    """Feature correlation heatmap for Twin Harbors, converted from the store's Plotly JSON."""
     from matplotlib.colors import LinearSegmentedColormap
 
-    path = os.path.join(CACHE_DIR, 'visualizations', 'Twin Harbors_correlation.json')
-    with open(path) as f:
-        plotly_data = json.load(f)
+    plotly_data = load_store_chart('correlation', 'Twin Harbors')
 
     z = np.array(plotly_data['data'][0]['z'])
     x_labels = plotly_data['data'][0]['x']
@@ -739,10 +750,8 @@ def generate_fig7_correlation():
 # ═════════════════════════════════════════════════════════════════════════════
 
 def generate_fig8_spectral():
-    """Power spectral density plot from cached Plotly data."""
-    path = os.path.join(CACHE_DIR, 'spectral', 'all_sites.json')
-    with open(path) as f:
-        plots = json.load(f)
+    """Power spectral density plot from the store's Plotly data."""
+    plots = load_store_chart('spectral', 'all_sites')
 
     # The first plot in the list is typically the PSD
     psd_plot = plots[0]
@@ -877,7 +886,7 @@ def main():
     print("DATect Paper Figure Generation")
     print("=" * 50)
     print(f"Output directory: {OUTDIR}")
-    print(f"Cache directory:  {CACHE_DIR}")
+    print(f"Store directory:  {STORE_DIR}")
     print()
 
     generators = [

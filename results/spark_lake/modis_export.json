@@ -1,0 +1,16 @@
+{
+  "step": "export",
+  "git_sha": "d53d916b88820e78ca7a5adc918e60d74732dc84",
+  "host": "g3050",
+  "cpus": "16",
+  "wall_seconds": 26.40061926841736,
+  "path": "data/processed/oad_cloud_fractions.parquet",
+  "rows": 23460,
+  "sha256_committed": "7ad73afb90e646b633af24a288c81ecc97a00fa0ca442b8b14bec247a839effb",
+  "sha256_exported": "7ad73afb90e646b633af24a288c81ecc97a00fa0ca442b8b14bec247a839effb",
+  "byte_identical": true,
+  "writer": {
+    "pandas": "2.3.3",
+    "pyarrow": "23.0.0"
+  }
+}

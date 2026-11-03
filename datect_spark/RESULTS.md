@@ -13,6 +13,7 @@ the caveats.
 | Spark | PySpark 4.0.1, local mode `local[16]`, Java 17 (`coenv/jdk/17.0.8`) |
 | Delta Lake | delta-spark 4.0.0 (writes), deltalake 1.6.6 / delta-rs (API reads, no JVM) |
 | MLflow | 3.17.2, sqlite tracking and model registry on `/gscratch/stf` |
+| joblibspark | 0.6.0: Spark as joblib's backend, so the engine's own parallel calls run on Spark |
 | Python stack | Python 3.10, numpy 2.2.6, pandas 2.3.3, scikit-learn 1.7.2, xgboost 3.1.3, pyarrow 23.0.0 |
 | Storage | MODIS read in place from `/gscratch/stf`; lake, Spark scratch and API runs on the node's local disk (`/tmp`, see the environment notes); MLflow on `/gscratch/stf` |
 
@@ -32,16 +33,18 @@ pre-anchor data) and `score` applies the 100 weight × clip settings in Spark SQ
 | Parity | The current configuration rebuilt from the Spark predictions equals the committed chronological predictions exactly (max abs diff 0.0 on 635 + 409 rows) |
 
 Hyak job 42629914. The per-site picks it produced tie a single shared rule on the
-holdout, so they were not adopted (`docs/CORRECTED_NUMBERS.md`).
+holdout, so they were not adopted (`docs/CORRECTED_NUMBERS.md`). The clip has since
+been removed (#18), and `retune.py` now tunes weights only; that run is in section 4.
 
 ## 2. MODIS imagery into Delta Lake (bronze / silver / gold)
 
 `modis_lake.py` reads the MODIS 8-day composites (chlorophyll-a, Kd490, fluorescence
 line height, SST; Aqua, 2003–2024) that are already on Hyak, in place. They are never
 re-downloaded from ERDDAP. It builds three layers and checks the result against
-the existing OAD pipeline (`oad/scripts/02_build_cube.py` →
-`07_cloud_confound.compute_region_valid_fractions` →
-`data/processed/oad_cloud_fractions.parquet`, the input of two DATect forecast features).
+the existing OAD pipeline (`oad/scripts/02_build_cube.py` → a region count over
+`cube.zarr`, then in `07_cloud_confound.py`, now `modis_lake.reference_valid_fractions` →
+`data/processed/oad_cloud_fractions.parquet`, the input of two DATect forecast
+features). Since these runs, the lake is that file's producer (`export` step).
 
 **Input.** 2,563 NetCDF files totalling 13,904,484,780 bytes (13.90 GB): chla 4.78 GB,
 k490 2.57 GB, nflh 2.63 GB, sst 3.92 GB. That is 264 monthly files per channel plus
@@ -122,7 +125,8 @@ evaluated models on data up to the anchor date, which takes seconds.
 `forecast_serving.py precompute` runs those calls on Spark (one task per site and
 date, one thread each) and stores each output unchanged, as lossless JSON, in
 `gold/forecasts`. Each row also carries the MLflow model version and a config hash.
-The API (`backend/precomputed_forecasts.py`) loads the table with `deltalake`
+The API (`backend/precomputed_forecasts.py` in these runs; now `backend/precomputed.py`,
+see section 4) loads the table with `deltalake`
 (delta-rs, no JVM) into an in-memory dict at startup. It answers from the dict when
 the key is present and the row's config hash matches the running code, config, data
 and library versions; otherwise it computes on demand as before. Responses gain
@@ -201,10 +205,100 @@ measurement of this change.
   this. The hash is conservative: setting a `DATECT_*` variable to its default value
   also counts as a change. Stale rows are logged at WARNING and reported on
   `/health`.
-- The Cloud Run deployment does not ship the table yet. With
-  `DATECT_FORECAST_TABLE` unset every forecast is computed as before. Responses still
-  gain `source: "computed"` and `model_version: null`, and `/health` gains
-  `precomputed_forecasts: null`.
+- These runs set `DATECT_FORECAST_TABLE` to the table. It is now
+  `DATECT_PRECOMPUTED_DIR`, the store directory (section 4), and the image ships the
+  store. Unset, every forecast is computed as before. Responses still gain
+  `source: "computed"` and `model_version: null`, and `/health` gains
+  `precomputed: null`.
+
+## 4. One pipeline per job
+
+After the measurements above, each job was given a single implementation on the
+Spark/Delta path. The evaluation itself (chronological, golden, multi-seed) stays on
+the joblib engine; Spark is a second executor of the same engine.
+
+**The lake makes the cloud fractions.** `modis_lake.py export` writes
+`data/processed/oad_cloud_fractions.parquet` from the gold table. With the committed
+writer versions (pandas 2.3.3, pyarrow 23.0.0, the Hyak env) the file is
+byte-identical to the committed one (sha256 `7ad73afb…`; job 42774330, where parity
+passed again). `oad/scripts/07_cloud_confound.py` reads that file instead of counting
+`cube.zarr`'s mask itself. The original counting code lives on unchanged as
+`modis_lake.reference_valid_fractions`, used only to re-time the old pipeline.
+`02_build_cube.py` stays, because the autoencoder trains on `cube.zarr`.
+
+**One weight tuner.** `retune.py` now tunes only the per-site XGBoost/Random Forest
+weights (nothing is clipped since #18), scored on yearly folds 2015–2021 (job
+42774505, commit 23ab0058):
+
+| | |
+|---|---|
+| Forecasts trained | 1,990 (1,581 tuning + 409 holdout points), each an XGBoost + RF pair |
+| Wall time, 16 cores | 816 s (624 s + 192 s), against 7,362 s of task time |
+| MLflow runs | 1,990 forecast runs + 50 (site, weight) scoring runs |
+| Parity | The current weights applied to its raw predictions equal the committed chronological predictions exactly (max abs diff 0.0 on 635 + 409 rows) |
+| Holdout 2022–2023 | Current weights R² 0.516 (the headline), MAE 7.44; proposed R² 0.507, MAE 7.39 |
+
+Nothing was adopted: the proposal (`results/tuning_provenance/retune_weights/`)
+does worse on the holdout R². The old tuning stack is removed: the clip grid search,
+`tune_all.py` (which would have written the clip back into the tuned JSON), its
+sweeps, and `validate_tuned_on_holdout.py`. `results/tuning_provenance/` keeps their
+outputs. The current weights came from the removed grid search (promoted in
+`cdc2a32c`). Its folds differ from these, which is why a re-run can propose other
+weights.
+
+**One precompute store.** The file cache (`precompute_cache.py` → `cache/`, read by
+`cache_manager.py`, with an optional Redis layer) is replaced by one directory of
+Delta tables, `DATECT_PRECOMPUTED_DIR`, read with deltalake (`backend/precomputed.py`):
+
+| Table | Rows | Built by |
+|---|---:|---|
+| `forecasts` | 21,900 (section 3) | `forecast_serving.py precompute` |
+| `retrospective` | 8 slices × 1,054 records | `precompute_store.py retrospective`: `run_retrospective_evaluation` unchanged, with joblib's backend set to Spark (joblibspark), so Spark executes the engine's own per-point forecasts |
+| `spectral` | 11 (10 sites + all) | `precompute_store.py visuals`, one Spark task per chart |
+| `correlation` | 10 | same |
+
+Every table carries the config hash. It now also covers `backend/visualizations.py`,
+`backend/records.py` (where stored rows are serialized), the contents of `*_JSON`
+override files, the CPU architecture and the Python version. It no longer covers
+`DATECT_PARALLEL_BACKEND` or `DATECT_TEMPORAL_HOLDOUT_CUTOFF`, which never change a
+stored row.
+
+The gate passed (job 42775261, commit 2401ecac). All **29 of 29** precomputed
+endpoint bodies served from the store equal the old file cache's, built by
+`precompute_cache.py` at the PR #21 head (job 42774205): 8 retrospective slices, 11
+spectral analyses and 10 correlation heatmaps. Each body was parsed, stripped of the
+fields that say where it was served from, re-serialized with sorted keys and compared
+by sha256 (`results/store/bodies_*.json`). Build time on one 16-core node
+(`results/store/precompute_*.json`):
+
+| | Wall time |
+|---|---:|
+| Old: `precompute_cache.py`, joblib/loky, everything | 1,800 s |
+| New: retrospective on Spark (8 slices, 257–335 s each) | 2,567 s |
+| New: spectral + correlation on Spark | 4 s |
+
+Spark as joblib's executor is about 1.4× slower on one node, from per-batch Spark jobs
+and pickling the engine with its feature frame. The gain is one store and one build
+path, with the same bodies, not speed. The retrospective, spectral and correlation
+tables take 1.2 MB (`results/store/saved_store.json`).
+
+**Serve live from Delta.**
+- The image copies `store/` (synced from `~/datect-store/<commit>/` on Hyak) and sets
+  `DATECT_PRECOMPUTED_DIR`.
+- It installs the model libraries under `constraints.txt`, the Hyak Spark env's
+  versions, so a store built there at the deployed commit matches the image's hash.
+- CI's docker job prints the image's hash, builds a two-entry forecasts table inside
+  the image and checks that the container serves it and computes another date.
+- The dashboard's default date is now the latest weekly row, which a current store
+  holds. Before, it was a Saturday, and `new Date()` shifted it a day in US time zones.
+- The image build refuses a store that is not complete and current for the image
+  (`python -m backend.precomputed check`). A stale store would otherwise make every
+  retrospective request recompute on Cloud Run, which takes minutes. The image uses
+  Python 3.10 like the Hyak env, and the env's packages are frozen in
+  `datect_spark/env-freeze.txt`.
+- The production table is not rebuilt here. `main`'s config hash changed when #19
+  added `forecasting/conformal.py`, and the forecasting rework that follows will change
+  it again. The store is rebuilt once after that lands, before the next deploy.
 
 ## Environment notes (Hyak)
 
@@ -226,10 +320,14 @@ L="-o $HOME/datect-spark-logs/%x-%j.out -e $HOME/datect-spark-logs/%x-%j.err"
 sbatch $L datect_spark/modis_lake.sbatch                                  # MODIS -> Delta + parity
 sbatch $L --export=ALL,STEPS=reference datect_spark/modis_lake.sbatch     # timed reference
 sbatch $L --export=ALL,MAIN_SHA=$(git rev-parse origin/main) datect_spark/serving.sbatch
+sbatch $L datect_spark/retune.sbatch                                      # weight tuner (proposes only)
+sbatch $L --export=ALL,STEPS="forecasts parity save" datect_spark/store.sbatch
+sbatch $L --export=ALL,STEPS="retrospective save visuals save" datect_spark/store.sbatch
 ```
 
-Result JSONs: `results/spark_lake/` (MODIS) and `results/serving/` (precompute,
-parity, latency before/after).
+Result JSONs: `results/spark_lake/` (MODIS, export), `results/serving/` (precompute,
+parity, latency before/after), `results/tuning_provenance/retune_weights/` (tuner) and
+`results/store/` (store build, endpoint-body gate).
 
 ## Resume bullets (numbers from the runs above)
 

@@ -8,8 +8,8 @@ dataset-creation.py / rebuild_final_output.py turn into the oad_* features.
 This script selects the checkpoint, validates the schema and writes that copy.
 
 The companion cloud-fraction input, data/processed/oad_cloud_fractions.parquet,
-comes from the cube itself (compute_region_valid_fractions in
-oad/scripts/07_cloud_confound.py) and does not depend on the checkpoint.
+comes from the MODIS Delta lake (python -m datect_spark.modis_lake export, on Hyak)
+and does not depend on the checkpoint.
 
 Usage:
     python scripts/data/export_oad_features.py ae_3d_l32_c4_t4_s42_mae070

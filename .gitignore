@@ -66,8 +66,10 @@ Thumbs.db
 .ralph/
 .ralphrc
 
-# Pre-computed caches (generated on Hyak, too large for git)
-cache/
+# Precomputed store (Delta tables built on Hyak; see docs/DEPLOYMENT_GUIDE.md)
+/store/
+# The former file cache (removed; old checkouts may still hold one)
+/cache/
 cache_seed123/
 
 # Evaluation outputs: results/ is tracked (it backs the reported numbers);

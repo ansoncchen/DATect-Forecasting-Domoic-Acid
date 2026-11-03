@@ -1,0 +1,11 @@
+{
+  "window": "tuning",
+  "points": 1581,
+  "ok": 1581,
+  "wall_seconds": 623.6667242050171,
+  "task_seconds_total": 5423.833734512329,
+  "child_runs": 1581,
+  "parity_rows_matched": 635,
+  "parity_rows_unmatched": 0,
+  "parity_max_abs_diff": 0.0
+}

@@ -36,7 +36,7 @@ for step in ${STEPS:-latency-before precompute parity latency-after}; do
                             --out results/serving/latency_before.json ;;
         precompute)     $PY -u -m datect_spark.forecast_serving precompute ${GRID:+--grid $GRID} ${LIMIT:+--limit $LIMIT} ;;
         parity)         $PY -u -m datect_spark.forecast_serving parity ;;
-        latency-after)  DATECT_FORECAST_TABLE=$DATECT_LAKE/gold/forecasts \
+        latency-after)  DATECT_PRECOMPUTED_DIR=$DATECT_LAKE/gold \
                             $PY -u scripts/eval/forecast_latency.py --repo . \
                             --out results/serving/latency_after.json \
                             ${MAIN_SHA:+--compare-to results/serving/latency_before.json} ;;

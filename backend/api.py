@@ -4,7 +4,6 @@ FastAPI backend providing forecasting, visualization, and analysis endpoints
 """
 
 import logging
-import math
 import os
 from pathlib import Path
 from datetime import datetime, date
@@ -29,47 +28,11 @@ from backend.visualizations import (
     generate_spectral_analysis,
     generate_gradient_uncertainty_plot,
 )
-from backend.cache_manager import cache_manager
-from backend import precomputed_forecasts
+from backend import precomputed
+from backend.records import clean_for_json, retrospective_records  # noqa: F401 (re-exported)
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-def clean_for_json(obj):
-    """
-    Clean values for JSON serialization - handles inf/nan, numpy types, and nested structures.
-    
-    Args:
-        obj: Value to clean (can be dict, list, numpy array, scalar, etc.)
-    
-    Returns:
-        JSON-serializable value
-    """
-    if obj is None:
-        return None
-    if isinstance(obj, dict):
-        return {k: clean_for_json(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [clean_for_json(item) for item in obj]
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    if isinstance(obj, pd.DataFrame):
-        return obj.head(10).to_dict('records') if not obj.empty else []
-    if isinstance(obj, (np.floating, np.integer)):
-        return obj.item()
-    if isinstance(obj, float):
-        if math.isinf(obj) or math.isnan(obj):
-            return None
-        return obj
-    # Check for pandas NA values
-    try:
-        if pd.isna(obj):
-            return None
-    except (TypeError, ValueError):
-        pass
-    return obj
-
-
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not os.path.isabs(config.FINAL_OUTPUT_PATH):
@@ -109,8 +72,8 @@ app.add_middleware(
 # Lazy singletons for Cloud Run optimization
 forecast_engine = None
 model_factory = None
-# Precomputed forecasts (Delta), loaded at startup when DATECT_FORECAST_TABLE is set
-precomputed_forecasts.load_from_env()
+# Precomputed store (Delta), loaded at startup when DATECT_PRECOMPUTED_DIR is set
+precomputed.load_from_env()
 
 @lru_cache(maxsize=1)
 def load_data_cached() -> pd.DataFrame:
@@ -129,10 +92,10 @@ def get_forecast_engine() -> ForecastEngine:
     return forecast_engine
 
 def _single_forecast(site: str, forecast_date, task: str, model_type: str):
-    """(generate_single_forecast output, model_version): from the precomputed Delta
-    table when it holds this request for the same code, config and data
-    (DATECT_FORECAST_TABLE), computed on demand otherwise (model_version None)."""
-    hit = precomputed_forecasts.lookup(site, forecast_date, task, model_type)
+    """(generate_single_forecast output, model_version): from the precomputed store
+    when it holds this request for the same code, config and data
+    (DATECT_PRECOMPUTED_DIR), computed on demand otherwise (model_version None)."""
+    hit = precomputed.forecast(site, forecast_date, task, model_type)
     if hit is not None:
         return hit.result, hit.model_version
     result = get_forecast_engine().generate_single_forecast(
@@ -214,7 +177,7 @@ def root():
 def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.now().isoformat(),
-            "precomputed_forecasts": precomputed_forecasts.status()}
+            "precomputed": precomputed.status()}
 
 @app.get("/api/sites", response_model=SiteInfo)
 def get_sites():
@@ -442,7 +405,7 @@ def get_correlation_heatmap_single(site: str):
         data = get_data_copy()
         actual_site = resolve_site(site)
 
-        cached_plot = cache_manager.get_correlation_heatmap(actual_site)
+        cached_plot = precomputed.correlation(actual_site)
         if cached_plot is not None:
             return {"success": True, "plot": cached_plot, "cached": True, "source": "precomputed"}
 
@@ -498,10 +461,9 @@ def get_waterfall_plot():
 
 @app.get("/api/visualizations/spectral/all")
 def get_spectral_analysis_all():
-    """Generate spectral analysis for all sites combined (uses pre-computed cache)."""
+    """Spectral analysis for all sites combined (from the precomputed store when it has it)."""
     try:
-        # First try pre-computed cache
-        plots = cache_manager.get_spectral_analysis(site=None)
+        plots = precomputed.spectral(None)
         
         if plots is not None:
             return {"success": True, "plots": plots, "cached": True, "source": "precomputed"}
@@ -509,30 +471,38 @@ def get_spectral_analysis_all():
         # Compute on server (expensive - only for local development)
         logging.warning("Computing spectral analysis on server - this is very expensive!")
         data = get_data_copy()
-        plots = generate_spectral_analysis(data, site=None)
+        plots = generate_spectral_analysis(data, site=None, **_spectral_model_results())
         return {"success": True, "plots": plots, "cached": False, "source": "computed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate spectral analysis: {str(e)}")
 
 @app.get("/api/visualizations/spectral/{site}")
 def get_spectral_analysis_single(site: str):
-    """Generate spectral analysis for a single site (uses pre-computed cache)."""
+    """Spectral analysis for a single site (from the precomputed store when it has it)."""
     try:
         data = get_data_copy()
         actual_site = resolve_site(site)
 
-        # First try pre-computed cache
-        plots = cache_manager.get_spectral_analysis(site=actual_site)
+        plots = precomputed.spectral(actual_site)
         
         if plots is not None:
             return {"success": True, "plots": plots, "cached": True, "source": "precomputed"}
 
         # Compute on server (expensive - only for local development)
         logging.warning(f"Computing spectral analysis for {actual_site} on server - this is very expensive!")
-        plots = generate_spectral_analysis(data, actual_site)
+        plots = generate_spectral_analysis(data, actual_site, **_spectral_model_results())
         return {"success": True, "plots": plots, "cached": False, "source": "computed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate spectral analysis: {str(e)}")
+
+def _spectral_model_results() -> dict:
+    """The XGBoost and Random Forest retrospective predictions the spectral analysis
+    compares with, from the precomputed store (None for a slice it lacks)."""
+    out = {}
+    for key, model in (("xgb_results", "xgboost"), ("rf_results", "rf")):
+        records = precomputed.retrospective("regression", model)
+        out[key] = pd.DataFrame(records) if records else None
+    return out
 
 def get_latest_da_from_raw_files():
     """Latest DA from raw CSVs; uses ``config.ORIGINAL_DA_FILES`` (same paths as the forecast pipeline)."""
@@ -719,7 +689,7 @@ def generate_enhanced_forecast(request: ForecastRequest):
         classification_result, classification_version = _single_forecast(
             actual_site, forecast_date, "classification", classification_model
         )
-        precomputed = regression_version is not None and classification_version is not None
+        served = regression_version is not None and classification_version is not None
         
         # Create response structure expected by frontend
         response_data = {
@@ -729,8 +699,8 @@ def generate_enhanced_forecast(request: ForecastRequest):
             "regression": clean_for_json(regression_result),
             "classification": clean_for_json(classification_result),
             "graphs": {},
-            "source": "precomputed" if precomputed else "computed",
-            "model_version": regression_version if precomputed else None,
+            "source": "precomputed" if served else "computed",
+            "model_version": regression_version if served else None,
         }
         
         # Add level_range graph for regression (only when quantiles available)
@@ -800,7 +770,7 @@ def generate_enhanced_forecast(request: ForecastRequest):
 
 @app.post("/api/retrospective")
 def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequest()):
-    """Retrospective results for the requested task and model (pre-computed cache in production)."""
+    """Retrospective results for the requested task and model (precomputed store in production)."""
     if request.task not in ("regression", "classification"):
         raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
     task = request.task
@@ -811,10 +781,8 @@ def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequ
         else:
             actual_model = request.model  # "ensemble" or "naive" pass through
         
-        # Canonical on-disk path for this slice (response metadata); reads may come from Redis instead.
-        cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{task}_{actual_model}.json"
-        base_results = cache_manager.get_retrospective_forecast(task, actual_model)
-        cache_hit = base_results is not None
+        base_results = precomputed.retrospective(task, actual_model)
+        hit = base_results is not None
         
         if base_results is None:
             # Compute on server (expensive - only for local development)
@@ -830,29 +798,9 @@ def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequ
             if results_df is None or results_df.empty:
                 return {"success": False, "error": "No results generated from retrospective analysis"}
 
-            # Convert results to JSON format with proper float cleaning (canonical keys)
-            base_results = []
-            for _, row in results_df.iterrows():
-                record = {
-                    "date": row['date'].strftime('%Y-%m-%d') if pd.notnull(row['date']) else None,
-                    "site": row['site'],
-                    "actual_da": clean_for_json(row['actual_da']) if 'actual_da' in row and pd.notnull(row['actual_da']) else None,
-                    "predicted_da": clean_for_json(row['predicted_da']) if 'predicted_da' in row and pd.notnull(row['predicted_da']) else None,
-                    "actual_category": clean_for_json(row['actual_category']) if 'actual_category' in row and pd.notnull(row['actual_category']) else None,
-                    "predicted_category": clean_for_json(row['predicted_category']) if 'predicted_category' in row and pd.notnull(row['predicted_category']) else None
-                }
-                if 'anchor_date' in results_df.columns and pd.notnull(row.get('anchor_date', None)):
-                    record['anchor_date'] = row['anchor_date'].strftime('%Y-%m-%d')
-                if 'spike_probability' in results_df.columns and pd.notnull(row.get('spike_probability', None)):
-                    record['spike_probability'] = clean_for_json(row['spike_probability'])
-                    record['spike_alert'] = bool(row.get('spike_alert', False))
-                base_results.append(record)
-
-            # Results computed on-demand for local development
+            base_results = retrospective_records(results_df)
         else:
             logging.info(f"Serving pre-computed retrospective analysis: {task}+{actual_model}")
-
-        # Cached data now uses the same standardized format as fresh computation (actual_da, predicted_da, actual_category, predicted_category)
 
         # Filter by sites if specified
         filtered = [r for r in base_results if r['site'] in request.selected_sites] if request.selected_sites else base_results
@@ -865,14 +813,7 @@ def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequ
                 "forecast_task": task,
                 "forecast_model": request.model,
             },
-            "cache": {
-                "enabled": cache_manager.enabled,
-                "path": str(cache_manager.cache_dir),
-                "file": str(cache_file),
-                "file_exists": cache_file.exists(),
-                "hit": cache_hit,
-                "redis_active": cache_manager.use_redis,
-            },
+            "precomputed": {"hit": hit, **precomputed.table_info()},
             "summary": summary,
             "results": filtered
         }
@@ -882,6 +823,8 @@ def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequ
             "success": False,
             "error": str(e)
         }
+
+
 
 def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
     """Compute summary metrics for retrospective results using canonical keys only."""

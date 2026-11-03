@@ -1,0 +1,10 @@
+{
+  "what": "precompute_cache.py (the removed file cache), run by store.sbatch's before step under /usr/bin/time -v",
+  "job": 42774205,
+  "commit": "272b2c01 (the PR #21 head)",
+  "host_cpus": 16,
+  "wall_clock": "30:00.54",
+  "wall_seconds": 1800.54,
+  "max_rss_kbytes_of_timed_process": 378668,
+  "note": "Wall time covers all eight retrospective slices, spectral analyses and correlation heatmaps (joblib/loky on 16 cores)."
+}

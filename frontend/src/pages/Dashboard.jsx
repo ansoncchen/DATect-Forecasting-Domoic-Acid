@@ -3,7 +3,7 @@ import { Calendar, MapPin, Cpu, AlertTriangle, Settings, Play, BarChart3, Trendi
 import DatePicker from 'react-datepicker'
 import Select from 'react-select'
 import Plot from '../utils/Plot'
-import { format, subDays } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import api from '../services/api'
 import { plotConfig, getPlotFilename } from '../utils/plotConfig'
 import {
@@ -67,7 +67,11 @@ const Dashboard = () => {
       }
       
       if (sitesRes.data.date_range.max) {
-        setSelectedDate(subDays(new Date(sitesRes.data.date_range.max), 30))
+        // Default to the latest weekly row: the precomputed store has every weekly
+        // (site, date), so the first forecast is served from it. parseISO keeps the
+        // calendar date local (new Date('YYYY-MM-DD') is UTC midnight, the day before
+        // in US time zones).
+        setSelectedDate(parseISO(sitesRes.data.date_range.max))
       }
       
     } catch (err) {
@@ -346,7 +350,7 @@ const Dashboard = () => {
             <DatePicker
               selected={selectedDate}
               onChange={setSelectedDate}
-              minDate={dateRange.min ? new Date(dateRange.min) : null}
+              minDate={dateRange.min ? parseISO(dateRange.min) : null}
               /* Allow forecasting beyond dataset end; no hard max */
               maxDate={null}
               className="w-full p-2 border border-gray-300 rounded-md"

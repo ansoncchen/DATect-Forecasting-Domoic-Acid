@@ -18,12 +18,14 @@ never re-downloaded) in place and builds:
   gold/oad_region_valid_frac  per (date, region): valid pixels / pixels in the region's
                             lat/lon box, land included (regions from oad/src/regions.py)
 
-The reference is oad/scripts/02_build_cube.py followed by
-07_cloud_confound.compute_region_valid_fractions, which produced
-data/processed/oad_cloud_fractions.parquet. ``parity`` checks that the gold table
-equals that file exactly, that the time axis equals cube.zarr's, and that five dates
-of standardized values and the mask equal cube.zarr. ``reference`` re-runs and times
-the reference itself (cube written to scrubbed; the original is never touched).
+The lake is the producer of data/processed/oad_cloud_fractions.parquet (the input of
+two DATect forecast features): ``export`` writes it from the gold table. It was first
+made by oad/scripts/02_build_cube.py followed by a region count over cube.zarr
+(``reference_valid_fractions`` below, formerly in 07_cloud_confound.py). ``parity``
+checks that the gold table equals the committed file exactly, that the time axis
+equals cube.zarr's, and that five dates of standardized values and the mask equal
+cube.zarr. ``reference`` re-runs and times that original pipeline (its cube is
+written beside the lake; the original cube.zarr is never touched).
 
 Each step writes its measurements to results/spark_lake/modis_<step>.json. In a
 persistent checkout a step whose file already holds a run of the same commit is
@@ -31,7 +33,7 @@ skipped; Hyak jobs run from a fresh archive on node-local disk (hyak_stage.sh), 
 there every listed step runs.
 
 Usage (Hyak, inside an allocation; see datect_spark/modis_lake.sbatch):
-    python -m datect_spark.modis_lake bronze|silver|optimize|gold|parity|vacuum|reference
+    python -m datect_spark.modis_lake bronze|silver|optimize|gold|parity|export|vacuum|reference
 """
 from __future__ import annotations
 
@@ -57,7 +59,9 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(REPO_ROOT, "results", "spark_lake")
 RAW_ROOT = os.environ.get("OAD_RAW", "/gscratch/stf/ac283/oad_current/data/raw")
 CUBE_PATH = os.environ.get("OAD_CUBE", "/gscratch/stf/ac283/oad_current/data/cube.zarr")
+# The cloud-fraction feature input: committed, produced by ``export``
 REFERENCE_PARQUET = os.path.join(REPO_ROOT, "data", "processed", "oad_cloud_fractions.parquet")
+FRACTION_DTYPES = {"date": "datetime64[ns]", "region": "object", "valid_frac": "float64"}
 # Smoke runs: only files of these years (by file name, as 02_build_cube.py --year)
 YEARS = {y for y in os.environ.get("DATECT_MODIS_YEARS", "").split(",") if y}
 
@@ -474,6 +478,18 @@ def gold() -> dict:
     return out
 
 
+def fractions_frame(gold: pd.DataFrame) -> pd.DataFrame:
+    """The gold table as oad_cloud_fractions.parquet lays it out: regions in
+    oad/src/regions.py order, dates ascending within each, three typed columns."""
+    gold = gold.assign(date=pd.to_datetime(gold["date"]).astype("datetime64[ns]"))
+    gold = gold.sort_values(["region_order", "date"]).reset_index(drop=True)
+    return gold[list(FRACTION_DTYPES)].astype(FRACTION_DTYPES)
+
+
+def _gold_fractions(spark) -> pd.DataFrame:
+    return fractions_frame(spark.read.format("delta").load(table("valid_frac")).toPandas())
+
+
 def parity() -> dict:
     import xarray as xr
     from pyspark.sql import functions as F
@@ -482,14 +498,11 @@ def parity() -> dict:
     out = {}
 
     # 1. gold == oad_cloud_fractions.parquet, exactly
-    gold_df = spark.read.format("delta").load(table("valid_frac")).toPandas()
-    gold_df["date"] = pd.to_datetime(gold_df["date"]).astype("datetime64[ns]")
-    gold_df = gold_df.sort_values(["region_order", "date"]).reset_index(drop=True)
     ref = pd.read_parquet(REFERENCE_PARQUET)
     if YEARS:
         ref = ref[ref["date"].dt.year.astype(str).isin(YEARS)]
     ref = ref.reset_index(drop=True)
-    mine = gold_df[ref.columns].astype(ref.dtypes.to_dict())
+    mine = _gold_fractions(spark)
     merged = mine.merge(ref, on=["date", "region"], how="outer", suffixes=("", "_ref"), indicator=True)
     both = merged[merged["_merge"] == "both"]
     out["valid_frac"] = {"rows": len(mine), "reference_rows": len(ref),
@@ -551,6 +564,32 @@ def parity() -> dict:
     return out
 
 
+def _file_sha256(path: str) -> str | None:
+    return _sha256(path) if os.path.exists(path) else None
+
+
+def export() -> dict:
+    """Write data/processed/oad_cloud_fractions.parquet from the gold table (and a copy
+    under results/ so a Hyak job brings it back). With the committed writer versions
+    (pandas 2.3.3, pyarrow 23.0.0) the file is byte-identical to the committed one."""
+    import pyarrow
+
+    if YEARS:
+        raise SystemExit("export needs every year: unset DATECT_MODIS_YEARS")
+    spark = _spark("datect-modis-export")
+    frame = _gold_fractions(spark)
+    spark.stop()
+    committed = _file_sha256(REFERENCE_PARQUET)
+    frame.to_parquet(REFERENCE_PARQUET, index=False)
+    os.makedirs(OUT_DIR, exist_ok=True)
+    frame.to_parquet(os.path.join(OUT_DIR, "oad_cloud_fractions.parquet"), index=False)
+    exported = _file_sha256(REFERENCE_PARQUET)
+    return {"path": os.path.relpath(REFERENCE_PARQUET, REPO_ROOT), "rows": len(frame),
+            "sha256_committed": committed, "sha256_exported": exported,
+            "byte_identical": committed == exported,
+            "writer": {"pandas": pd.__version__, "pyarrow": pyarrow.__version__}}
+
+
 def vacuum() -> dict:
     """Drop the files OPTIMIZE replaced (the lake is scratch; history is not needed)."""
     from delta.tables import DeltaTable
@@ -566,9 +605,41 @@ def vacuum() -> dict:
     return out
 
 
+def reference_valid_fractions(cube_path: Path) -> pd.DataFrame:
+    """The original producer of oad_cloud_fractions.parquet, moved here unchanged from
+    oad/scripts/07_cloud_confound.py (compute_region_valid_fractions): for each
+    (date, region), the fraction of in-region pixels valid in all four channels."""
+    import xarray as xr
+
+    ds = xr.open_zarr(cube_path)
+    mask = ds["mask"]  # (time, lat, lon), bool — True = valid
+    lat = ds.lat.values
+    lon = ds.lon.values
+    dates = pd.to_datetime(ds.time.values)
+
+    rows = []
+    for region in oad_regions():
+        lat_in = (lat >= region.lat_min) & (lat <= region.lat_max)
+        lon_in = (lon >= region.lon_min) & (lon <= region.lon_max)
+        # rectangular bbox mask
+        region_pixels = int(lat_in.sum() * lon_in.sum())
+        if region_pixels == 0:
+            print(f"  WARN: 0 pixels in {region.name}")
+            continue
+        # sum valid pixels per time step inside this region
+        sub = mask.isel(lat=lat_in, lon=lon_in)
+        valid_per_t = sub.sum(dim=["lat", "lon"]).values.astype(np.float64)
+        frac = valid_per_t / region_pixels
+        for d, f in zip(dates, frac):
+            rows.append({"date": d, "region": region.name, "valid_frac": float(f)})
+        print(f"  {region.name:40s}  pixels={region_pixels:6d}  "
+              f"frac mean={frac.mean():.3f}  min={frac.min():.3f}  max={frac.max():.3f}")
+    return pd.DataFrame(rows)
+
+
 def reference() -> dict:
-    """Time the reference: 02_build_cube.py (cube written to scrubbed) and
-    compute_region_valid_fractions, and check both against the committed outputs."""
+    """Time the original pipeline: 02_build_cube.py (cube written beside the lake) and
+    reference_valid_fractions, and check both against the committed outputs."""
     import xarray as xr
 
     ref_cube = os.environ.get("DATECT_REF_CUBE",
@@ -585,9 +656,8 @@ def reference() -> dict:
     out["build_cube_seconds"] = time.time() - t0
     out["build_cube_max_rss_gb"] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1e6
 
-    confound = _load_oad_module("oad_cloud_confound", os.path.join("scripts", "07_cloud_confound.py"))
     t0 = time.time()
-    fracs = confound.compute_region_valid_fractions(Path(ref_cube))
+    fracs = reference_valid_fractions(Path(ref_cube))
     out["valid_fractions_seconds"] = time.time() - t0
     out["total_seconds"] = out["build_cube_seconds"] + out["valid_fractions_seconds"]
     fracs["date"] = pd.to_datetime(fracs["date"])
@@ -602,7 +672,7 @@ def reference() -> dict:
 
 
 STEPS = {"bronze": bronze, "silver": silver, "optimize": optimize, "gold": gold,
-         "parity": parity, "vacuum": vacuum, "reference": reference}
+         "parity": parity, "export": export, "vacuum": vacuum, "reference": reference}
 
 
 def main() -> None:

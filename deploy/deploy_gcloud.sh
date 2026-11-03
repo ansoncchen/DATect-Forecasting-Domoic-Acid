@@ -1,6 +1,6 @@
 #!/bin/bash
 # DATect Google Cloud Deployment
-# Ensures local ./cache exists, then builds the image (frontend included) with Cloud Build and deploys to Cloud Run
+# Ensures local ./store exists, then builds the image (frontend included) with Cloud Build and deploys to Cloud Run
 
 set -e
 
@@ -46,17 +46,19 @@ echo "Project ID: $PROJECT_ID"
 echo "Region: $REGION"
 echo "=================================================="
 
-# The pre-computed cache is generated on Hyak (precompute_cache.py is too heavy
-# for a laptop) and copied here; the image bakes it in.
-if [ ! -d "./cache" ] || [ -z "$(ls -A ./cache)" ]; then
-    print_error "./cache is missing or empty. Generate it on Hyak (python precompute_cache.py)"
-    echo "and copy it here, e.g.: scp -r klone-login:/gscratch/stf/ac283/<checkout>/cache ./cache"
+# The precomputed store (Delta tables) is built on Hyak by datect_spark/store.sbatch,
+# which saves it to ~/datect-store/<commit>/; copy that here. The image bakes it in.
+# Build it at the commit you deploy: a store from other code, config or data is
+# ignored (config hash) and every request is computed on demand.
+if [ ! -d "./store" ] || [ -z "$(ls -A ./store)" ]; then
+    print_error "./store is missing or empty. Build it on Hyak (datect_spark/store.sbatch)"
+    echo "and copy it here, e.g.: rsync -a klone-login:datect-store/\$(git rev-parse HEAD)/ ./store/"
     exit 1
 fi
 
-CACHE_SIZE=$(du -sh ./cache | cut -f1)
-CACHE_FILES=$(find ./cache -type f | wc -l)
-print_success "Cache ready: $CACHE_SIZE ($CACHE_FILES files)"
+STORE_SIZE=$(du -sh ./store | cut -f1)
+STORE_TABLES=$(ls ./store | tr '\n' ' ')
+print_success "Store ready: $STORE_SIZE ($STORE_TABLES)"
 
 print_status "🔧 Configuring Google Cloud..."
 gcloud config set project $PROJECT_ID

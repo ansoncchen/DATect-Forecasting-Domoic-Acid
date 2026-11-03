@@ -12,7 +12,8 @@
 #SBATCH --error=logs/modis-lake-%j.err
 #
 # MODIS NetCDFs -> bronze/silver/gold Delta tables (Spark local mode on one node),
-# or the timed reference (02_build_cube.py + compute_region_valid_fractions).
+# then exports data/processed/oad_cloud_fractions.parquet (results/spark_lake/), or the
+# timed reference (02_build_cube.py + reference_valid_fractions).
 # STEPS picks what runs, in order. The job runs on node-local disk (see
 # hyak_stage.sh); the lake is rebuilt each run and only results/spark_lake/*.json
 # is kept. Submit from any checkout, with logs outside the full filesystems:
@@ -25,7 +26,7 @@ export MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-sqlite:////gscratch/stf/ac283/
 RESULTS_SUBDIR=spark_lake
 source "$SLURM_SUBMIT_DIR/datect_spark/hyak_stage.sh"
 
-for step in ${STEPS:-bronze silver optimize gold parity vacuum}; do
+for step in ${STEPS:-bronze silver optimize gold parity export vacuum}; do
     echo "== $step @ $(date +%T) =="
     $PY -u -m datect_spark.modis_lake "$step"
     echo "   lake on disk: $(du -sh "$DATECT_LAKE" | cut -f1); node /tmp free: $(df -h /tmp | tail -1 | awk '{print $4}')"

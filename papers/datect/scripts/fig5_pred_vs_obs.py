@@ -17,7 +17,9 @@ import matplotlib.dates as mdates
 
 # ── paths ────────────────────────────────────────────────────────────────
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-PARQUET = ROOT / "cache" / "retrospective" / "regression_ensemble.parquet"
+# The seed-42, 20% retrospective of the ensemble (results/multi_seed/, tracked): the same
+# run_retrospective_evaluation the dashboard cache held as regression_ensemble.parquet.
+PARQUET = ROOT / "results" / "multi_seed" / "baseline_seed42_predictions.parquet"
 OUT = ROOT / "papers" / "datect" / "figures" / "fig5_pred_vs_obs.png"
 OUT.parent.mkdir(parents=True, exist_ok=True)
 

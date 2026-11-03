@@ -1,6 +1,6 @@
 # Upload whitelist for `gcloud builds submit`: only the Docker build inputs.
 # (Mirrors .dockerignore; .gitignore is intentionally not included because the
-# pre-computed cache/ directory must be uploaded.)
+# precomputed store/ directory must be uploaded.)
 /*
 !/backend/
 !/forecasting/
@@ -9,7 +9,8 @@
 !/config.py
 !/results/
 !/requirements.txt
-!/cache/
+!/store/
+!/constraints.txt
 !/frontend/
 !/Dockerfile.production
 !/.dockerignore

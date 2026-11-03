@@ -10,7 +10,9 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # 1. Load data and aggregate feature importances
 # ---------------------------------------------------------------------------
-DATA = Path(__file__).resolve().parents[3] / "cache/retrospective/regression_ensemble.parquet"
+# The seed-42, 20% retrospective of the ensemble (results/multi_seed/, tracked): the same
+# run_retrospective_evaluation the dashboard cache held as regression_ensemble.parquet.
+DATA = Path(__file__).resolve().parents[3] / "results/multi_seed/baseline_seed42_predictions.parquet"
 df = pd.read_parquet(DATA)
 
 agg: dict[str, list[float]] = defaultdict(list)

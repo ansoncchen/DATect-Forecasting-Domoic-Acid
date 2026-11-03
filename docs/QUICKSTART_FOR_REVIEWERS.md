@@ -101,9 +101,9 @@ print('holdout   ', w['holdout_start'], '->', w['holdout_end'])
 "
 ```
 
-The per-site grid search that sets ensemble weights and clipping uses 3-fold
-chronological CV on pre-2022 data only (folds defined in the docstring of
-`scripts/eval/grid_search_weights_clip.py`). OAD features carry an extra 5-day
+Per-site ensemble weights are tuned on pre-2022 data only: `datect_spark/retune.py`
+scores each weight on yearly folds 2015–2021 (nothing is clipped since #18). The
+current weights came from the removed `scripts/eval/grid_search_weights_clip.py` (75 weight × clip configurations per site, 3-fold chronological CV on 2019–2021, chosen jointly with the clip that #18 removed; winners promoted to the JSON in `cdc2a32c`, per-site outputs in `results/tuning_provenance/grid_search_results/`, script last changed in `9c435f59`). OAD features carry an extra 5-day
 lag so the centered MODIS composites never overlap the forecast window
 (`forecasting/oad_features.py`, [`OAD_INTEGRATION_RESULTS.md`](OAD_INTEGRATION_RESULTS.md)).
 
@@ -171,24 +171,24 @@ python scripts/eval/spike_detection_eval.py --seed 123 --sample-fraction 0.40
 
 ## Re-run the tuning
 
+Per-site ensemble weights are the only values re-tuned, by the one weight tuner on Hyak
+(`datect_spark/retune.py`: Spark, yearly folds 2015–2021, every run in MLflow; it
+proposes weights in `results/tuning_provenance/retune_weights/proposed_overrides.json`
+and never adopts them; adopting is a separate commit to `config/tuned_hyperparameters.json`):
+
 ```bash
-# On Hyak, from the repo root (sbatch jobs run the checkout they were submitted from)
-sbatch scripts/tune/tune_all.sbatch
+# On Hyak, from any checkout of the commit to tune
+sbatch -o ~/datect-spark-logs/%x-%j.out -e ~/datect-spark-logs/%x-%j.err datect_spark/retune.sbatch
 ```
 
-`tune_all.py` submits four sweeps and waits for them, then writes a new
-`config/tuned_hyperparameters.json` with provenance:
-
-1. Per-site grid search over ensemble weights and clipping (leak-free 3-fold chronological CV on pre-2022)
-2. Per-site XGBoost parameter perturbation check
-3. Global XGBoost defaults sweep (8 configs)
-4. Spike-classifier sweep (6 configs)
-
-`--dry-run` prints what would happen; `--assemble-only` rebuilds the JSON from
-existing sweep outputs. Afterwards run
-`pytest tests/test_tuned_config.py tests/test_grid_winners_apply.py`: the second
-file pins the current grid winners, so new winners must update the JSON and that
-fixture in the same commit.
+Its `holdout` step scores the proposal and the current weights once on 2022–2023;
+confirm with the chronological eval before adopting. After a change to the JSON run
+`pytest tests/test_tuned_config.py tests/test_grid_winners_apply.py`: the second file
+pins the current weights, so new weights must update the JSON and that fixture in the
+same commit. The earlier sweeps (per-site XGBoost perturbations, global XGBoost
+defaults, spike classifier) and the orchestrator that assembled them
+(`scripts/tune/tune_all.py`) were removed; their outputs stay in
+`results/tuning_provenance/` as the record behind the current JSON.
 
 ---
 
@@ -206,17 +206,13 @@ and changes into it. None of these are imported by the API or `run_datect.py`.
 | `eval_paper_metrics.py` | Paper Tables 1–3: model comparison, per-site metrics, 4-category classification, bootstrap CIs | `results/paper_metrics/` |
 | `spike_detection_eval.py` | Spike and transition detection of each model vs naive persistence | `results/spike_metrics[_seed<N>]/` |
 | `paper_ablation_study.py` | Component ablations (interpolated training, per-site config, lags, derived features, OAD), each in a fresh subprocess | `results/ablation/paper_ablation_results.json` |
-| `grid_search_weights_clip.py` (+ `.sbatch`) | Per-site grid over ensemble weights × clip quantile × clip max, chronological 3-fold CV | `results/tuning_provenance/grid_search_results/` |
-| `validate_tuned_on_holdout.py` | Runs a labeled config, then `--compare A B` scores both by window and prints a REAL / OVERFITTING / NEUTRAL verdict | `results/holdout_validation/` |
+| `datect_spark/retune.py` (+ `.sbatch`) | The weight tuner: per-site grid over ensemble weights on Spark, yearly folds 2015–2021, MLflow runs; proposes, never adopts | `results/tuning_provenance/retune_weights/` |
 | `golden_baseline.sh` / `.sbatch` | Re-run every reported evaluation for a git ref (Hyak) | worktree under `/gscratch/scrubbed/$USER/golden/` |
 | `compare_golden.py` | Diff two golden runs | stdout |
 | `autocorrelation_diagnostic.py` | Per-site lag-1 autocorrelation; ρ² bounds a persistence-only forecast | stdout |
 | `quick_raw_retrospective_compare.py` | Fast naive vs Ridge vs ensemble comparison on a small sample of raw DA | stdout / `--output-json` |
 | `tiny_sequence_baseline.py` | sklearn MLP on the last K weekly feature windows, same leak-free rows | stdout |
-| `run_per_site_xgb_verify.sbatch`, `run_global_xgb_sweep.sbatch`, `run_spike_classifier_sweep.sbatch` | Tuning stages 2–4 | `results/tuning_provenance/` |
 | `_repo.py`, `_subprocess.py` | Helpers: repo-root setup; run engine code in a fresh interpreter so `DATECT_*` variables take effect | — |
-
-**`scripts/tune/`**: `tune_all.py` (+ `tune_all.sbatch`), the re-tuning orchestrator above.
 
 **`scripts/data/`**
 

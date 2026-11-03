@@ -1,0 +1,7 @@
+{
+  "what": "The store tables saved by job 42775261 (store.sbatch save step)",
+  "dir": "~/datect-store/2401ecace71498c7f0f2c8186c7a5f252f0c9158 on Hyak",
+  "tables": ["retrospective", "spectral", "correlation"],
+  "bytes": 1186660,
+  "note": "Sum of file sizes (find -printf %s); the forecasts table of section 3 adds 16.9 MB."
+}

@@ -104,11 +104,11 @@ date-fns; Vitest (new, dev only).
 
 **Interfaces:**
 - Consumes (API names from the API session's plan, `docs/superpowers/plans/2026-11-03-dashboard-api-and-error-band.md` on `feat/dashboard-api`):
-  - `GET /api/config`: `spike_threshold`, `regression_alert_threshold`, `classifier_alert_cutoff`, `alert_levels [{ name, rule, cutoff, placeholder }]`, `category_bins [0, 5, 20, 40, null]`, `category_labels`, `eval_windows`, `band_level`, `newest_measurement_date`, `latest_forecast_week`
+  - `GET /api/config`: `spike_threshold`, `regression_alert_threshold`, `classifier_alert_cutoff`, `alert_levels [{ name, rule, cutoff, placeholder }]`, `category_bins [0, 5, 20, 40, null]`, `category_labels`, `eval_windows`, `band_level`, `newest_measurement_date`, `latest_forecast_week`, `sites_north_to_south`
   - `POST /api/forecast/enhanced` (regression only): `anchor_date`, `predicted_da`, `band { lo, hi, level, n_calibration, p_exceed, category_probabilities } | null`, `alert { classifier_probability, by_classifier, by_regression, alert, level: 'Quiet' | 'Watch' | 'Warning' | null, level_reason }`, `last_measurement { date, value }`, `recent_measurements` (≤ 6, newest last), plus the existing `regression` breakdown, `feature_importance`, `source`, `model_version`
   - `GET /api/forecast/all?date=` → `{ date, sites: [{ site, predicted_da, band, alert, last_measurement, source }] }`
   - `GET /api/sites/{site}/history?since=2019-01-01` → `{ site, rows }` (track-record row columns plus `alert`, `level`)
-  - `GET /api/track-record?window=holdout|validation&site=` → `{ window { name, start, end }, summary, per_site, rows }`; a summary is `{ n, r2, log_r2, mae, band { coverage, coverage_at_onsets, median_width }, onsets { n, caught, quiet, quiet_alarmed }, alarms { n, followed_by_jump }, levels { Quiet|Watch|Warning: { weeks, followed_by_jump } } }`
+  - `GET /api/track-record?window=holdout|validation&site=` → `{ window { name, start, end }, summary, per_site, rows }`; a summary is `{ n, r2, log_r2, mae, band { coverage, coverage_at_onsets, median_width }, onsets { n, caught, quiet, quiet_alarmed }, alarms { n, followed_by_jump, false_below_5, false_5_to_10, false_near_miss }, levels { Quiet|Watch|Warning: { weeks, followed_by_jump } } }` (holdout false alarms 21 / 18 / 48, validation 23 / 13 / 37)
   - `GET /api/metrics/summary`: adds `reliability { holdout | validation: { summary, per_site } }` and `source`
 - Produces (JSDoc typedefs in `contract.js`; every later task uses these names, never the API's):
   - `Config = { spikeThreshold, regressionAlert, classifierCutoff, levels: [{ name, cutoff, placeholder }], categories: [{ lo, hi, label }] /* null bin → Infinity */, windows: { validation: Window, holdout: Window }, bandLevel, newestMeasurement, latestWeek, sites: string[] /* north to south */, dateRange: { min, max } }`; `Window = { name, start, end, label }`
@@ -116,7 +116,7 @@ date-fns; Vitest (new, dev only).
   - `Forecast = { site, date, anchorDate, value, band: { lo, hi, nCalibration } | null, categoryChances: number[4] | null, bandPExceed: number | null, alert: Alert, lastMeasurement: { date, value } | null, recentMeasurements: [{ date, value }], parts: { xgb, rf, naive, weights } | null, drivers: [{ feature, importance }], provenance: { source, modelVersion, trainingSamples } }`
   - `HistoryRow = { date, anchorDate, actual, predicted, lo, hi, probability, fired, level }`
   - `Stat = { value, ci: [lo, hi] | null }` (the API sends `r2`/`mae` as a number or `[v, lo, hi]`)
-  - `Reliability = { n, r2: Stat, logR2: Stat | null, mae: Stat, band: { coverage, onsetCoverage, medianWidth }, onsets: { n, caught, quiet, quietAlarmed }, alarms: { n, followed, falseNearMiss: number | null, falseBelow5: number | null }, levels: { [levelName]: { weeks, followed } } }`
+  - `Reliability = { n, r2: Stat, logR2: Stat | null, mae: Stat, band: { coverage, onsetCoverage, medianWidth }, onsets: { n, caught, quiet, quietAlarmed }, alarms: { n, followed, falseBelow5, false5To10, falseNearMiss }, levels: { [levelName]: { weeks, followed } } }`
   - `Summary = { source, reliability: { holdout: { overall: Reliability, perSite: { [site]: Reliability } }, validation: {...} } }`
   - `TrackRecord = { window: Window, overall: Reliability, perSite: { [site]: Reliability }, rows: [{ date, site, actual, ensemble, naive, linear, lo, hi, pExceed, probability, fired, level }] }`
   - `toConfig(rawConfig, rawSites) → Config`, `toForecast(raw) → Forecast`, `toAllSites(raw) → Forecast[]` (fields the endpoint lacks are `null` / `[]`), `toHistory(raw) → HistoryRow[]`, `toSummary(raw) → Summary`, `toTrackRecord(raw) → TrackRecord`
@@ -153,7 +153,7 @@ it('builds config thresholds, levels, categories and site order', () => {
 it('maps the holdout reliability summary', () => {
   const r = toSummary(summaryFixture).reliability.holdout
   expect(r.overall.onsets).toEqual({ n: 27, caught: 19, quiet: 292, quietAlarmed: 87 })
-  expect(r.overall.alarms).toMatchObject({ n: 106, followed: 19 })
+  expect(r.overall.alarms).toEqual({ n: 106, followed: 19, falseBelow5: 21, false5To10: 18, falseNearMiss: 48 })
   expect(r.overall.levels.Watch).toEqual({ weeks: 73, followed: 9 })
   expect(r.perSite.Newport.onsets).toEqual({ n: 6, caught: 5, quiet: 24, quietAlarmed: 8 })
   expect(r.perSite['Cannon Beach'].n).toBe(2)
@@ -165,7 +165,7 @@ it('normalizes r2 sent as a number or as [v, lo, hi]', () => {
 ```
 
 - [ ] **Step 3: Run** `npm run test` — Expected: FAIL, `toForecast is not a function`.
-- [ ] **Step 4: Implement** `windowLabel(start, end)` (end exclusive: `'2022-01-01', '2024-01-01'` → `'2022–2023'`), `toStat`, the six adapters and `datect.js` (axios instance from `services/api.js`). Site order and the false-alarm breakdown (`falseNearMiss`, `falseBelow5`) were requested from the API session on 2026-11-03: use the field it added, or else keep `/api/sites` order and leave both breakdown fields `null`.
+- [ ] **Step 4: Implement** `windowLabel(start, end)` (end exclusive: `'2022-01-01', '2024-01-01'` → `'2022–2023'`), `toStat`, the six adapters and `datect.js` (axios instance from `services/api.js`). Sites come from `sites_north_to_south`. Also requested on 2026-11-03 and not yet confirmed: `anchor_date` per site in `/api/forecast/all` (else the all-sites ages use the page's forecast anchor), CIs and a `models { ensemble, naive, linear }` block in track-record summaries (else Task 10's model comparison waits for it), and whether `/api/metrics/summary.per_site` keeps `spike_recall`/`spike_precision`/`spike_f2`/`n_spikes`; map whatever the merged API has.
 - [ ] **Step 5: Run** `npm run test` — Expected: PASS. Run `npm run lint` — Expected: no errors.
 - [ ] **Step 6: Commit** `feat(frontend): API contract adapters, fetchers and Vitest`.
 
@@ -216,8 +216,6 @@ expect(levelRecordText('Watch', { weeks: 73, followed: 9 }, '2022–2023')).toBe
   'Watch weeks in 2022–2023 were followed by a jump 9 of 73 times (about 1 in 8).')
 expect(trackRecordText(overall, '2022–2023')).toBe(          // overall.alarms.falseNearMiss = 48
   '2022–2023, all sites: caught 19 of 27 jumps (about 7 in 10); 19 of 106 alarms were followed by one (about 1 in 6). 48 of the 87 false alarms were near misses at 10–20 µg/g.')
-expect(trackRecordText(withoutBreakdown, '2022–2023')).toBe(  // falseNearMiss = null
-  '2022–2023, all sites: caught 19 of 27 jumps (about 7 in 10); 19 of 106 alarms were followed by one (about 1 in 6).')
 expect(siteRecordText('Newport', { n: 6, caught: 5, quiet: 24, quietAlarmed: 8 })).toBe(
   'Newport: 5 of 6 jumps caught; 5 of 13 alarms followed by one.')
 expect(bandVsAlertText({ bandPExceed: 0.064, alert: { probability: 0.223 } })).toMatch(/^Not the alert\. The range puts ≥ 20 at 6%; the alert's classifier says 22%\./)

@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DATect forecast mockup</title>
+<!-- Throwaway design mockup for docs/superpowers/specs/2026-11-03-dashboard-decision-support-design.md.
+     Serve this folder over HTTP (it fetches data.json), e.g. python3 -m http.server -d <this folder>. -->
+<script src="https://cdn.tailwindcss.com/3.4.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-basic-dist-min@2.35.2/plotly-basic.min.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; -webkit-font-smoothing: antialiased; }
+  .num { font-variant-numeric: tabular-nums; }
+  .chip[aria-pressed="true"] { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+  .callout { position: relative; }
+  .callout::before { content: attr(data-n); position: absolute; top: -10px; left: -10px; width: 22px; height: 22px; border-radius: 9999px;
+    background: #7c3aed; color: white; font: 600 12px/22px -apple-system, sans-serif; text-align: center; box-shadow: 0 0 0 2px white; z-index: 5; }
+  body.hide-callouts .callout::before { display: none; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800">
+
+<nav class="bg-white shadow-lg border-b">
+  <div class="max-w-6xl mx-auto px-4 flex items-center justify-between h-16">
+    <div>
+      <div class="text-xl font-bold text-blue-600">DATect</div>
+      <div class="text-xs text-gray-500">Domoic Acid Forecasting</div>
+    </div>
+    <div class="flex gap-1 sm:gap-6 text-sm font-medium">
+      <span class="px-3 py-2 rounded-md text-blue-600 bg-blue-50">Forecast</span>
+      <span class="px-3 py-2 rounded-md text-gray-600">Track record</span>
+      <span class="px-3 py-2 rounded-md text-gray-600 hidden sm:inline">Data explorer</span>
+      <span class="px-3 py-2 rounded-md text-gray-600">About</span>
+    </div>
+  </div>
+</nav>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+  <div class="bg-violet-50 border border-violet-200 text-violet-900 rounded-lg px-4 py-2 text-sm flex flex-wrap gap-x-4 items-center">
+    <span><strong>Design mockup, not the app.</strong> Numbers are real: each site's last forecast in the 2023 evaluation
+      (<code>results/conformal_band</code>, <code>results/chronological</code>). The week picker and model options are not wired.</span>
+    <label class="ml-auto inline-flex items-center gap-1 text-xs"><input type="checkbox" id="callouts" checked> numbered callouts</label>
+  </div>
+
+  <!-- Filter row: everything below re-renders for this site and week -->
+  <section class="bg-white rounded-lg shadow-md p-4 callout" data-n="1">
+    <div class="flex flex-wrap items-end gap-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Site</label>
+        <select id="site" class="p-2 border border-gray-300 rounded-md text-sm min-w-[14rem]"></select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Forecast week</label>
+        <select class="p-2 border border-gray-300 rounded-md text-sm" disabled><option id="week"></option></select>
+      </div>
+      <div class="text-sm text-gray-600 pb-2" id="through"></div>
+      <div class="ml-auto text-xs text-gray-500 pb-2 flex items-center gap-2">
+        <span class="px-2 py-0.5 rounded bg-gray-100">Ensemble (XGBoost + Random Forest)</span>
+        <span class="underline decoration-dotted cursor-help" title="Model choice and the classification view move to Track record; the forecast page always shows the evaluated ensemble.">Options</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Primary row -->
+  <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="bg-white rounded-lg shadow-md p-5 callout" data-n="2" id="card-forecast"></div>
+    <div class="bg-white rounded-lg shadow-md p-5 callout" data-n="3" id="card-alert"></div>
+    <div class="bg-white rounded-lg shadow-md p-5 callout" data-n="4" id="card-latest"></div>
+  </section>
+
+  <!-- Ground data -->
+  <section class="bg-white rounded-lg shadow-md p-5 callout" data-n="5">
+    <div class="flex flex-wrap items-start gap-3">
+      <div>
+        <h2 class="text-lg font-semibold" id="chart-title"></h2>
+        <p class="text-sm text-gray-600 max-w-3xl">Each dot is a lab measurement. The blue line is the forecast made a week before it, with its 80% range.
+          Orange dots fell outside the range. Ticks below mark Watch (amber) and Warning (red) weeks. The models were tuned on 2019–2021; 2022–2023 is the untouched holdout.</p>
+      </div>
+      <div class="ml-auto flex gap-1 text-xs" id="ranges"></div>
+    </div>
+    <div id="chart" class="mt-2" style="height:420px"></div>
+  </section>
+
+  <!-- Secondary metrics -->
+  <section class="bg-white rounded-lg shadow-md p-5 callout" data-n="6">
+    <div class="flex flex-wrap items-baseline gap-3">
+      <h2 class="text-lg font-semibold" id="metrics-title"></h2>
+      <span class="text-xs text-gray-500">Ranked by how much each one should move a harvest decision. Your choice is remembered on this device.</span>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-3" id="chips"></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4" id="tiles"></div>
+  </section>
+
+  <!-- All sites -->
+  <section class="bg-white rounded-lg shadow-md p-5 callout" data-n="7">
+    <h2 class="text-lg font-semibold">All sites, north to south</h2>
+    <p class="text-sm text-gray-600">Click a row to switch site. "Range held" is the share of 2022–2023 measurements inside the 80% range.</p>
+    <div class="overflow-x-auto mt-3">
+      <table class="w-full text-sm">
+        <thead class="text-left text-xs text-gray-500 border-b">
+          <tr><th class="py-2 pr-3">Site</th><th class="pr-3">Last measured</th><th class="pr-3">Forecast [80% range]</th><th class="pr-3">Spike risk</th><th>Range held</th></tr>
+        </thead>
+        <tbody id="sites-table"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+const NORTH_TO_SOUTH = ['Kalaloch', 'Quinault', 'Copalis', 'Twin Harbors', 'Long Beach',
+  'Clatsop Beach', 'Cannon Beach', 'Newport', 'Coos Bay', 'Gold Beach']
+// In the app these come from GET /api/config
+const SPIKE = 20, REG_ALERT = 12, CLS_ALERT = 0.10
+const CATS = [{ lo: 0, hi: 5, label: 'Low' }, { lo: 5, hi: 20, label: 'Moderate' },
+  { lo: 20, hi: 40, label: 'High' }, { lo: 40, hi: Infinity, label: 'Extreme' }]
+const STALE_DAYS = 21, WEAK_COVERAGE = 0.7
+const METRICS = [
+  ['alert', 'Alert track record'], ['coverage', 'Range reliability'], ['mae', 'Typical error'],
+  ['cats', 'Category chances'], ['r2', 'Fit (R²)'], ['line', 'Spike detection by the forecast'],
+  ['parts', 'Model parts'], ['drivers', 'Top drivers'], ['width', 'Range width'], ['prov', 'Data and model'],
+]
+const DEFAULT_ON = ['alert', 'coverage', 'mae', 'cats']
+
+const fmt = v => v < 0.1 && v > 0 ? '<0.1' : v.toFixed(1)
+const pct = v => `${Math.round(v * 100)}%`
+const day = s => new Date(s + 'T00:00:00')
+const nice = s => day(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+const daysBetween = (a, b) => Math.round((day(b) - day(a)) / 864e5)
+const ago = d => d < 14 ? `${d} days` : d < 60 ? `${Math.round(d / 7)} weeks` : `${Math.round(d / 30.4)} months`
+const catOf = v => CATS.find(c => v >= c.lo && v < c.hi)
+const catText = c => c.hi === Infinity ? `${c.label} (≥ ${c.lo})` : `${c.label} (${c.lo}–${c.hi})`
+
+let DATA, site, range = '2y'
+let shown = (() => { try { return JSON.parse(localStorage.getItem('datect.metrics')) || DEFAULT_ON } catch { return DEFAULT_ON } })()
+
+// Piecewise scale: each category gets a quarter of the bar so the low end stays readable
+function scaleX(v) {
+  const edges = [0, 5, 20, 40, 80]
+  for (let i = 0; i < 4; i++) if (v < edges[i + 1]) return 25 * (i + (v - edges[i]) / (edges[i + 1] - edges[i]))
+  return 100
+}
+
+function scaleBar(c) {
+  const lo = scaleX(c.lo), hi = scaleX(c.hi), p = scaleX(c.pred)
+  return `
+  <div class="mt-4">
+    <div class="relative h-8">
+      <div class="absolute inset-0 flex rounded overflow-hidden">
+        <div class="w-1/4 bg-gray-50 border-r border-white"></div><div class="w-1/4 bg-gray-100 border-r border-white"></div>
+        <div class="w-1/4 bg-red-50 border-r border-white"></div><div class="w-1/4 bg-red-100"></div>
+      </div>
+      <div class="absolute top-0 bottom-0 border-l-2 border-red-600" style="left:50%"></div>
+      <div class="absolute top-2 bottom-2 rounded bg-blue-600/25 ring-1 ring-blue-600/40" style="left:${lo}%;width:${Math.max(hi - lo, 0.8)}%"></div>
+      <div class="absolute top-0.5 bottom-0.5 w-1 -ml-0.5 rounded bg-blue-700" style="left:${p}%"></div>
+    </div>
+    <div class="relative h-4 text-[10px] text-gray-500 num">
+      ${[0, 5, 20, 40].map((t, i) => `<span class="absolute -translate-x-1/2 ${t === 20 ? 'text-red-700 font-semibold' : ''}" style="left:${i * 25}%">${t}</span>`).join('')}
+      <span class="absolute right-0">80+</span>
+    </div>
+    <div class="grid grid-cols-4 text-[10px] text-gray-500 text-center"><span>Low</span><span>Moderate</span><span>High</span><span>Extreme</span></div>
+  </div>`
+}
+
+function renderForecast(s) {
+  const c = s.current, n = s.n_holdout_rows, cov = s.band_cov_holdout
+  const held = cov == null ? null : Math.round(cov * n)
+  const weak = cov != null && n >= 10 && cov < WEAK_COVERAGE
+  const rel = cov == null || n < 10
+    ? `<p class="text-xs text-gray-500 mt-3">Only ${n} measurements here in 2022–2023, too few to check the range at this site (all sites: ${pct(DATA.overall.band_holdout_coverage)}).</p>`
+    : weak
+      ? `<div class="mt-3 text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded p-2">
+           <strong>Less reliable here.</strong> In 2022–2023 the range held ${held} of ${n} measurements at ${site} (${pct(cov)}), against ${pct(DATA.overall.band_holdout_coverage)} across all sites. Expect values outside it.</div>`
+      : `<p class="text-xs text-gray-500 mt-3">In 2022–2023 the range held ${held} of ${n} measurements at ${site} (${pct(cov)}; all sites ${pct(DATA.overall.band_holdout_coverage)}).</p>`
+  document.getElementById('card-forecast').innerHTML = `
+    <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Next week's forecast</div>
+    <div class="mt-1 flex items-baseline gap-2"><span class="text-4xl font-bold text-blue-700">${fmt(c.pred)}</span><span class="text-gray-500">µg/g</span></div>
+    <div class="text-sm text-gray-700 num">80% range <strong>${fmt(c.lo)} – ${fmt(c.hi)}</strong> µg/g</div>
+    <div class="text-sm text-gray-600 mt-1">Forecast falls in <strong>${catText(catOf(c.pred))}</strong>${c.hi >= SPIKE ? ', and the range reaches the 20 µg/g closure level' : ''}.</div>
+    ${scaleBar(c)}
+    ${rel}`
+}
+
+// Tiers: Watch is today's hybrid alert unchanged; Warning is a placeholder upper tier on the
+// classifier probability until the alert experiments settle real cutoffs (from /api/config).
+const TIER_STYLE = {
+  quiet: { label: 'Quiet', chip: 'bg-gray-100 text-gray-700 ring-gray-200', num: 'text-gray-800' },
+  watch: { label: 'Watch', chip: 'bg-amber-50 text-amber-800 ring-amber-200', num: 'text-amber-700' },
+  warning: { label: 'Warning', chip: 'bg-red-50 text-red-700 ring-red-200', num: 'text-red-600' },
+}
+const tierOf = c => c.p_class >= DATA.overall.warn_at ? 'warning' : c.alert ? 'watch' : 'quiet'
+const inWords = (k, n) => { const r = k / n; return r === 0 ? 'none' : r >= 0.9 ? 'nearly all' : `about 1 in ${Math.round(n / k)}` }
+
+function renderAlert(s) {
+  const c = s.current, a = DATA.overall.alarms_holdout, so = s.onsets, warnAt = DATA.overall.warn_at
+  const last = s.recent[s.recent.length - 1], tier = tierOf(c), st = TIER_STYLE[tier], seen = a.tiers[tier]
+  const byCls = c.p_class >= CLS_ALERT, byReg = c.pred >= REG_ALERT
+  const row = (ok, text) => `<li class="flex gap-2"><span class="${ok ? 'text-amber-600' : 'text-gray-400'}">${ok ? '●' : '○'}</span><span class="${ok ? '' : 'text-gray-500'}">${text}</span></li>`
+  const siteAlarms = so.caught + so.quiet_alarmed
+  const trend = s.recent.slice(-5).map(r => fmt(r.da)).join(' → ')
+  const already = last.da >= SPIKE
+  document.getElementById('card-alert').innerHTML = `
+    <div class="flex items-center justify-between">
+      <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Spike risk</div>
+      <span class="px-2.5 py-0.5 rounded-full text-sm font-semibold ring-1 ${already ? TIER_STYLE.quiet.chip : st.chip}">${already ? 'Already ≥ 20' : st.label}</span>
+    </div>
+    <div class="mt-2 flex items-baseline gap-2"><span class="text-3xl font-bold ${already ? 'text-gray-800' : st.num}">${pct(c.p_class)}</span>
+      <span class="text-sm text-gray-600">chance of a jump to ≥ 20 µg/g next week</span></div>
+    <div class="mt-2">
+      <div class="relative h-2.5 rounded-full overflow-hidden flex">
+        <div class="bg-gray-200" style="width:${100 * CLS_ALERT}%"></div>
+        <div class="bg-amber-200" style="width:${100 * (warnAt - CLS_ALERT)}%"></div>
+        <div class="bg-red-200 flex-1"></div>
+      </div>
+      <div class="relative h-0"><div class="absolute -top-3.5 w-1 h-4 -ml-0.5 rounded bg-gray-900" style="left:${100 * c.p_class}%"></div></div>
+      <div class="flex text-[10px] text-gray-500 mt-1"><span style="width:${100 * CLS_ALERT}%">Quiet</span><span style="width:${100 * (warnAt - CLS_ALERT)}%">Watch ${pct(CLS_ALERT)}</span><span>Warning ${pct(warnAt)}</span></div>
+    </div>
+    ${already ? `<p class="mt-2 text-sm text-gray-700">The last measurement (${fmt(last.da)} on ${nice(last.date)}) is already at or above 20. This alert is for jumps from below 20; follow the forecast and the measurements.</p>` : `
+    <ul class="mt-2 text-sm space-y-0.5">
+      ${row(byCls, `Classifier ${pct(c.p_class)} ${byCls ? '≥' : '<'} ${pct(CLS_ALERT)}`)}
+      ${row(byReg, `Forecast ${fmt(c.pred)} ${byReg ? '≥' : '<'} ${REG_ALERT} µg/g`)}
+    </ul>
+    <p class="mt-2 text-sm text-gray-700">${st.label} weeks in 2022–2023: a jump to ≥ 20 followed ${seen.followed} of ${seen.weeks} (${inWords(seen.followed, seen.weeks)}).</p>`}
+    <p class="mt-1 text-xs text-gray-500 num">Measured lately: ${trend} µg/g</p>
+    <div class="mt-3 pt-3 border-t text-xs text-gray-600 space-y-1">
+      <div><strong>Track record, 2022–2023:</strong> catches about 7 in 10 jumps (${a.caught} of ${a.onsets}). Fewer than 1 in 5 alarms was followed by one (${a.caught} of ${a.alarms}); ${a.false_10_20} of the ${a.false} false alarms were near misses at 10–20 µg/g.</div>
+      <div><strong>At ${site}:</strong> ${so.n ? `${so.caught} of ${so.n} jumps caught` : 'no jumps to ≥ 20'}; ${siteAlarms ? `${so.caught} of ${siteAlarms} alarms followed by one` : 'no alarms'}.</div>
+      <div class="text-gray-400">Warning cutoff is a placeholder until the alert experiments settle the tiers.</div>
+    </div>`
+}
+
+function renderLatest(s) {
+  const c = s.current, last = s.recent[s.recent.length - 1]
+  const age = daysBetween(last.date, c.anchor)
+  const max = Math.max(...s.recent.map(r => r.da), SPIKE)
+  const stale = age > STALE_DAYS
+  document.getElementById('card-latest').innerHTML = `
+    <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Latest measurement</div>
+    <div class="mt-1 flex items-baseline gap-2"><span class="text-4xl font-bold">${fmt(last.da)}</span><span class="text-gray-500">µg/g</span></div>
+    <div class="text-sm text-gray-700">${nice(last.date)}</div>
+    <div class="text-sm ${stale ? 'text-amber-700 font-medium' : 'text-gray-600'}">${ago(age)} before the forecast was made</div>
+    ${stale ? `<div class="mt-2 text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded p-2">
+      <strong>No recent sample.</strong> Without one the forecast leans on ocean conditions and this site's history; give it less weight.</div>` : ''}
+    <div class="mt-3 text-xs text-gray-500">Last ${s.recent.length} measurements</div>
+    <div class="mt-1 space-y-1">
+      ${s.recent.slice().reverse().map(r => `
+        <div class="flex items-center gap-2 text-xs num">
+          <span class="w-20 text-gray-500">${day(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+          <div class="flex-1 h-2 bg-gray-100 rounded relative">
+            <div class="absolute inset-y-0 left-0 rounded ${r.da >= SPIKE ? 'bg-red-500' : 'bg-gray-500'}" style="width:${Math.max(100 * r.da / max, 1)}%"></div>
+            <div class="absolute inset-y-[-2px] border-l border-red-600" style="left:${100 * SPIKE / max}%"></div>
+          </div>
+          <span class="w-10 text-right">${fmt(r.da)}</span>
+        </div>`).join('')}
+    </div>`
+}
+
+function renderChart(s) {
+  document.getElementById('chart-title').textContent = `Measurements and forecasts at ${site}`
+  const c = s.current
+  const start = { '6m': 182, '1y': 365, '2y': 730, all: 99999 }[range]
+  const h = s.history.filter(r => daysBetween(r.date, c.date) <= start)
+  // Break the band and line across gaps longer than three weeks so they never imply forecasts that were not made
+  const xs = [], lo = [], hi = [], pred = []
+  h.forEach((r, i) => {
+    if (i && daysBetween(h[i - 1].date, r.date) > 21) { xs.push(null); lo.push(null); hi.push(null); pred.push(null) }
+    xs.push(r.date); lo.push(r.lo); hi.push(r.hi); pred.push(r.pred)
+  })
+  const inside = h.filter(r => r.actual >= r.lo && r.actual <= r.hi)
+  const outside = h.filter(r => r.actual < r.lo || r.actual > r.hi)
+  const tip = r => `${nice(r.date)}<br>Measured <b>${fmt(r.actual)}</b> µg/g<br>Forecast ${fmt(r.pred)} [${fmt(r.lo)} – ${fmt(r.hi)}]` +
+    `<br>${r.actual >= r.lo && r.actual <= r.hi ? 'Inside' : '<b>Outside</b>'} the range<br>Classifier ${pct(r.p)}${r.alert ? ' · <b>alert</b>' : ''}`
+  const alerts = h.filter(r => r.alert)
+  const traces = [
+    { x: xs, y: hi, mode: 'lines', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, connectgaps: false },
+    { x: xs, y: lo, mode: 'lines', line: { width: 0 }, fill: 'tonexty', fillcolor: 'rgba(37,99,235,0.14)', name: '80% range', hoverinfo: 'skip', connectgaps: false },
+    { x: xs, y: pred, mode: 'lines', line: { color: '#2563eb', width: 2 }, name: 'Forecast (made a week ahead)', hoverinfo: 'skip', connectgaps: false },
+    { x: inside.map(r => r.date), y: inside.map(r => r.actual), mode: 'markers', name: 'Measurement',
+      marker: { color: '#1f2937', size: 7, line: { color: 'white', width: 1.5 } }, text: inside.map(tip), hovertemplate: '%{text}<extra></extra>' },
+    { x: outside.map(r => r.date), y: outside.map(r => r.actual), mode: 'markers', name: 'Measurement outside the range',
+      marker: { color: '#ea580c', size: 8, line: { color: 'white', width: 1.5 } }, text: outside.map(tip), hovertemplate: '%{text}<extra></extra>' },
+    { x: [c.date], y: [c.pred], mode: 'markers', name: 'Next week', marker: { color: '#1d4ed8', size: 12, symbol: 'diamond', line: { color: 'white', width: 2 } },
+      error_y: { type: 'data', symmetric: false, array: [c.hi - c.pred], arrayminus: [c.pred - c.lo], color: '#1d4ed8', thickness: 2, width: 6 },
+      hovertemplate: `Next week (${nice(c.date)})<br>Forecast ${fmt(c.pred)} [${fmt(c.lo)} – ${fmt(c.hi)}]<extra></extra>` },
+    ...[['watch', '#d97706', 'Watch'], ['warning', '#dc2626', 'Warning']].map(([t, color, name]) => {
+      const w = alerts.filter(r => (r.p >= DATA.overall.warn_at ? 'warning' : 'watch') === t)
+      return { x: w.map(r => r.date), y: w.map(() => 0.5), yaxis: 'y2', mode: 'markers', name,
+        marker: { color, symbol: 'line-ns', size: 12, line: { color, width: 2 } }, text: w.map(tip), hovertemplate: '%{text}<extra></extra>' }
+    }),
+  ]
+  const ymax = Math.max(SPIKE * 1.3, ...h.map(r => Math.max(r.actual, r.hi)), c.hi) * 1.05
+  Plotly.react('chart', traces, {
+    margin: { l: 48, r: 16, t: 8, b: 40 }, hovermode: 'closest', plot_bgcolor: 'white', paper_bgcolor: 'white',
+    font: { family: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', size: 12, color: '#374151' },
+    legend: { orientation: 'h', y: -0.12, x: 0, font: { size: 11 } },
+    xaxis: { showgrid: false, linecolor: '#e5e7eb', range: [h.length ? h[0].date : c.date, new Date(day(c.date).getTime() + 12 * 864e5).toISOString().slice(0, 10)] },
+    yaxis: { domain: [0.1, 1], title: { text: 'DA (µg/g)', font: { size: 11 } }, gridcolor: '#f3f4f6', zeroline: false, range: [0, ymax] },
+    yaxis2: { domain: [0, 0.06], range: [0, 1], showticklabels: false, showgrid: false, zeroline: false, title: { text: 'Alert', font: { size: 10 } } },
+    shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: SPIKE, y1: SPIKE, line: { color: '#dc2626', width: 1, dash: 'dot' } }],
+    annotations: [{ xref: 'paper', x: 0, y: SPIKE, yanchor: 'bottom', xanchor: 'left', text: '20 µg/g closure level', showarrow: false, font: { size: 10, color: '#b91c1c' } }],
+  }, { displaylogo: false, responsive: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'] })
+}
+
+// Mockup-only estimate of the category chances from the band's quantiles; the API will return these
+function categoryChances(c) {
+  const pts = [[0, 0], [c.lo9, 0.05], [c.lo, 0.10], [c.lo5, 0.25], [c.hi5, 0.75], [c.hi, 0.90], [c.hi9, 0.95], [c.hi9 * 2 + 1, 1]]
+  const cdf = v => { let p = 0; for (let i = 1; i < pts.length; i++) { const [x0, p0] = pts[i - 1], [x1, p1] = pts[i]; if (v >= x1) p = p1; else if (v > x0) { p = p0 + (p1 - p0) * (v - x0) / (x1 - x0); break } } return p }
+  const pHigh = c.p_band, pExt = Math.min(1 - cdf(40), pHigh), pLow = Math.min(cdf(5), 1 - pHigh)
+  return [pLow, 1 - pLow - pHigh, pHigh - pExt, pExt]
+}
+
+function tile(title, body, foot, help) {
+  return `<div class="border border-gray-200 rounded-lg p-4">
+    <div class="text-xs font-medium text-gray-500 flex items-center gap-1">${title}${help ? `<span class="cursor-help text-gray-400" title="${help}">ⓘ</span>` : ''}</div>
+    <div class="mt-1">${body}</div>
+    ${foot ? `<div class="mt-2 text-[11px] text-gray-500">${foot}</div>` : ''}</div>`
+}
+
+function renderMetrics(s) {
+  document.getElementById('metrics-title').textContent = `Metrics for ${site}`
+  document.getElementById('chips').innerHTML = METRICS.map(([k, label], i) =>
+    `<button class="chip text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600" data-k="${k}" aria-pressed="${shown.includes(k)}">${i < 4 ? '★ ' : ''}${label}</button>`).join('')
+  document.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    shown = shown.includes(b.dataset.k) ? shown.filter(k => k !== b.dataset.k) : [...shown, b.dataset.k]
+    try { localStorage.setItem('datect.metrics', JSON.stringify(shown)) } catch {}
+    renderMetrics(s)
+  })
+  const c = s.current, h = s.holdout, all = DATA.overall.holdout, o = DATA.overall.onset_hybrid, so = s.onsets
+  const big = (v, unit = '') => `<span class="text-2xl font-bold">${v}</span>${unit ? `<span class="text-sm text-gray-500 ml-1">${unit}</span>` : ''}`
+  const few = `<span class="text-sm text-gray-500">Too few 2022–2023 measurements (${s.n_holdout_rows})</span>`
+  const T = {
+    alert: (() => {
+      const a = DATA.overall.alarms_holdout, v = DATA.overall.alarms_validation, alarms = so.caught + so.quiet_alarmed
+      const tierRow = t => `<tr><td class="pr-2">${TIER_STYLE[t].label}</td><td class="num pr-2">${a.tiers[t].followed} of ${a.tiers[t].weeks}</td><td class="num text-gray-500">${v.tiers[t].followed} of ${v.tiers[t].weeks}</td></tr>`
+      return tile('Alert track record', `${big(so.n ? `${so.caught} of ${so.n}` : '—')}<div class="text-sm text-gray-600">jumps to ≥ 20 caught at ${site}</div>
+        <div class="text-sm text-gray-600">${alarms ? `${so.caught} of ${alarms} alarms followed by a jump` : 'no alarms here'}</div>
+        <table class="mt-2 text-xs"><thead class="text-gray-500"><tr><th class="text-left pr-2 font-normal">Level</th><th class="text-left pr-2 font-normal">2022–23</th><th class="text-left font-normal">2019–21</th></tr></thead>
+          <tbody>${['quiet', 'watch', 'warning'].map(tierRow).join('')}</tbody></table>`,
+        `Weeks at each level, all sites, followed by a jump. All sites 2022–2023: ${a.caught} of ${a.onsets} jumps caught, ${a.caught} of ${a.alarms} alarms followed by one. Per-site counts are small; read them as counts, not rates.`,
+        'A jump: the last value known when the forecast was made was below 20 and the measurement reached 20. Weeks already at or above 20 are left out.')
+    })(),
+    coverage: tile('Range reliability', s.band_cov_holdout == null || s.n_holdout_rows < 10 ? few
+      : `${big(pct(s.band_cov_holdout))}<div class="text-sm text-gray-600">of ${s.n_holdout_rows} measurements inside the 80% range</div>`,
+      `Target 80%. All sites ${pct(DATA.overall.band_holdout_coverage)}; 2019–2021 here: ${s.band_cov_validation == null ? '—' : pct(s.band_cov_validation)}. At jumps to ≥ 20 the range held only ${pct(DATA.overall.band_onset_coverage.coverage)}: it describes typical weeks, the alert covers jumps.`,
+      'The range is built from the model\'s own past errors, pooled across sites, so it is too wide at some sites and too narrow at others.'),
+    mae: tile('Typical error', h ? `${big(h.mae[0].toFixed(1), 'µg/g')}<div class="text-sm text-gray-600 num">95% CI ${h.mae[1].toFixed(1)} – ${h.mae[2].toFixed(1)}</div>` : few,
+      `Mean absolute error, 2022–2023, ${h ? h.n : 0} measurements. All sites ${all.mae[0].toFixed(1)}.`),
+    cats: (() => {
+      const p = categoryChances(c), colors = ['bg-gray-300', 'bg-gray-500', 'bg-red-400', 'bg-red-700']
+      return tile('Category chances (from the range)', `<div class="flex h-3 rounded overflow-hidden gap-0.5">${p.map((v, i) => `<div class="${colors[i]}" style="width:${100 * v}%"></div>`).join('')}</div>
+        <div class="grid grid-cols-2 gap-x-3 mt-2 text-xs num">${p.map((v, i) => `<span>${CATS[i].label} <strong>${pct(v)}</strong></span>`).join('')}</div>`,
+        `Not the alert. The range puts ≥ 20 at ${pct(c.p_band)}; the alert's classifier says ${pct(c.p_class)}. The classifier is trained to catch jumps and ranked them better in 2022–2023 (AUC 0.77 vs 0.75), so the alert uses it.`,
+        'Share of past forecast errors that would put next week in each category. Mockup estimate; the API will return the exact values.')
+    })(),
+    r2: tile('Fit (R²)', h ? `${big(h.r2[0].toFixed(2))}<div class="text-sm text-gray-600 num">95% CI ${h.r2[1].toFixed(2)} – ${h.r2[2].toFixed(2)}</div>` : few,
+      `2022–2023, all real measurements. All sites ${all.r2[0].toFixed(2)}; a few large values carry the pooled number (Track record has log-scale R²).`),
+    line: tile('Spike detection by the forecast', h ? `${big(pct(h.spike_recall))}<div class="text-sm text-gray-600">of ${h.n_spikes} readings ≥ 20 had a forecast ≥ 12</div>` : few,
+      h ? `Precision ${pct(h.spike_precision)}, F2 ${h.spike_f2.toFixed(2)}. All sites: recall ${pct(all.spike_recall)}, precision ${pct(all.spike_precision)}. Counts every reading ≥ 20, including ones already high last week.` : ''),
+    parts: tile('Model parts', `<div class="text-sm space-y-0.5 num"><div>Ensemble <strong>${fmt(c.pred)}</strong></div><div class="text-gray-500">XGBoost — · Random Forest — (weights per site)</div><div>Last value carried forward <strong>${fmt(c.naive)}</strong></div></div>`,
+      'XGBoost and Random Forest values come from the forecast response; the mockup data lacks them.'),
+    drivers: tile('Top drivers', `<ol class="text-xs space-y-0.5 list-decimal list-inside text-gray-700"><li>Ocean anomaly, 30-day mean</li><li>Last measured DA</li><li>Previous measurement</li><li>Weeks since last spike</li><li>Satellite coverage</li></ol>`,
+      'Illustrative (from a live Cannon Beach call). The app will map feature names to plain words. Importance is association, not cause.'),
+    width: tile('Range width', `${big((c.hi - c.lo).toFixed(1), 'µg/g')}`, `Median 80% width in 2022–2023: ${DATA.overall.band_median_width.toFixed(1)} µg/g. The range widens with the forecast (it is built on a log scale).`),
+    prov: tile('Data and model', `<div class="text-xs space-y-0.5 text-gray-700"><div>Data through ${nice(c.anchor)}</div><div>Served from the precomputed store</div><div>Model version —</div></div>`,
+      'From the forecast response (source, model_version, training_samples).'),
+  }
+  document.getElementById('tiles').innerHTML = METRICS.filter(([k]) => shown.includes(k)).map(([k]) => T[k]).join('') ||
+    '<p class="text-sm text-gray-500">No metrics selected.</p>'
+}
+
+function renderTable() {
+  document.getElementById('sites-table').innerHTML = NORTH_TO_SOUTH.map(name => {
+    const s = DATA.sites[name], c = s.current, last = s.recent[s.recent.length - 1], age = daysBetween(last.date, c.anchor)
+    const cov = s.band_cov_holdout, weak = cov != null && s.n_holdout_rows >= 10 && cov < WEAK_COVERAGE
+    return `<tr class="border-b last:border-0 cursor-pointer hover:bg-gray-50 ${name === site ? 'bg-blue-50/60' : ''}" data-site="${name}">
+      <td class="py-2 pr-3 font-medium">${name}</td>
+      <td class="pr-3 num">${fmt(last.da)} <span class="${age > STALE_DAYS ? 'text-amber-700' : 'text-gray-500'}">· ${ago(age)} ago</span></td>
+      <td class="pr-3 num">${fmt(c.pred)} <span class="text-gray-500">[${fmt(c.lo)} – ${fmt(c.hi)}]</span></td>
+      <td class="pr-3"><span class="px-2 py-0.5 rounded-full text-xs ring-1 ${TIER_STYLE[tierOf(c)].chip}">${TIER_STYLE[tierOf(c)].label}</span> <span class="text-gray-500 num">${pct(c.p_class)}</span></td>
+      <td class="num ${weak ? 'text-amber-700 font-medium' : 'text-gray-600'}">${cov == null || s.n_holdout_rows < 10 ? 'too few' : pct(cov)}${weak ? ' ⚠' : ''}</td></tr>`
+  }).join('')
+  document.querySelectorAll('#sites-table tr').forEach(tr => tr.onclick = () => select(tr.dataset.site))
+}
+
+function renderRanges(s) {
+  document.getElementById('ranges').innerHTML = [['6m', '6 mo'], ['1y', '1 yr'], ['2y', '2 yr'], ['all', 'Since 2019']].map(([k, l]) =>
+    `<button class="px-2 py-1 rounded border ${k === range ? 'bg-blue-50 border-blue-300 text-blue-700' : 'border-gray-300 text-gray-600'}" data-r="${k}">${l}</button>`).join('')
+  document.querySelectorAll('#ranges button').forEach(b => b.onclick = () => { range = b.dataset.r; renderRanges(s); renderChart(s) })
+}
+
+function select(name) {
+  site = name
+  const s = DATA.sites[name], c = s.current
+  document.getElementById('site').value = name
+  document.getElementById('week').textContent = `Week of ${nice(c.date)}`
+  document.getElementById('through').innerHTML = `Uses data through <strong>${nice(c.anchor)}</strong>`
+  renderForecast(s); renderAlert(s); renderLatest(s); renderRanges(s); renderChart(s); renderMetrics(s); renderTable()
+}
+
+fetch('data.json').then(r => r.json()).then(d => {
+  DATA = d
+  const sel = document.getElementById('site')
+  sel.innerHTML = NORTH_TO_SOUTH.map(n => {
+    const s = d.sites[n], weak = s.band_cov_holdout != null && s.n_holdout_rows >= 10 && s.band_cov_holdout < WEAK_COVERAGE
+    return `<option value="${n}">${n}${weak ? ' · less reliable' : ''}${s.n_holdout_rows < 10 ? ' · little recent data' : ''}</option>`
+  }).join('')
+  sel.onchange = e => select(e.target.value)
+  select(new URLSearchParams(location.search).get('site') || 'Newport')
+})
+document.getElementById('callouts').onchange = e => document.body.classList.toggle('hide-callouts', !e.target.checked)
+</script>
+</body>
+</html>

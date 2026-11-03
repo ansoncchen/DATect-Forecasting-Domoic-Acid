@@ -247,23 +247,30 @@ Run the same command. Expected: PASS.
 **Interfaces:**
 - Produces, in `backend/track_record.py`:
   - `window_rows(window: Literal["holdout", "validation"], site: str | None = None) -> pd.DataFrame`. It reads the chronological window parquet, whose file tag comes from `tuned_config.get_eval_windows()`, and left-joins `band_lo`, `band_hi` and `p_exceed` from `band_predictions.parquet` on `(date, site)`. Columns: `date, anchor_date, site, actual_da, predicted_da, naive_prediction, predicted_da_linear, spike_probability, spike_alert, band_lo, band_hi, p_exceed`.
-  - `summarize(rows: pd.DataFrame) -> dict`. Keys:
-    - `n`, `r2`, `log_r2`, `mae` (sklearn, like `chronological_eval.py`);
+  - `window_summary(window, site: str | None = None) -> dict`. It returns `summarize(window_rows(window, site))` plus:
+    - `r2`, `mae`, `log_r2` as `[v, lo, hi]`, taken verbatim from the window's chronological JSON (`overall`, or `per_site[site]`; `null` when the JSON has no entry, e.g. Cannon Beach on the holdout). They are not re-bootstrapped, so they equal the reported numbers;
+    - `models`: `{"ensemble" | "naive" | "linear": {"r2", "mae"}}`, point values from sklearn on the same rows (`predicted_da`, `naive_prediction`, `predicted_da_linear`).
+  - `summarize(rows: pd.DataFrame) -> dict`. It has no fit metrics; those come only from `window_summary`. Keys:
+    - `n`;
     - `band = {coverage, coverage_at_onsets, median_width}`;
     - `onsets = {n, caught, quiet, quiet_alarmed}` (from `metrics.onset_scores` on `naive_prediction` and `spike_alert`);
     - `alarms = {n, followed_by_jump, false_below_5, false_5_to_10, false_near_miss}`, counting weeks whose last known value was below 20. The `false_*` counts split the false alarms by measured DA: `[0,5)`, `[5,10)` and `[10,20)` (near misses);
     - `levels = {"Quiet"|"Watch"|"Warning": {weeks, followed_by_jump}}`, built with `alert_parts`.
   - `site_history(site: str, since: str = "2019-01-01", until: str | None = None) -> list[dict]`: rows from `band_predictions.parquet` with the same columns plus `alert` and `level`.
 - Produces, in `backend/api.py`:
-  - `GET /api/track-record?window=holdout&site=` returns `{"window": {"name", "start", "end"}, "summary", "per_site": {site: summary}, "rows"}`;
+  - `GET /api/track-record?window=holdout&site=` returns `{"window": {"name", "start", "end"}, "summary", "per_site": {site: summary}, "rows"}`. Every summary comes from `window_summary`;
   - `GET /api/sites/{site}/history?since=&until=` returns `{"site", "rows"}`.
 
 - [ ] **Step 1: Write the failing tests.** Pin the committed results; these numbers were verified on 2026-11-03.
 
 ```python
 def test_holdout_summary_matches_the_reported_numbers():
-    s = tr.summarize(tr.window_rows("holdout"))
-    assert s["n"] == 409 and s["r2"] == pytest.approx(0.516, abs=5e-4)
+    s = tr.window_summary("holdout")
+    assert s["n"] == 409
+    assert s["r2"] == pytest.approx([0.5162, 0.3081, 0.6538], abs=5e-4)    # chronological JSON
+    assert s["mae"] == pytest.approx([7.4407, 6.1999, 8.8675], abs=5e-4)
+    assert s["models"]["ensemble"]["r2"] == pytest.approx(s["r2"][0])
+    assert s["models"]["naive"]["r2"] == pytest.approx(0.225, abs=5e-4)   # CORRECTED_NUMBERS
     assert s["onsets"] == {"n": 27, "caught": 19, "quiet": 292, "quiet_alarmed": 87}
     assert s["alarms"] == {"n": 106, "followed_by_jump": 19, "false_below_5": 21,
                            "false_5_to_10": 18, "false_near_miss": 48}
@@ -274,11 +281,13 @@ def test_holdout_summary_matches_the_reported_numbers():
                            "Warning": {"weeks": 33, "followed_by_jump": 10}}
 
 def test_validation_and_per_site_reliability():
-    v = tr.summarize(tr.window_rows("validation"))
+    v = tr.window_summary("validation")
     assert v["onsets"]["caught"] == 27 and v["band"]["coverage"] == pytest.approx(0.819, abs=5e-4)
     assert (v["alarms"]["false_below_5"], v["alarms"]["false_5_to_10"], v["alarms"]["false_near_miss"]) == (23, 13, 37)
-    g = tr.summarize(tr.window_rows("holdout", "Gold Beach"))
+    g = tr.window_summary("holdout", "Gold Beach")
     assert g["n"] == 40 and g["band"]["coverage"] == pytest.approx(0.375)
+    assert g["r2"][0] == pytest.approx(-0.208, abs=5e-4)
+    assert tr.window_summary("holdout", "Cannon Beach")["r2"] is None   # 2 rows, no JSON entry
 ```
 
 Plus `test_recomputed_alert_equals_the_engines_spike_alert`. For every holdout and validation row, `alert_parts(spike_probability, predicted_da, naive_prediction, ...)["alert"] == spike_alert`. This proves the levels use the engine's own rule.
@@ -306,7 +315,7 @@ Run the same command. Expected: PASS.
 - Test: `tests/test_api_robustness.py`
 
 **Interfaces:**
-- `/api/metrics/summary` adds a `reliability` block: `{window: {"summary": summarize(...), "per_site": {...}}}` for `holdout` and `validation`. `source` lists the parquet and JSON files it was computed from.
+- `/api/metrics/summary` keeps its existing `overall`, `per_site` (including `n_spikes`, `spike_recall`, `spike_precision`, `spike_f2`, and `r2`/`mae` with CIs) and `multi_seed` blocks unchanged. It adds a `reliability` block, `{window: {"summary": window_summary(window), "per_site": {...}}}`, for `holdout` and `validation`. `source` lists the parquet and JSON files it was computed from.
 - `/api/config` adds:
   - `regression_alert_threshold`, `classifier_alert_cutoff`, `band_level` (0.8);
   - `alert_levels`: a list of `{"name", "rule", "cutoff", "placeholder"}`;
@@ -338,7 +347,7 @@ Run the same command. Expected: PASS.
 
 **Interfaces:**
 - Consumes `_forecast_payload` (Task 4) and `latest_forecast_week` (Task 7).
-- Produces: `GET /api/forecast/all?date=YYYY-MM-DD&model=ensemble` (the date defaults to the latest forecast week). It returns `{"date", "sites": [{"site", "predicted_da", "band", "alert", "last_measurement", "source"}]}`, ordered as `/api/config` `sites_north_to_south` (Task 7).
+- Produces: `GET /api/forecast/all?date=YYYY-MM-DD&model=ensemble` (the date defaults to the latest forecast week). It returns `{"date", "sites": [{"site", "anchor_date", "predicted_da", "band", "alert", "last_measurement", "source"}]}`, ordered as `/api/config` `sites_north_to_south` (Task 7).
 
 - [ ] **Step 1: Write the failing test** `test_all_sites_returns_every_site_for_one_week`. With a stub engine: 10 entries, each with `alert.level`, and the default date equals `latest_forecast_week`.
 - [ ] **Step 2: Run it and see it fail**

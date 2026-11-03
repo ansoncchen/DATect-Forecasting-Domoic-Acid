@@ -166,7 +166,7 @@ it('normalizes r2 sent as a number or as [v, lo, hi]', () => {
 ```
 
 - [ ] **Step 3: Run** `npm run test` — Expected: FAIL, `toForecast is not a function`.
-- [ ] **Step 4: Implement** `windowLabel(start, end)` (end exclusive: `'2022-01-01', '2024-01-01'` → `'2022–2023'`), `toStat`, the six adapters and `datect.js` (axios instance from `services/api.js`). Sites come from `sites_north_to_south`. All fields above are confirmed in the API plan (its commit `7ec00e19`); the one open confirmation is whether `/api/forecast/enhanced` keeps its `ensemble` and `regression` blocks (Model parts, Top drivers, Data and model tiles): map the paths the PR description gives.
+- [ ] **Step 4: Implement** `windowLabel(start, end)` (end exclusive: `'2022-01-01', '2024-01-01'` → `'2022–2023'`), `toStat`, the six adapters and `datect.js` (axios instance from `services/api.js`). Sites come from `sites_north_to_south`. All fields above are confirmed in the API plan (its commit `7ec00e19`); `/api/forecast/enhanced` keeps `regression` (`feature_importance`, `training_samples`) and `ensemble` (`xgb_prediction`, `rf_prediction`, `naive_prediction`, `ensemble_prediction`, `ensemble_weights`) at their current paths; only `classification` is gone.
 - [ ] **Step 5: Run** `npm run test` — Expected: PASS. Run `npm run lint` — Expected: no errors.
 - [ ] **Step 6: Commit** `feat(frontend): API contract adapters, fetchers and Vitest`.
 

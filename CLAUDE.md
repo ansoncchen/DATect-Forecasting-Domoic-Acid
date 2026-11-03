@@ -92,6 +92,13 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
 - **API handlers are plain `def`** (FastAPI runs them in its thread pool). Model work inside
   `async def` blocks the event loop for every user. Settings such as task/model travel with
   each request; the server holds no per-user state (there is no `POST /api/config`).
+- **Precomputed forecasts** (`backend/precomputed_forecasts.py`): a row is served only if its
+  `config_hash` matches the running API's: a hash of `forecasting/*.py`, `config.py`, the tuned
+  JSON, `final_output.parquet`, the raw DA CSVs, the `DATECT_*` variables the engine reads, and the
+  numpy/pandas/sklearn/xgboost/scipy versions. Any change there makes the table stale (misses,
+  computed on demand) until `datect_spark/forecast_serving.py precompute` is re-run. Only the
+  `ensemble` model is precomputed; `linear`'s bootstrap interval uses the global NumPy RNG, so its
+  on-demand output is not reproducible.
 - **Tests:** use the `fast_models` (class-scoped model shrinking, restored afterwards) and
   `fresh_import` (re-import config modules for one test, originals restored) fixtures in
   `tests/conftest.py`. Never mutate shared config dicts without restoring them; tests must
@@ -116,6 +123,7 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 | `DATECT_FEATURE_SUBSET_MODE` | `all` removes per-site subsets; `minimal` forces a 4-feature subset |
 | `DATECT_TEMPORAL_HOLDOUT_CUTOFF` | holdout start for `eval_paper_metrics --temporal-holdout` (default 2022-01-01) |
 | `DATECT_PARALLEL_BACKEND` | joblib backend (default `loky`) |
+| `DATECT_FORECAST_TABLE` | API only: path of `gold/forecasts` (Delta); hits are served from it, misses computed |
 
 Backend/deploy variables (`ENABLE_PRECOMPUTED_CACHE`, `CACHE_DIR`, `REDIS_URL`,
 `ALLOWED_ORIGINS`, `PORT`, `WORKERS`, `DATECT_USE_GRANIAN`, `NODE_ENV`, `VITE_API_URL`) are
@@ -176,6 +184,8 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
 | `frontend/` | React + Vite dashboard (trimmed Plotly bundle in `src/utils/Plot.js`) |
 | `dataset-creation.py` | Full dataset build (downloads; see hard rule 1) |
 | `scripts/eval/`, `scripts/tune/`, `scripts/data/` | Evaluation, tuning, offline data tools |
+| `datect_spark/` | Spark 4 + Delta + MLflow on Hyak: re-tune, MODIS -> Delta lake, forecast precompute (`RESULTS.md`) |
+| `backend/precomputed_forecasts.py` | Loads `gold/forecasts` with deltalake (no JVM) for the forecast endpoints |
 | `oad/` | Ocean Anomaly Detection subproject (MODIS autoencoder; see `oad/README.md`) |
 | `papers/` | `datect/`, `oad_mdpi/`, `oad_cvpr/`, `poster/` |
 

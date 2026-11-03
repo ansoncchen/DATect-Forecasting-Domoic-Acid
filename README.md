@@ -113,6 +113,7 @@ ENABLE_PRECOMPUTED_CACHE=true python run_datect.py
 | `CACHE_DIR` | `./cache` | Location of the pre-computed cache |
 | `REDIS_URL` | unset | Optional Redis cache backend (e.g. `redis://localhost:6379/0`) |
 | `ALLOWED_ORIGINS` | unset | Comma-separated CORS origins; unset allows only localhost dev servers, so set it in production |
+| `DATECT_FORECAST_TABLE` | unset | Path of a Delta table of precomputed forecasts (`gold/forecasts`, built on Spark); the forecast endpoints answer from it when its config hash matches and compute on demand otherwise |
 | `DATECT_PER_ANCHOR_TUNING` | `false` | `true` runs a per-forecast XGBoost grid search (1–3 min per forecast). Off by default, which matches how every reported number was produced |
 
 Further `DATECT_*` variables for experiments (feature drops, per-site overrides, ablations) are documented in [CLAUDE.md](CLAUDE.md).
@@ -154,6 +155,7 @@ DATect-Forecasting-Domoic-Acid/
 ├── results/                        # Committed outputs behind reported numbers
 │                                   # (chronological, multi_seed, paper_metrics, final_verification,
 │                                   #  holdout_validation, ablation, tuning_provenance)
+├── datect_spark/                   # Spark + Delta Lake + MLflow on Hyak (re-tune, MODIS lake, serving)
 ├── oad/                            # Ocean Anomaly Detection subproject (MODIS autoencoder)
 ├── papers/                         # datect/, oad_mdpi/, oad_cvpr/, poster/
 ├── deploy/                         # cloudbuild.yaml, deploy_gcloud.sh
@@ -198,6 +200,19 @@ To re-run every evaluation behind a reported number for a commit, use the golden
 
 Env-var overlays (`DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_SPIKE_CLASSIFIER_JSON`, etc.) apply on top of the JSON for experiments without editing it.
 
+## Running on Spark (Hyak)
+
+`datect_spark/` runs open-source Spark 4.0 (local mode on one Hyak node), Delta Lake 4.0 and MLflow 3 on Hyak; it is not Databricks. The environment is a venv layered on the Hyak conda env (`/gscratch/scrubbed/ac283/envs/datect_spark`, `module load coenv/jdk/17.0.8`). The lake and Spark scratch go on `/gscratch/scrubbed`, the MLflow sqlite database on `/gscratch/stf`. Submit each job from the root of a disposable worktree:
+
+```bash
+sbatch datect_spark/retune.sbatch                                   # weights x clip re-tune, MLflow runs
+sbatch datect_spark/modis_lake.sbatch                               # MODIS NetCDFs -> bronze/silver/gold Delta
+sbatch --export=ALL,STEPS=reference datect_spark/modis_lake.sbatch  # time the reference cube scripts
+sbatch --export=ALL,STEPS="precompute parity latency-after" datect_spark/serving.sbatch
+```
+
+Every job checks its output against the existing pipeline exactly. Measurements, parity checks and caveats are in [datect_spark/RESULTS.md](datect_spark/RESULTS.md).
+
 ## Data Sources
 
 - **Satellite** (NOAA CoastWatch ERDDAP): MODIS-Aqua chlorophyll-a, SST, PAR, fluorescence line height, K490 (8-day composites), plus chlorophyll and SST anomalies
@@ -230,6 +245,7 @@ Env-var overlays (`DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_SPIKE_CLASSIFIER_JSON`,
 | [docs/DATA_PIPELINE_DETAILED.md](docs/DATA_PIPELINE_DETAILED.md) | `dataset-creation.py` |
 | [docs/OAD_INTEGRATION_RESULTS.md](docs/OAD_INTEGRATION_RESULTS.md) | How OAD features enter DATect and what was learned |
 | [docs/HYAK_SETUP.md](docs/HYAK_SETUP.md) | Hyak (UW Klone) cluster workflow |
+| [datect_spark/RESULTS.md](datect_spark/RESULTS.md) | Spark, Delta Lake and MLflow on Hyak: re-tune, MODIS lake, forecast serving; parity, sizes, timings |
 | [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Cache refresh on Hyak and Cloud Run deploy |
 | [docs/VISUALIZATIONS_GUIDE.md](docs/VISUALIZATIONS_GUIDE.md) | Reading the dashboard charts |
 | [docs/superpowers/](docs/superpowers/) | Design spec and plan for the upcoming transport-aware forecasting work |

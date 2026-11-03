@@ -1,0 +1,209 @@
+{
+  "repo_sha": "e665a53c15bec7b6f0d1737cdb5a8c7c95e80519",
+  "host": "n3244",
+  "cpus": 40,
+  "slurm_cpus": "16",
+  "python": "3.10.19",
+  "forecast_table": null,
+  "model": "ensemble",
+  "seed": 0,
+  "n": 20,
+  "startup_seconds": 49.2881894770544,
+  "warmup_request": {
+    "site": "Kalaloch",
+    "date": "2005-02-28",
+    "seconds": 9.554042045027018
+  },
+  "p50_seconds": 3.283063573529944,
+  "p95_seconds": 10.628057831537449,
+  "mean_seconds": 4.920108036021702,
+  "min_seconds": 1.4591675901319832,
+  "max_seconds": 16.625256372150034,
+  "percentile_method": "numpy linear interpolation",
+  "sources": {
+    "computed": 20
+  },
+  "total_seconds": 157.54879524908029,
+  "requests": [
+    {
+      "site": "Cannon Beach",
+      "date": "2011-08-08",
+      "seconds": 1.8477133139967918,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "553072dbbbd0b8fb6105cddfdc14730599932514d1edbef1715010bab7656c5d"
+    },
+    {
+      "site": "Cannon Beach",
+      "date": "2018-10-08",
+      "seconds": 2.949091830989346,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "c559a9db30f7685a741322d98c1ba1d56a9679d0ef5162c2fbe73d1fb6c9fe47"
+    },
+    {
+      "site": "Copalis",
+      "date": "2004-07-19",
+      "seconds": 2.0852159128990024,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "e255316ef139dad20c17c8e7703925b20ecf2934e0165e3dc28e603a51b180a9"
+    },
+    {
+      "site": "Twin Harbors",
+      "date": "2005-07-11",
+      "seconds": 2.77468226198107,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "07b84b065b0a074f269e753481513add2237b9b32b2672093597883183f22d4c"
+    },
+    {
+      "site": "Newport",
+      "date": "2009-02-16",
+      "seconds": 2.131365366978571,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "2392b38b6139e1b2adee9c9be2cf445d4b17707663216576ac529c852b878f07"
+    },
+    {
+      "site": "Coos Bay",
+      "date": "2017-07-24",
+      "seconds": 3.1585107531864196,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "2cdf922bcb97936f4bf40da03f5a3bf14f2c04e0574370af9c252f7c54c84477"
+    },
+    {
+      "site": "Kalaloch",
+      "date": "2003-09-08",
+      "seconds": 1.6636300191748887,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "c53638b8e22c2215f08b36066a2822420cc2c1c18e05669c02f1f4b6150f1e17"
+    },
+    {
+      "site": "Coos Bay",
+      "date": "2019-03-25",
+      "seconds": 3.407616393873468,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "374ed184d45d9d33d79ff472014a553312d9743a3bb9b44db187e606743c8ce6"
+    },
+    {
+      "site": "Long Beach",
+      "date": "2009-09-21",
+      "seconds": 5.852552721975371,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "10c89781ab1384f1ef1776fa97e59566ab91bfd740359ee3b810aefed505eba1"
+    },
+    {
+      "site": "Long Beach",
+      "date": "2010-07-12",
+      "seconds": 6.1175965738948435,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "c26358c1ee7cabae4f99770205e64f4628f197d22933138f1268903ca53994a3"
+    },
+    {
+      "site": "Twin Harbors",
+      "date": "2010-05-10",
+      "seconds": 5.194855102105066,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "a3866916e5230a09476c49e9cd01aefa1252681696c139648727d01c2bc5056a"
+    },
+    {
+      "site": "Quinault",
+      "date": "2005-08-15",
+      "seconds": 2.8628580369986594,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "05cc59338f4c073d79af504dc6770279e65713df3074b41923d67af84a570c9b"
+    },
+    {
+      "site": "Long Beach",
+      "date": "2013-04-01",
+      "seconds": 7.676569217117503,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "4e580f4de10feef1bae26cd512473aa1b75d731b509496d5a752c4c483bd399d"
+    },
+    {
+      "site": "Kalaloch",
+      "date": "2015-07-20",
+      "seconds": 7.649089056067169,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "ce87ba58c656bede7e6d05f8c57049f6ecca404ad1ed31c23e78eaec56bacf0e"
+    },
+    {
+      "site": "Clatsop Beach",
+      "date": "2018-10-08",
+      "seconds": 16.625256372150034,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "a24c941880c65c8eb93ad91ee63c19ba562af1e55a998422b0684edc5c4a4fec"
+    },
+    {
+      "site": "Twin Harbors",
+      "date": "2017-09-25",
+      "seconds": 10.31241580308415,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "5c20ab233593fe766fb5b6e707d616b5d7c18e969ceb9d6546d4c50735996cd5"
+    },
+    {
+      "site": "Cannon Beach",
+      "date": "2006-06-19",
+      "seconds": 1.4591675901319832,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "3ed2d69ba006e160a19ba7dbb3d79468eeac38bd5b76382f19d93a86bf6664f8"
+    },
+    {
+      "site": "Quinault",
+      "date": "2013-04-22",
+      "seconds": 7.261199041036889,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "d20d73b734b1b23d73cfee2600b9e68b6ae76df39347e530752a0fefd481711d"
+    },
+    {
+      "site": "Long Beach",
+      "date": "2004-04-26",
+      "seconds": 2.3937885069753975,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "034b6a3d974938be91337a47a63a63bc7ef7bfbe9644461b0a8e248dffad4d31"
+    },
+    {
+      "site": "Kalaloch",
+      "date": "2012-02-20",
+      "seconds": 4.978986845817417,
+      "success": true,
+      "has_forecast": true,
+      "source": "computed",
+      "body_sha256": "7ea5646e4f88729ea126ec7295657b46011e7961f79be0b1225422202a851553"
+    }
+  ]
+}

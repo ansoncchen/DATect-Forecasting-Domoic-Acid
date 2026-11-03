@@ -5,8 +5,6 @@ and every job ran in Spark local mode on a single node. Each section reports wha
 measured, the parity check that ties the Spark output to the existing pipeline, and
 the caveats.
 
-DRAFT: section 3 is filled in from the Hyak run.
-
 ## Hardware and versions
 
 | | |
@@ -113,3 +111,126 @@ node. It scans all 22 years of the 300 M valid rows, and where its time goes was
 profiled. Compaction cut bronze's file count 20× but made it 35% larger. The
 rewritten files compress worse than the originals, each of which held one NetCDF's
 rows in time and grid order; the encoding difference was not investigated further.
+
+## 3. Serving precomputed forecasts from Delta Lake
+
+A dashboard forecast (`POST /api/forecast/enhanced`) makes two
+`generate_single_forecast` calls, regression and classification. Each retrains the
+evaluated models on data up to the anchor date, which takes seconds.
+`forecast_serving.py precompute` runs those calls on Spark (one task per site and
+date, one thread each) and stores each output unchanged, as lossless JSON, in
+`gold/forecasts`. Each row also carries the MLflow model version and a config hash.
+The API (`backend/precomputed_forecasts.py`) loads the table with `deltalake`
+(delta-rs, no JVM) into an in-memory dict at startup. It answers from the dict when
+the key is present and the row's config hash matches the running code, config, data
+and library versions; otherwise it computes on demand as before. Responses gain
+`source` and `model_version`. Job 42764310 ran all four steps below on one node
+(n3244, 16 cores).
+
+**What is precomputed.** All 10,950 (site, week) rows of `final_output.parquet`
+(10 sites × 1,095 Mondays, 2003-01-06 to 2023-12-25), model `ensemble` (the
+dashboard default), both tasks: 21,900 entries, 0 errors. 220 of them are early
+dates with too little training data, stored as `None` exactly as the engine
+returns it. The Delta table holds 21,900 rows in 4 files, 16.9 MB.
+
+| Precompute (Spark, `local[16]`) | |
+|---|---:|
+| Wall time | 7,887 s (2.19 h) |
+| Task time | 93,623 s (26.0 h): 11.9× the wall time |
+| Mean task time per (site, date), both forecasts, 1 thread | 8.55 s |
+| Daily grid instead (76,590 site-days), estimated | 11.4 node-hours |
+
+The daily grid would cost more than the 2-node-hour budget, so the table is weekly.
+
+**MLflow Model Registry.** `datect-forecaster` version 1 is a pyfunc wrapping the
+forecast procedure. The model is retrained per request on data up to the anchor, so
+it runs inside a DATECT checkout. Its tags record the config hash, git SHA, grid,
+Delta table path and version, entry count and wall time. Every table row carries
+`model_version = datect-forecaster/1`. It lives in the same sqlite store as the
+re-tune's 2,990 runs.
+
+**Parity** (all exact):
+- 50 random table entries were compared with `generate_single_forecast` run fresh in
+  a separate process with the API's threading (no one-thread pin): 50 of 50 equal in
+  every value and type (floats bitwise, `np.float32` feature importances, timestamps);
+- the registered pyfunc, loaded from `models:/datect-forecaster/1`, reproduces 3 of 3
+  entries;
+- end to end, all 20 timed responses are identical to `main`'s on-demand responses
+  (sha256 of the body without `source`/`model_version`);
+- earlier, Spark workers' single-threaded XGBoost matched the API's multithreaded
+  XGBoost on 8 forecasts on the laptop. The 50-entry check above covers this on Hyak.
+
+**Latency of `POST /api/forecast/enhanced`.** The same 20 (site, date) requests
+(seed 0, drawn from the weekly rows), one at a time, after one untimed warm-up
+request. API on the same node, uvicorn, 16 cores.
+
+| | Before: `main` e665a53c, computed on demand | After: 4a99460c, served from Delta |
+|---|---:|---:|
+| p50 | 3.283 s | **0.122 s** (27× lower) |
+| p95 | 10.628 s | **0.127 s** (84× lower) |
+| mean | 4.920 s | 0.122 s |
+| max | 16.625 s | 0.128 s |
+| Sources | 20 computed | 20 precomputed |
+
+The lookup and JSON decode take about 25 µs. Most of the remaining ~0.12 s is
+building the response, mainly the Plotly uncertainty figure (about 53 ms on a laptop;
+not profiled on Hyak). API startup was 49 s before and 2.3 s after, but the "before"
+process started with cold file caches on GPFS, so that difference is not a
+measurement of this change.
+
+**Caveats.**
+- Only weekly dates (the Mondays in the data) and the `ensemble` model are served
+  from the table. Any other date, or `naive`/`linear`, falls back to computing on
+  demand at the old latency. The dashboard's default date (dataset end minus 30 days,
+  2023-11-25, a Saturday) is a miss, so a uniformly random calendar date hits about
+  one time in seven.
+- `linear` cannot be precomputed with exact parity: its regression interval is a
+  bootstrap (100 XGBoost + Ridge fits) drawn from the process-global NumPy RNG, so
+  its on-demand output itself changes from call to call.
+- Any change to `forecasting/`, `config.py`, the tuned JSON, the data or the library
+  versions changes the config hash. The table then goes stale and serves nothing
+  until `precompute` is re-run. The conformal error band in progress will do this.
+- The Cloud Run deployment does not ship the table yet. With
+  `DATECT_FORECAST_TABLE` unset the API behaves exactly as before.
+
+## Environment notes (Hyak)
+
+- `/gscratch/scrubbed` (98% full) and `/gscratch/stf` (99%) refused writes
+  intermittently with EDQUOT while this ran, and the first jobs died on it. The jobs
+  now run from a `git archive` on the node's local disk (`/tmp`, 358 GB, no quota),
+  read the MODIS files in place, and copy only their result JSONs out
+  (`datect_spark/hyak_stage.sh`). The lake is rebuilt on each run.
+- Compute nodes set `http_proxy`, and its `no_proxy` lacks `127.0.0.1`. The latency
+  harness therefore talks to the local API with proxy settings ignored.
+- No ERDDAP data was downloaded. The tabular features (M4) were not rebuilt on Spark,
+  so the "13.9 GB" is the satellite imagery alone.
+
+## Reproduce
+
+```bash
+# from any Hyak checkout of this branch; logs outside the full filesystems
+L="-o $HOME/datect-spark-logs/%x-%j.out -e $HOME/datect-spark-logs/%x-%j.err"
+sbatch $L datect_spark/modis_lake.sbatch                                  # MODIS -> Delta + parity
+sbatch $L --export=ALL,STEPS=reference datect_spark/modis_lake.sbatch     # timed reference
+sbatch $L --export=ALL,MAIN_SHA=$(git rev-parse origin/main) datect_spark/serving.sbatch
+```
+
+Result JSONs: `results/spark_lake/` (MODIS) and `results/serving/` (precompute,
+parity, latency before/after).
+
+## Resume bullets (numbers from the runs above)
+
+- Built a PySpark + Delta Lake pipeline (bronze/silver/gold) over 13.9 GB of MODIS
+  satellite imagery (2,563 NetCDF files, 2003–2024, 1.96 billion pixel rows) that
+  reproduces the existing ocean-feature pipeline exactly, with OPTIMIZE / Z-ORDER
+  cutting the data a regional query must read by 28–69%.
+- Trained 1,990 leak-free XGBoost + Random Forest forecasting model pairs in parallel
+  on Spark (8.7× over serial on 16 cores), tracking 2,990 runs in MLflow, with
+  predictions matching the existing evaluation exactly.
+- Cut forecast API latency from 3.3 s to 0.12 s at the median (10.6 s to 0.13 s at
+  p95) by precomputing 21,900 forecasts on Spark (11.9× parallel speedup) into Delta
+  Lake, served through delta-rs with an MLflow-registered model version and
+  bit-identical responses.
+
+All three ran on open-source Spark on a university HPC cluster (UW Hyak), one node
+per job, not on Databricks.

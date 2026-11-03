@@ -14,7 +14,7 @@ the caveats.
 | Delta Lake | delta-spark 4.0.0 (writes), deltalake 1.6.6 / delta-rs (API reads, no JVM) |
 | MLflow | 3.17.2, sqlite tracking and model registry on `/gscratch/stf` |
 | Python stack | Python 3.10, numpy 2.2.6, pandas 2.3.3, scikit-learn 1.7.2, xgboost 3.1.3, pyarrow 23.0.0 |
-| Storage | Lake and Spark scratch on `/gscratch/scrubbed` (purged after 21 idle days, rebuildable) |
+| Storage | MODIS read in place from `/gscratch/stf`; lake, Spark scratch and API runs on the node's local disk (`/tmp`, see the environment notes); MLflow on `/gscratch/stf` |
 
 ## 1. Distributed re-tune with MLflow tracking (commit e76647bd)
 
@@ -27,7 +27,7 @@ pre-anchor data) and `score` applies the 100 weight × clip settings in Spark SQ
 |---|---|
 | Forecasts trained | 1,990 (1,581 tuning points 2015–2021 + 409 holdout points 2022–2023), each an XGBoost + RF pair |
 | Wall time, 16 cores | 883 s (675 s + 208 s) |
-| Task time | 7,710 s (5,676 s + 2,034 s): 8.7× the wall time |
+| Task time | 7,710 s (5,676 s + 2,034 s): 8.7× the wall time (summed task time ÷ wall, not a separate serial run) |
 | MLflow runs | 2,990: 1,990 forecast runs + 1,000 (site, setting) scoring runs |
 | Parity | The current configuration rebuilt from the Spark predictions equals the committed chronological predictions exactly (max abs diff 0.0 on 635 + 409 rows) |
 
@@ -65,7 +65,7 @@ Deduplication drops 1,749 repeated (channel, time) rows. The four channels have
 7,778 / 4,708 / 4,814 / 7,368 unique times, of which 4,692 are present in all four.
 299,461,004 cube rows have all four channels valid. After VACUUM the lake takes
 12.4 GB on disk (bronze 8.0 GB after compaction, silver 4.4 GB). It peaked at
-21 GB before VACUUM.
+about 22 GB (21 GiB) before VACUUM.
 
 **Parity** (job 42764314, all exact):
 - the gold table equals `oad_cloud_fractions.parquet`: `assert_frame_equal(check_exact=True)`, 23,460 of 23,460 rows, max abs diff 0.0;
@@ -77,10 +77,11 @@ Deduplication drops 1,749 repeated (channel, time) rows. The four channels have
 
 | Step | Wall time |
 |---|---:|
-| bronze: file metadata + sha256 of all 13.9 GB | 110 s |
+| bronze (438 s): file metadata + sha256 of all 13.9 GB | 110 s |
 | bronze: decode NetCDFs, write 1.96 B pixel rows | 292 s |
+| bronze: Spark start-up, grid and table statistics | 36 s |
 | silver: dedup, time axis, pivot (one range shuffle on time) | 699 s |
-| gold: region aggregation | 20 s |
+| gold: region aggregation and write | 26 s |
 | **Spark, raw → gold** | **1,163 s (19.4 min)** |
 | Reference: `02_build_cube.py` (dense standardized cube, 5.4 GB zarr, 13.7 GB peak RSS) | 553 s |
 | Reference: `compute_region_valid_fractions` | 1.9 s |
@@ -98,15 +99,16 @@ lineage from file hash to gold row), not speed. Multi-node runs were not measure
 |---|---:|---:|
 | bronze pixels: compaction (263 s) | 2,584 files, 5.85 GB | 130 files, 7.92 GB |
 | silver cube: `ZORDER BY (lon_idx, lat_idx)` (141 s) | 407 files, 4.06 GB | 59 files, 4.38 GB |
-| silver: files (bytes) a region-box query must read, Overall | 407 (100%) | 42 (72%) |
-| silver: same, SW Washington / Long Beach box | 407 (100%) | 19 (31%) |
-| silver: same, other three boxes | 407 (100%) | 36–41 (63–70%) |
+| silver: files and bytes a region-box query must read, Overall box | 407 files, 4.06 GB | 42 files, 3.16 GB |
+| silver: same, SW Washington / Long Beach box | 407 files, 4.06 GB | 19 files, 1.35 GB |
+| silver: same, other three boxes | 407 files, 4.06 GB | 36–41 files, 2.74–3.07 GB |
 | gold region query, wall (cold, warm) | 9.0 s, 6.1 s | 6.5 s, 6.6 s |
 
 Before Z-ordering, every silver file spans the whole grid because it holds a run of
 dates, so no file can be skipped. Z-ordering clusters files spatially, and Delta's
-min/max statistics then skip 28–69% of the bytes for a region filter (counted from the
-transaction log's per-file statistics). The gold query is still no faster on this
+min/max statistics let a region filter skip files. Against the 4.06 GB a query
+had to read before, a region box now reads 1.35–3.16 GB (22–67% less). These figures
+are counted from the transaction log's per-file statistics, not from measured reads. The gold query is still no faster on this
 node. It scans all 22 years of the 300 M valid rows, and where its time goes was not
 profiled. Compaction cut bronze's file count 20× but made it 35% larger. The
 rewritten files compress worse than the originals, each of which held one NetCDF's
@@ -136,16 +138,19 @@ returns it. The Delta table holds 21,900 rows in 4 files, 16.9 MB.
 | Precompute (Spark, `local[16]`) | |
 |---|---:|
 | Wall time | 7,887 s (2.19 h) |
-| Task time | 93,623 s (26.0 h): 11.9× the wall time |
+| Task time | 93,623 s (26.0 h): 11.9× the wall time (summed task time ÷ wall) |
 | Mean task time per (site, date), both forecasts, 1 thread | 8.55 s |
-| Daily grid instead (76,590 site-days), estimated | 11.4 node-hours |
+| Daily grid instead (76,590 site-days), estimated | 11.4 node-hours at a perfect 16×; about 15.3 at the measured 11.9× |
 
-The daily grid would cost more than the 2-node-hour budget, so the table is weekly.
+A daily grid would cost far more than the roughly 2-node-hour budget, so the table
+is weekly. The weekly run itself took 2.19 hours on one node.
 
 **MLflow Model Registry.** `datect-forecaster` version 1 is a pyfunc wrapping the
 forecast procedure. The model is retrained per request on data up to the anchor, so
 it runs inside a DATECT checkout. Its tags record the config hash, git SHA, grid,
-Delta table path and version, entry count and wall time. Every table row carries
+Delta table version, entry count and wall time. The `delta_table` tag holds the job's
+node-local path, which was deleted at job end; the table was copied to
+`/gscratch/scrubbed/ac283/datect-lake/lake/gold/forecasts-42764310`. Every table row carries
 `model_version = datect-forecaster/1`. It lives in the same sqlite store as the
 re-tune's 2,990 runs.
 
@@ -157,8 +162,11 @@ re-tune's 2,990 runs.
   entries;
 - end to end, all 20 timed responses are identical to `main`'s on-demand responses
   (sha256 of the body without `source`/`model_version`);
-- earlier, Spark workers' single-threaded XGBoost matched the API's multithreaded
-  XGBoost on 8 forecasts on the laptop. The 50-entry check above covers this on Hyak.
+- an ad hoc laptop check (not committed) found Spark workers' single-threaded
+  XGBoost identical to the API's multithreaded XGBoost on 8 forecasts. The 50-entry
+  check above covers this on Hyak;
+- none of the 21,900 stored entries carries a bootstrap-fallback interval. That
+  fallback uses the global RNG, and the precompute now refuses to store it.
 
 **Latency of `POST /api/forecast/enhanced`.** The same 20 (site, date) requests
 (seed 0, drawn from the weekly rows), one at a time, after one untimed warm-up
@@ -172,9 +180,9 @@ request. API on the same node, uvicorn, 16 cores.
 | max | 16.625 s | 0.128 s |
 | Sources | 20 computed | 20 precomputed |
 
-The lookup and JSON decode take about 25 µs. Most of the remaining ~0.12 s is
-building the response, mainly the Plotly uncertainty figure (about 53 ms on a laptop;
-not profiled on Hyak). API startup was 49 s before and 2.3 s after, but the "before"
+In ad hoc laptop timings (not committed), the lookup and JSON decode took about
+25–30 µs and the response's Plotly uncertainty figure about 53 ms. The remaining
+~0.12 s on Hyak was not profiled. API startup was 49 s before and 2.3 s after, but the "before"
 process started with cold file caches on GPFS, so that difference is not a
 measurement of this change.
 
@@ -187,11 +195,16 @@ measurement of this change.
 - `linear` cannot be precomputed with exact parity: its regression interval is a
   bootstrap (100 XGBoost + Ridge fits) drawn from the process-global NumPy RNG, so
   its on-demand output itself changes from call to call.
-- Any change to `forecasting/`, `config.py`, the tuned JSON, the data or the library
-  versions changes the config hash. The table then goes stale and serves nothing
-  until `precompute` is re-run. The conformal error band in progress will do this.
+- Any change to `forecasting/`, `config.py`, the tuned JSON, the data bytes or the
+  library versions changes the config hash. The table then goes stale and serves
+  nothing until `precompute` is re-run; the conformal error band in progress will do
+  this. The hash is conservative: setting a `DATECT_*` variable to its default value
+  also counts as a change. Stale rows are logged at WARNING and reported on
+  `/health`.
 - The Cloud Run deployment does not ship the table yet. With
-  `DATECT_FORECAST_TABLE` unset the API behaves exactly as before.
+  `DATECT_FORECAST_TABLE` unset every forecast is computed as before. Responses still
+  gain `source: "computed"` and `model_version: null`, and `/health` gains
+  `precomputed_forecasts: null`.
 
 ## Environment notes (Hyak)
 
@@ -221,16 +234,16 @@ parity, latency before/after).
 ## Resume bullets (numbers from the runs above)
 
 - Built a PySpark + Delta Lake pipeline (bronze/silver/gold) over 13.9 GB of MODIS
-  satellite imagery (2,563 NetCDF files, 2003–2024, 1.96 billion pixel rows) that
-  reproduces the existing ocean-feature pipeline exactly, with OPTIMIZE / Z-ORDER
-  cutting the data a regional query must read by 28–69%.
+  satellite imagery (2,563 NetCDF files, 2003–2024, 1.96 billion pixel rows). Its
+  cloud-cover features match the existing pipeline exactly, and OPTIMIZE / Z-ORDER
+  cuts the bytes a regional query must read by 22–67%.
 - Trained 1,990 leak-free XGBoost + Random Forest forecasting model pairs in parallel
-  on Spark (8.7× over serial on 16 cores), tracking 2,990 runs in MLflow, with
-  predictions matching the existing evaluation exactly.
-- Cut forecast API latency from 3.3 s to 0.12 s at the median (10.6 s to 0.13 s at
-  p95) by precomputing 21,900 forecasts on Spark (11.9× parallel speedup) into Delta
-  Lake, served through delta-rs with an MLflow-registered model version and
-  bit-identical responses.
+  on Spark (8.7× task-time-to-wall-time on 16 cores), tracking 2,990 runs in MLflow,
+  with predictions matching the existing evaluation exactly.
+- Cut forecast API latency on precomputed (weekly) dates from 3.3 s to 0.12 s at the
+  median (10.6 s to 0.13 s at p95) by precomputing 21,900 forecasts on Spark (11.9×
+  task-time-to-wall-time) into Delta Lake, served through delta-rs with an
+  MLflow-registered model version and responses identical to on-demand output.
 
 All three ran on open-source Spark on a university HPC cluster (UW Hyak), one node
 per job, not on Databricks.

@@ -138,3 +138,51 @@ def test_forecast_endpoint_reports_its_source(table, monkeypatch):
         r = client.post("/api/forecast", json={"date": "2019-06-03", "site": "Newport",
                                                "task": "regression", "model": "ensemble"}).json()
     assert r["source"] == "precomputed" and r["prediction"] == 5.32426643371582 and engine.calls == []
+
+
+def test_codec_fails_closed_on_types_it_cannot_round_trip():
+    from collections import OrderedDict
+
+    for value in (np.str_("x"), OrderedDict(a=1), np.zeros((0, 3)), np.array(1.5),
+                  {"__ts__": "2019-06-03"}, {1: "int key"}):
+        with pytest.raises(TypeError):
+            pf.encode({"v": value})
+
+
+def test_unreadable_row_is_a_miss_not_an_error(tmp_path, monkeypatch):
+    deltalake = pytest.importorskip("deltalake")
+    df = pd.DataFrame({"site": ["Newport"], "forecast_date": [datetime.date(2019, 6, 3)],
+                       "task": ["regression"], "model_type": ["ensemble"],
+                       "result_json": ['{"forecast_date": {"__ts__": "not a date"}}'],
+                       "model_version": ["datect-forecaster/7"], "config_hash": [pf.config_hash()]})
+    path = str(tmp_path / "forecasts")
+    deltalake.write_deltalake(path, df)
+    monkeypatch.setenv(pf.TABLE_ENV, path)
+    monkeypatch.setattr(pf, "_loaded_uri", None)
+    monkeypatch.setattr(pf, "_store", None)
+    assert pf.lookup("Newport", "2019-06-03", "regression", "ensemble") is None
+
+
+def test_stale_table_is_reported(table, caplog):
+    with caplog.at_level("WARNING", logger=pf.__name__):
+        store = pf.load_from_env()
+    assert any("stale" in r.getMessage() for r in caplog.records if r.levelname == "WARNING")
+    status = pf.status()
+    assert status["entries"] == len(store) == 3 and status["stale_rows"] == 1
+    assert status["expected_config_hash"] == pf.config_hash() and status["table_version"] == 0
+
+
+def test_health_reports_the_table(table):
+    from backend import api
+
+    with TestClient(api.app) as client:
+        health = client.get("/health").json()
+    assert health["precomputed_forecasts"]["entries"] == 3
+
+
+def test_health_without_a_table(monkeypatch):
+    from backend import api
+
+    monkeypatch.delenv(pf.TABLE_ENV, raising=False)
+    with TestClient(api.app) as client:
+        assert client.get("/health").json()["precomputed_forecasts"] is None

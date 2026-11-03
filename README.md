@@ -202,13 +202,14 @@ Env-var overlays (`DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_SPIKE_CLASSIFIER_JSON`,
 
 ## Running on Spark (Hyak)
 
-`datect_spark/` runs open-source Spark 4.0 (local mode on one Hyak node), Delta Lake 4.0 and MLflow 3 on Hyak; it is not Databricks. The environment is a venv layered on the Hyak conda env (`/gscratch/scrubbed/ac283/envs/datect_spark`, `module load coenv/jdk/17.0.8`). The lake and Spark scratch go on `/gscratch/scrubbed`, the MLflow sqlite database on `/gscratch/stf`. Submit each job from the root of a disposable worktree:
+`datect_spark/` runs open-source Spark 4.0 (local mode on one Hyak node), Delta Lake 4.0 and MLflow 3 on Hyak; it is not Databricks. The environment is a venv layered on the Hyak conda env (`/gscratch/scrubbed/ac283/envs/datect_spark`, `module load coenv/jdk/17.0.8`). The MODIS and serving jobs run from a `git archive` on the node's local disk (the shared scratch filesystems refuse writes intermittently when full) and copy their result JSONs to `~/datect-spark-results`; the MLflow sqlite database is on `/gscratch/stf`. Submit from any Hyak checkout of the branch, with logs outside the full filesystems:
 
 ```bash
-sbatch datect_spark/retune.sbatch                                   # weights x clip re-tune, MLflow runs
-sbatch datect_spark/modis_lake.sbatch                               # MODIS NetCDFs -> bronze/silver/gold Delta
-sbatch --export=ALL,STEPS=reference datect_spark/modis_lake.sbatch  # time the reference cube scripts
-sbatch --export=ALL,STEPS="precompute parity latency-after" datect_spark/serving.sbatch
+L="-o $HOME/datect-spark-logs/%x-%j.out -e $HOME/datect-spark-logs/%x-%j.err"
+sbatch $L datect_spark/modis_lake.sbatch                                  # MODIS NetCDFs -> bronze/silver/gold Delta
+sbatch $L --export=ALL,STEPS=reference datect_spark/modis_lake.sbatch     # time the reference cube scripts
+sbatch $L --export=ALL,MAIN_SHA=$(git rev-parse origin/main) datect_spark/serving.sbatch  # latency, precompute, parity
+sbatch datect_spark/retune.sbatch                                         # weights x clip re-tune (from a worktree)
 ```
 
 Every job checks its output against the existing pipeline exactly. Measurements, parity checks and caveats are in [datect_spark/RESULTS.md](datect_spark/RESULTS.md).

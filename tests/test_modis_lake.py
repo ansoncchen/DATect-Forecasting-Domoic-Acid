@@ -127,3 +127,13 @@ def test_grid_axes_restore_index_order(lake):
     got_lat, got_lon = lake.grid_axes(shuffled)
     np.testing.assert_array_equal(got_lat, lat)
     np.testing.assert_array_equal(got_lon, lon)
+
+
+def test_five_date_check_requires_bitwise_equality(lake):
+    channels = ["chla", "k490", "nflh", "sst"]
+    exact = {"mask_equal": True, **{c: {"nan_equal": True, "bitwise_equal": True, "max_abs_diff": 0.0}
+                                    for c in channels}}
+    close = {**exact, "sst": {"nan_equal": True, "bitwise_equal": False, "max_abs_diff": 1e-7}}
+    assert lake.dates_match([exact, exact], channels)
+    assert not lake.dates_match([exact, close], channels)
+    assert not lake.dates_match([{**exact, "mask_equal": False}], channels)

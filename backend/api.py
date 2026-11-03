@@ -213,7 +213,8 @@ def root():
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    return {"status": "healthy", "timestamp": datetime.now().isoformat(),
+            "precomputed_forecasts": precomputed_forecasts.status()}
 
 @app.get("/api/sites", response_model=SiteInfo)
 def get_sites():

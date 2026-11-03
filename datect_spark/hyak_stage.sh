@@ -31,6 +31,7 @@ finish() {
 }
 
 archive "$SHA" "$JOB_DIR/repo"
+rm -rf "$JOB_DIR/repo/results/$RESULTS_SUBDIR"  # committed JSONs must not pass as this run's
 mkdir -p "$JOB_DIR/lake" "$JOB_DIR/tmp"
 cp -r "$IVY_SRC" "$JOB_DIR/ivy"
 trap finish EXIT

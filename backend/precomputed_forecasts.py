@@ -33,28 +33,31 @@ COLUMNS = ["site", "forecast_date", "task", "model_type", "result_json", "model_
 
 # ── Lossless JSON for generate_single_forecast output ────────────────────────
 # Floats round-trip exactly through json (repr); numpy scalars, timestamps and
-# tuples are tagged so decode() returns the same types the engine returned.
+# tuples are tagged so decode() returns the same types the engine returned. Types
+# are matched exactly: anything else (subclasses, numpy strings, n-d arrays) raises,
+# so the precompute stores an error row (a miss) instead of a lossy copy.
+_TAGS = ("__ts__", "__np__", "__nd__", "__tuple__")
+
 
 def _enc(obj):
-    if obj is None or isinstance(obj, (bool, str)):
+    kind = type(obj)
+    if obj is None or kind in (bool, str, int, float):
         return obj
-    if isinstance(obj, (int, float)) and not isinstance(obj, (np.integer, np.floating)):
-        return obj
-    if isinstance(obj, pd.Timestamp):
+    if kind is pd.Timestamp:
         return {"__ts__": obj.isoformat()}
-    if isinstance(obj, (np.floating, np.integer, np.bool_)):
+    if isinstance(obj, np.generic) and obj.dtype.kind in "biuf":
         return {"__np__": obj.dtype.str, "v": obj.item()}
-    if isinstance(obj, np.ndarray):
+    if kind is np.ndarray and obj.ndim == 1 and obj.dtype.kind in "biuf":
         return {"__nd__": obj.dtype.str, "v": [_enc(x) for x in obj.tolist()]}
-    if isinstance(obj, tuple):
+    if kind is tuple:
         return {"__tuple__": [_enc(x) for x in obj]}
-    if isinstance(obj, list):
+    if kind is list:
         return [_enc(x) for x in obj]
-    if isinstance(obj, dict):
-        if not all(isinstance(k, str) for k in obj):
-            raise TypeError("only str keys are supported")
+    if kind is dict:
+        if not all(type(k) is str and k not in _TAGS for k in obj):
+            raise TypeError("dict keys must be str and not a codec tag")
         return {k: _enc(v) for k, v in obj.items()}
-    raise TypeError(f"cannot encode {type(obj).__name__}")
+    raise TypeError(f"cannot encode {kind.__name__}")
 
 
 def _dec(obj):
@@ -146,14 +149,15 @@ class PrecomputedForecasts:
         rows = dt.to_pyarrow_table(columns=COLUMNS).to_pydict()
         self.expected_hash = expected_hash or config_hash()
         self._index: dict[tuple, tuple[str, str]] = {}
-        self.stale_rows = 0
+        self.stale_hashes: dict[str, int] = {}
         for site, day, task, model, text, version, row_hash in zip(*(rows[c] for c in COLUMNS)):
             if text is None:  # the engine raised; on demand it raises again
                 continue
             if row_hash != self.expected_hash:
-                self.stale_rows += 1
+                self.stale_hashes[row_hash] = self.stale_hashes.get(row_hash, 0) + 1
                 continue
             self._index[(site, day.isoformat(), task, model)] = (text, version)
+        self.stale_rows = sum(self.stale_hashes.values())
 
     def __len__(self) -> int:
         return len(self._index)
@@ -162,31 +166,53 @@ class PrecomputedForecasts:
         entry = self._index.get((site, pd.Timestamp(forecast_date).date().isoformat(), task, model_type))
         if entry is None:
             return None
-        return Hit(decode(entry[0]), entry[1])
+        try:
+            return Hit(decode(entry[0]), entry[1])
+        except Exception as exc:  # a bad row is a miss: compute on demand
+            logger.warning("Unreadable precomputed forecast %s %s %s %s (%s)",
+                           site, forecast_date, task, model_type, exc)
+            return None
 
 
 _store: PrecomputedForecasts | None = None
 _loaded_uri: str | None = None
+_load_error: str | None = None
 _lock = threading.Lock()
 
 
 def load_from_env() -> PrecomputedForecasts | None:
     """Load the table named by DATECT_FORECAST_TABLE once per URI; None (compute on
     demand) when it is unset or cannot be read."""
-    global _store, _loaded_uri
+    global _store, _loaded_uri, _load_error
     uri = os.environ.get(TABLE_ENV)
     if not uri:
         return None
     with _lock:
         if _loaded_uri != uri:
-            _loaded_uri, _store = uri, None
+            _loaded_uri, _store, _load_error = uri, None, None
             try:
                 _store = PrecomputedForecasts(uri)
-                logger.info("Precomputed forecasts: %d entries from %s (version %d, %d stale rows ignored)",
-                            len(_store), uri, _store.table_version, _store.stale_rows)
             except Exception as exc:  # serving must never break the API
-                logger.warning("Precomputed forecasts unavailable (%s); computing on demand", exc)
+                _load_error = f"{type(exc).__name__}: {exc}"
+                logger.warning("Precomputed forecasts unavailable (%s); computing on demand", _load_error)
+                return None
+            log = logger.warning if _store.stale_rows or not len(_store) else logger.info
+            log("Precomputed forecasts: %d entries from %s (version %d); %d stale rows ignored "
+                "(this API's config hash %s, stale rows carry %s)", len(_store), uri,
+                _store.table_version, _store.stale_rows, _store.expected_hash[:12],
+                {h[:12]: n for h, n in _store.stale_hashes.items()})
         return _store
+
+
+def status() -> dict | None:
+    """What /health reports: None without a table, else its size and staleness."""
+    store = load_from_env()
+    if store is None:
+        uri = os.environ.get(TABLE_ENV)
+        return {"uri": uri, "entries": 0, "error": _load_error} if uri else None
+    return {"uri": store.uri, "table_version": store.table_version, "entries": len(store),
+            "stale_rows": store.stale_rows, "expected_config_hash": store.expected_hash,
+            "stale_config_hashes": store.stale_hashes}
 
 
 def lookup(site: str, forecast_date, task: str, model_type: str) -> Hit | None:

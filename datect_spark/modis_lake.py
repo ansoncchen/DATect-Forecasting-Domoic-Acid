@@ -25,8 +25,10 @@ equals that file exactly, that the time axis equals cube.zarr's, and that five d
 of standardized values and the mask equal cube.zarr. ``reference`` re-runs and times
 the reference itself (cube written to scrubbed; the original is never touched).
 
-Each step writes its measurements to results/spark_lake/modis_<step>.json and skips
-itself when that file already holds a run of the same commit (ckpt requeues).
+Each step writes its measurements to results/spark_lake/modis_<step>.json. In a
+persistent checkout a step whose file already holds a run of the same commit is
+skipped; Hyak jobs run from a fresh archive on node-local disk (hyak_stage.sh), so
+there every listed step runs.
 
 Usage (Hyak, inside an allocation; see datect_spark/modis_lake.sbatch):
     python -m datect_spark.modis_lake bronze|silver|optimize|gold|parity|vacuum|reference
@@ -177,6 +179,11 @@ def region_boxes(lat: np.ndarray, lon: np.ndarray) -> pd.DataFrame:
                      "lon_lo": int(lon_in[0]), "lon_hi": int(lon_in[-1]),
                      "region_pixels": int(len(lat_in) * len(lon_in))})
     return pd.DataFrame(rows)
+
+
+def dates_match(dates: list[dict], channels: list[str]) -> bool:
+    """The five-date check passes only if the mask and every channel are bitwise equal."""
+    return all(d["mask_equal"] and all(d[c]["bitwise_equal"] for c in channels) for d in dates)
 
 
 def standardize(values: np.ndarray, log_transform: bool, mean: float, std: float) -> np.ndarray:
@@ -536,8 +543,7 @@ def parity() -> dict:
         dates.append(entry)
     out["five_dates"] = dates
     out["passed"] = bool(out["valid_frac"]["assert_frame_equal_exact"] and out["time_axis"]["equal"]
-                         and all(d["mask_equal"] and all(d[c]["nan_equal"] and d[c]["max_abs_diff"] < 1e-5
-                                                         for c, _, _ in channels) for d in dates))
+                         and dates_match(dates, [c for c, _, _ in channels]))
     spark.stop()
     if not out["passed"]:
         print(json.dumps(out, indent=2, default=str))

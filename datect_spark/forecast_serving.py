@@ -97,6 +97,20 @@ def _summary(result: dict | None) -> dict:
             "training_samples": result.get("training_samples")}
 
 
+def task_model(task: str, model: str) -> str:
+    """The model the API asks the engine for: "linear" classifies with "logistic"."""
+    return "logistic" if model == "linear" and task == "classification" else model
+
+
+def not_reproducible(result: dict | None) -> str | None:
+    """Why an output must not be stored, or None. An ensemble interval normally comes
+    from quantile XGBoost; if that fails the engine falls back to a bootstrap drawn
+    from the process-global NumPy RNG, which an on-demand call would not repeat."""
+    if result is not None and "bootstrap_predictions" in (result.get("bootstrap_quantiles") or {}):
+        return "bootstrap interval (global RNG): not reproducible on demand"
+    return None
+
+
 def _forecast_partition(batches):
     from backend.precomputed_forecasts import encode
 
@@ -108,12 +122,17 @@ def _forecast_partition(batches):
         for r in pdf.itertuples(index=False):
             for task in TASKS:
                 t0 = time.time()
+                model = task_model(task, r.model_type)
                 row = {"site": r.site, "forecast_date": pd.Timestamp(r.date).date(), "task": task,
-                       "model_type": r.model_type, "host": host}
+                       "model_type": model, "host": host}
                 try:
                     result = engine.generate_single_forecast(
-                        config.FINAL_OUTPUT_PATH, pd.Timestamp(r.date), r.site, task, r.model_type)
-                    row.update(_summary(result), result_json=encode(result))
+                        config.FINAL_OUTPUT_PATH, pd.Timestamp(r.date), r.site, task, model)
+                    reason = not_reproducible(result)
+                    if reason:
+                        row["error"] = reason
+                    else:
+                        row.update(_summary(result), result_json=encode(result))
                 except Exception as exc:  # the API answers these with an error: not served
                     row["error"] = f"{type(exc).__name__}: {exc}"
                 row["task_seconds"] = time.time() - t0

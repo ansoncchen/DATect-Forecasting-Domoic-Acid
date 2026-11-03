@@ -20,13 +20,14 @@ from pydantic import BaseModel
 
 from forecasting import ForecastEngine, ModelFactory
 import config
+from backend.band import forecast_band
 from backend.visualizations import (
     generate_correlation_heatmap,
     generate_sensitivity_analysis,
     generate_time_series_comparison,
     generate_waterfall_plot,
     generate_spectral_analysis,
-    generate_gradient_uncertainty_plot,
+    generate_band_plot,
 )
 from backend import precomputed
 from backend.records import clean_for_json, retrospective_records  # noqa: F401 (re-exported)
@@ -703,30 +704,23 @@ def generate_enhanced_forecast(request: ForecastRequest):
             "model_version": regression_version if served else None,
         }
         
-        # Add level_range graph for regression (only when quantiles available)
+        # Forecast chart: the conformal error band (backend/band.py)
         if regression_result and 'predicted_da' in regression_result:
             predicted_da = float(regression_result['predicted_da'])
-            xgb_pred = regression_result.get('xgb_prediction')
-            rf_pred = regression_result.get('rf_prediction')
-            bootstrap_quantiles = regression_result.get('bootstrap_quantiles') or {}
-            if all(k in bootstrap_quantiles for k in ('q05', 'q50', 'q95')):
-                quantiles = {
-                    "q05": bootstrap_quantiles['q05'],
-                    "q50": bootstrap_quantiles['q50'],
-                    "q95": bootstrap_quantiles['q95'],
-                }
-                gradient_plot_json = generate_gradient_uncertainty_plot(
-                    quantiles, predicted_da,
-                    xgb_prediction=float(xgb_pred) if xgb_pred is not None else None,
-                    rf_prediction=float(rf_pred) if rf_pred is not None else None,
-                )
+            band_info = forecast_band(predicted_da, regression_result.get('anchor_date'))
+            if band_info is not None:
+                xgb_pred = regression_result.get('xgb_prediction')
+                rf_pred = regression_result.get('rf_prediction')
                 response_data["graphs"]["level_range"] = {
-                    "gradient_quantiles": quantiles,
-                    "xgboost_prediction": predicted_da,
                     "type": "gradient_uncertainty",
-                    "gradient_plot": gradient_plot_json,
+                    "gradient_plot": generate_band_plot(
+                        band_info, predicted_da,
+                        xgb_prediction=float(xgb_pred) if xgb_pred is not None else None,
+                        rf_prediction=float(rf_pred) if rf_pred is not None else None,
+                    ),
+                    "band": band_info,
                 }
-        
+
         # Add category_range graph for classification
         if classification_result and 'predicted_category' in classification_result:
             class_probs = classification_result.get('class_probabilities', [0.25, 0.25, 0.25, 0.25])

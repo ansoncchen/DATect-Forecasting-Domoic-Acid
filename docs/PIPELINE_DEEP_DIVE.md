@@ -122,4 +122,4 @@ Retrospective evaluation skips intervals; they do not affect reported metrics.
 
 ## Caching and serving
 
-`precompute_cache.py` (run on Hyak) writes 8 task/model retrospectives (regression: ensemble, xgboost, rf, naive, linear; classification: ensemble, naive, logistic), spectral analyses and per-site correlation heatmaps under `cache/`. The API serves them when the cache is enabled and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).
+The precomputed store (Delta tables built on Spark on Hyak, `datect_spark/store.sbatch`) holds weekly forecasts, 8 task/model retrospectives (regression: ensemble, xgboost, rf, naive, linear; classification: ensemble, naive, logistic), spectral analyses and per-site correlation heatmaps. The API (`backend/precomputed.py`) serves rows whose config hash matches its own code, config, data and library versions, and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).

@@ -18,7 +18,7 @@ uvicorn[standard]>=0.27.0
 granian>=1.0.0        # Rust-based ASGI server used in production
 pydantic>=2.5.0
 requests>=2.31.0      # run_datect.py health checks, Docker HEALTHCHECK, data downloads
-deltalake>=1.1.0      # Precomputed forecasts from Delta (read only when DATECT_FORECAST_TABLE is set)
+deltalake>=1.1.0      # The precomputed store's Delta tables (read when DATECT_PRECOMPUTED_DIR is set)
 
 # Visualization and analysis endpoints
 plotly>=5.18.0
@@ -30,7 +30,3 @@ tqdm>=4.66.0
 xarray>=2024.1.0
 netcdf4>=1.6.0
 numba>=0.59.0         # Optional JIT for BEUTI interpolation
-
-# Optional Redis cache backend (enabled only when REDIS_URL is set)
-redis>=5.0.0
-hiredis>=2.3.0

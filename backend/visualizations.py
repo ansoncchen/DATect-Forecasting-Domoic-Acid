@@ -589,8 +589,10 @@ def generate_waterfall_plot(data):
     return plot_data
 
 
-def generate_spectral_analysis(data, site=None):
-    """Generate spectral analysis with optional XGBoost and Random Forest comparison."""
+def generate_spectral_analysis(data, site=None, xgb_results=None, rf_results=None):
+    """Spectral analysis, with XGBoost and Random Forest traces when their retrospective
+    predictions are given (DataFrames with date, site, predicted_da, actual_da: the
+    precomputed store's regression/xgboost and regression/rf records)."""
     
     # Ensure date column is datetime
     data['date'] = pd.to_datetime(data['date'])
@@ -617,26 +619,7 @@ def generate_spectral_analysis(data, site=None):
     actual_for_comparison = da_values
 
     try:
-        from pathlib import Path
-        import json
-
-        cache_dir = Path("cache/retrospective")
-
-        # XGBoost-only retrospective (precompute_cache writes regression_xgboost.{parquet,json}).
-        # Do not gate this on regression_ensemble.json: precompute dumps a top-level JSON list
-        # (no "results" key), so an existing ensemble file used to skip the elif and hide XGB.
-        xgb_parquet = cache_dir / "regression_xgboost.parquet"
-        xgb_json = cache_dir / "regression_xgboost.json"
-        xgb_df = None
-        if xgb_parquet.exists():
-            xgb_df = pd.read_parquet(xgb_parquet)
-        elif xgb_json.exists():
-            with open(xgb_json) as f:
-                raw = json.load(f)
-            if isinstance(raw, list):
-                xgb_df = pd.DataFrame(raw)
-            elif isinstance(raw, dict) and "results" in raw:
-                xgb_df = pd.DataFrame(raw["results"])
+        xgb_df = xgb_results
         if xgb_df is not None and not xgb_df.empty:
             if "date" in xgb_df.columns:
                 xgb_df = xgb_df.copy()
@@ -649,10 +632,9 @@ def generate_spectral_analysis(data, site=None):
                 if "actual_da" in xgb_df.columns:
                     actual_for_comparison = xgb_df["actual_da"].dropna().values
 
-        # Load Random Forest predictions from cache when available
-        cache_file_rf = cache_dir / "regression_rf.parquet"
-        if cache_file_rf.exists():
-            rf_df = pd.read_parquet(cache_file_rf)
+        rf_df = rf_results
+        if rf_df is not None:
+            rf_df = rf_df.assign(date=pd.to_datetime(rf_df["date"]))
             if site and not rf_df.empty:
                 rf_df = rf_df[rf_df['site'] == site]
             if not rf_df.empty:

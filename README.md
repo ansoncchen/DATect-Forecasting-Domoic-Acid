@@ -77,17 +77,17 @@ The dataset (`data/processed/final_output.parquet`) ships with the repo, so no d
 
 It uses the fastest tools it finds: `uv` or `pip` for Python, `bun` or `npm` for the frontend, `granian` or `uvicorn` for the API. It stops anything already listening on ports 8000 and 3000 (via `lsof`, so not on Windows).
 
-### Pre-computed cache (optional)
+### Precomputed store (optional)
 
-Retrospective views are slow to compute on a laptop. The cache is built on Hyak, never locally (see [docs/HYAK_SETUP.md](docs/HYAK_SETUP.md)):
+Forecasts, retrospective views and spectral analyses are slow to compute on a laptop. The precomputed store (Delta tables) is built on Hyak with Spark, never locally, and `run_datect.py` serves it when `./store` exists (see [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)):
 
 ```bash
-# On a Hyak compute node, from the repo root:
-python precompute_cache.py
+# On Hyak, at the commit you run (rows from other code, config or data are not served):
+sbatch datect_spark/store.sbatch          # saves ~/datect-store/<commit>/
 
 # On your machine:
-scp -r klone-login:/gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/ ./cache/
-ENABLE_PRECOMPUTED_CACHE=true python run_datect.py
+rsync -a klone-login:datect-store/$(git rev-parse HEAD)/ ./store/
+python run_datect.py
 ```
 
 ## Commands
@@ -97,7 +97,7 @@ ENABLE_PRECOMPUTED_CACHE=true python run_datect.py
 | `python run_datect.py` | Start API + dashboard locally |
 | `pip install -r requirements-dev.txt && pytest tests/` | Run the test suite |
 | `cd frontend && npm run dev` / `npm run build` / `npm run lint` | Frontend development |
-| `python precompute_cache.py` | Build the dashboard cache (Hyak only) |
+| `sbatch datect_spark/store.sbatch` | Build the precomputed store on Spark (Hyak only) |
 | `python scripts/data/rebuild_final_output.py --recompute measurements` | Rebuild `da`/`pn` columns of the dataset offline after a change to the raw CSVs or their parsing |
 | `python scripts/data/export_oad_features.py <checkpoint>` then `rebuild_final_output.py --recompute oad` | Switch or refresh the OAD input and features |
 | `python dataset-creation.py` | Full dataset rebuild from source (re-downloads every satellite and climate series from NOAA ERDDAP; slow and often fails). Use the offline rebuild above for anything else |
@@ -109,11 +109,8 @@ ENABLE_PRECOMPUTED_CACHE=true python run_datect.py
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ENABLE_PRECOMPUTED_CACHE` | `false` | `true` serves retrospective results from the pre-computed cache |
-| `CACHE_DIR` | `./cache` | Location of the pre-computed cache |
-| `REDIS_URL` | unset | Optional Redis cache backend (e.g. `redis://localhost:6379/0`) |
 | `ALLOWED_ORIGINS` | unset | Comma-separated CORS origins; unset allows only localhost dev servers, so set it in production |
-| `DATECT_FORECAST_TABLE` | unset | Path of a Delta table of precomputed forecasts (`gold/forecasts`, built on Spark); the forecast endpoints answer from it when its config hash matches and compute on demand otherwise |
+| `DATECT_PRECOMPUTED_DIR` | `./store` if it exists | Directory of the precomputed store's Delta tables (forecasts, retrospective, spectral, correlation; built on Spark). Rows whose config hash matches are served; everything else is computed on demand |
 | `DATECT_PER_ANCHOR_TUNING` | `false` | `true` runs a per-forecast XGBoost grid search (1–3 min per forecast). Off by default, which matches how every reported number was produced |
 
 Further `DATECT_*` variables for experiments (feature drops, per-site overrides, ablations) are documented in [CLAUDE.md](CLAUDE.md).
@@ -124,7 +121,6 @@ Further `DATECT_*` variables for experiments (feature drops, per-site overrides,
 DATect-Forecasting-Domoic-Acid/
 ├── run_datect.py                   # Local launcher (API + dashboard + browser)
 ├── dataset-creation.py             # Full dataset build from source downloads
-├── precompute_cache.py             # Dashboard cache pre-computation (Hyak)
 ├── config.py                       # Sites, data sources, structural constants
 ├── config/
 │   └── tuned_hyperparameters.json  # All tuned values + provenance
@@ -143,7 +139,7 @@ DATect-Forecasting-Domoic-Acid/
 │   ├── feature_utils.py            # Temporal features + transformers
 │   ├── logging_config.py
 │   └── validation.py               # Startup checks
-├── backend/                        # FastAPI server (api.py, visualizations.py, cache_manager.py, redis_cache.py)
+├── backend/                        # FastAPI server (api.py, visualizations.py, precomputed.py)
 ├── frontend/                       # React + Vite dashboard
 ├── data/
 │   ├── raw/da-input/, raw/pn-input/  # Raw toxin and Pseudo-nitzschia measurements (one CSV per site)
@@ -254,7 +250,7 @@ Every job checks its output against the existing pipeline exactly. Measurements,
 
 ## Google Cloud Deployment
 
-Sync the Hyak-built cache into `./cache` first. The deploy script bakes it into the image; if `./cache` is missing or empty it runs `precompute_cache.py` locally, and if it exists it asks whether to re-generate it (answer N). Then:
+Copy the Hyak-built store into `./store` first, built at the commit you deploy. The deploy script bakes it into the image and stops if `./store` is missing or empty. Then:
 
 ```bash
 gcloud auth login
@@ -273,7 +269,7 @@ The script enables the required APIs, builds with Cloud Build (`deploy/cloudbuil
 | `python: command not found` | Use `python3` |
 | Port 8000 or 3000 in use | The launcher frees them on macOS/Linux; otherwise `lsof -ti:8000,3000 \| xargs kill` |
 | Node.js missing or older than 18 | Install a current version from [nodejs.org](https://nodejs.org/) or `brew upgrade node` |
-| Retrospective runs are slow | Use the Hyak-built cache (`ENABLE_PRECOMPUTED_CACHE=true`) |
+| Forecasts or retrospective runs are slow | Use the Hyak-built store in `./store`; `/health` shows whether its rows match this code (stale rows are computed on demand) |
 | Deploy fails on authentication | `gcloud auth list`, `gcloud auth application-default login`, check `PROJECT_ID` |
 
 ## License

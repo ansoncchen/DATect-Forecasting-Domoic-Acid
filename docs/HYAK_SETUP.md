@@ -1,6 +1,6 @@
 # Hyak (klone) Setup and Workflow
 
-All heavy compute (evaluations, tuning sweeps, `precompute_cache.py`, OAD training) runs on Hyak. The laptop is for editing, review and running the dashboard against a pre-computed cache.
+All heavy compute (evaluations, tuning sweeps, the precomputed store's Spark build, OAD training) runs on Hyak. The laptop is for editing, review and running the dashboard against the precomputed store.
 
 ## SSH
 
@@ -88,13 +88,13 @@ $DATECT_PY scripts/eval/compare_golden.py <golden_root>/<label_a> <golden_root>/
 
 Prediction parquets must match exactly; metric tables may differ only within a relative 1e-12 (reported as rounding). Exit code 0 means identical. For differing files it prints the headline-metric deltas to quote in the commit message. Remove a finished worktree with `git worktree remove <path>`.
 
-## Pre-computed dashboard cache
+## Precomputed store
 
 ```bash
-$DATECT_PY precompute_cache.py      # on a compute node or in a batch job, from the repo root
+sbatch -o ~/datect-spark-logs/%x-%j.out -e ~/datect-spark-logs/%x-%j.err datect_spark/store.sbatch
 ```
 
-Then copy `cache/` to your machine (see [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md)).
+It runs on the node's local disk (the shared scratch filesystems refuse writes when full) and saves the store's Delta tables to `~/datect-store/<commit>/`. Copy that to `./store` on your machine (see [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md)).
 
 ## OAD subproject
 

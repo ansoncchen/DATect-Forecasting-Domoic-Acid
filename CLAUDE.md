@@ -33,8 +33,8 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
    cache, so `dataset-creation.py` end-to-end would re-download everything. Treat the
    environmental columns in `data/processed/final_output.parquet` as frozen and use
    `scripts/data/rebuild_final_output.py` for anything derived from local files.
-2. **Heavy compute runs on Hyak** (`precompute_cache.py`, retrospective/multi-seed/ablation
-   evals). The laptop is for editing, tests and the dashboard.
+2. **Heavy compute runs on Hyak** (the precomputed store's Spark build, retrospective/multi-seed/
+   ablation evals). The laptop is for editing, tests and the dashboard.
 3. **Leak-free, past-only training is non-negotiable.** A weekly row is labelled with its
    Monday but aggregates Monday-Sunday, so training and the anchor row use only weeks that
    end by the anchor (`date + 6 days <= anchor_date`, `anchor = test_date - 7 days`;
@@ -93,13 +93,17 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
 - **API handlers are plain `def`** (FastAPI runs them in its thread pool). Model work inside
   `async def` blocks the event loop for every user. Settings such as task/model travel with
   each request; the server holds no per-user state (there is no `POST /api/config`).
-- **Precomputed forecasts** (`backend/precomputed_forecasts.py`): a row is served only if its
-  `config_hash` matches the running API's: a hash of `forecasting/*.py`, `config.py`, the tuned
-  JSON, `final_output.parquet`, the raw DA CSVs, the `DATECT_*` variables the engine reads, and the
-  numpy/pandas/sklearn/xgboost/scipy versions. Any change there makes the table stale (misses,
-  computed on demand) until `datect_spark/forecast_serving.py precompute` is re-run. Only the
-  `ensemble` model is precomputed; `linear`'s bootstrap interval uses the global NumPy RNG, so its
-  on-demand output is not reproducible.
+- **The precomputed store** (`backend/precomputed.py`, `DATECT_PRECOMPUTED_DIR`): four Delta tables
+  (forecasts, retrospective, spectral, correlation) built on Spark by `datect_spark/store.sbatch`.
+  A row is served only if its `config_hash` matches the running API's: a hash of
+  `forecasting/*.py`, `config.py`, `backend/visualizations.py`, the tuned JSON,
+  `final_output.parquet`, the raw DA CSVs, the `DATECT_*` variables the engine reads (except
+  `DATECT_PARALLEL_BACKEND` and `DATECT_TEMPORAL_HOLDOUT_CUTOFF`; plus the contents of `*_JSON`
+  override files), the numpy/pandas/sklearn/xgboost/scipy versions and the CPU architecture. Any
+  change there makes the store stale (misses, computed on demand; `/health` reports it) until it
+  is rebuilt. The image pins those libraries to the Hyak Spark env (`constraints.txt`); change
+  both together. Only the `ensemble` model's forecasts are precomputed; `linear`'s bootstrap
+  interval uses the global NumPy RNG, so its on-demand output is not reproducible.
 - **Tests:** use the `fast_models` (class-scoped model shrinking, restored afterwards) and
   `fresh_import` (re-import config modules for one test, originals restored) fixtures in
   `tests/conftest.py`. Never mutate shared config dicts without restoring them; tests must
@@ -124,11 +128,10 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 | `DATECT_FEATURE_SUBSET_MODE` | `all` removes per-site subsets; `minimal` forces a 4-feature subset |
 | `DATECT_TEMPORAL_HOLDOUT_CUTOFF` | holdout start for `eval_paper_metrics --temporal-holdout` (default 2022-01-01) |
 | `DATECT_PARALLEL_BACKEND` | joblib backend (default `loky`) |
-| `DATECT_FORECAST_TABLE` | API only: path of `gold/forecasts` (Delta); hits are served from it, misses computed |
+| `DATECT_PRECOMPUTED_DIR` | API only: directory of the precomputed store's Delta tables; hits are served, misses computed |
 
-Backend/deploy variables (`ENABLE_PRECOMPUTED_CACHE`, `CACHE_DIR`, `REDIS_URL`,
-`ALLOWED_ORIGINS`, `PORT`, `WORKERS`, `DATECT_USE_GRANIAN`, `NODE_ENV`, `VITE_API_URL`) are
-documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
+Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `WORKERS`,
+`DATECT_USE_GRANIAN`, `VITE_API_URL`) are documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
 
 ## Evaluation protocol
 
@@ -187,8 +190,8 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
 | `frontend/` | React + Vite dashboard (trimmed Plotly bundle in `src/utils/Plot.js`) |
 | `dataset-creation.py` | Full dataset build (downloads; see hard rule 1) |
 | `scripts/eval/`, `scripts/tune/`, `scripts/data/` | Evaluation, tuning, offline data tools |
-| `datect_spark/` | Spark 4 + Delta + MLflow on Hyak: re-tune, MODIS -> Delta lake, forecast precompute (`RESULTS.md`) |
-| `backend/precomputed_forecasts.py` | Loads `gold/forecasts` with deltalake (no JVM) for the forecast endpoints |
+| `datect_spark/` | Spark 4 + Delta + MLflow on Hyak: weight tuner, MODIS -> Delta lake (makes `oad_cloud_fractions.parquet`), the precomputed store (`RESULTS.md`) |
+| `backend/precomputed.py` | The precomputed store: loads its Delta tables with deltalake (no JVM) for the API |
 | `oad/` | Ocean Anomaly Detection subproject (MODIS autoencoder; see `oad/README.md`) |
 | `papers/` | `datect/`, `oad_mdpi/`, `oad_cvpr/`, `poster/` |
 

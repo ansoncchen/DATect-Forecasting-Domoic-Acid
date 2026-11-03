@@ -8,9 +8,9 @@ parsing their winners, and writing the updated JSON with provenance.
 
 Designed to be invoked once per "tuning refresh" — when new data arrives,
 when the feature set changes materially, or when a reviewer asks for
-reproducibility verification. **Do NOT run as part of `precompute_cache.py`
-or the deployment loop**: tuning is a 4–6 hour Hyak job; deployment cache
-generation should consume the existing JSON.
+reproducibility verification. **Do NOT run as part of the precomputed-store
+build or the deployment loop**: tuning is a 4–6 hour Hyak job; the store build
+should consume the existing JSON.
 
 Usage:
     # On Hyak (canonical workflow):

@@ -42,7 +42,8 @@ for step in ${STEPS:-precompute parity latency-after}; do
         parity)         $PY -u -m datect_spark.forecast_serving parity ;;
         latency-after)  DATECT_FORECAST_TABLE=$DATECT_LAKE/gold/forecasts \
                             $PY -u scripts/eval/forecast_latency.py --repo . \
-                            --out results/serving/latency_after.json ;;
+                            --out results/serving/latency_after.json \
+                            --compare-to results/serving/latency_before.json ;;
         *) echo "unknown step $step"; exit 1 ;;
     esac
 done

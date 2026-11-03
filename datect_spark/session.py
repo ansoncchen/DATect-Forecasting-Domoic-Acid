@@ -34,6 +34,20 @@ def lake_path(*parts: str) -> str:
     return os.path.join(root, *parts)
 
 
+def get_mlflow(experiment: str):
+    """mlflow, pointed at MLFLOW_TRACKING_URI (default: sqlite next to the lake) and
+    ``experiment``, created with its artifacts beside the lake if it is new."""
+    import mlflow
+
+    root = os.path.dirname(lake_path())
+    mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI",
+                                           "sqlite:///" + os.path.join(root, "mlflow.db")))
+    if mlflow.get_experiment_by_name(experiment) is None:
+        mlflow.create_experiment(experiment, artifact_location=os.path.join(root, "mlartifacts"))
+    mlflow.set_experiment(experiment)
+    return mlflow
+
+
 def get_spark(app_name: str, master: str | None = None, conf: dict | None = None):
     """A SparkSession with the Delta extensions; ``conf`` adds or overrides settings."""
     from delta import configure_spark_with_delta_pip

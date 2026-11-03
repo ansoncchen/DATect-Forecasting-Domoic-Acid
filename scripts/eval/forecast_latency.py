@@ -6,17 +6,20 @@ Starts the API from ``--repo`` (any checkout, e.g. a worktree of main for the
 untimed warm-up request (the first request builds the feature frame), then times
 ``--n`` requests one after another. Requests are (site, date) pairs drawn with a
 fixed seed from the weekly rows of final_output.parquet, so the same list is sent
-before and after a change.
+before and after a change. Each response body is hashed without the serving fields
+(source, model_version); ``--compare-to`` counts responses identical to an earlier run.
 
 Usage:
     python scripts/eval/forecast_latency.py --repo /path/to/main-worktree \
         --out results/serving/latency_before.json
     DATECT_FORECAST_TABLE=$LAKE/gold/forecasts \
-        python scripts/eval/forecast_latency.py --repo . --out results/serving/latency_after.json
+        python scripts/eval/forecast_latency.py --repo . --out results/serving/latency_after.json \
+        --compare-to results/serving/latency_before.json
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -69,6 +72,12 @@ def _post(url: str, site: str, date: str, model: str) -> tuple[float, dict]:
     return elapsed, r.json()
 
 
+def body_sha256(body: dict) -> str:
+    """Hash of a response without the fields that say where it came from."""
+    rest = {k: v for k, v in body.items() if k not in ("source", "model_version")}
+    return hashlib.sha256(json.dumps(rest, sort_keys=True).encode()).hexdigest()
+
+
 def _git_sha(repo: str) -> str:
     return subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
                           capture_output=True, text=True).stdout.strip()
@@ -81,6 +90,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--model", default="ensemble")
     parser.add_argument("--out", required=True)
+    parser.add_argument("--compare-to", help="earlier output JSON with the same requests")
     args = parser.parse_args()
     repo = os.path.abspath(args.repo)
 
@@ -104,7 +114,8 @@ def main() -> None:
             rows.append({"site": site, "date": date, "seconds": elapsed,
                          "success": bool(body.get("success")),
                          "has_forecast": body.get("regression") is not None,
-                         "source": body.get("source", "computed")})
+                         "source": body.get("source", "computed"),
+                         "body_sha256": body_sha256(body)})
     finally:
         proc.terminate()
         proc.wait(timeout=30)
@@ -133,9 +144,21 @@ def main() -> None:
         "total_seconds": total,
         "requests": rows,
     }
+    if args.compare_to:
+        with open(args.compare_to) as f:
+            earlier = {(r["site"], r["date"]): r for r in json.load(f)["requests"]}
+        same = [earlier.get((r["site"], r["date"]), {}).get("body_sha256") == r["body_sha256"] for r in rows]
+        before = np.array([earlier[(r["site"], r["date"])]["seconds"] for r in rows
+                           if (r["site"], r["date"]) in earlier])
+        result["compared_to"] = {"file": args.compare_to, "identical_responses": int(sum(same)),
+                                 "n": len(rows), "p50_before_seconds": float(np.percentile(before, 50)),
+                                 "p95_before_seconds": float(np.percentile(before, 95))}
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w") as f:
         json.dump(result, f, indent=2)
+    if args.compare_to:
+        print(f"responses identical to {args.compare_to}: "
+              f"{result['compared_to']['identical_responses']}/{len(rows)}")
     print(f"p50 {result['p50_seconds']:.3f}s  p95 {result['p95_seconds']:.3f}s  "
           f"(n={len(rows)}, sources {result['sources']}, startup {startup:.1f}s, "
           f"first request {first:.1f}s)")

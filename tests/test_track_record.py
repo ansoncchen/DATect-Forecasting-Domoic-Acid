@@ -21,6 +21,7 @@ def test_holdout_summary_matches_the_reported_numbers():
                            "false_5_to_10": 18, "false_near_miss": 48}
     assert s["band"]["coverage"] == pytest.approx(0.802, abs=5e-4)
     assert s["band"]["coverage_at_onsets"] == pytest.approx(10 / 27)
+    assert (s["band"]["inside"], s["band"]["n_banded"], s["band"]["onsets_inside"]) == (328, 409, 10)
     assert s["band"]["median_width"] == pytest.approx(15.08, abs=0.01)
     assert s["levels"] == {"Quiet": {"weeks": 213, "followed_by_jump": 8},
                            "Watch": {"weeks": 73, "followed_by_jump": 9},
@@ -80,3 +81,9 @@ def test_history_resolves_aliases_and_404s_unknown_sites(client):
 def test_history_with_since_after_until_is_empty(client):
     body = client.get("/api/sites/Newport/history", params={"since": "2023-01-01", "until": "2022-01-01"}).json()
     assert body["rows"] == []
+
+
+
+def test_history_rejects_malformed_dates(client):
+    assert client.get("/api/sites/Newport/history", params={"since": "garbage"}).status_code == 422
+    assert client.get("/api/sites/Newport/history", params={"until": "2022-13-45"}).status_code == 422

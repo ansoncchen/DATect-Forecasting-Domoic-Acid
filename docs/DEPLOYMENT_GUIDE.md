@@ -14,7 +14,7 @@ The store is a directory of four Delta tables that the API reads with `deltalake
 
 | Table | Contents | Built by |
 |---|---|---|
-| `forecasts` | `generate_single_forecast` output for every (site, week) in `final_output.parquet`, model `ensemble`, both tasks (21,900 entries) | `datect_spark/forecast_serving.py precompute` |
+| `forecasts` | `generate_single_forecast` output for every (site, week) in `final_output.parquet`, model `ensemble`, regression only (10,950 entries; the measured 2026-11 run stored both tasks, 21,900) | `datect_spark/forecast_serving.py precompute` |
 | `retrospective` | `/api/retrospective` records for 8 task/model slices: regression × {ensemble, xgboost, rf, naive, linear}, classification × {ensemble, naive, logistic} | `datect_spark/precompute_store.py retrospective` |
 | `spectral` | spectral analysis per site and for all sites | `datect_spark/precompute_store.py visuals` |
 | `correlation` | correlation heatmap per site | `datect_spark/precompute_store.py visuals` |
@@ -73,7 +73,7 @@ Three stages:
 
 1. **Python deps** (`python:3.10-slim`, the Hyak Spark env's Python): `uv pip install -r requirements.txt -c constraints.txt`.
 2. **Frontend** (`node:22-slim`): `npm ci`, `npm run build` → `frontend/dist`.
-3. **Runtime** (`python:3.10-slim`): copies `backend/`, `forecasting/`, `data/`, `config/` (needed: `config.py` loads `config/tuned_hyperparameters.json` at import), `config.py`, `results/chronological` and `results/multi_seed` (read by `GET /api/metrics/summary`), `store/`, and the built frontend. The build fails early if `store/` or `frontend/dist` is missing, `import fastapi, granian, deltalake, config` fails, or the store is not complete and current for the image (skipped with `--build-arg REQUIRE_CURRENT_STORE=0`, which CI's stub store uses). Runs as a non-root user on port 8080 with a `/health` healthcheck; starts Granian (`DATECT_USE_GRANIAN=1`, the default) or Uvicorn.
+3. **Runtime** (`python:3.10-slim`): copies `backend/`, `forecasting/`, `data/`, `config/` (needed: `config.py` loads `config/tuned_hyperparameters.json` at import), `config.py`, `results/chronological`, `results/multi_seed` and `results/conformal_band` (read by `GET /api/metrics/summary`, the track record and the error band), `store/`, and the built frontend. The build fails early if `store/` or `frontend/dist` is missing, `import fastapi, granian, deltalake, config` fails, or the store is not complete and current for the image (skipped with `--build-arg REQUIRE_CURRENT_STORE=0`, which CI's stub store uses). Runs as a non-root user on port 8080 with a `/health` healthcheck; starts Granian (`DATECT_USE_GRANIAN=1`, the default) or Uvicorn.
 
 Build inputs are whitelisted: `.dockerignore` (Docker build context) and `.gcloudignore` (Cloud Build upload) admit only what the Dockerfile copies. A new directory the image needs must be added to the Dockerfile **and** both ignore files.
 

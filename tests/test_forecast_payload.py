@@ -122,7 +122,8 @@ def test_all_sites_returns_every_site_for_one_week(client):
     assert [s["site"] for s in body["sites"]] == config_body["sites_north_to_south"]
     assert len(engine.calls) == 10 and {c[2] for c in engine.calls} == {"regression"}
     first = body["sites"][0]
-    assert set(first) == {"site", "anchor_date", "predicted_da", "band", "alert", "last_measurement", "source"}
+    assert set(first) == {"site", "anchor_date", "predicted_da", "band", "alert", "last_measurement",
+                          "source", "error"}
     assert first["alert"]["level"] in ("Quiet", "Watch", "Warning", None)
     picked = client.get("/api/forecast/all", params={"date": "2019-06-03"}).json()
     assert picked["date"] == "2019-06-03" and picked["sites"][0]["anchor_date"] == "2019-05-27"
@@ -131,3 +132,50 @@ def test_all_sites_returns_every_site_for_one_week(client):
 def test_all_sites_rejects_a_malformed_date(client):
     client.use(_Engine())
     assert client.get("/api/forecast/all", params={"date": "next tuesday"}).status_code == 422
+
+
+
+class _FailsAt(_Engine):
+    """Raises for one site, as an engine error would."""
+
+    def __init__(self, site, **kw):
+        super().__init__(**kw)
+        self.site = site
+
+    def generate_single_forecast(self, data_path, forecast_date, site, task, model_type):
+        if site == self.site:
+            raise RuntimeError("engine failed")
+        return super().generate_single_forecast(data_path, forecast_date, site, task, model_type)
+
+
+def test_band_only_for_the_ensemble(client):
+    """The band was calibrated on the ensemble's errors; other models get none."""
+    client.use(_Engine(predicted=5.3))
+    linear = _post(client, "Kalaloch", "2019-06-03", model="linear")
+    assert linear["band"] is None and linear["band_reason"] == "calibrated for the ensemble only"
+    assert linear["category_probabilities"] is None and "level_range" not in linear["graphs"]
+    assert _post(client, "Kalaloch", "2019-06-03")["band_reason"] is None
+
+
+def test_all_sites_rejects_unknown_models(client):
+    client.use(_Engine())
+    assert client.get("/api/forecast/all", params={"model": "bogus"}).status_code == 422
+
+
+def test_all_sites_survives_one_failing_site(client):
+    client.use(_FailsAt("Newport", predicted=4.0))
+    response = client.get("/api/forecast/all", params={"date": "2019-06-03"})
+    assert response.status_code == 200
+    sites = {s["site"]: s for s in response.json()["sites"]}
+    newport = sites.pop("Newport")
+    assert newport["predicted_da"] is None and newport["error"]
+    assert newport["last_measurement"] is not None and newport["anchor_date"] == "2019-05-27"
+    assert all(s["predicted_da"] == 4.0 and s["error"] is None for s in sites.values())
+
+
+def test_no_forecast_keeps_the_measurements_and_the_shape(client):
+    client.use(_Engine(result=False))
+    body = _post(client, "Kalaloch", "2019-06-03")
+    assert body["success"] is False and body["anchor_date"] == "2019-05-27"
+    assert body["last_measurement"] == body["recent_measurements"][-1]
+    assert body["band"] is None and body["category_probabilities"] is None and body["alert"] is None

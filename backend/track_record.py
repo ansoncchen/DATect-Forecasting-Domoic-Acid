@@ -112,7 +112,10 @@ def summarize(rows: pd.DataFrame) -> dict:
         "n": int(len(rows)),
         "band": {
             "coverage": _share(inside[has_band]),
+            "inside": int(inside[has_band].sum()),
+            "n_banded": int(has_band.sum()),
             "coverage_at_onsets": _share(inside[has_band & onset]),
+            "onsets_inside": int(inside[has_band & onset].sum()),
             "median_width": float(np.median((hi - lo)[has_band])) if has_band.any() else None,
         },
         "onsets": {"n": scores["n_onsets"], "caught": scores.get("onsets_caught", 0),

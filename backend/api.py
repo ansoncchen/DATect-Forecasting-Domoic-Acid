@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path
 from datetime import datetime, date
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Literal, Optional
 from functools import lru_cache
 
 import numpy as np
@@ -306,6 +306,7 @@ def get_historical_data(
     }
 
 
+@lru_cache(maxsize=1)
 def _load_metrics_summary() -> dict:
     """Headline evaluation metrics, read from the committed results in results/.
 
@@ -386,10 +387,11 @@ def get_track_record(window: track_record.Window = "holdout", site: str | None =
 
 
 @app.get("/api/sites/{site}/history")
-def get_site_history(site: str, since: str = "2019-01-01", until: str | None = None):
+def get_site_history(site: str, since: date = date(2019, 1, 1), until: date | None = None):
     """Each real measurement at a site with the forecast made for it, its band and alert."""
     site = _known_site(site)
-    return clean_for_json({"site": site, "rows": track_record.site_history(site, since, until)})
+    rows = track_record.site_history(site, since.isoformat(), until.isoformat() if until else None)
+    return clean_for_json({"site": site, "rows": rows})
 
 
 @app.get("/api/metrics/summary")
@@ -743,6 +745,21 @@ def _recent_measurements(site: str, anchor_date, n: int = 6) -> list:
     return [{"date": d.date().isoformat(), "value": float(v)} for d, v in zip(seen["date"], seen["da_raw"])]
 
 
+def _no_forecast(site: str, forecast_date: pd.Timestamp, error: str, source: dict | None = None) -> dict:
+    """A forecast that could not be made, in the same shape as one that was, with the
+    measurements the forecast would have seen."""
+    anchor = forecast_date - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
+    recent = _recent_measurements(site, anchor)
+    return {
+        "success": False, "forecast_date": forecast_date.strftime('%Y-%m-%d'), "site": site,
+        "anchor_date": anchor.date().isoformat(), "error": error,
+        "band": None, "band_reason": None, "band_p_exceed": None, "category_probabilities": None,
+        "alert": None, "last_measurement": recent[-1] if recent else None,
+        "recent_measurements": recent, "graphs": {},
+        **(source or {"source": "computed", "model_version": None}),
+    }
+
+
 def _forecast_payload(site: str, forecast_date: pd.Timestamp, model_type: str) -> dict:
     """One week's regression forecast with its conformal band, the alert's parts and
     the measurements the forecast could see (dashboard design, section 6)."""
@@ -750,15 +767,20 @@ def _forecast_payload(site: str, forecast_date: pd.Timestamp, model_type: str) -
     source = {"source": "precomputed" if version is not None else "computed", "model_version": version}
     if result is None or "predicted_da" not in result:
         anchor = forecast_date - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
-        return {"success": False, "forecast_date": forecast_date.strftime('%Y-%m-%d'), "site": site,
-                "error": f"No forecast: too little training data before {anchor.date().isoformat()}",
-                **source}
+        why = ("too little training data" if _recent_measurements(site, anchor)
+               else "no measurement at this site")
+        return _no_forecast(site, forecast_date, f"No forecast: {why} before {anchor.date().isoformat()}",
+                            source)
 
     predicted = float(result["predicted_da"])
     anchor = pd.Timestamp(result["anchor_date"])
     recent = _recent_measurements(site, anchor)
     last = recent[-1] if recent else None
-    band_info = forecast_band(predicted, anchor)
+    if model_type == "ensemble":
+        band_info = forecast_band(predicted, anchor)
+        band_reason = None if band_info is not None else "fewer than 30 earlier forecast errors"
+    else:
+        band_info, band_reason = None, "calibrated for the ensemble only"
     alert = alert_parts(
         result.get("spike_probability"), float(result.get("ensemble_prediction", predicted)),
         last["value"] if last else None,
@@ -796,6 +818,7 @@ def _forecast_payload(site: str, forecast_date: pd.Timestamp, model_type: str) -
         "regression": result,
         "ensemble": ensemble,
         "band": band_info,
+        "band_reason": band_reason,
         "band_p_exceed": band_info["p_exceed"] if band_info else None,
         "category_probabilities": band_info["category_probabilities"] if band_info else None,
         "alert": alert,
@@ -818,12 +841,20 @@ def generate_enhanced_forecast(request: ForecastRequest):
 
 
 @app.get("/api/forecast/all")
-def get_all_sites_forecast(date: date | None = None, model: str = "ensemble"):
-    """One week's forecast for every site, north to south (default: the latest week)."""
+def get_all_sites_forecast(
+    date: date | None = None,
+    model: Literal["ensemble", "xgboost", "rf", "naive", "linear"] = "ensemble",
+):
+    """One week's forecast for every site, north to south (default: the latest week).
+    A site whose forecast fails is reported with its error; the others still show."""
     day = pd.Timestamp(date) if date is not None else _latest_forecast_week()
     sites = []
     for site in _sites_north_to_south():
-        payload = _forecast_payload(site, day, model)
+        try:
+            payload = _forecast_payload(site, day, model)
+        except Exception as e:
+            logger.warning("Forecast for %s on %s failed: %s", site, day.date(), e)
+            payload = _no_forecast(site, day, f"Forecast failed: {e}")
         ok = payload["success"]
         sites.append({
             "site": site,
@@ -833,6 +864,7 @@ def get_all_sites_forecast(date: date | None = None, model: str = "ensemble"):
             "alert": payload.get("alert"),
             "last_measurement": payload.get("last_measurement"),
             "source": payload["source"],
+            "error": payload.get("error"),
         })
     return clean_for_json({"date": day.date().isoformat(), "sites": sites})
 

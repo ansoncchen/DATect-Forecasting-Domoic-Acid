@@ -82,7 +82,8 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
 - **Track record and reliability** (`backend/track_record.py`): window summaries are computed
   server-side from `results/chronological` joined with `results/conformal_band`; R²/MAE come
   verbatim from the runs' JSON. The dashboard computes no metric in the browser.
-  `config.SITE_STATES` (from latitude) is the one site -> state map.
+  `config.SITE_STATES` (from latitude) is the API's site -> state map; two analysis scripts
+  (`spike_detection_eval.py`, `spike_env_lead_analysis.py`) still list states by hand.
 - **The pooled spike classifier** is trained on a pooled imputer/MinMax encoding of all
   sites; test rows must be encoded with that same transformer (returned by
   `_build_pooled_spike_data`), not the per-site one.
@@ -227,7 +228,8 @@ All current numbers, their protocol and history are in `docs/CORRECTED_NUMBERS.m
 Headline (2022–2023 holdout, every real measurement, commit `93518c7d`): R² 0.516
 [0.308, 0.654], MAE 7.44 ug/g, spike recall 0.845, F2 0.737, N = 409; the hybrid alert
 catches 19 of 27 onsets (last known value < 20, measurement ≥ 20).
-`tests/test_chronological_eval_smoke.py` pins it; change both together.
+`tests/test_chronological_eval_smoke.py` pins it, and `tests/test_track_record.py` pins the
+track-record counts served to the dashboard; change them together.
 
 ## Docs
 

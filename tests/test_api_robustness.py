@@ -174,3 +174,8 @@ def test_historical_returns_raw_measurements():
     assert body["site"] == "Newport" and "raw measurements" in body["series"]
     assert body["rows"] == [{"date": d.date().isoformat(), "value": float(v)}
                             for d, v in zip(expected["date"], expected["da_raw"])]
+
+
+def test_metrics_summary_is_computed_once_per_process():
+    from backend import api
+    assert hasattr(api._load_metrics_summary, "cache_info")

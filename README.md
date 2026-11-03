@@ -102,7 +102,7 @@ python run_datect.py
 | `python scripts/data/export_oad_features.py <checkpoint>` then `rebuild_final_output.py --recompute oad` | Switch or refresh the OAD input and features |
 | `python dataset-creation.py` | Full dataset rebuild from source (re-downloads every satellite and climate series from NOAA ERDDAP; slow and often fails). Use the offline rebuild above for anything else |
 | `bash scripts/eval/golden_baseline.sh <git-ref>` | Re-run every evaluation behind a reported number (Hyak) |
-| `sbatch scripts/tune/tune_all.sbatch` | Re-tune `config/tuned_hyperparameters.json` end to end (Hyak) |
+| `sbatch datect_spark/retune.sbatch` | Propose per-site ensemble weights (Spark, Hyak); adopting them is a separate change |
 | `PROJECT_ID=<gcp-project> ./deploy/deploy_gcloud.sh` | Deploy to Google Cloud Run |
 
 ## Environment Variables
@@ -146,7 +146,6 @@ DATect-Forecasting-Domoic-Acid/
 │   └── processed/                  # final_output.parquet, oad_scores.parquet, oad_cloud_fractions.parquet
 ├── scripts/
 │   ├── eval/                       # Evaluation, ablation, golden baseline
-│   ├── tune/                       # tune_all.py re-tuning orchestrator
 │   └── data/                       # Offline dataset rebuild, OAD feature export
 ├── results/                        # Committed outputs behind reported numbers
 │                                   # (chronological, multi_seed, paper_metrics, final_verification,
@@ -184,13 +183,13 @@ A spike is an actual DA of 20 µg/g or more; the regression alert fires when the
 
 ## Re-tuning and Re-evaluating
 
-All tunable values live in `config/tuned_hyperparameters.json`. Re-tuning runs on Hyak; submit from the repo root:
+All tunable values live in `config/tuned_hyperparameters.json`. The per-site ensemble weights are the only values re-tuned, on Hyak, by `datect_spark/retune.py` (Spark; leak-free yearly folds 2015–2021; every run in MLflow). It proposes weights and never adopts them:
 
 ```bash
-sbatch scripts/tune/tune_all.sbatch
+sbatch -o ~/datect-spark-logs/%x-%j.out -e ~/datect-spark-logs/%x-%j.err datect_spark/retune.sbatch
 ```
 
-`tune_all.py` submits four sweeps (per-site ensemble weights on Spark, `datect_spark/retune.py`, with leak-free yearly folds 2015–2021; per-site XGBoost perturbation check; global XGBoost sweep; spike-classifier sweep), waits for them, and writes a new JSON with provenance. `python scripts/tune/tune_all.py --assemble-only` rebuilds the JSON from existing sweep outputs. Individual stages and evaluations are listed in [docs/QUICKSTART_FOR_REVIEWERS.md](docs/QUICKSTART_FOR_REVIEWERS.md).
+Evaluations are listed in [docs/QUICKSTART_FOR_REVIEWERS.md](docs/QUICKSTART_FOR_REVIEWERS.md); `results/tuning_provenance/` keeps the outputs of the earlier sweeps behind the current JSON.
 
 To re-run every evaluation behind a reported number for a commit, use the golden baseline (`scripts/eval/golden_baseline.sh`, then `scripts/eval/compare_golden.py` to diff two runs).
 

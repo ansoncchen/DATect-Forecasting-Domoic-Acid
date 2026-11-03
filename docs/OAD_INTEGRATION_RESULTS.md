@@ -162,7 +162,7 @@ one-off and are not in the repo.
 
 - A full per-site Optuna search (18 hyperparameters, chronological validation
   window as the objective) improved validation and degraded the 2022–2023
-  holdout: `validate_tuned_on_holdout.py` returned OVERFITTING, and the configs
+  holdout: `validate_tuned_on_holdout.py` (since removed) returned OVERFITTING, and the configs
   were discarded.
 - A constrained grid over the three dimensions that matter (ensemble weights,
   clip quantile, clip maximum) with 3-fold chronological CV on pre-2022 data

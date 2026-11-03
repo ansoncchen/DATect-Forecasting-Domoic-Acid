@@ -1,0 +1,6 @@
+# The precomputed store's config hash in the Hyak Spark env (datect_spark/env-freeze.txt;
+# Python 3.10.19, x86_64) at commit 149d5257ac10ab30094ddec7df07aeb37daab537
+# (python -m backend.precomputed hash). A store built there at that commit is served by an
+# image whose hash equals it; CI's docker job prints both. A later change to any hashed input
+# (forecasting/, config, data, backend/records.py, library versions) makes this line stale.
+141c211cf386f78df2c633def8fa95c4847b87c7a6cb574da0171ce30005d7ef

@@ -251,7 +251,7 @@ Run the same command. Expected: PASS.
     - `n`, `r2`, `log_r2`, `mae` (sklearn, like `chronological_eval.py`);
     - `band = {coverage, coverage_at_onsets, median_width}`;
     - `onsets = {n, caught, quiet, quiet_alarmed}` (from `metrics.onset_scores` on `naive_prediction` and `spike_alert`);
-    - `alarms = {n, followed_by_jump}`, counting weeks whose last known value was below 20;
+    - `alarms = {n, followed_by_jump, false_below_5, false_5_to_10, false_near_miss}`, counting weeks whose last known value was below 20. The `false_*` counts split the false alarms by measured DA: `[0,5)`, `[5,10)` and `[10,20)` (near misses);
     - `levels = {"Quiet"|"Watch"|"Warning": {weeks, followed_by_jump}}`, built with `alert_parts`.
   - `site_history(site: str, since: str = "2019-01-01", until: str | None = None) -> list[dict]`: rows from `band_predictions.parquet` with the same columns plus `alert` and `level`.
 - Produces, in `backend/api.py`:
@@ -265,7 +265,8 @@ def test_holdout_summary_matches_the_reported_numbers():
     s = tr.summarize(tr.window_rows("holdout"))
     assert s["n"] == 409 and s["r2"] == pytest.approx(0.516, abs=5e-4)
     assert s["onsets"] == {"n": 27, "caught": 19, "quiet": 292, "quiet_alarmed": 87}
-    assert s["alarms"] == {"n": 106, "followed_by_jump": 19}
+    assert s["alarms"] == {"n": 106, "followed_by_jump": 19, "false_below_5": 21,
+                           "false_5_to_10": 18, "false_near_miss": 48}
     assert s["band"]["coverage"] == pytest.approx(0.802, abs=5e-4)
     assert s["band"]["median_width"] == pytest.approx(15.08, abs=0.01)
     assert s["levels"] == {"Quiet": {"weeks": 213, "followed_by_jump": 8},
@@ -275,6 +276,7 @@ def test_holdout_summary_matches_the_reported_numbers():
 def test_validation_and_per_site_reliability():
     v = tr.summarize(tr.window_rows("validation"))
     assert v["onsets"]["caught"] == 27 and v["band"]["coverage"] == pytest.approx(0.819, abs=5e-4)
+    assert (v["alarms"]["false_below_5"], v["alarms"]["false_5_to_10"], v["alarms"]["false_near_miss"]) == (23, 13, 37)
     g = tr.summarize(tr.window_rows("holdout", "Gold Beach"))
     assert g["n"] == 40 and g["band"]["coverage"] == pytest.approx(0.375)
 ```
@@ -311,10 +313,11 @@ Run the same command. Expected: PASS.
   - `category_bins` (`[0, 5, 20, 40, null]`) and `category_labels`;
   - `eval_windows`, from `get_eval_windows()`;
   - `newest_measurement_date` (the max of `_raw_measurements().date`);
+  - `sites_north_to_south`: the sites sorted by latitude, descending, taken from the site coordinates the map endpoint already uses;
   - `latest_forecast_week` (the max weekly `date` in `final_output.parquet`, the dashboard's default).
 
 - [ ] **Step 1: Write the failing tests:**
-  - `test_config_exposes_protocol_constants`: the values equal the config attributes; the Warning entry has `placeholder: true` and `cutoff == 0.4`.
+  - `test_config_exposes_protocol_constants`: the values equal the config attributes; the Warning entry has `placeholder: true` and `cutoff == 0.4`; `sites_north_to_south` starts with `Kalaloch` and ends with `Gold Beach`.
   - `test_summary_reliability_per_site`: holdout Gold Beach coverage is 0.375 and Newport's is about 0.479.
   - `test_region_rollup_puts_clatsop_and_cannon_in_oregon`.
 - [ ] **Step 2: Run them and see them fail**
@@ -335,7 +338,7 @@ Run the same command. Expected: PASS.
 
 **Interfaces:**
 - Consumes `_forecast_payload` (Task 4) and `latest_forecast_week` (Task 7).
-- Produces: `GET /api/forecast/all?date=YYYY-MM-DD&model=ensemble` (the date defaults to the latest forecast week). It returns `{"date", "sites": [{"site", "predicted_da", "band", "alert", "last_measurement", "source"}]}`, ordered north to south as `/api/sites` lists them.
+- Produces: `GET /api/forecast/all?date=YYYY-MM-DD&model=ensemble` (the date defaults to the latest forecast week). It returns `{"date", "sites": [{"site", "predicted_da", "band", "alert", "last_measurement", "source"}]}`, ordered as `/api/config` `sites_north_to_south` (Task 7).
 
 - [ ] **Step 1: Write the failing test** `test_all_sites_returns_every_site_for_one_week`. With a stub engine: 10 entries, each with `alert.level`, and the default date equals `latest_forecast_week`.
 - [ ] **Step 2: Run it and see it fail**

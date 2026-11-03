@@ -253,6 +253,9 @@ SPIKE_THRESHOLD = float(_tuned["spike_threshold_actual"])  # DA >= 20 μg/g is a
 SPIKE_ALERT_PROB_THRESHOLD = float(_tuned["spike_alert_prob_threshold"])  # classifier operating point
 SPIKE_CLASSIFIER_ENABLED = True
 SPIKE_REGRESSION_ALERT_THRESHOLD = float(_tuned["spike_regression_alert_threshold"])
+# Dashboard alert levels: Quiet / Watch (the hybrid alert) / Warning (classifier >= this).
+# A placeholder until the onset experiments choose tiers on validation.
+ALERT_WARNING_PROB_CUTOFF = float(_tuned["alert_warning_prob_cutoff"])
 
 SPIKE_CLASSIFIER_PARAMS = dict(_tuned["spike_classifier_params"])
 # Provide eval_metric default (not in JSON since it's a structural param, not a tunable)

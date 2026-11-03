@@ -808,3 +808,72 @@ only per region (E3).
 **Already ruled out in §3–§4, not re-run:** losses and target transforms, persistence
 blending, an onset-only classifier, model-family swaps, environmental-feature
 additions.
+
+### 6.1 Amendment: primary metric is onsets caught at a fixed false-alarm budget (declared before the classifier results)
+
+**Why.** The user does not want an alert that cries wolf, and a warning that comes after
+the rise is worthless. So the primary metric is now onsets caught at a fixed quiet-week
+alarm budget, not AUC.
+
+**Timing.** Written and committed after family E was scored (`6514ea01`) and while the
+A–D job (Hyak 42776407) was running, before any of its results were seen. Family E is
+re-scored under this metric; its first scoring is kept in
+`results/experiments/onset_round2_alert.csv`.
+
+**Baseline facts** (committed predictions; checked before the amendment, no variant
+involved):
+- The regression arm alone (ensemble ≥ 12) alarms on 8–14% of quiet weeks, so the
+  deployed hybrid cannot meet a 10% budget.
+- At budgets ≤ 10%, the hybrid score max(P/0.10, ensemble/12) and the classifier
+  probability alone raise the same alarms. The alert scored below is therefore the
+  classifier probability.
+- Thresholds drift. The threshold that gives 10% quiet-week alarms on validation gives
+  16.0% on 2015–2018 and 20.9% on the holdout.
+
+**Metrics.**
+- **P1 (primary): onsets caught at a 10% budget, within each window.** The threshold on
+  the classifier probability is the lowest value at which ≤ 10% of the window's quiet
+  weeks alarm; this measures discrimination at the operating point. 2015–2021 pooled
+  decides. CIs are paired, month-block bootstrap.
+- **P2: threshold transfer.** A threshold set on 2019–2021 for ≤ 10% is applied unchanged
+  to 2015–2018, and once, at the end, to the holdout. Report:
+  - onsets caught;
+  - the realized quiet-week alarm rate;
+  - false alarms per onset caught;
+  - false alarms split by the measured DA (< 5, 5–10, 10–20).
+- **Tiers.** "Watch" uses the validation threshold for 20%, "warning" the one for 5%.
+  Each is scored the same way for the baseline and for any change that passes.
+- AUC, the matched-alarm hybrid and the deployed P ≥ 0.10 alert stay as secondary
+  columns.
+
+**Decision rule for A–E (replaces the one above).** A change passes when all three hold:
+1. On 2015–2021, Δ onsets caught at the 10% budget exceeds the seed noise floor (the
+   larger |Δ| of seeds 43 and 44, and at least 2 onsets), and its 95% CI excludes 0.
+2. Δ ≥ 0 in both 2015–2018 and 2019–2021.
+3. Δ onset AUC on 2015–2021 ≥ 0.
+
+**New family R: leak-free recalibration of the classifier probability.** Each forecast
+uses only past forecasts measured by its anchor (rows dated ≤ the anchor, the cut-off of
+`forecasting/conformal.py`), on onset-candidate rows with the onset label. Applied to the
+committed probabilities, which are out of sample from 2005.
+- **R1 `platt`:** logistic regression of onset on logit P, all past rows.
+- **R2 `isotonic`:** isotonic regression of onset on P, all past rows.
+- **R3 `quantile_2y`:** alarm when P exceeds the 90th percentile of P among quiet weeks
+  measured by the anchor in the previous two years. It targets 10% directly, so there is
+  no threshold to choose.
+- **R4 `platt_2y`:** R1 fitted on the previous two years only.
+
+R1, R2 and R4 take their threshold (a calibrated probability) from 2019–2021 for ≤ 10%,
+as the raw classifier does.
+
+**Decision rule for R.** A recalibration passes when all three hold:
+1. With its validation threshold (R3: none), its realized quiet-week alarm rate on
+   2015–2018 is within 10% ± 3 points. The raw classifier gives 16.0%.
+2. The mean absolute deviation of its yearly alarm rate from 10%, over 2015–2021, is
+   lower than the raw classifier's.
+3. Its onsets caught per false alarm on 2015–2018 are not lower than the raw classifier's
+   with its own validation threshold.
+
+**Holdout.** At most three changes from A–E and the best passing R go to the holdout,
+scored once on P1, P2 and the tiers. The holdout is still treated as reused and
+low-power.

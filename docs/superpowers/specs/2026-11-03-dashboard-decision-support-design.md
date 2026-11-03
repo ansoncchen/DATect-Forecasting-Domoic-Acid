@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-03
 **Branch:** `claude/dashboard-redesign-26311d` (phase 1: design only; no frontend changes)
-**Status:** Draft for review
+**Status:** Approved 2026-11-03
 **Mockup:** `dashboard-mockup/` (throwaway HTML on real 2023 results). Serve it with
 `python3 -m http.server 4600 -d docs/superpowers/specs/dashboard-mockup` and open
 `http://localhost:4600/?site=Newport` (add `&callouts=1` for the numbered callouts).
@@ -285,7 +285,8 @@ paper, not a product page.
 - The category bar gives each category a quarter of its width (0-5, 5-20, 20-40, 40-80+), so low
   values stay readable; it is labelled, not a linear axis.
 - The forecast-week picker stops at the newest weekly row: past it the engine forecasts from
-  stale data. Its earliest week is the first one the API returns a band for.
+  stale data. Its earliest week is the dataset's first; weeks before the first band (fewer than
+  30 past errors) show the forecast with "No range: too little error history".
 - **Picking a past week** shows the page as it stood then: the ground-data chart, latest
   measurement and all-sites table stop at that week's anchor (history and all-sites calls take the
   date). A "Show what happened" toggle then adds the measurements that followed, so a past week

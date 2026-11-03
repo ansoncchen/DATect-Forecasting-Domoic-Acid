@@ -801,3 +801,59 @@ reported as a WA signal from a secondary test, not as a pass.
   pDA, the onset rate with and without detectable pDA, and Fisher's exact p (descriptive).
 - *Check:* once on 2021-08 to 2023 with the NWFSC file.
 - Only counts are reported.
+
+### 7.1 Amendment (2026-11-03): H-crash and H-sat-lag, declared before any result
+
+**Timing.** These two hypotheses come from the user, after `f271913a` was committed.
+They are declared here before any transport, crash or satellite-lag feature has been
+scored against an outcome; no Hyak job has run yet. The only thing run so far is the
+descriptive ESP case study (`baf7bebc`), which uses no model and none of these features.
+
+**H-crash: the beach Pseudo-nitzschia bloom peaks, then crashes, and DA appears as it
+dies.**
+- *Prior evidence* (exploratory, full data, no correction):
+  `results/final_verification/spike_env_lead_analysis.txt` found PN well below the site
+  baseline 1–4 weeks before the 224 crossings of 20, the largest effect of any variable.
+  Round 2's raw-PN features (A2) used PN values, not the bloom's shape.
+- *Features*, from the site's own raw PN samples (cells/L, `load_raw_pn`, not the
+  gap-filled weekly `pn`) dated ≤ the cutoff:
+  - `pn_peak_8w_log`: log1p of the maximum over the 56 days ending at the cutoff.
+  - `pn_drop_frac`: 1 − latest sample / that peak. It needs at least two samples in the
+    window and a peak > 0; otherwise it is missing.
+  - `pn_weeks_since_peak`.
+  - `pn_crash`: 1 if `pn_drop_frac` ≥ 0.9 and the peak ≥ 50,000 cells/L, a common
+    Pseudo-nitzschia action level (between the 75th and 90th percentiles of all samples).
+- *Coverage:* PN is sampled every ~4 days in WA, ~7 at Clatsop and Cannon, and ~14 in
+  southern Oregon. Report how many onsets have a computable `pn_drop_frac`.
+
+**H-sat-lag: an offshore satellite bloom 2–8 weeks earlier is a preemptive warning.**
+- *Prior: low.* `docs/OAD_INTEGRATION_RESULTS.md` found that "surface optical fields
+  lag the bloom rather than lead it". The current OAD features stop at a 2-week lag plus
+  30-day statistics, so a bloom 3–8 weeks earlier has never been tested.
+- *Source:* the committed OAD region scores (`data/processed/oad_scores.parquet`, daily
+  timestamps of centred 8-day MODIS composites, checkpoint `mae070`) with
+  `oad_cloud_fractions.parquet`. The MODIS lake is not used: a regional chlorophyll or
+  nFLH anomaly would need its own declared region definitions and climatology.
+- *Source region:* WA sites, Clatsop and Cannon use the Olympic Coast region (Juan de
+  Fuca eddy); Newport and Coos Bay use Central Oregon (Heceta Bank); Gold Beach uses
+  Southern OR / N CA.
+- *Leak rule* (`oad_features.py`, LEAK_SHIFT_DAYS = 5): a score dated s counts at cutoff c
+  only if s ≤ c − 5, so its composite ends before c. Scores whose valid-pixel fraction
+  is < 0.2 are dropped (cloud: about the lowest 20%).
+- *Features at cutoff c:*
+  - `sat_max_2_8w`: maximum score dated in [c − 56, c − 14].
+  - `sat_decline`: `sat_max_2_8w` minus the latest valid score dated ≤ c − 5 (peak then
+    decline).
+  - `sat_valid_2_8w`: number of valid scores in that span.
+  - `sat_x_reversal`: `sat_max_2_8w` × `wind_reversal_7d` (a "loaded gun" offshore plus a
+    wind reversal).
+- *Coverage:* report how many onsets have at least one valid score in the span.
+
+**Variants added** (same construction and cutoffs as §7, seeds 42–46, same metric and
+decision rule):
+- **T5 `pn_crash`;**
+- **T6 `sat_lag`** (without the interaction);
+- **T7 `sat_lag+wind`:** wind, the satellite-lag features and `sat_x_reversal`.
+
+There are now seven variants, so the multiplicity caveat is stronger: one false pass
+among seven at 95% is plausible. Rules 2 and 3 still limit it.

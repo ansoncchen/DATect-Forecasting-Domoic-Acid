@@ -1,0 +1,11 @@
+{
+  "window": "holdout",
+  "points": 409,
+  "ok": 409,
+  "wall_seconds": 191.66736555099487,
+  "task_seconds_total": 1938.2636966705322,
+  "child_runs": 409,
+  "parity_rows_matched": 409,
+  "parity_rows_unmatched": 0,
+  "parity_max_abs_diff": 0.0
+}

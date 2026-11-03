@@ -1,0 +1,24 @@
+{
+  "step": "silver",
+  "git_sha": "4a99460c5e8aa8a749a5498a21804aea3e628ccb",
+  "host": "n3367",
+  "cpus": "16",
+  "wall_seconds": 699.2094535827637,
+  "unique_times_per_channel": {
+    "chla": 7778,
+    "k490": 4708,
+    "nflh": 4814,
+    "sst": 7368
+  },
+  "duplicate_time_rows_dropped": 1749,
+  "cube_times": 4692,
+  "times_seconds": 15.997173309326172,
+  "cube_seconds": 657.3090670108795,
+  "cube": {
+    "files": 407,
+    "bytes": 4060758562,
+    "rows": 373593583,
+    "bytes_on_disk": 4092759650
+  },
+  "valid_rows": 299461004
+}

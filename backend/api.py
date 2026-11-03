@@ -30,6 +30,7 @@ from backend.visualizations import (
     generate_gradient_uncertainty_plot,
 )
 from backend.cache_manager import cache_manager
+from backend import precomputed_forecasts
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -108,6 +109,8 @@ app.add_middleware(
 # Lazy singletons for Cloud Run optimization
 forecast_engine = None
 model_factory = None
+# Precomputed forecasts (Delta), loaded at startup when DATECT_FORECAST_TABLE is set
+precomputed_forecasts.load_from_env()
 
 @lru_cache(maxsize=1)
 def load_data_cached() -> pd.DataFrame:
@@ -124,6 +127,18 @@ def get_forecast_engine() -> ForecastEngine:
         # Skip validation on init for faster startup
         forecast_engine = ForecastEngine(validate_on_init=False)
     return forecast_engine
+
+def _single_forecast(site: str, forecast_date, task: str, model_type: str):
+    """(generate_single_forecast output, model_version): from the precomputed Delta
+    table when it holds this request for the same code, config and data
+    (DATECT_FORECAST_TABLE), computed on demand otherwise (model_version None)."""
+    hit = precomputed_forecasts.lookup(site, forecast_date, task, model_type)
+    if hit is not None:
+        return hit.result, hit.model_version
+    result = get_forecast_engine().generate_single_forecast(
+        config.FINAL_OUTPUT_PATH, forecast_date, site, task, model_type
+    )
+    return result, None
 
 def get_model_factory() -> ModelFactory:
     global model_factory
@@ -166,6 +181,8 @@ class ForecastResponse(BaseModel):
     ensemble_weights: Optional[List[float]] = None
     spike_probability: Optional[float] = None
     spike_alert: Optional[bool] = None
+    source: str = "computed"  # or "precomputed" (served from the Delta table)
+    model_version: Optional[str] = None
     error: Optional[str] = None
 
 class SiteInfo(BaseModel):
@@ -196,7 +213,8 @@ def root():
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    return {"status": "healthy", "timestamp": datetime.now().isoformat(),
+            "precomputed_forecasts": precomputed_forecasts.status()}
 
 @app.get("/api/sites", response_model=SiteInfo)
 def get_sites():
@@ -254,13 +272,7 @@ def generate_forecast(request: ForecastRequest):
         if model_type == "linear" and request.task == "classification":
             model_type = "logistic"
 
-        result = get_forecast_engine().generate_single_forecast(
-            config.FINAL_OUTPUT_PATH,
-            forecast_date,
-            actual_site,
-            request.task,
-            model_type
-        )
+        result, model_version = _single_forecast(actual_site, forecast_date, request.task, model_type)
 
         if result is None:
             raise HTTPException(
@@ -275,6 +287,8 @@ def generate_forecast(request: ForecastRequest):
             "task": request.task,
             "model": request.model,
             "training_samples": result.get('training_samples'),
+            "source": "precomputed" if model_version else "computed",
+            "model_version": model_version,
         }
 
         if request.task == "regression":
@@ -699,12 +713,13 @@ def generate_enhanced_forecast(request: ForecastRequest):
         else:
             classification_model = model_type
 
-        regression_result = get_forecast_engine().generate_single_forecast(
-            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "regression", model_type
+        regression_result, regression_version = _single_forecast(
+            actual_site, forecast_date, "regression", model_type
         )
-        classification_result = get_forecast_engine().generate_single_forecast(
-            config.FINAL_OUTPUT_PATH, forecast_date, actual_site, "classification", classification_model
+        classification_result, classification_version = _single_forecast(
+            actual_site, forecast_date, "classification", classification_model
         )
+        precomputed = regression_version is not None and classification_version is not None
         
         # Create response structure expected by frontend
         response_data = {
@@ -713,7 +728,9 @@ def generate_enhanced_forecast(request: ForecastRequest):
             "site": actual_site,
             "regression": clean_for_json(regression_result),
             "classification": clean_for_json(classification_result),
-            "graphs": {}
+            "graphs": {},
+            "source": "precomputed" if precomputed else "computed",
+            "model_version": regression_version if precomputed else None,
         }
         
         # Add level_range graph for regression (only when quantiles available)

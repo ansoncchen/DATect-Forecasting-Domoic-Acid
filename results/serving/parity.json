@@ -1,0 +1,520 @@
+{
+  "step": "parity",
+  "host": "n3244",
+  "step_seconds": 143.68028831481934,
+  "n": 50,
+  "equal": 50,
+  "with_forecast": 50,
+  "on_demand_seconds": 125.19128274917603,
+  "table_version": 0,
+  "table_entries": 21900,
+  "stale_rows": 0,
+  "checks": [
+    {
+      "key": [
+        "Cannon Beach",
+        "2018-10-08",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2008-12-08",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Quinault",
+        "2012-08-13",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Quinault",
+        "2013-03-25",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Newport",
+        "2008-12-15",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Quinault",
+        "2014-11-10",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2021-09-20",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Kalaloch",
+        "2005-02-07",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2019-11-11",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Coos Bay",
+        "2017-07-10",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Kalaloch",
+        "2003-08-04",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Quinault",
+        "2005-06-27",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Kalaloch",
+        "2011-12-26",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Coos Bay",
+        "2019-02-25",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Newport",
+        "2016-06-20",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Copalis",
+        "2022-09-05",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2011-08-01",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2007-08-20",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Long Beach",
+        "2013-02-18",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Long Beach",
+        "2017-10-16",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2006-06-19",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Kalaloch",
+        "2011-08-22",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Quinault",
+        "2006-02-13",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Long Beach",
+        "2010-06-21",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Long Beach",
+        "2012-11-26",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Coos Bay",
+        "2015-01-12",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Long Beach",
+        "2004-03-08",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2004-02-16",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Clatsop Beach",
+        "2018-09-24",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Twin Harbors",
+        "2005-05-09",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Clatsop Beach",
+        "2008-02-04",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2010-01-18",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2003-07-28",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Twin Harbors",
+        "2010-02-08",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Copalis",
+        "2004-07-05",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Clatsop Beach",
+        "2018-11-05",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Twin Harbors",
+        "2017-07-10",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Long Beach",
+        "2006-03-27",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Gold Beach",
+        "2003-08-25",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Quinault",
+        "2016-02-15",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Kalaloch",
+        "2014-04-14",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Gold Beach",
+        "2007-09-24",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Newport",
+        "2009-02-02",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Long Beach",
+        "2009-07-27",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Cannon Beach",
+        "2004-09-27",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Coos Bay",
+        "2023-11-27",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Kalaloch",
+        "2008-05-12",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Long Beach",
+        "2017-09-18",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Kalaloch",
+        "2015-06-01",
+        "classification",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    },
+    {
+      "key": [
+        "Gold Beach",
+        "2019-12-16",
+        "regression",
+        "ensemble"
+      ],
+      "equal": true,
+      "has_forecast": true
+    }
+  ],
+  "registry_model": {
+    "version": "1",
+    "n": 3,
+    "equal": 3
+  },
+  "passed": true
+}

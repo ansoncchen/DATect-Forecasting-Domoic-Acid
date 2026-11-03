@@ -1,0 +1,16 @@
+{
+  "step": "reference",
+  "git_sha": "1f15465fcce4e9ed7346fdcfddfe0c6cc74d6ec1",
+  "host": "n3197",
+  "cpus": "16",
+  "wall_seconds": 567.2043788433075,
+  "reference_cube": "/tmp/datect-42763175/reference/cube.zarr",
+  "build_cube_seconds": 553.1651542186737,
+  "build_cube_max_rss_gb": 13.74746,
+  "valid_fractions_seconds": 1.9299376010894775,
+  "total_seconds": 555.0950918197632,
+  "rebuilt_equals_committed_parquet": true,
+  "rebuilt_time_axis_equal": true,
+  "rebuilt_mask_equal": true,
+  "reference_cube_bytes_on_disk": 5424640214
+}

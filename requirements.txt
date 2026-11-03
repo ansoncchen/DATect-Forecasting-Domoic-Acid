@@ -18,6 +18,7 @@ uvicorn[standard]>=0.27.0
 granian>=1.0.0        # Rust-based ASGI server used in production
 pydantic>=2.5.0
 requests>=2.31.0      # run_datect.py health checks, Docker HEALTHCHECK, data downloads
+deltalake>=1.1.0      # Precomputed forecasts from Delta (read only when DATECT_FORECAST_TABLE is set)
 
 # Visualization and analysis endpoints
 plotly>=5.18.0

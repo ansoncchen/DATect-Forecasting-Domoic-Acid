@@ -1,0 +1,98 @@
+{
+  "step": "optimize",
+  "git_sha": "4a99460c5e8aa8a749a5498a21804aea3e628ccb",
+  "host": "n3367",
+  "cpus": "16",
+  "wall_seconds": 440.4744453430176,
+  "max_file_bytes": 67108864,
+  "bronze_pixels": {
+    "before": {
+      "files": 2584,
+      "bytes": 5850022204,
+      "rows": 1956017408,
+      "bytes_on_disk": 5897384424
+    },
+    "after": {
+      "files": 130,
+      "bytes": 7923732271,
+      "rows": 1956017408,
+      "bytes_on_disk": 13721672147
+    },
+    "seconds": 263.01822113990784
+  },
+  "silver_cube": {
+    "before": {
+      "files": 407,
+      "bytes": 4060758562,
+      "rows": 373593583,
+      "bytes_on_disk": 4092759650,
+      "skipping": {
+        "files": 407,
+        "bytes": 4060758562,
+        "per_region": {
+          "Overall (WA\u2013OR\u2013N. CA coastal)": {
+            "files_read": 407,
+            "bytes_read": 4060758562
+          },
+          "Olympic Coast (WA)": {
+            "files_read": 407,
+            "bytes_read": 4060758562
+          },
+          "SW Washington / Long Beach": {
+            "files_read": 407,
+            "bytes_read": 4060758562
+          },
+          "Central Oregon": {
+            "files_read": 407,
+            "bytes_read": 4060758562
+          },
+          "Southern OR / N CA": {
+            "files_read": 407,
+            "bytes_read": 4060758562
+          }
+        }
+      },
+      "region_query_seconds": [
+        9.038400173187256,
+        6.075131416320801
+      ]
+    },
+    "zorder_seconds": 140.73054146766663,
+    "after": {
+      "files": 59,
+      "bytes": 4376388652,
+      "rows": 373593583,
+      "bytes_on_disk": 8503489332,
+      "skipping": {
+        "files": 59,
+        "bytes": 4376388652,
+        "per_region": {
+          "Overall (WA\u2013OR\u2013N. CA coastal)": {
+            "files_read": 42,
+            "bytes_read": 3155415160
+          },
+          "Olympic Coast (WA)": {
+            "files_read": 37,
+            "bytes_read": 2799684151
+          },
+          "SW Washington / Long Beach": {
+            "files_read": 19,
+            "bytes_read": 1345751492
+          },
+          "Central Oregon": {
+            "files_read": 41,
+            "bytes_read": 3065536133
+          },
+          "Southern OR / N CA": {
+            "files_read": 36,
+            "bytes_read": 2744006061
+          }
+        }
+      },
+      "region_query_seconds": [
+        6.50318455696106,
+        6.579213857650757
+      ]
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "step": "precompute",
+  "host": "n3244",
+  "step_seconds": 8013.550151586533,
+  "grid": "weekly",
+  "pairs": 10950,
+  "models": [
+    "ensemble"
+  ],
+  "entries": 21900,
+  "errors": 0,
+  "entries_without_forecast": 220,
+  "wall_seconds": 7887.303125858307,
+  "task_seconds_total": 93622.51635837555,
+  "task_seconds_per_pair": 8.550001493915575,
+  "cores": 16,
+  "hosts": 1,
+  "speedup_vs_serial": 11.870028939478273,
+  "daily_pairs": 76590,
+  "daily_estimate_node_hours": 11.368830111440866,
+  "table": "/tmp/datect-42764310/lake/gold/forecasts",
+  "delta_version": 0,
+  "table_files": 4,
+  "table_bytes": 16909460,
+  "model_version": "datect-forecaster/1",
+  "config_hash": "d36c4a266e23524bf7a6378af1f2c518b409a50e98b808bfc429e37aa8757aaf",
+  "git_sha": "4a99460c5e8aa8a749a5498a21804aea3e628ccb"
+}

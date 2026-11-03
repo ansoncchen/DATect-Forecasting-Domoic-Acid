@@ -1,0 +1,148 @@
+{
+  "step": "parity",
+  "git_sha": "4a99460c5e8aa8a749a5498a21804aea3e628ccb",
+  "host": "n3367",
+  "cpus": "16",
+  "wall_seconds": 29.52653670310974,
+  "valid_frac": {
+    "rows": 23460,
+    "reference_rows": 23460,
+    "unmatched_rows": 0,
+    "max_abs_diff": 0.0,
+    "rows_not_identical": 0,
+    "assert_frame_equal_exact": true
+  },
+  "time_axis": {
+    "cube_zarr": 4692,
+    "silver": 4692,
+    "equal": true
+  },
+  "five_dates": [
+    {
+      "date": "2003-01-05",
+      "mask_equal": true,
+      "valid_pixels": 86253,
+      "chla": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "k490": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "nflh": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "sst": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      }
+    },
+    {
+      "date": "2015-03-22",
+      "mask_equal": true,
+      "valid_pixels": 71612,
+      "chla": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "k490": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "nflh": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "sst": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      }
+    },
+    {
+      "date": "2018-06-09",
+      "mask_equal": true,
+      "valid_pixels": 72952,
+      "chla": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "k490": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "nflh": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "sst": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      }
+    },
+    {
+      "date": "2021-09-13",
+      "mask_equal": true,
+      "valid_pixels": 84685,
+      "chla": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "k490": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "nflh": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "sst": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      }
+    },
+    {
+      "date": "2024-12-31",
+      "mask_equal": true,
+      "valid_pixels": 65481,
+      "chla": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "k490": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "nflh": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      },
+      "sst": {
+        "nan_equal": true,
+        "bitwise_equal": true,
+        "max_abs_diff": 0.0
+      }
+    }
+  ],
+  "passed": true
+}

@@ -23,7 +23,7 @@ maps each piece to its Databricks equivalent.
 | System | Result | Verified by |
 |---|---|---|
 | MODIS → Delta Lake (bronze / silver / gold) | 13.90 GB, 2,563 NetCDF files → 1.96 billion pixel rows → 374 million cube rows → 23,460 region rows | Gold equals the existing pipeline's output exactly (23,460 / 23,460 rows); five sampled dates are bitwise identical to the existing `cube.zarr` |
-| OPTIMIZE + Z-ORDER | A region query reads 28–69% fewer bytes; bronze file count 2,584 → 130 | File statistics in the Delta transaction log |
+| OPTIMIZE + Z-ORDER | A region query reads 22–67% fewer bytes; bronze file count 2,584 → 130 | File statistics in the Delta transaction log |
 | Distributed training + MLflow | 1,990 XGBoost + Random Forest pairs, 8.7× task time over wall time on 16 cores, 2,990 MLflow runs | Predictions equal the committed evaluation exactly (max abs diff 0.0, 1,044 rows) |
 | Batch inference | 21,900 forecasts in 2.19 h wall (26.0 h of task time, 11.9×), 16.9 MB Delta table | 50 / 50 random entries equal a fresh on-demand run in every value and type |
 | Serving from Delta | API latency p50 3.28 s → 0.12 s, p95 10.6 s → 0.13 s | All 20 timed responses byte-identical to the on-demand API (sha256) |
@@ -94,9 +94,11 @@ original pipeline's glob did.
   to the exact input files, and the Delta log records every version.
 - **OPTIMIZE / Z-ORDER.** Silver is written in time order, so every file spans the whole
   grid and a region filter can skip nothing. `ZORDER BY (lon_idx, lat_idx)` clusters
-  files spatially; Delta's per-file min/max statistics then skip 28–69% of the bytes
-  for a region query. Compaction cut bronze from 2,584 files to 130. VACUUM brought
-  the lake from a 21 GB peak to 12.4 GB.
+  files spatially, and Delta's per-file min/max statistics let a region filter skip
+  files. A region box now reads 1.35–3.16 GB of the 4.06 GB it read before (22–67%
+  less), counted from the transaction log's statistics, not measured reads.
+  Compaction cut bronze from 2,584 files to 130. VACUUM brought the lake from about
+  22 GB at its peak to 12.4 GB.
 
 **Parity** (Hyak job 42764314, all exact):
 - the gold table equals the committed `oad_cloud_fractions.parquet`
@@ -171,11 +173,13 @@ anchor date (that's what makes it leak-free), so each request took seconds: p50
    carries `model_version` and a `config_hash`.
 2. The API (`backend/precomputed_forecasts.py`) loads the table at startup with
    **delta-rs** (the Rust `deltalake` package, no JVM in the web server) into an
-   in-memory dict. A lookup and decode takes about 25 µs.
+   in-memory dict. A lookup and decode took about 25–30 µs in ad hoc laptop timings.
 3. **A stale table never serves.** The config hash covers the engine code, config, tuned
-   parameters, data and library versions. A row whose hash differs from the running
-   code is ignored, and the API computes on demand as before. Responses report
-   `source` (`precomputed` or `computed`) and `model_version`.
+   parameters, data bytes and library versions. A row whose hash differs from the
+   running code is ignored, and the API computes on demand as before. A stale or empty
+   table is logged as a warning, and `/health` reports the entry count, the stale rows
+   and the expected hash. Responses report `source` (`precomputed` or `computed`) and
+   `model_version`.
 
 **MLflow Model Registry.** `datect-forecaster` version 1 is a pyfunc that wraps the
 forecast procedure. It's a procedure rather than a fixed fitted model, because DATect
@@ -195,11 +199,15 @@ a registered version and a commit.
   bitwise;
 - the registered pyfunc reproduces 3 of 3 entries;
 - all 20 timed responses equal `main`'s byte for byte (sha256);
-- single-threaded XGBoost on Spark matches the API's multithreaded XGBoost.
+- the 50-entry check ran with the API's threading, so it also shows that
+  single-threaded XGBoost on Spark workers matches the API's multithreaded XGBoost;
+- no stored entry uses the random bootstrap interval fallback, and the precompute now
+  refuses to store one.
 
 **Limits.**
-- Only weekly dates and the `ensemble` model are precomputed. A daily grid was
-  estimated at 11.4 node-hours, against a 2-node-hour budget.
+- Only weekly dates and the `ensemble` model are precomputed. A daily grid would take
+  at least 11.4 node-hours even at a perfect 16× (about 15.3 at the measured 11.9×),
+  against a budget of about 2.
 - `linear` can't be precomputed exactly, because its interval bootstrap draws from
   NumPy's global RNG and changes from call to call.
 - Any change to code, config or data makes the table stale until it is recomputed.
@@ -296,8 +304,8 @@ no harm.
 ## 9. Uncertainty and pre-declared decisions
 
 An 80% conformal error band for the forecast line is built and scored
-(`forecasting/conformal.py` and `docs/ERROR_BAND.md`, in PR #19); drawing it on the
-dashboard comes next. Each forecast is calibrated only on errors of forecasts
+(`forecasting/conformal.py`, `docs/ERROR_BAND.md`); drawing it on the dashboard comes
+next. Each forecast is calibrated only on errors of forecasts
 already measured by its anchor, the same cut-off as the model. A test rewrites every
 later measurement and checks that the band does not change. The protocol and decision
 rule were committed before the holdout was scored.

@@ -35,7 +35,7 @@ maps each piece to its Databricks equivalent.
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph sources["Sources"]
     nc["MODIS NetCDF<br/>13.9 GB, read in place"]
     csv["DA and PN CSVs<br/>20 files"]

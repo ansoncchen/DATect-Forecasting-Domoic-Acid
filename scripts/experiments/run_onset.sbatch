@@ -38,5 +38,5 @@ export MPLBACKEND=Agg TZ=UTC
 echo "== $(cat REVISION 2>/dev/null || echo unknown) on $(hostname), $(nproc) cpus @ $(date +%T) =="
 "$PY" scripts/experiments/onset_study.py --variants "${VARIANTS:-all}" \
     --start "${START:-2015-01-01}" --end "${END:-2022-01-01}" \
-    --out-dir results/experiments/onset_raw --verify
+    --out-dir results/experiments/onset_raw --verify ${SEEDS:+--seeds "$SEEDS"}
 echo "done $(date)"

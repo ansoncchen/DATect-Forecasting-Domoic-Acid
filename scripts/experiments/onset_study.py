@@ -28,9 +28,11 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts" / "experiments"))
 os.chdir(ROOT)
 
 import config  # noqa: E402
+import transport as T  # noqa: E402
 from forecasting.feature_utils import add_temporal_features, create_transformer  # noqa: E402
 from forecasting.raw_data_forecaster import (  # noqa: E402
     get_site_anchor_row, recompute_test_row_persistence_features, week_complete_by,
@@ -68,6 +70,11 @@ VARIANTS: dict[str, dict] = {
     "no_weight": {"weight": "none"},                                       # D1
     "sqrt_weight": {"weight": "sqrt"},                                     # D2
     "region": {"extra": REGION_COLS},                                      # D3
+    # transport-trigger round (§7); need DATECT_TT_WIND / DATECT_TT_NEMO
+    "wind": {"extra": T.WIND_COLS},                                        # T1
+    "mooring": {"extra": T.NEMO_COLS},                                     # T2
+    "wind+mooring": {"extra": T.WIND_COLS + T.NEMO_COLS},                  # T3
+    "wind+interactions": {"extra": T.WIND_COLS + T.INTERACTION_COLS},      # T4
 }
 
 
@@ -231,6 +238,33 @@ def extra_columns(site: str, cutoff, weeks: np.ndarray, values: np.ndarray, targ
 # Training tables (one per process)
 # ---------------------------------------------------------------------------
 
+def transport_columns(site: str, cutoff) -> dict:
+    """§7 features as of ``cutoff`` (wind needs DATECT_TT_WIND, mooring DATECT_TT_NEMO;
+    absent inputs give no columns). The interactions use the own-site PN, the neighbours'
+    14-day max DA and the last DA sample, all as of the same cutoff."""
+    f: dict = {}
+    if os.environ.get("DATECT_TT_WIND"):
+        w = T.wind_features(cutoff)
+        cf = context_features(site, cutoff)
+        od, ov = context()["obs"][site]
+        hi = np.searchsorted(od, np.datetime64(pd.Timestamp(cutoff), "ns"), side="right")
+        f.update(w)
+        f.update(T.interaction_features(w, cf["pn_last_log"], cf["nb_max_14"], ov[hi - 1] if hi else np.nan))
+    if os.environ.get("DATECT_TT_NEMO"):
+        f.update(T.nemo_features(cutoff))
+    return f
+
+
+def lead_cutoff(site: str, week) -> pd.Timestamp:
+    """Training rows' §7 cutoff: the sample date of the week's maximum minus 7 days (the
+    lead a forecast row has); the earliest such date when several days tie."""
+    od, ov = context()["obs"][site]
+    lo = np.searchsorted(od, np.datetime64(pd.Timestamp(week), "ns"), side="left")
+    hi = np.searchsorted(od, np.datetime64(pd.Timestamp(week) + pd.Timedelta(days=7), "ns"), side="left")
+    day = pd.Timestamp(od[lo + int(np.argmax(ov[lo:hi]))]) if hi > lo else pd.Timestamp(week)
+    return day - pd.Timedelta(days=H)
+
+
 def weekly_table() -> pd.DataFrame:
     """The engine's pooled training rows (real weekly rows of the feature frame, in its
     order) with every added column, the next week's value and the label horizon."""
@@ -248,6 +282,7 @@ def weekly_table() -> pd.DataFrame:
         for i, (idx, w) in enumerate(zip(g.index, g["date"])):
             f = extra_columns(site, w - pd.Timedelta(days=1), weeks[:i], vals[:i], w)
             f["_da_next_week"] = nxt.get(w + pd.Timedelta(days=7), np.nan)
+            f.update(transport_columns(site, lead_cutoff(site, w)))
             extras[idx] = f
     ext = pd.DataFrame.from_dict(extras, orient="index").loc[real.index]
     tab = pd.concat([real, ext], axis=1)
@@ -303,7 +338,7 @@ def test_rows(points: list[dict], A: pd.Timestamp) -> list[tuple[dict, pd.DataFr
         row = add_temporal_features(row)
         od, ov = ctx["obs"][site]
         weeks, vals = weekly_maxima(od, ov, A, monday(D))
-        for k, val in extra_columns(site, A, weeks, vals, monday(D)).items():
+        for k, val in {**extra_columns(site, A, weeks, vals, monday(D)), **transport_columns(site, A)}.items():
             row[k] = val
         out.append((p, row))
     return out
@@ -399,6 +434,7 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=None, help="at most this many anchor dates")
     ap.add_argument("--out-dir", default=os.environ.get("EXP_OUT", "results/experiments/onset_raw"))
     ap.add_argument("--verify", action="store_true")
+    ap.add_argument("--seeds", default=None, help="comma-separated model seeds; files get __s<seed>")
     args = ap.parse_args()
     pts = test_points(args.start, args.end)
     pts["anchor"] = pts["date"] - pd.Timedelta(days=H)
@@ -410,19 +446,23 @@ def main() -> int:
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     names = list(VARIANTS) if args.variants == "all" else args.variants.split(",")
+    seeds = [int(x) for x in args.seeds.split(",")] if args.seeds else [None]
+    runs = [(n, s) for n in names for s in seeds]
     tag = f"{args.start[:4]}_{args.end[:4]}"
     with Parallel(n_jobs=args.n_jobs, backend="loky") as par:
-        for name in names:
+        for name, seed in runs:
             t0 = time.time()
-            parts = par(delayed(_run_chunk)(c, VARIANTS[name]) for c in chunks if c)
+            v = dict(VARIANTS[name]) if seed is None else {**VARIANTS[name], "seed": seed}
+            stem = name if seed is None else f"{name}__s{seed}"
+            parts = par(delayed(_run_chunk)(c, v) for c in chunks if c)
             res = pd.DataFrame([r for part in parts for r in part])
             res = res.merge(pts.drop(columns=["anchor"]), on=["site", "date"], how="left")
             res = res.sort_values(["date", "site"]).reset_index(drop=True)
-            res.to_parquet(out / f"{tag}__{name}.parquet", index=False)
+            res.to_parquet(out / f"{tag}__{stem}.parquet", index=False)
             n_pts = sum(len(g) for _, g in groups)
-            print(f"{tag} {name:22s} n={len(res)}/{n_pts} anchors={len(groups)} {time.time() - t0:5.0f}s",
+            print(f"{tag} {stem:26s} n={len(res)}/{n_pts} anchors={len(groups)} {time.time() - t0:5.0f}s",
                   flush=True)
-            if args.verify and name == "baseline":
+            if args.verify and name == "baseline" and seed in (None, config.MODEL_SEED):
                 d = np.abs(res["spike_prob"] - res["spike_probability"])
                 print(f"  verify: max |harness - committed| = {d.max():.3e} over {len(res)} rows", flush=True)
     return 0

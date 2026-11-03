@@ -1,0 +1,4 @@
+period,wa_onsets,wa_quiet,covered_onsets,covered_quiet,onsets_with_detectable_pda,quiet_with_detectable_pda,onset_rate_if_detectable,onset_rate_if_not,fisher_p
+2016–2018 (design),18,301,4,79,3,55,0.0517,0.0400,1.0000
+2021 (check),5,68,0,22,0,15,0.0000,0.0000,1.0000
+"2022–2023 (check, holdout years)",11,188,5,95,3,63,0.0455,0.0588,1.0000

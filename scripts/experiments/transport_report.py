@@ -129,6 +129,7 @@ def main() -> int:
                                **deployment(df, t, win, mask)})
     tab = pd.DataFrame(rows)
     dep = pd.DataFrame(deploy)
+    OUT.mkdir(parents=True, exist_ok=True)
     tab.to_csv(OUT / "transport_selection.csv", index=False, float_format="%.4f")
     dep.to_csv(OUT / "transport_deployment.csv", index=False, float_format="%.4f")
     pd.set_option("display.width", 250)

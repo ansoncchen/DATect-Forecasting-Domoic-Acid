@@ -168,10 +168,12 @@ anchor date (that's what makes it leak-free), so each request took seconds: p50
 
 **The design.**
 1. `datect_spark/forecast_serving.py precompute` runs the dashboard's forecast for every
-   (site, week) on Spark: 10 sites × 1,095 Mondays × 2 tasks = 21,900 forecasts. It
+   (site, week) on Spark: 10 sites × 1,095 Mondays × 2 tasks = 21,900 forecasts in the
+   measured run. The dashboard's forecast is now regression-only, so a rebuild stores
+   10,950. It
    stores each output unchanged, as lossless JSON, in `gold/forecasts`. Every row also
    carries `model_version` and a `config_hash`.
-2. The API (`backend/precomputed_forecasts.py`) loads the table at startup with
+2. The API (`backend/precomputed.py`) loads the table at startup with
    **delta-rs** (the Rust `deltalake` package, no JVM in the web server) into an
    in-memory dict. A lookup and decode took about 25–30 µs in ad hoc laptop timings.
 3. **A stale table never serves.** The config hash covers the engine code, config, tuned
@@ -212,7 +214,7 @@ a registered version and a commit.
   NumPy's global RNG and changes from call to call.
 - Any change to code, config or data makes the table stale until it is recomputed.
 
-Tests: `tests/test_precomputed_forecasts.py` (lossless codec, strict equality, config
+Tests: `tests/test_precomputed.py` (lossless codec, strict equality, config
 hash stability, hits, misses, stale rows, an unreadable table, both endpoints).
 
 ## 4. Reproducibility engineering
@@ -336,15 +338,14 @@ every Spark output is checked against.
 | Job | Path | Status (2026-11-03) |
 |---|---|---|
 | Evaluation (headline, golden, multi-seed) | joblib engine | Final: the reference implementation |
-| Forecast serving | Delta `gold/forecasts` via delta-rs, on-demand fallback | Built. Deployed default: **in progress** |
-| Dashboard precompute (retrospective, spectral, heatmaps) | JSON files in `cache/` with optional Redis | Moving into Delta: **in progress** |
-| Ensemble weight tuning | Two tuners, `scripts/eval/grid_search_weights_clip.py` and `datect_spark/retune.py` | Spark tuner only: **in progress** |
-| Cloud fractions for the forecast features | xarray script and the Delta gold table (identical outputs) | Delta lake as the producer: **in progress** |
+| Forecast serving | Delta store (`backend/precomputed.py`, `DATECT_PRECOMPUTED_DIR`), on-demand fallback | The image ships the store (#23); the production store is rebuilt after the engine cleanup |
+| Dashboard precompute (retrospective, spectral, heatmaps) | The same Delta store, built on Spark (`datect_spark/precompute_store.py`) | Done (#23): 29 of 29 endpoint bodies byte-identical to the old file cache, which is deleted |
+| Ensemble weight tuning | `datect_spark/retune.py` (weights only) | Done (#23): the old grid search and tuning scripts are deleted |
+| Cloud fractions for the forecast features | Delta lake `export` writes `oad_cloud_fractions.parquet` | Done (#23): byte-identical to the committed file |
 | Autoencoder training data | `cube.zarr` from `oad/scripts/02_build_cube.py` | Stays: the autoencoder trains on the dense cube |
 
-On 2026-11-03 the four "in progress" rows were approved to move onto the Spark / Delta
-path, with each duplicate deleted once its replacement reproduces the old output
-exactly. This table is updated when that lands.
+The four consolidations approved on 2026-11-03 landed in #23, each deleting the old
+path only after its replacement reproduced the old output exactly.
 
 ## How this maps to Databricks
 
@@ -385,7 +386,7 @@ bash scripts/eval/golden_baseline.sh <git-ref> <label>
 python scripts/eval/compare_golden.py <golden_root>/<a> <golden_root>/<b>
 
 # Serve precomputed forecasts locally
-DATECT_FORECAST_TABLE=/path/to/gold/forecasts python3 run_datect.py
+DATECT_PRECOMPUTED_DIR=/path/to/store python3 run_datect.py
 ```
 
 ## Code map
@@ -397,7 +398,9 @@ DATECT_FORECAST_TABLE=/path/to/gold/forecasts python3 run_datect.py
 | `datect_spark/retune.py` | Distributed re-tune with MLflow tracking |
 | `datect_spark/forecast_serving.py` | Spark precompute, MLflow registry, serving parity |
 | `datect_spark/hyak_stage.sh`, `*.sbatch` | Node-local staging and Slurm jobs |
-| `backend/precomputed_forecasts.py` | delta-rs loader, config hash, lookup with fallback |
+| `backend/precomputed.py` | delta-rs loader for the store's tables, config hash, lookup with fallback |
+| `datect_spark/precompute_store.py` | Spark build of the store's retrospective, spectral and correlation tables |
+| `backend/band.py`, `backend/track_record.py` | Serve-time error band; track record and per-site reliability |
 | `scripts/eval/forecast_latency.py` | Before/after latency harness |
 | `scripts/eval/golden_baseline.sh`, `compare_golden.py` | Golden baselines and byte-level comparison |
 | `scripts/data/rebuild_final_output.py` | Offline feature rebuild, no downloads |

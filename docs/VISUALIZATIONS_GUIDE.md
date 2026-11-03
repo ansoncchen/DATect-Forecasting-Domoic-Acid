@@ -35,12 +35,12 @@ These describe linear association in the weekly table, not the forecasting model
 
 ## Dashboard: single forecast
 
-Built from `POST /api/forecast/enhanced`, which runs a regression and a classification forecast for the chosen site, date and model.
+Built from `POST /api/forecast/enhanced`, which runs one regression forecast for the chosen site, date and model and adds its error band, alert level and the last six measurements.
 
-- **Summary cards** — predicted DA, predicted category, and (when the spike classifier ran) spike probability with the hybrid spike alert.
+- **Summary cards** — predicted DA and (when the spike classifier ran) spike probability with the hybrid spike alert.
 - **Ensemble model breakdown** — XGBoost and Random Forest predictions with their site weights, the blended ensemble prediction, and naive persistence as a baseline.
-- **Gradient uncertainty plot** (`generate_gradient_uncertainty_plot`) — shading from q05 to q95 (darkest at q50), with markers for the ensemble, XGBoost, Random Forest and, when supplied, the actual value. Intervals come from XGBoost quantile regression for `ensemble`/`xgboost` and from bootstrap for other models (see [`PIPELINE_DEEP_DIVE.md`](PIPELINE_DEEP_DIVE.md#9-single-forecasts-dashboard-and-apiforecast)). If the quantiles coincide (e.g. RF-only sites), a ±1 µg/g band is drawn for display only.
-- **Category probability distribution** — bar chart of the four class probabilities from the classification forecast; the predicted category is highlighted.
+- **Forecast range** (`generate_band_plot`) — the 80% conformal range from past errors (the range that held 80% of earlier forecasts' measurements; see [`ERROR_BAND.md`](ERROR_BAND.md)), the forecast, the XGBoost and Random Forest parts, and the 20 µg/g spike line. The range is calibrated over all sites: on 2022–2023 it held 80% overall but 38% at Gold Beach and 48% at Newport.
+- **Category chances** — the same past errors spread over the four categories (`source: "range"`); the forecast's own category is highlighted. These describe the line, not the spike alert.
 - **Top feature importance** — `feature_importances_` of the fitted XGBoost model. At sites whose ensemble weight on XGBoost is 0 this does not describe the model that produced the forecast.
 
 ## Dashboard: retrospective results

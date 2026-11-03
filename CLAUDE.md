@@ -72,9 +72,17 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
   changes ~23% of predictions without improving skill and costs 1-3 min per forecast; every
   reported number was produced with it off.
 - **Single forecasts use the evaluated models:** `generate_single_forecast` calls
-  `_run_single_raw_validation` (the retrospective core) and only adds intervals and
-  categories. Intervals use XGBoost `reg:quantileerror` (not `reg:quantile`, which does not
-  exist) plus the spread of the Random Forest's trees.
+  `_run_single_raw_validation` (the retrospective core). The dashboard's forecast
+  (`/api/forecast/enhanced`, `backend/api.py::_forecast_payload`) is one regression run plus
+  the 80% conformal band (`backend/band.py`, calibrated at request time from the committed
+  all-years run), category chances from that band, and the alert's parts and
+  Quiet/Watch/Warning level (`forecasting.metrics.alert_parts`; Warning's 0.40 cutoff is a
+  placeholder). The engine still computes XGBoost `reg:quantileerror` + RF-tree intervals
+  (`bootstrap_quantiles`), which nothing shows any more.
+- **Track record and reliability** (`backend/track_record.py`): window summaries are computed
+  server-side from `results/chronological` joined with `results/conformal_band`; R²/MAE come
+  verbatim from the runs' JSON. The dashboard computes no metric in the browser.
+  `config.SITE_STATES` (from latitude) is the one site -> state map.
 - **The pooled spike classifier** is trained on a pooled imputer/MinMax encoding of all
   sites; test rows must be encoded with that same transformer (returned by
   `_build_pooled_spike_data`), not the per-site one.
@@ -159,7 +167,8 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
 - **Error band:** `forecasting/conformal.py` calibrates each forecast only on errors of
   forecasts measured by its anchor; `docs/ERROR_BAND.md` holds the declared protocol. Its
   input is the all-years run `chronological_eval.py --window 2003-01-01:2024-01-01`,
-  whose pooled metrics are not reported (pre-2019 rows overlap tuning).
+  whose pooled metrics are not reported (pre-2019 rows overlap tuning). The API serves the
+  band from that run, so regenerate it whenever the engine's predictions change.
 
 ## Hyak
 
@@ -199,6 +208,7 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
 | `scripts/eval/`, `scripts/data/` | Evaluation, offline data tools (tuning: `datect_spark/retune.py`) |
 | `datect_spark/` | Spark 4 + Delta + MLflow on Hyak: weight tuner, MODIS -> Delta lake (makes `oad_cloud_fractions.parquet`), the precomputed store (`RESULTS.md`) |
 | `backend/precomputed.py` | The precomputed store: loads its Delta tables with deltalake (no JVM) for the API |
+| `backend/band.py`, `backend/track_record.py` | Serve-time error band; track record and per-site reliability summaries |
 | `oad/` | Ocean Anomaly Detection subproject (MODIS autoencoder; see `oad/README.md`) |
 | `papers/` | `datect/`, `oad_mdpi/`, `oad_cvpr/`, `poster/` |
 
@@ -225,6 +235,7 @@ catches 19 of 27 onsets (last known value < 20, measurement ≥ 20).
 `docs/QUICKSTART_FOR_REVIEWERS.md` (reproducing claims, script index) ·
 `docs/PIPELINE_DEEP_DIVE.md` · `docs/DATA_PIPELINE_DETAILED.md` ·
 `docs/OAD_INTEGRATION_RESULTS.md` · `docs/HYAK_SETUP.md` · `docs/DEPLOYMENT_GUIDE.md` ·
-`docs/VISUALIZATIONS_GUIDE.md` · `oad/README.md`, `oad/RESULTS.md`.
+`docs/VISUALIZATIONS_GUIDE.md` · `docs/ERROR_BAND.md` · `docs/DATA_ENGINEERING.md` ·
+`docs/FORECAST_EXPERIMENTS.md` · `oad/README.md`, `oad/RESULTS.md`.
 
 Before pasting a file path from memory or an old note into an instruction, check it exists.

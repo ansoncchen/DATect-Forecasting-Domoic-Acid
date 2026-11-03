@@ -35,8 +35,8 @@ metrics are reported only in [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md).
 oad/outputs/scores/<checkpoint>.parquet           (Hyak; regional daily scores, not tracked)
    └─ scripts/data/export_oad_features.py <checkpoint>
         → data/processed/oad_scores.parquet         (tracked; schema-checked copy)
-data/processed/oad_cloud_fractions.parquet          (tracked; from compute_region_valid_fractions
-                                                     in oad/scripts/07_cloud_confound.py,
+data/processed/oad_cloud_fractions.parquet          (tracked; exported from the MODIS Delta lake,
+                                                     datect_spark/modis_lake.py export,
                                                      independent of the checkpoint)
    └─ forecasting/oad_features.py: add_oad_features()
         called by dataset-creation.py and scripts/data/rebuild_final_output.py --recompute oad

@@ -14,6 +14,7 @@ cd frontend && npm run lint && npm run build  # frontend checks
 python scripts/data/rebuild_final_output.py --recompute measurements   # da, pn
 python scripts/data/rebuild_final_output.py --recompute oad            # oad_* features
 python scripts/data/export_oad_features.py ae_3d_l32_c4_t4_s42_mae070  # OAD input
+# oad_cloud_fractions.parquet comes from the MODIS Delta lake (Hyak): modis_lake.sbatch, step export
 
 # Hyak: every evaluation that backs a reported number, in a disposable worktree
 bash scripts/eval/golden_baseline.sh <git-ref> <label>

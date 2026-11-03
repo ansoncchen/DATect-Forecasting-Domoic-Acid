@@ -39,9 +39,10 @@ holdout, so they were not adopted (`docs/CORRECTED_NUMBERS.md`).
 `modis_lake.py` reads the MODIS 8-day composites (chlorophyll-a, Kd490, fluorescence
 line height, SST; Aqua, 2003–2024) that are already on Hyak, in place. They are never
 re-downloaded from ERDDAP. It builds three layers and checks the result against
-the existing OAD pipeline (`oad/scripts/02_build_cube.py` →
-`07_cloud_confound.compute_region_valid_fractions` →
-`data/processed/oad_cloud_fractions.parquet`, the input of two DATect forecast features).
+the existing OAD pipeline (`oad/scripts/02_build_cube.py` → a region count over
+`cube.zarr`, then in `07_cloud_confound.py`, now `modis_lake.reference_valid_fractions` →
+`data/processed/oad_cloud_fractions.parquet`, the input of two DATect forecast
+features). Since these runs, the lake is that file's producer (`export` step).
 
 **Input.** 2,563 NetCDF files totalling 13,904,484,780 bytes (13.90 GB): chla 4.78 GB,
 k490 2.57 GB, nflh 2.63 GB, sst 3.92 GB. That is 264 monthly files per channel plus

@@ -137,8 +137,12 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
   unreliable.
 - **Results files:** `results/chronological` (headline), `results/multi_seed`,
   `results/paper_metrics`, `results/ablation`, `results/final_verification`,
-  `results/holdout_validation`, `results/tuning_provenance`. The dashboard reads the first
-  two through `GET /api/metrics/summary`.
+  `results/holdout_validation`, `results/tuning_provenance`, `results/conformal_band`. The
+  dashboard reads the first two through `GET /api/metrics/summary`.
+- **Error band:** `forecasting/conformal.py` calibrates each forecast only on errors of
+  forecasts measured by its anchor; `docs/ERROR_BAND.md` holds the declared protocol. Its
+  input is the all-years run `chronological_eval.py --window 2003-01-01:2024-01-01`,
+  whose pooled metrics are not reported (pre-2019 rows overlap tuning).
 
 ## Hyak
 

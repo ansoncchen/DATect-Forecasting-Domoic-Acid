@@ -79,4 +79,76 @@ numbers were not computed before this commit.
 
 ## Results
 
-Filled in after the run.
+Hyak job 42762246 ran the all-years retrospective at `595ab4a4` in 15 minutes
+on 16 cores: 3,510 forecasts from 2005-10-17 to 2023-11-30 (earlier site-weeks
+lack the training data). Its 635 validation and 409 holdout rows equal the
+committed headline predictions exactly, in every column. Its pooled metrics
+are not a reported number, because the years before 2019 overlap the tuning
+period; the run only supplies past errors. 3,480 rows have a band (the first 30
+have too little history).
+
+Source: `results/conformal_band/band_eval.json` (all numbers below) and
+`band_predictions.parquet` (every row with its band and P(DA >= 20)); input
+`results/chronological/chronological_regression_ensemble_20030101_20240101.parquet`.
+
+### Chosen on validation
+
+| Error window | Mondrian | 80% coverage | Interval score (log1p) |
+|---|---|---:|---:|
+| 250 | no | 0.813 | 3.537 |
+| 250 | yes | 0.795 | 3.631 |
+| **500** | **no** | **0.819** | **3.481** |
+| 500 | yes | 0.775 | 3.657 |
+| all | no | 0.735 | 3.698 |
+| all | yes | 0.732 | 3.708 |
+
+Four variants are within 0.03 of 0.80; the most recent 500 errors without
+Mondrian has the lowest interval score. Using every past error under-covers
+(0.73): errors from the early years, with little training data, describe a
+different model. The alert threshold is P(DA >= 20) >= 0.084, which alarms
+14.8% of validation quiet weeks (hybrid alert: 15.0%).
+
+### Coverage
+
+| Nominal | Validation (N = 635) | Holdout (N = 409) |
+|---|---:|---:|
+| 50% | 0.502 | 0.484 |
+| **80%** | **0.819** | **0.802** |
+| 90% | 0.915 | 0.900 |
+| Median width of the 80% band | 10.3 µg/g | 15.1 µg/g |
+
+On the holdout the 80% band covers 0.801 of forecasts below 5 (N = 166), 0.811
+from 5 to 20 (N = 175) and 0.779 from 20 up (N = 68).
+
+**Where it is not calibrated:**
+
+- **By site.** Pooled errors give every site the same relative width, so the
+  band is too wide where the model is good and too narrow where it is not.
+  Holdout coverage is 0.375 at Gold Beach (N = 40) and 0.479 at Newport
+  (N = 48), the two sites with the lowest R², against 0.85-0.93 at the other
+  sites with more than two rows. Validation showed the same pattern (0.629
+  and 0.553), so this was visible before the holdout.
+- **At onsets.** The band contains the measurement at 10 of the 27 holdout
+  onsets (0.37; validation 0.41). An onset is a jump the forecast did not
+  anticipate, so the measurement usually lies above the band. Warning of
+  onsets is the spike alert's job, not the band's.
+
+### One-model test: the classifier stays
+
+| Holdout (27 onsets, 292 quiet weeks) | Band P(DA >= 20) >= 0.084 | Hybrid alert |
+|---|---:|---:|
+| Onsets caught | 16 | **19** |
+| Quiet weeks alarmed | 27.1% | 29.8% |
+| Onset AUC | 0.747 | **0.773** |
+
+Band minus classifier onset AUC: -0.027, 95% CI [-0.126, +0.067]. Two of the
+three declared conditions fail: the CI's lower bound is below -0.05, and the
+band catches 16 onsets where 18 were required. The alarm-rate condition holds.
+So the pooled spike classifier stays as the separately reported spike alert,
+and the band supplies the regression line's uncertainty.
+
+The difference is not significant either way; the rule asked for evidence that
+the band is not clearly worse, and the holdout's 27 onsets cannot give it. As
+expected, the band's P(DA >= 20) ranks onsets almost exactly as the forecast
+itself does (holdout AUC 0.747 vs 0.744), because without Mondrian it rises
+with the forecast against a slowly changing error set.

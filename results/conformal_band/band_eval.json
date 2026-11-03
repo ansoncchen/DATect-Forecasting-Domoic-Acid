@@ -1,0 +1,199 @@
+{
+  "protocol": "docs/ERROR_BAND.md",
+  "parity_with_committed": {
+    "chronological_regression_ensemble_20190101_20220101.parquet": {
+      "n_ref": 635,
+      "n_matched": 635,
+      "max_abs_diff_predicted": 0.0,
+      "max_abs_diff_probability": 0.0
+    },
+    "chronological_regression_ensemble_20220101_20240101.parquet": {
+      "n_ref": 409,
+      "n_matched": 409,
+      "max_abs_diff_predicted": 0.0,
+      "max_abs_diff_probability": 0.0
+    }
+  },
+  "coverage_target": 0.8,
+  "n_rows_with_band": 3480,
+  "selection": {
+    "candidates": [
+      {
+        "window": 250,
+        "mondrian": false,
+        "n": 635,
+        "coverage": 0.8125984251968504,
+        "interval_score_log1p": 3.5372732714031674
+      },
+      {
+        "window": 250,
+        "mondrian": true,
+        "n": 635,
+        "coverage": 0.7952755905511811,
+        "interval_score_log1p": 3.630623883809308
+      },
+      {
+        "window": 500,
+        "mondrian": false,
+        "n": 635,
+        "coverage": 0.8188976377952756,
+        "interval_score_log1p": 3.4812491562316246
+      },
+      {
+        "window": 500,
+        "mondrian": true,
+        "n": 635,
+        "coverage": 0.7748031496062993,
+        "interval_score_log1p": 3.65726812228589
+      },
+      {
+        "window": null,
+        "mondrian": false,
+        "n": 635,
+        "coverage": 0.7354330708661417,
+        "interval_score_log1p": 3.6976584700052757
+      },
+      {
+        "window": null,
+        "mondrian": true,
+        "n": 635,
+        "coverage": 0.7322834645669292,
+        "interval_score_log1p": 3.7075237301331287
+      }
+    ],
+    "chosen": {
+      "window": 500,
+      "mondrian": false
+    },
+    "alert_threshold_p_exceed": 0.084
+  },
+  "validation": {
+    "n": 635,
+    "coverage": 0.8188976377952756,
+    "interval_score_log1p": 3.4812491562316246,
+    "median_width": 10.343546849764715,
+    "coverage_by_predicted_category": {
+      "[0,5)": {
+        "n": 360,
+        "coverage": 0.8583333333333333
+      },
+      "[5,20)": {
+        "n": 174,
+        "coverage": 0.6954022988505747
+      },
+      "[20,inf)": {
+        "n": 101,
+        "coverage": 0.8910891089108911
+      }
+    },
+    "coverage_by_site": {
+      "Cannon Beach": 1.0,
+      "Clatsop Beach": 0.7285714285714285,
+      "Coos Bay": 0.8148148148148148,
+      "Copalis": 0.9574468085106383,
+      "Gold Beach": 0.6285714285714286,
+      "Kalaloch": 0.9019607843137255,
+      "Long Beach": 0.8771929824561403,
+      "Newport": 0.5526315789473685,
+      "Quinault": 0.967032967032967,
+      "Twin Harbors": 0.8852459016393442
+    },
+    "coverage_at_onsets": {
+      "n": 34,
+      "coverage": 0.4117647058823529
+    },
+    "coverage_other_levels": {
+      "0.5": 0.5023622047244094,
+      "0.9": 0.9149606299212598
+    },
+    "onsets": {
+      "band": {
+        "n_onsets": 34,
+        "n_quiet": 486,
+        "onsets_caught": 21,
+        "onset_recall": 0.6176470588235294,
+        "quiet_alarm_rate": 0.14814814814814814,
+        "onset_auc": 0.7334785766158316
+      },
+      "hybrid_alert": {
+        "n_onsets": 34,
+        "n_quiet": 486,
+        "onsets_caught": 27,
+        "onset_recall": 0.7941176470588235,
+        "quiet_alarm_rate": 0.15020576131687244,
+        "onset_auc": 0.8737291212781408
+      },
+      "regression_line_auc": 0.7517247639796659
+    }
+  },
+  "holdout": {
+    "n": 409,
+    "coverage": 0.8019559902200489,
+    "interval_score_log1p": 3.678309303607553,
+    "median_width": 15.07707221862492,
+    "coverage_by_predicted_category": {
+      "[0,5)": {
+        "n": 166,
+        "coverage": 0.8012048192771084
+      },
+      "[5,20)": {
+        "n": 175,
+        "coverage": 0.8114285714285714
+      },
+      "[20,inf)": {
+        "n": 68,
+        "coverage": 0.7794117647058824
+      }
+    },
+    "coverage_by_site": {
+      "Cannon Beach": 1.0,
+      "Clatsop Beach": 0.8541666666666666,
+      "Coos Bay": 0.8857142857142857,
+      "Copalis": 0.9333333333333333,
+      "Gold Beach": 0.375,
+      "Kalaloch": 0.9142857142857143,
+      "Long Beach": 0.8636363636363636,
+      "Newport": 0.4791666666666667,
+      "Quinault": 0.9272727272727272,
+      "Twin Harbors": 0.9285714285714286
+    },
+    "coverage_at_onsets": {
+      "n": 27,
+      "coverage": 0.37037037037037035
+    },
+    "coverage_other_levels": {
+      "0.5": 0.4841075794621027,
+      "0.9": 0.8997555012224939
+    },
+    "onsets": {
+      "band": {
+        "n_onsets": 27,
+        "n_quiet": 292,
+        "onsets_caught": 16,
+        "onset_recall": 0.5925925925925926,
+        "quiet_alarm_rate": 0.2705479452054795,
+        "onset_auc": 0.746638762049721
+      },
+      "hybrid_alert": {
+        "n_onsets": 27,
+        "n_quiet": 292,
+        "onsets_caught": 19,
+        "onset_recall": 0.7037037037037037,
+        "quiet_alarm_rate": 0.2979452054794521,
+        "onset_auc": 0.7731481481481481
+      },
+      "regression_line_auc": 0.7436580416032471
+    },
+    "auc_band_minus_classifier": {
+      "difference": -0.026509386098427123,
+      "ci95": [
+        -0.12591890946263204,
+        0.06653311169890071
+      ]
+    }
+  },
+  "decision": {
+    "rule": "band replaces the classifier if the AUC difference CI lower bound > -0.05, it catches >= hybrid onsets - 1, and its quiet alarm rate <= hybrid + 0.02",
+    "one_model": false
+  }
+}

@@ -468,7 +468,8 @@ sbatch --export=ALL,STUDY=features scripts/eval/paper_sensitivity_study.sbatch
 # Per-site configuration off, both windows
 DATECT_USE_PER_SITE_MODELS=false python scripts/eval/chronological_eval.py --window 2022-01-01:2024-01-01 --out-dir results/chronological_no_per_site
 
-# Laptop, from the seed-123 cache copied to results/retro_seed123/
+# Laptop, after copying the golden run's results/retro_seed123/ (the seed-123 retrospective
+# parquets spike_detection_eval.py writes and reloads; not the dashboard's precomputed store)
 .venv/bin/python scripts/eval/spike_detection_eval.py --seed 123 --sample-fraction 0.40
 .venv/bin/python scripts/eval/spike_env_lead_analysis.py
 .venv/bin/python scripts/eval/autocorrelation_diagnostic.py

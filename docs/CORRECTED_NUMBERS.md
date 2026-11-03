@@ -76,6 +76,28 @@ early warning; the regression alert alone (≥ 12) catches about half the onsets
 0.50–0.67; the two southern Oregon sites score lowest (Newport 0.13, Gold Beach
 below zero), consistent with their near-zero persistence ceilings (below).
 
+### Error band on the forecast line
+
+An 80% split-conformal band from the model's own past errors (log1p scale,
+pooled across sites, most recent 500 errors known at the anchor; chosen on
+validation). Protocol and full results: `docs/ERROR_BAND.md`.
+
+| Window | 50% band | 80% band | 90% band | Median 80% width |
+|---|---:|---:|---:|---:|
+| Holdout 2022–2023 | 0.484 | **0.802** | 0.900 | 15.1 µg/g |
+| Validation 2019–2021 | 0.502 | 0.819 | 0.915 | 10.3 µg/g |
+
+Calibrated overall and by forecast size, not by site: holdout 80% coverage is
+0.375 at Gold Beach and 0.479 at Newport, 0.85–0.93 elsewhere. The declared
+one-model test kept the spike classifier: on the holdout the band's
+P(DA ≥ 20) catches 16 of 27 onsets at 27.1% quiet alarms (hybrid alert: 19 at
+29.8%), onset AUC 0.747 vs 0.773, difference −0.027 [−0.126, +0.067].
+
+Source: `results/conformal_band/band_eval.json`, from the all-years run
+`results/chronological/chronological_regression_ensemble_20030101_20240101.parquet`
+(Hyak job 42762246, commit `595ab4a4`; its 2019–2023 rows equal the headline
+predictions exactly).
+
 ## Confirmation: 5-seed bootstrap
 
 `multi_seed_baseline.py`, seeds 42–46, a random 20% of all real measurements

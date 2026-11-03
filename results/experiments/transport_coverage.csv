@@ -1,0 +1,9 @@
+scope,signal,candidates,onsets,candidates_with,onsets_with
+all sites,wind,1177,108,1077,108
+all sites,mooring,1177,108,600,48
+all sites,pn_drop,1177,108,710,50
+all sites,sat_2_8w,1177,108,1165,108
+WA,wind,671,38,613,38
+WA,mooring,671,38,336,11
+WA,pn_drop,671,38,455,25
+WA,sat_2_8w,671,38,663,38

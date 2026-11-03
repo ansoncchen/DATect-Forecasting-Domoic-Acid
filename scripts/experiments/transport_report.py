@@ -29,7 +29,7 @@ from onset_study import REGIONS  # noqa: E402
 TAG = "2015_2024"
 SEEDS = (42, 43, 44, 45, 46)
 FLOOR_SEEDS = (47, 48, 49, 50, 51)
-VARIANTS = ("wind", "mooring", "wind+mooring", "wind+interactions")
+VARIANTS = ("wind", "mooring", "wind+mooring", "wind+interactions", "pn_crash", "sat_lag", "sat_lag+wind")
 SELECTION, SUBS = ("2015", "2022"), {"2015–2018": ("2015", "2019"), "2019–2021": ("2019", "2022")}
 HOLDOUT = ("2022", "2024")
 WA = set(REGIONS["WA"])
@@ -102,11 +102,48 @@ def deployment(df: pd.DataFrame, t: float, window: tuple, rows_mask=None) -> dic
     return transfer(w, w["score"].to_numpy(float), t)
 
 
+def coverage(start: str = "2015", end: str = "2022") -> pd.DataFrame:
+    """How many onset candidates (and onsets) have each §7 signal at the forecast cutoff
+    (the anchor): wind (>= half of 14 days), mooring SST (>= half of 7 days), a computable
+    PN drop, and at least one valid satellite score 2-8 weeks back."""
+    import os
+    import transport as T
+    from onset_study import COMMITTED, context
+    ctx = context()
+    d = pd.read_parquet(ROOT / COMMITTED)
+    d["date"] = pd.to_datetime(d["date"])
+    d = d[(d["date"] >= start) & (d["date"] < end) & (d["naive_prediction"] < 20)].reset_index(drop=True)
+    flags = []
+    for site, day in zip(d["site"], d["date"]):
+        a = day - pd.Timedelta(days=7)
+        f = {"wind": T.wind_features(a)["wind_coverage"] >= 0.5 if os.environ.get("DATECT_TT_WIND") else np.nan,
+             "mooring": T.nemo_features(a)["nemo_coverage"] >= 0.5 if os.environ.get("DATECT_TT_NEMO") else np.nan,
+             "pn_drop": np.isfinite(T.pn_crash_features(*ctx["pn"][site], a)["pn_drop_frac"]) if site in ctx["pn"] else False,
+             "sat_2_8w": T.sat_features(site, a)["sat_valid_2_8w"] >= 1}
+        flags.append(f)
+    f = pd.DataFrame(flags)
+    on = (d["actual_da"] >= 20).to_numpy()
+    rows = []
+    for scope, m in (("all sites", np.ones(len(d), bool)), ("WA", d["site"].isin(WA).to_numpy())):
+        for col in f.columns:
+            x = f[col].to_numpy(float)
+            rows.append({"scope": scope, "signal": col, "candidates": int(m.sum()), "onsets": int((m & on).sum()),
+                         "candidates_with": int(np.nansum(x[m])), "onsets_with": int(np.nansum(x[m & on]))})
+    return pd.DataFrame(rows)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--raw-dir", required=True)
+    ap.add_argument("--raw-dir", default=None)
     ap.add_argument("--holdout", default=None, help="comma-separated variants that passed (scored once)")
+    ap.add_argument("--coverage-only", action="store_true")
     args = ap.parse_args()
+    OUT.mkdir(parents=True, exist_ok=True)
+    cov = coverage()
+    cov.to_csv(OUT / "transport_coverage.csv", index=False)
+    print(cov.to_string(index=False))
+    if args.coverage_only:
+        return 0
     raw = Path(args.raw_dir)
     base = mean_score(raw, "baseline", SEEDS)
     d = np.abs(pd.read_parquet(raw / f"{TAG}__baseline__s42.parquet").eval("spike_prob - spike_probability"))

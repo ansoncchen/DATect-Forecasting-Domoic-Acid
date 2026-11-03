@@ -75,6 +75,9 @@ VARIANTS: dict[str, dict] = {
     "mooring": {"extra": T.NEMO_COLS},                                     # T2
     "wind+mooring": {"extra": T.WIND_COLS + T.NEMO_COLS},                  # T3
     "wind+interactions": {"extra": T.WIND_COLS + T.INTERACTION_COLS},      # T4
+    "pn_crash": {"extra": T.PN_CRASH_COLS},                                # T5 (§7.1)
+    "sat_lag": {"extra": T.SAT_COLS},                                      # T6 (§7.1)
+    "sat_lag+wind": {"extra": T.WIND_COLS + T.SAT_COLS + ["sat_x_reversal"]},  # T7 (§7.1)
 }
 
 
@@ -252,6 +255,15 @@ def transport_columns(site: str, cutoff) -> dict:
         f.update(T.interaction_features(w, cf["pn_last_log"], cf["nb_max_14"], ov[hi - 1] if hi else np.nan))
     if os.environ.get("DATECT_TT_NEMO"):
         f.update(T.nemo_features(cutoff))
+    ctx = context()
+    if site in ctx["pn"]:
+        f.update(T.pn_crash_features(*ctx["pn"][site], cutoff))
+    else:
+        f.update(dict.fromkeys(T.PN_CRASH_COLS, np.nan))
+    sat = T.sat_features(site, cutoff)
+    f.update(sat)
+    rev = f.get("wind_reversal_7d", np.nan)
+    f["sat_x_reversal"] = rev * sat["sat_max_2_8w"] if np.isfinite(rev) else np.nan
     return f
 
 

@@ -19,6 +19,14 @@ WIND_COLS = ["wind_v_1d", "wind_v_3d", "wind_v_7d", "wind_upw_14d", "wind_revers
 NEMO_COLS = ["nemo_sst_rise", "nemo_sst_trend_7d", "nemo_o2_min_7d", "nemo_ph_min_7d",
              "nemo_chl_3d", "nemo_chl_max_7d", "nemo_coverage"]
 INTERACTION_COLS = ["rev_x_pn", "rev_x_nb_max", "rev_x_last_da"]
+# §7.1 amendment: the beach PN bloom's shape (H-crash) and the offshore OAD score 2-8 weeks back (H-sat-lag)
+PN_CRASH_COLS = ["pn_peak_8w_log", "pn_drop_frac", "pn_weeks_since_peak", "pn_crash"]
+SAT_COLS = ["sat_max_2_8w", "sat_decline", "sat_valid_2_8w"]
+PN_BLOOM, PN_CRASH_DROP, PN_WINDOW = 50_000.0, 0.9, 56
+SAT_SHIFT, SAT_SPAN, SAT_MIN_VALID = 5, (14, 56), 0.2
+SAT_SOURCE = {s: "Olympic Coast (WA)" for s in
+              ("Kalaloch", "Quinault", "Copalis", "Twin Harbors", "Long Beach", "Clatsop Beach", "Cannon Beach")}
+SAT_SOURCE.update({"Newport": "Central Oregon", "Coos Bay": "Central Oregon", "Gold Beach": "Southern OR / N CA"})
 REVERSAL_CAP = 60
 NEMO_RANGES = {"sst": (5, 25), "sss": (25, 35), "chl": (0, 50), "o2": (0, 20), "ph": (7.5, 8.7)}
 NEMO_SOURCE = {"Sea Surface Temperature (deg C)": "sst", "Sea Surface Salinity": "sss",
@@ -142,3 +150,60 @@ def interaction_features(wind: dict, pn_last_log: float, nb_max_14: float, last_
     return {"rev_x_pn": times(pn_last_log),
             "rev_x_nb_max": times(np.log1p(nb_max_14) if np.isfinite(nb_max_14) else np.nan),
             "rev_x_last_da": times(np.log1p(last_da) if np.isfinite(last_da) else np.nan)}
+
+
+def pn_crash_features(pdates: np.ndarray, pvals: np.ndarray, cutoff) -> dict:
+    """H-crash: the site's raw PN samples dated in the 56 days ending at ``cutoff``: the
+    peak (log1p), the fractional drop from it to the latest sample, weeks since the peak,
+    and a crash flag (drop >= 0.9 from a peak >= 50,000 cells/L)."""
+    f = dict.fromkeys(PN_CRASH_COLS, np.nan)
+    c = np.datetime64(pd.Timestamp(cutoff), "ns")
+    lo = np.searchsorted(pdates, c - np.timedelta64(PN_WINDOW - 1, "D"), side="left")
+    hi = np.searchsorted(pdates, c, side="right")
+    if hi - lo < 1:
+        return f
+    d, v = pdates[lo:hi], pvals[lo:hi]
+    k = int(np.argmax(v))
+    f["pn_peak_8w_log"] = float(np.log1p(v[k]))
+    f["pn_weeks_since_peak"] = float((c - d[k]) / np.timedelta64(7, "D"))
+    if hi - lo >= 2 and v[k] > 0:
+        f["pn_drop_frac"] = float(1 - v[-1] / v[k])
+        f["pn_crash"] = float(f["pn_drop_frac"] >= PN_CRASH_DROP and v[k] >= PN_BLOOM)
+    return f
+
+
+def sat_series() -> dict:
+    """Per region: (dates, scores) of the committed OAD scores whose valid-pixel fraction
+    is >= 0.2, sorted by date."""
+    if "sat" not in _DAILY:
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        s = pd.read_parquet(os.path.join(root, "data/processed/oad_scores.parquet"))
+        c = pd.read_parquet(os.path.join(root, "data/processed/oad_cloud_fractions.parquet"))
+        for x in (s, c):
+            x["date"] = pd.to_datetime(x["date"])
+        m = s.merge(c, on=["date", "region"], how="left").dropna(subset=["score"])
+        m = m[m["valid_frac"] >= SAT_MIN_VALID].sort_values("date")
+        _DAILY["sat"] = {r: (g["date"].to_numpy("datetime64[ns]"), g["score"].to_numpy(float))
+                         for r, g in m.groupby("region")}
+    return _DAILY["sat"]
+
+
+def sat_features(site: str, cutoff) -> dict:
+    """H-sat-lag: the source region's valid OAD scores dated <= cutoff - 5 (composite ends
+    before the cutoff): max over [cutoff - 56, cutoff - 14], that max minus the latest
+    valid score, and the number of valid scores in the span."""
+    key = ("sat", SAT_SOURCE[site], _day(cutoff))
+    if key in _CACHE:
+        return _CACHE[key]
+    d, v = sat_series()[SAT_SOURCE[site]]
+    c = np.datetime64(pd.Timestamp(cutoff), "ns")
+    usable = np.searchsorted(d, c - np.timedelta64(SAT_SHIFT, "D"), side="right")
+    lo = np.searchsorted(d, c - np.timedelta64(SAT_SPAN[1], "D"), side="left")
+    hi = min(np.searchsorted(d, c - np.timedelta64(SAT_SPAN[0], "D"), side="right"), usable)
+    span = v[lo:hi] if hi > lo else v[:0]
+    f = {"sat_valid_2_8w": float(len(span)),
+         "sat_max_2_8w": float(span.max()) if len(span) else np.nan}
+    f["sat_decline"] = (f["sat_max_2_8w"] - float(v[usable - 1])
+                        if len(span) and usable > 0 else np.nan)
+    _CACHE[key] = f
+    return f

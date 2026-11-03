@@ -11,9 +11,10 @@ WORKDIR /build
 # Install UV package manager (10x faster than pip)
 RUN pip install uv
 
-# Copy and install Python dependencies
-COPY requirements.txt .
-RUN uv pip install --system --no-cache -r requirements.txt
+# Copy and install Python dependencies; the model libraries are pinned to the
+# versions the precomputed store was built with (its config hash includes them)
+COPY requirements.txt constraints.txt ./
+RUN uv pip install --system --no-cache -r requirements.txt -c constraints.txt
 
 # ============================================
 # Stage 2: Frontend builder
@@ -60,22 +61,23 @@ COPY config.py .
 COPY results/chronological ./results/chronological
 COPY results/multi_seed ./results/multi_seed
 
-# Copy pre-computed cache
-COPY cache ./cache
+# Precomputed store: Delta tables built on Spark (datect_spark/store.sbatch), served
+# when their config hash matches this image's; anything else is computed on demand
+COPY store ./store
 
 # Copy built frontend
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 
 # Verify setup
-RUN ls -la ./cache/ && \
+RUN ls -la ./store/ && \
     ls -la ./frontend/dist/ && \
-    python -c "import fastapi, granian, config; print('Dependencies and config OK')" && \
+    python -c "import fastapi, granian, deltalake, config; print('Dependencies and config OK')" && \
     echo "✅ Build verification complete"
 
 # Create non-root user for security
 RUN groupadd -r datect && useradd -r -g datect datect && \
     chown -R datect:datect /app && \
-    chmod -R 555 ./cache
+    chmod -R 555 ./store
 
 USER datect
 
@@ -89,8 +91,7 @@ EXPOSE 8080
 # Environment variables
 ENV PORT=8080
 ENV PYTHONPATH=/app
-ENV CACHE_DIR=/app/cache
-ENV NODE_ENV=production
+ENV DATECT_PRECOMPUTED_DIR=/app/store
 ENV DATECT_USE_GRANIAN=1
 
 # Serve with Granian (Rust-based ASGI server); set DATECT_USE_GRANIAN=0 for Uvicorn.

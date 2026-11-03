@@ -8,7 +8,8 @@
 !results/chronological
 !results/multi_seed
 !requirements.txt
-!cache
+!store
+!constraints.txt
 !frontend
 
 frontend/node_modules

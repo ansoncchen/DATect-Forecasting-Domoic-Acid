@@ -1,43 +1,48 @@
 # Deployment Guide
 
-DATect deploys as one container on Google Cloud Run: the FastAPI backend serves the API and the built React app from the same origin, with the pre-computed cache baked into the image.
+DATect deploys as one container on Google Cloud Run: the FastAPI backend serves the API and the built React app from the same origin, with the precomputed store baked into the image.
 
 ```
-Hyak                         Your machine                     Google Cloud
-precompute_cache.py   ──→    copy cache/ into the repo  ──→   deploy/deploy_gcloud.sh
-                                                              (Cloud Build → Cloud Run)
+Hyak (Spark)                          Your machine                      Google Cloud
+datect_spark/store.sbatch      ──→    copy the store into ./store  ──→  deploy/deploy_gcloud.sh
+  → ~/datect-store/<commit>/                                           (Cloud Build → Cloud Run)
 ```
 
-## 1. Build the cache on Hyak
+## 1. Build the store on Hyak
 
-Only needed when model code, configuration or data changed. From the repo root on Hyak (see [`HYAK_SETUP.md`](HYAK_SETUP.md)):
+The store is a directory of four Delta tables that the API reads with `deltalake` (no JVM) and serves from memory:
+
+| Table | Contents | Built by |
+|---|---|---|
+| `forecasts` | `generate_single_forecast` output for every (site, week) in `final_output.parquet`, model `ensemble`, both tasks (21,900 entries) | `datect_spark/forecast_serving.py precompute` |
+| `retrospective` | `/api/retrospective` records for 8 task/model slices: regression × {ensemble, xgboost, rf, naive, linear}, classification × {ensemble, naive, logistic} | `datect_spark/precompute_store.py retrospective` |
+| `spectral` | spectral analysis per site and for all sites | `datect_spark/precompute_store.py visuals` |
+| `correlation` | correlation heatmap per site | `datect_spark/precompute_store.py visuals` |
+
+Every row carries a **config hash**: a hash of `forecasting/*.py`, `config.py`, `backend/visualizations.py`, the tuned JSON, `final_output.parquet`, the raw DA CSVs, the `DATECT_*` variables the engine reads, the model-library versions and the CPU architecture. The API serves only rows whose hash equals its own; anything else is computed on demand, and `/health` reports stale rows. **Rebuild the store whenever code, config or data change** — at the commit you deploy. The image pins the model libraries to the versions the store is built with (`constraints.txt`, matching the Hyak Spark env), so a store built on Hyak at the deployed commit matches the image's hash (CI prints the image's hash).
+
+From any Hyak checkout at the commit to deploy (two jobs on two nodes, about 2.5 hours; each saves its tables to `~/datect-store/<commit>/`):
 
 ```bash
-$DATECT_PY precompute_cache.py
+L="-o $HOME/datect-spark-logs/%x-%j.out -e $HOME/datect-spark-logs/%x-%j.err"
+sbatch $L --export=ALL,STEPS="forecasts parity save" datect_spark/store.sbatch
+sbatch $L --export=ALL,STEPS="retrospective visuals save" datect_spark/store.sbatch
 ```
 
-It writes:
+`store/` is git-ignored. Measurements and parity checks: [`datect_spark/RESULTS.md`](../datect_spark/RESULTS.md).
 
-| Path | Contents |
-|---|---|
-| `cache/retrospective/` | 8 task/model retrospectives, each as `.parquet` + `.json` (16 files): regression × {ensemble, xgboost, rf, naive, linear}, classification × {ensemble, naive, logistic} |
-| `cache/spectral/` | spectral analysis per site plus `all_sites.json` |
-| `cache/visualizations/` | per-site correlation heatmaps (`<site>_correlation.json`) |
-| `cache/manifest.json` | file list |
-
-`cache/` is git-ignored.
-
-## 2. Copy the cache to your machine
+## 2. Copy the store to your machine
 
 ```bash
 cd /path/to/DATect-Forecasting-Domoic-Acid
-rsync -avz klone-login:/gscratch/stf/YOUR_UWNETID/DATect-Forecasting-Domoic-Acid/cache/ ./cache/
+rsync -a klone-login:datect-store/$(git rev-parse HEAD)/ ./store/
 ```
 
-Check it locally before deploying:
+Check it locally before deploying (`run_datect.py` points the API at `./store` when it exists; the library versions must match `constraints.txt` for the rows to be served):
 
 ```bash
-ENABLE_PRECOMPUTED_CACHE=true python3 run_datect.py
+python3 run_datect.py
+curl -s localhost:8000/health | python3 -m json.tool
 ```
 
 ## 3. Deploy
@@ -51,13 +56,13 @@ export REGION=us-west1                 # optional, default us-west1
 
 What the script does:
 
-1. If `./cache` is missing or empty it runs `precompute_cache.py` **locally**, which is far too heavy for a laptop; copy the Hyak cache first. If the cache exists it asks "Re-generate cache? (y/N)": answer **N**.
+1. Stops if `./store` is missing or empty (build it on Hyak and copy it first).
 2. Sets the gcloud project and region and enables the Cloud Build, Cloud Run and Container Registry APIs.
 3. Runs `gcloud builds submit --config=deploy/cloudbuild.yaml`. The upload is limited by `.gcloudignore` to the build inputs.
 4. Cloud Build (`deploy/cloudbuild.yaml`) builds `Dockerfile.production`, pushes `gcr.io/$PROJECT_ID/datect:latest`, and deploys the Cloud Run service `datect-api`.
 5. Reads the service URL and checks `GET /health`.
 
-Cloud Run settings (from `deploy/cloudbuild.yaml`): `--allow-unauthenticated`, 1 GiB memory, 1 CPU, min 0 / max 3 instances, concurrency 20, 300 s request timeout, env `CACHE_DIR=/app/cache, NODE_ENV=production, PYTHONPATH=/app`. With min instances 0 the service scales to zero, so the first request after idle is a cold start.
+Cloud Run settings (from `deploy/cloudbuild.yaml`): `--allow-unauthenticated`, 1 GiB memory, 1 CPU, min 0 / max 3 instances, concurrency 20, 300 s request timeout, env `DATECT_PRECOMPUTED_DIR=/app/store, PYTHONPATH=/app`. With min instances 0 the service scales to zero, so the first request after idle is a cold start.
 
 > **Container Registry is deprecated.** The build pushes to `gcr.io` and the script enables `containerregistry.googleapis.com`. Google is retiring Container Registry in favor of Artifact Registry (`REGION-docker.pkg.dev/PROJECT/REPOSITORY/IMAGE`); migrating `deploy/cloudbuild.yaml` and `deploy/deploy_gcloud.sh` is an open follow-up.
 
@@ -65,9 +70,9 @@ Cloud Run settings (from `deploy/cloudbuild.yaml`): `--allow-unauthenticated`, 1
 
 Three stages:
 
-1. **Python deps** (`python:3.11-slim`): `uv pip install -r requirements.txt`.
+1. **Python deps** (`python:3.11-slim`): `uv pip install -r requirements.txt -c constraints.txt`.
 2. **Frontend** (`node:22-slim`): `npm ci`, `npm run build` → `frontend/dist`.
-3. **Runtime** (`python:3.11-slim`): copies `backend/`, `forecasting/`, `data/`, `config/` (needed: `config.py` loads `config/tuned_hyperparameters.json` at import), `config.py`, `results/chronological` and `results/multi_seed` (read by `GET /api/metrics/summary`), `cache/`, and the built frontend. The build fails early if `cache/` or `frontend/dist` is missing or `import fastapi, granian, config` fails. Runs as a non-root user on port 8080 with a `/health` healthcheck; starts Granian (`DATECT_USE_GRANIAN=1`, the default) or Uvicorn.
+3. **Runtime** (`python:3.11-slim`): copies `backend/`, `forecasting/`, `data/`, `config/` (needed: `config.py` loads `config/tuned_hyperparameters.json` at import), `config.py`, `results/chronological` and `results/multi_seed` (read by `GET /api/metrics/summary`), `store/`, and the built frontend. The build fails early if `store/` or `frontend/dist` is missing or `import fastapi, granian, deltalake, config` fails. Runs as a non-root user on port 8080 with a `/health` healthcheck; starts Granian (`DATECT_USE_GRANIAN=1`, the default) or Uvicorn.
 
 Build inputs are whitelisted: `.dockerignore` (Docker build context) and `.gcloudignore` (Cloud Build upload) admit only what the Dockerfile copies. A new directory the image needs must be added to the Dockerfile **and** both ignore files.
 
@@ -78,7 +83,7 @@ docker build -f Dockerfile.production -t datect .
 docker run -p 8080:8080 datect          # http://localhost:8080
 ```
 
-**CI** (`.github/workflows/docker.yml`): on pushes and pull requests to `main` (except docs/papers-only changes) it builds the image with a stub `cache/` and fails unless `/health` answers within about a minute. It catches missing `COPY` lines and import-time crashes that unit tests cannot see.
+**CI** (`.github/workflows/docker.yml`): on pushes and pull requests to `main` (except docs/papers-only changes) it builds the image with a stub `store/` and fails unless `/health` answers within about a minute. It then prints the image's config hash, builds a two-entry forecasts table inside the image (`python -m backend.precomputed sample`), and checks that the container serves that forecast from the store and computes another on demand.
 
 ## Environment variables
 
@@ -86,24 +91,21 @@ Read by the server code (`backend/`), `run_datect.py` and the image:
 
 | Variable | Read by | Effect |
 |---|---|---|
-| `ENABLE_PRECOMPUTED_CACHE` | `backend/cache_manager.py` | `true` serves the file cache. Needed for local runs; in the image the cache is already enabled by `NODE_ENV`/`CACHE_DIR`. |
-| `CACHE_DIR` | `backend/cache_manager.py`, `run_datect.py` | Cache location (default `./cache`; `run_datect.py` defaults it to `<repo>/cache`). The value `/app/cache` also enables the cache. |
-| `NODE_ENV` | `backend/cache_manager.py` | `production` enables the cache. Set in the image and on Cloud Run. |
-| `REDIS_URL` | `backend/cache_manager.py`, `backend/redis_cache.py` | Optional Redis layer in front of the file cache. |
+| `DATECT_PRECOMPUTED_DIR` | `backend/precomputed.py`, `run_datect.py` | Directory of the store's Delta tables. Unset → every request is computed on demand. `run_datect.py` sets it to `<repo>/store` when that exists; the image sets `/app/store`. |
 | `ALLOWED_ORIGINS` | `backend/api.py` | Comma-separated CORS origins. Unset → `http://localhost:3000`, `http://localhost:5173`. Not needed for the single-origin Cloud Run deploy; set it if another origin calls the API. |
 | `PORT` | Docker `CMD`, `backend/api.py` | Listen port: 8080 in the image; `python -m backend.api` defaults to 8000. |
 | `DATECT_USE_GRANIAN` | Docker `CMD`, `backend/api.py` | `1` (default) Granian, otherwise Uvicorn. |
 | `WORKERS` | `backend/api.py` | Granian worker count, only when started with `python -m backend.api` (default 1). The Docker `CMD` does not read it. |
 | `VITE_API_URL` | `frontend/src/services/api.js` (build time) | API base URL baked into the frontend. Unset → same origin (`/api`); the Vite dev server proxies `/api` to `localhost:8000`. |
 
-The engine's `DATECT_*` overrides (see `config.py`) apply to the API process too; the deployed service uses none.
+The engine's `DATECT_*` overrides (see `config.py`) apply to the API process too, and are part of the config hash; the deployed service uses none.
 
 There is no runtime configuration endpoint: `POST /api/config` was removed, and task and model now travel with each request (`/api/retrospective` takes them in the body). `GET /api/config` remains read-only.
 
 ## Verify and operate
 
 ```bash
-curl https://SERVICE_URL/health
+curl https://SERVICE_URL/health            # includes the store's tables, entries and stale rows
 curl https://SERVICE_URL/api/metrics/summary
 gcloud logging read \
   "resource.type=cloud_run_revision AND resource.labels.service_name=datect-api" \
@@ -116,8 +118,8 @@ Set a billing budget alert in the Cloud console to catch unexpected charges.
 | Problem | Fix |
 |---|---|
 | `PROJECT_ID environment variable is required` | `export PROJECT_ID=...` |
-| Script starts `precompute_cache.py` locally | `cache/` was missing or empty; stop it and copy the Hyak cache. |
-| Docker build fails at `ls -la ./cache/` | `cache/` absent from the build context. |
+| `./store is missing or empty` | Build the store on Hyak and copy it (sections 1–2). |
+| Docker build fails at `ls -la ./store/` | `store/` absent from the build context. |
 | Container exits at startup | Check the logs; startup errors reach them (no stderr redirection). A missing `COPY` (e.g. `config/`) shows up as an import error. |
 | `/api/metrics/summary` returns 404 | `results/chronological` missing from the image (without `results/multi_seed` the multi-seed fields are empty). |
-| Retrospective or spectral views are slow | The cache is not enabled or not populated; the API is computing on demand. |
+| Forecasts, retrospective or spectral views are slow | `/health` shows why: no store, or its rows are stale (`stale_rows` > 0: built from other code, config, data or library versions). Rebuild the store at the deployed commit. Forecasts are precomputed for weekly dates and the `ensemble` model only; other requests are always computed. |

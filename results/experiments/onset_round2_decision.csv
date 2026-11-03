@@ -1,0 +1,13 @@
+variant,floor_caught10,floor_auc,rule1,rule2,rule3,passes,passes_auc_rule
+asof+regional+pn_raw,4,0.01,False,False,False,False,False
+asof,4,0.01,False,False,False,False,False
+label_10,4,0.01,False,False,False,False,False
+label_2w,4,0.01,False,False,False,False,False
+no_weight,4,0.01,False,True,False,False,False
+pn_raw,4,0.01,False,True,True,False,False
+region,4,0.01,False,False,True,False,False
+regional,4,0.01,False,True,False,False,False
+seed43,4,0.01,False,False,False,False,False
+seed44,4,0.01,False,False,False,False,False
+sqrt_weight,4,0.01,False,False,False,False,False
+trend,4,0.01,False,True,False,False,False

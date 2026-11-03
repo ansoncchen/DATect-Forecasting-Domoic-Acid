@@ -401,6 +401,43 @@ def recalibration_rows(years: range) -> tuple[pd.DataFrame, pd.DataFrame]:
     return tab, yearly
 
 
+def strata_rows(start: str = "2015", end: str = "2022") -> pd.DataFrame:
+    """Diagnostic: onsets, catches and quiet-week alarms of the deployed hybrid by the last
+    known value, the age of the last sample, a neighbour (same coastal group) >= 20 in the
+    14 days before the anchor, and season."""
+    from onset_study import context, context_features
+    ctx = context()
+    d = pd.read_parquet(ROOT / COMMITTED)
+    d["date"] = pd.to_datetime(d["date"])
+    d = d[(d["date"] >= start) & (d["date"] < end) & (d["naive_prediction"] < SPIKE)].reset_index(drop=True)
+    d["onset"] = d["actual_da"] >= SPIKE
+    anchor = d["date"] - pd.Timedelta(days=7)
+    age, nb = [], []
+    for site, a, day in zip(d["site"], anchor, d["date"]):
+        od, _ = ctx["obs"][site]
+        hi = np.searchsorted(od, np.datetime64(a, "ns"), side="right")
+        age.append((day - pd.Timestamp(od[hi - 1])).days if hi else np.nan)
+        nb.append(context_features(site, a)["nb_n_hi_14"] > 0)
+    strata = {
+        "last known": pd.cut(d["naive_prediction"], [-1, 5, 10, 20], right=False, labels=["< 5", "5–10", "10–20"]),
+        "days since last sample": pd.cut(pd.Series(age), [0, 8, 15, 29, 10_000], right=False,
+                                         labels=["≤ 7", "8–14", "15–28", "> 28"]),
+        "neighbour ≥ 20 in 14 days": pd.Series(np.where(nb, "yes", "no")),
+        "season": pd.Series(np.select([d["date"].dt.month.isin([3, 4, 5, 6]), d["date"].dt.month.isin([9, 10, 11, 12])],
+                                      ["Mar–Jun", "Sep–Dec"], "other")),
+    }
+    rows = []
+    for name, col in strata.items():
+        for level in col.dropna().unique().tolist():
+            m = (col == level).to_numpy()
+            o, a = d["onset"].to_numpy()[m], d["spike_alert"].astype(bool).to_numpy()[m]
+            rows.append({"stratum": name, "level": level, "candidates": int(m.sum()), "onsets": int(o.sum()),
+                         "onset_rate": float(o.mean()), "caught": int((a & o).sum()),
+                         "recall": float((a & o).sum() / o.sum()) if o.any() else np.nan,
+                         "quiet_alarm_rate": float(a[~o].mean())})
+    return pd.DataFrame(rows)
+
+
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
@@ -469,6 +506,17 @@ def main() -> int:
     tr.to_csv(OUT / "onset_round2_transfer.csv", index=False, float_format="%.4f")
     print("\nP2. Thresholds set on 2019-2021, applied to 2015-2018\n")
     print(tr[tr["window"] == "2015–2018"].round(3).to_string(index=False))
+    # Baseline only (committed predictions, already reported): tiers on every window
+    base = alert_frame()
+    tiers = transfer_rows({"baseline (committed)": base}, "spike_probability",
+                          {"2015–2018": ("2015", "2019"), "2019–2021": VALIDATION, **HOLDOUT})
+    tiers.to_csv(OUT / "onset_round2_baseline_tiers.csv", index=False, float_format="%.4f")
+    print("\nBaseline tiers (thresholds from 2019-2021)\n")
+    print(tiers.round(3).to_string(index=False))
+    st = strata_rows()
+    st.to_csv(OUT / "onset_round2_strata.csv", index=False, float_format="%.4f")
+    print("\nWhere the deployed hybrid catches and misses onsets, 2015-2021\n")
+    print(st.round(3).to_string(index=False))
     return 0
 
 

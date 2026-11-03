@@ -76,6 +76,26 @@ rolling DA features lowers onset AUC in all three families (linear −0.029
 [+0.001, +0.068] linear, +0.013 RF, +0.029 XGBoost). The ESP offshore pDA and NEMO mooring
 sources could not be re-tested because their input files no longer exist.
 
+**Onset round 2 (§6, from `main` `ff16ca9f`): no change improves onset detection at a
+fixed false-alarm budget.** The protocol was declared before running; the primary metric
+is onsets caught when ≤ 10% of quiet weeks alarm. 16 changes were tested on 2015–2021
+(108 onsets):
+- cross-site DA, raw PN, horizon-consistent rows;
+- trend and staleness;
+- "≥ 20 within 2 weeks" and "≥ 10" labels;
+- class weighting and region identity;
+- four alert-design stacks;
+- four leak-free recalibrations.
+
+Results:
+- The best is +1 onset against model-seed noise of ±4, and the current classifier
+  catches 57 of 108.
+- Nothing passed, so the holdout was not used.
+- Validation thresholds drift with bloom years (10% → 16% on 2015–2018 → 21% on
+  2022–2023), and no rolling recalibration fixes that.
+- Half the onsets jump from < 5 µg/g within one sampling interval. About half the false
+  alarms are weeks measured at 10–20.
+
 ## 1. Audit: problems found
 
 Each issue was confirmed in code and with data. Severity is about the forecast and the
@@ -877,3 +897,180 @@ as the raw classifier does.
 **Holdout.** At most three changes from A–E and the best passing R go to the holdout,
 scored once on P1, P2 and the tiers. The holdout is still treated as reused and
 low-power.
+
+
+### 6.2 Results: nothing beats the current classifier at a fixed false-alarm budget
+
+**Bottom line.** None of the 16 declared changes catches more onsets at the 10% budget
+than model-seed noise allows, under the amended rule or the original AUC rule. Since no
+change passed, **the holdout was not used.** Nothing is worth porting to the engine.
+The ceiling appears to be the information in the data, not the model (see "Where the
+misses are" below).
+
+**Run.**
+- Hyak job 42776407 (`ckpt`, 16 cores, 40 min), from `48287e89` on node-local disk.
+- The harness baseline reproduces the committed probabilities exactly (max |difference|
+  0.0 over 1,577 rows).
+- Model-seed noise at the 10% budget: −2 and −4 onsets (seeds 43, 44), so the floor is 4
+  onsets. Seed noise in AUC is ≤ 0.006.
+- On 2015–2021 the baseline catches 57 of 108 onsets at the 10% budget.
+- Sources: `results/experiments/onset_round2_*.csv`.
+
+**A–D. Classifier changes** (P1 within each window; CIs resample calendar months):
+
+| Change | Caught at 10% budget, 2015–2021 (Δ) [95% CI] | Δ caught 2015–2018 / 2019–2021 | Onset AUC 2015–2021 | Δ AUC [95% CI] | Δ AUC 2015–2018 / 2019–2021 | Matched-alarm hybrid: caught (Δ) | Deployed P ≥ 0.10: caught / quiet rate | Passes (amended) | Passes (original AUC rule) |
+|---|---|---|---|---|---|---|---|---|---|
+| A1 cross-site DA | 57/108 (+0) [−6, +7] | +2 / +1 | 0.794 | −0.002 [−0.019, +0.015] | +0.000 / +0.001 | 76 (−4) | 77/108 at 20.9% | no | no |
+| A2 raw PN | 50/108 (−7) [−11, +3] | +0 / +0 | 0.797 | +0.001 [−0.011, +0.012] | +0.000 / −0.001 | 77 (−3) | 77/108 at 19.4% | no | no |
+| A3 horizon-consistent rows | 57/108 (+0) [−10, +11] | +0 / −4 | 0.774 | −0.022 [−0.068, +0.016] | −0.008 / −0.061 | 74 (−6) | 75/108 at 20.5% | no | no |
+| A4 A1 + A2 + A3 (S5's signal) | 55/108 (−2) [−11, +9] | −5 / −3 | 0.772 | −0.025 [−0.062, +0.006] | −0.013 / −0.062 | 73 (−7) | 74/108 at 22.2% | no | no |
+| B1 trend and staleness | 58/108 (+1) [−5, +8] | +0 / +0 | 0.792 | −0.004 [−0.015, +0.008] | −0.003 / −0.006 | 76 (−4) | 78/108 at 20.1% | no | no |
+| C1 label: ≥ 20 within 2 weeks | 50/108 (−7) [−13, +3] | −2 / +1 | 0.769 | −0.027 [−0.069, +0.006] | −0.017 / −0.057 | 75 (−5) | 76/108 at 21.5% | no | no |
+| C2 label: ≥ 10 | 47/108 (−10) [−23, +4] | −7 / −3 | 0.759 | −0.037 [−0.071, −0.007] | −0.032 / −0.057 | 68 (−12) | 84/108 at 43.6% | no | no |
+| D1 no class weights | 58/108 (+1) [−6, +9] | +1 / +1 | 0.796 | −0.001 [−0.014, +0.011] | +0.000 / −0.005 | 77 (−3) | 67/108 at 14.2% | no | no |
+| D2 √ class weights | 58/108 (+1) [−6, +8] | −1 / +2 | 0.794 | −0.002 [−0.011, +0.007] | −0.005 / +0.003 | 75 (−5) | 73/108 at 16.2% | no | no |
+| D3 region indicators | 57/108 (+0) [−6, +7] | −1 / +0 | 0.797 | +0.000 [−0.011, +0.012] | +0.004 / −0.008 | 77 (−3) | 77/108 at 18.9% | no | no |
+| Seed 43 (noise floor) | 55/108 (−2) [−8, +4] | −1 / +1 | 0.790 | −0.006 [−0.018, +0.004] | −0.004 / −0.012 | 76 (−4) | 77/108 at 19.9% | — | — |
+| Seed 44 (noise floor) | 53/108 (−4) [−7, +5] | −1 / −1 | 0.792 | −0.004 [−0.018, +0.006] | −0.004 / −0.009 | 76 (−4) | 76/108 at 19.8% | — | — |
+
+- The cross-site, PN, trend and staleness features, region identity and class
+  weighting are all within ±1 onset of the baseline and within ±0.004 AUC.
+- Horizon-consistent rows (A3, A4) and both "more positives" labels (C1, C2) are
+  worse, mostly on 2019–2021 (Δ AUC −0.057 to −0.062).
+- S5's signal does not carry over to the classifier: A4 is −2 onsets, Δ AUC −0.025.
+
+**E. Alert design on existing outputs** (rolling-origin, 2016–2021, 86 onsets; compared
+with the deployed hybrid's score):
+
+| Change | Caught at 10% budget, 2016–2021 (Δ) [95% CI] | Δ caught 2016–2018 / 2019–2021 | Onset AUC 2016–2021 | Δ AUC [95% CI] | Δ AUC 2016–2018 / 2019–2021 | Matched-alarm hybrid: caught (Δ) | Deployed P ≥ 0.10: caught / quiet rate | Passes (amended) | Passes (original AUC rule) |
+|---|---|---|---|---|---|---|---|---|---|
+| E1 stack: P, forecast, last value | 44/86 (−2) [−5, +5] | +0 / +1 | 0.831 | −0.010 [−0.028, +0.010] | −0.019 / +0.009 | 62 (−5) | — | no | no |
+| E2 E1 + band P(DA ≥ 20) | 44/86 (−2) [−8, +4] | +0 / +2 | 0.822 | −0.018 [−0.038, −0.001] | −0.032 / −0.002 | 60 (−7) | — | no | no |
+| E3 per-region calibration | 45/86 (−1) [−7, +4] | −1 / +2 | 0.821 | −0.019 [−0.042, +0.004] | −0.033 / +0.002 | 63 (−4) | — | no | no |
+| E4 seasonal onset prior | 46/86 (+0) [−8, +9] | +2 / +0 | 0.795 | −0.045 [−0.098, +0.007] | −0.073 / +0.014 | 58 (−9) | — | no | no |
+
+The deployed rule, max(P/0.10, forecast/12), is hard to beat. Stacking the classifier
+with the forecast, the last value, the error band, a region term or a seasonal prior
+catches at most as many onsets at the 10% budget and fewer at the hybrid's own alarm
+count (−4 to −9).
+
+**R. Leak-free recalibration.** Threshold from 2019–2021 at 10%; R3 needs no threshold.
+Yearly quiet-week alarm rates, 2015–2021:
+
+| Method | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | Mean abs. deviation from 10% | 2015–2018: caught / quiet rate / false alarms per catch | Passes |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| Raw probability (today) | 20% | 11% | 24% | 12% | 8% | 11% | 12% | 4.5% | 43/74 / 16.0% / 2.16 | — |
+| R1 Platt, all past | 15% | 10% | 30% | 13% | 8% | 11% | 12% | 4.8% | 43/74 / 17.0% / 2.30 | no |
+| R2 isotonic, all past | 13% | 9% | 31% | 12% | 5% | 11% | 14% | 5.2% | 40/74 / 16.1% / 2.35 | no |
+| R3 rolling 90th percentile, 2 years | 47% | 15% | 16% | 6% | 5% | 12% | 11% | 8.5% | 43/74 / 17.8% / 2.42 | no |
+| R4 Platt, 2 years | 19% | 30% | 39% | 16% | 8% | 8% | 14% | 10.4% | 53/74 / 26.4% / 2.91 | no |
+
+No recalibration keeps the alarm rate near 10%:
+- Bloom years (2015, 2017) raise the share of quiet weeks that look like spikes, and a
+  map fitted on past forecasts cannot anticipate that.
+- Shorter memory (R3, R4) makes it worse: R3 alarms on 47% of 2015's quiet weeks
+  because 2013–2014 were calm.
+
+**P2. Threshold transfer.** The threshold set on 2019–2021 for 10%, applied to
+2015–2018:
+
+| Change | Caught | Quiet-week alarm rate | False alarms per catch | False alarms at < 5 / 5–10 / 10–20 |
+|---|---:|---:|---:|---|
+| Baseline (engine) | 43/74 | 16.0% | 2.16 | 33 / 15 / 45 |
+| A1 cross-site DA | 45/74 | 17.3% | 2.24 | 34 / 19 / 48 |
+| A2 raw PN | 46/74 | 17.3% | 2.20 | 36 / 19 / 46 |
+| A3 horizon-consistent rows | 47/74 | 19.0% | 2.36 | 37 / 20 / 54 |
+| A4 A1 + A2 + A3 (S5's signal) | 45/74 | 18.0% | 2.33 | 38 / 15 / 52 |
+| B1 trend and staleness | 45/74 | 16.0% | 2.07 | 33 / 17 / 43 |
+| C1 label: ≥ 20 within 2 weeks | 48/74 | 20.8% | 2.52 | 38 / 26 / 57 |
+| C2 label: ≥ 10 | 36/74 | 16.3% | 2.64 | 14 / 24 / 57 |
+| D1 no class weights | 47/74 | 17.7% | 2.19 | 35 / 19 / 49 |
+| D2 √ class weights | 45/74 | 17.3% | 2.24 | 35 / 15 / 51 |
+| D3 region indicators | 46/74 | 17.0% | 2.15 | 34 / 16 / 49 |
+| Seed 43 (noise floor) | 43/74 | 16.6% | 2.26 | 34 / 16 / 47 |
+| Seed 44 (noise floor) | 45/74 | 16.0% | 2.07 | 30 / 17 / 46 |
+
+Every variant's validation threshold lands at 16–21% on 2015–2018, so none of them fixes
+the drift either.
+
+**Tiers for the current classifier** (baseline only: committed predictions, already
+reported; thresholds from 2019–2021):
+
+| Tier (P threshold) | Window | Caught | Quiet-week alarm rate | False alarms per catch | False alarms at < 5 / 5–10 / 10–20 |
+|---|---|---:|---:|---:|---|
+| Warning (validation 5%) (P ≥ 0.346) | 2015–2018 | 31/74 | 8.4% | 1.58 | 18 / 5 / 26 |
+| Warning (validation 5%) (P ≥ 0.346) | 2019–2021 | 14/34 | 4.9% | 1.71 | 9 / 3 / 12 |
+| Warning (validation 5%) (P ≥ 0.346) | 2022–2023 | 10/27 | 9.6% | 2.80 | 9 / 2 / 17 |
+| Alert (validation 10%) (P ≥ 0.150) | 2015–2018 | 43/74 | 16.0% | 2.16 | 33 / 15 / 45 |
+| Alert (validation 10%) (P ≥ 0.150) | 2019–2021 | 21/34 | 9.9% | 2.29 | 15 / 9 / 24 |
+| Alert (validation 10%) (P ≥ 0.150) | 2022–2023 | 13/27 | 20.9% | 4.69 | 18 / 10 / 33 |
+| Watch (validation 20%) (P ≥ 0.060) | 2015–2018 | 54/74 | 28.5% | 3.07 | 58 / 42 / 66 |
+| Watch (validation 20%) (P ≥ 0.060) | 2019–2021 | 28/34 | 20.0% | 3.46 | 44 / 19 / 34 |
+| Watch (validation 20%) (P ≥ 0.060) | 2022–2023 | 21/27 | 36.6% | 5.10 | 35 / 20 / 52 |
+
+About half of the false alarms are weeks measured at 10–20 µg/g: near misses rather than
+quiet water.
+
+**Where the misses are** (diagnostic; the deployed hybrid on 2015–2021):
+
+| Stratum | Level | Onset candidates | Onsets | Onset rate | Caught by the deployed hybrid | Quiet-week alarm rate |
+|---|---|---:|---:|---:|---:|---:|
+| last known | < 5 | 688 | 52 | 7.6% | 31/52 (60%) | 10.4% |
+| last known | 5–10 | 270 | 11 | 4.1% | 5/11 (45%) | 10.4% |
+| last known | 10–20 | 219 | 45 | 20.5% | 44/45 (98%) | 67.8% |
+| days since last sample | 15–28 | 394 | 38 | 9.6% | 28/38 (74%) | 19.4% |
+| days since last sample | 8–14 | 611 | 52 | 8.5% | 41/52 (79%) | 20.2% |
+| days since last sample | > 28 | 104 | 10 | 9.6% | 7/10 (70%) | 13.8% |
+| days since last sample | ≤ 7 | 68 | 8 | 11.8% | 4/8 (50%) | 26.7% |
+| neighbour ≥ 20 in 14 days | no | 871 | 63 | 7.2% | 41/63 (65%) | 14.6% |
+| neighbour ≥ 20 in 14 days | yes | 306 | 45 | 14.7% | 39/45 (87%) | 35.6% |
+| season | other | 350 | 25 | 7.1% | 23/25 (92%) | 17.2% |
+| season | Mar–Jun | 406 | 46 | 11.3% | 31/46 (67%) | 24.2% |
+| season | Sep–Dec | 421 | 37 | 8.8% | 26/37 (70%) | 17.7% |
+
+**Reading.**
+- **Onsets that start from a moderate level are easy and already caught.**
+  - With a last value of 10–20, 44 of 45 onsets are caught, at the cost of alarms in
+    68% of those quiet weeks.
+  - Most false alarms come from here. They are near misses, and any threshold that
+    catches these onsets pays for them.
+- **The hard half jumps from nothing.**
+  - 52 of the 108 onsets had a last known value < 5 one sampling interval earlier, and
+    only 60% of those are caught.
+  - 36 onsets came from < 5 with no neighbouring site ≥ 20 in the preceding two weeks.
+    At a one-week lead, nothing in the repo's data marks them in advance. Cross-site DA
+    (A1), raw PN (A2), trend and staleness (B1) and seasonality (E4) all fail to separate
+    them from quiet weeks at a 10% budget.
+- **A neighbour that has already spiked doubles the onset rate** (14.7% vs 7.2%). The
+  classifier already uses this: 87% of those onsets are caught. Adding explicit
+  cross-site features (A1) adds nothing.
+- **Thresholds drift with bloom years.** No leak-free recalibration fixed it. The honest
+  way to show the alert is a tiered display with the alarm rates and false alarms per
+  catch seen across windows (table above), not a single promised rate.
+
+**What could help.** More skill would have to come from data that sees onsets earlier,
+not from the model. The candidates are:
+- more frequent sampling at the sites, since half the misses jump in one interval;
+- offshore or upstream observations: the ESP pDA and NEMO mooring files used before
+  the cleanup no longer exist and would have to be re-supplied;
+- a longer lead time on regional drivers.
+
+These are outside "the data we have".
+
+### 6.3 Reproducing round 2
+
+Round 2's code is on `claude/onset-experiments`. The round-1 scripts in §5 are on
+`claude/forecast-experiments-b1c907`.
+
+| Script | Purpose |
+|---|---|
+| `scripts/experiments/onset_study.py` | Classifier variants A–D: one fit per anchor; `baseline` reproduces the committed `spike_probability` (`--verify`) |
+| `scripts/experiments/run_onset.sbatch` | Hyak job, run from node-local `/tmp` with results copied to `$HOME` (the scratch filesystems refuse writes now and then) |
+| `scripts/experiments/onset_report.py` | Declared metrics and rules; families E and R from the committed predictions; threshold transfer, tiers and the strata diagnostic |
+
+```bash
+git archive HEAD | ssh klone-login 'rm -rf ~/onset-src && mkdir -p ~/onset-src && tar -x -C ~/onset-src'
+ssh klone-login 'cd ~/onset-src && mkdir -p logs && VARIANTS=all sbatch scripts/experiments/run_onset.sbatch'
+rsync -a klone-login:onset-results/<job id>/ <raw>/   # 13 parquets, about 1 MB
+python scripts/experiments/onset_report.py --raw-dir <raw>
+```

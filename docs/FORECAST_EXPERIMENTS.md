@@ -682,3 +682,129 @@ python scripts/experiments/holdout_check.py --raw-dir <raw>
 Hyak jobs: round 1 42629724–27, onset round 42630120–21, pooled 42630238–39 and 42632004,
 shortlist holdout 42631685, ablation 42632793–95.
 
+
+
+## 6. Onset round 2: can onset detection improve with the data we have? (declared)
+
+Started 2026-11-03 from `main` at `ff16ca9f`, on branch `claude/onset-experiments`. **This
+protocol was written and committed before any experiment in this section was run.**
+Nothing is ported to the engine without the user's approval.
+
+**Baseline.** `main`'s pooled XGBoost spike classifier, with forecast-row lags rebuilt like
+training rows and no safe-baseline filter. The hybrid alert fires when P ≥ 0.10 or the
+ensemble forecast is ≥ 12. Committed predictions (every real measurement, 2005–2023):
+`results/chronological/chronological_regression_ensemble_20030101_20240101.parquet`.
+
+| Window | Rows | Onset candidates (last known < 20) | Onsets | Classifier onset AUC | Hybrid: onsets caught at quiet-week alarm rate |
+|---|---:|---:|---:|---:|---|
+| 2015–2018 | 942 | 657 | 74 | 0.754 | 53/74 at 23.7% |
+| 2019–2021 (validation) | 635 | 520 | 34 | 0.874 | 27/34 at 15.0% |
+| 2022–2023 (holdout) | 409 | 319 | 27 | 0.773 | 19/27 at 29.8% |
+
+**Definitions** (`forecasting.metrics.onset_scores`):
+- An onset row has a last value known at the anchor < 20 and a measurement ≥ 20.
+- Quiet rows are the other rows with last known < 20. They are the negatives.
+
+**Selection data: 2015-01-01 to 2022-01-01** (1,577 rows, 1,177 candidates, 108 onsets).
+- Every forecast trains only on data known by its anchor, so this is a rolling-origin
+  evaluation by construction.
+- The pooled figure decides. The two sub-windows (2015–2018, 2019–2021) must agree in
+  sign.
+- Before 2015 there are only 6 onsets, so those years are not scored.
+
+**The holdout is reused and low-power.** 2022–2023 has 27 onsets and has already been
+looked at several times (the S1–S5 check in §4, the error-band test). It is scored once,
+at the end, for at most three changes that pass selection. It cannot confirm a gain. A
+change is reported as "not contradicted" when its holdout Δ onset AUC ≥ 0 and it catches
+at least as many onsets at matched alarms; otherwise it is "contradicted".
+
+**Metrics.**
+1. **Primary: onset AUC.** The AUC of the variant's score on onset-candidate rows; Δ is
+   taken against the baseline on the same rows.
+2. **Hybrid onsets caught at matched alarms.** The variant's classifier threshold is
+   set so that its hybrid alert raises as many quiet-week alarms as the baseline hybrid
+   in the same window. Report onsets caught and Δ.
+3. **Onset recall of the score alone** at 10% and 20% quiet-week alarm rates.
+4. **The hybrid at the deployed threshold** P ≥ 0.10: onsets caught and quiet-week alarm
+   rate.
+- **CIs:** paired bootstrap that resamples calendar months (every row of a year-month
+  together; 2,000 resamples). Onsets cluster in bloom events, so a row bootstrap would
+  understate the uncertainty.
+- **Noise floor:** the baseline refit with model seeds 43 and 44.
+
+**Decision rule (selection).** A change passes when all three hold:
+1. On 2015–2021, Δ onset AUC ≥ max(0.01, the seed noise floor) and its 95% CI excludes 0.
+2. Δ onset AUC ≥ 0 in both 2015–2018 and 2019–2021.
+3. On 2015–2021, hybrid onsets caught at matched alarms are not lower than the baseline.
+
+Passing changes are ranked by Δ AUC, and at most three go to the holdout. If two or more
+single changes pass, their combination, built without further tuning, takes one of the
+three places.
+
+With ~16 hypotheses, one false pass at 95% is plausible. Rules 2 and 3 are there to
+limit that.
+
+**Hypotheses.** Each is one change to the baseline classifier; everything else is the
+engine's.
+
+*A. Cross-site and raw-PN information* (S5's signal, re-tested in the classifier only;
+S5 was rejected on MAE, which the alert does not use). Each feature is computed as of
+its row's information cutoff: the day before its week for a training row, the anchor for
+a forecast row.
+- **A1 `regional`:** 7 cross-site DA features from the same coastal group (WA, northern
+  OR, southern OR) and the whole coast:
+  - max in 14 and 28 days;
+  - mean of the neighbours' latest values;
+  - neighbours ≥ 20 in 14 days;
+  - largest recent rise.
+- **A2 `pn_raw`:** 5 raw-PN features:
+  - own-site last count (log1p) and its age;
+  - 14-day max;
+  - the coastal group's 14-day max;
+  - change between the last two samples.
+- **A3 `asof`:** horizon-consistent training rows. One row per real measurement, with
+  persistence features built as for a forecast row from measurements up to 7 days
+  before it.
+- **A4 `asof+regional+pn_raw`:** S5's combination, in the classifier.
+
+*B. Trend and staleness.*
+- **B1 `trend`:** four features:
+  - slope of the last three measured weekly maxima (µg/g per week);
+  - weeks since the last measured week;
+  - weeks since the last value > 1 µg/g (above the detection limit);
+  - weeks since the last value ≥ 5.
+
+  The classifier has no staleness signal today: `da_raw_prev_obs_1_weeks_ago` is not in
+  the feature frame, and `weeks_since_last_spike` is dropped as leaky. Training and
+  forecast rows are built the same way, from weekly maxima before the target week;
+  forecast rows see only days up to the anchor.
+
+*C. More positives for training; the evaluated target is unchanged.*
+- **C1 `label_2w`:** train on "≥ 20 in the target week or the week after". A training
+  row is used only once both weeks are complete by the anchor.
+- **C2 `label_10`:** train on ≥ 10 instead of ≥ 20.
+
+*D. Class weighting and region identity* (retrained).
+- **D1 `no_weight`:** no class weights.
+- **D2 `sqrt_weight`:** positive-class weight √(n_neg/n_pos) instead of n_neg/n_pos.
+- **D3 `region`:** three region indicators. The pooled classifier has no site or region
+  identity today.
+
+*E. Alert design on existing outputs* (no retraining). Each model is a logistic
+regression on onset-candidate rows, refit every 1 January on the out-of-sample
+predictions dated before it. Scored on 2016–2021 (86 onsets), because before 2015 there
+are only 6 onsets to fit on. The comparison is against the deployed hybrid's score
+max(P/0.10, ensemble/12) on the same rows.
+- **E1 `stack`:** onset ~ logit P + log1p ensemble + log1p last known.
+- **E2 `stack+band`:** E1 + the error band's P(DA ≥ 20).
+- **E3 `region_calibrated`:** onset ~ logit P × region (region intercept and slope).
+  In effect, a per-region threshold.
+- **E4 `seasonal_prior`:** onset ~ logit P + the log-odds of the past onset rate for the
+  region and week of year (±2 weeks, onsets / candidates with add-one smoothing).
+
+Monotone recalibration of a single score cannot change its AUC, so calibration is tested
+only per region (E3).
+
+**Already ruled out in §3–§4, not re-run:** losses and target transforms, persistence
+blending, an onset-only classifier, model-family swaps, environmental-feature
+additions.

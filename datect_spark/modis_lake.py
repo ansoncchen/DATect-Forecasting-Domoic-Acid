@@ -218,6 +218,8 @@ def _file_pixels(batches):
             for pos in range(values.shape[0]):
                 frame = values[pos].ravel()
                 flat = np.flatnonzero(~np.isnan(frame))
+                if len(flat) == 0:  # fully cloudy: the time is in satellite_times
+                    continue
                 yield pd.DataFrame({
                     "channel": r.channel, "year": np.int32(times[pos].year), "time": times[pos],
                     "file_rank": np.int32(r.file_rank), "time_pos": np.int16(pos),

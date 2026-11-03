@@ -284,20 +284,20 @@ def parity(n: int) -> dict:
            "table_entries": len(store), "stale_rows": store.stale_rows, "checks": checks}
 
     # The registered model reproduces the table too
-    import mlflow.pyfunc
+    mlflow = get_mlflow(EXPERIMENT)
+    from mlflow import pyfunc
 
-    get_mlflow(EXPERIMENT)
     version = store.get(*picks[0]).model_version.split("/")[1]
-    model = mlflow.pyfunc.load_model(f"models:/{REGISTERED_MODEL}/{version}")
+    model = pyfunc.load_model(f"models:/{REGISTERED_MODEL}/{version}")
     few = picks[:3]
     predicted = model.predict(pd.DataFrame(few, columns=["site", "date", "task", "model_type"]))
     out["registry_model"] = {"version": version, "n": len(few),
                              "equal": sum(same(decode(p), store.get(*k).result)
                                           for p, k in zip(predicted, few))}
     out["passed"] = out["equal"] == out["n"] and out["registry_model"]["equal"] == len(few)
-    with get_mlflow(EXPERIMENT).start_run(run_name="parity"):
-        get_mlflow(EXPERIMENT).log_metrics({"parity_n": out["n"], "parity_equal": out["equal"],
-                                            "registry_equal": out["registry_model"]["equal"]})
+    with mlflow.start_run(run_name="parity"):
+        mlflow.log_metrics({"parity_n": out["n"], "parity_equal": out["equal"],
+                            "registry_equal": out["registry_model"]["equal"]})
     if not out["passed"]:
         print(json.dumps(out, indent=2, default=str))
         raise SystemExit("parity failed")

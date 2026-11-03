@@ -330,8 +330,8 @@ The validation window followed the same path: 0.384 (published) → 0.312 → 0.
 
 ## Clip removal and forecast-row lags (after the leakage fixes)
 
-A forecast-pipeline audit (branch `claude/forecast-experiments-b1c907`,
-`docs/FORECAST_EXPERIMENTS.md`) checked the engine against its own description and
+A forecast-pipeline audit ([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md); code on
+branch `claude/forecast-experiments-b1c907`) checked the engine against its own description and
 ran small, pre-declared experiments on validation and 2015–2018 before one holdout
 check. Its fixes are separate commits, evaluated with the golden runs
 `port-c1-neutral`, `port-c2-noclip` and `port-c4-lags` (Hyak jobs 42671541–43).
@@ -462,8 +462,8 @@ feature set is at a flat optimum where new in-situ data, not more derived
 features, is the likely route to better skill.
 
 **Forecast-experiments audit (2026-10, after the leakage fixes).** Each was declared
-on validation and 2015–2018 before a single holdout check (branch
-`claude/forecast-experiments-b1c907`, `docs/FORECAST_EXPERIMENTS.md`). None was adopted.
+on validation and 2015–2018 before a single holdout check
+([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md)). None was adopted.
 
 | Experiment | Result |
 |---|---|

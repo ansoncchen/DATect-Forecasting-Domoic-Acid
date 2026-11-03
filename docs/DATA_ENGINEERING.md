@@ -295,8 +295,9 @@ no harm.
 
 ## 9. Uncertainty and pre-declared decisions
 
-An 80% conformal error band now surrounds the forecast line (`forecasting/conformal.py`,
-`docs/ERROR_BAND.md`, PR #19). Each forecast is calibrated only on errors of forecasts
+An 80% conformal error band for the forecast line is built and scored
+(`forecasting/conformal.py` and `docs/ERROR_BAND.md`, in PR #19); drawing it on the
+dashboard comes next. Each forecast is calibrated only on errors of forecasts
 already measured by its anchor, the same cut-off as the model. A test rewrites every
 later measurement and checks that the band does not change. The protocol and decision
 rule were committed before the holdout was scored.
@@ -329,7 +330,7 @@ every Spark output is checked against.
 | Evaluation (headline, golden, multi-seed) | joblib engine | Final: the reference implementation |
 | Forecast serving | Delta `gold/forecasts` via delta-rs, on-demand fallback | Built. Deployed default: **in progress** |
 | Dashboard precompute (retrospective, spectral, heatmaps) | JSON files in `cache/` with optional Redis | Moving into Delta: **in progress** |
-| Ensemble weight tuning | Two tuners, `scripts/tune/grid_search_weights_clip.py` and `datect_spark/retune.py` | Spark tuner only: **in progress** |
+| Ensemble weight tuning | Two tuners, `scripts/eval/grid_search_weights_clip.py` and `datect_spark/retune.py` | Spark tuner only: **in progress** |
 | Cloud fractions for the forecast features | xarray script and the Delta gold table (identical outputs) | Delta lake as the producer: **in progress** |
 | Autoencoder training data | `cube.zarr` from `oad/scripts/02_build_cube.py` | Stays: the autoencoder trains on the dense cube |
 

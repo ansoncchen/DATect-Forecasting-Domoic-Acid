@@ -79,8 +79,14 @@ def body_sha256(body: dict) -> str:
 
 
 def _git_sha(repo: str) -> str:
-    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
-                          capture_output=True, text=True).stdout.strip()
+    """HEAD, or the REVISION file of a ``git archive`` copy."""
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                         capture_output=True, text=True).stdout.strip()
+    revision = os.path.join(repo, "REVISION")
+    if not sha and os.path.exists(revision):
+        with open(revision) as f:
+            sha = f.read().strip()
+    return sha
 
 
 def main() -> None:

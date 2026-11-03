@@ -29,6 +29,20 @@ os.environ["TZ"] = "UTC"
 time.tzset()
 
 
+def git_sha(repo_root: str) -> str:
+    """HEAD of the checkout, or the REVISION file a ``git archive`` copy carries
+    (Hyak jobs run from an archive on node-local disk)."""
+    import subprocess
+
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_root,
+                         capture_output=True, text=True).stdout.strip()
+    revision = os.path.join(repo_root, "REVISION")
+    if not sha and os.path.exists(revision):
+        with open(revision) as f:
+            sha = f.read().strip()
+    return sha
+
+
 def lake_path(*parts: str) -> str:
     root = os.environ.get("DATECT_LAKE", os.path.abspath("lake"))
     return os.path.join(root, *parts)
@@ -36,14 +50,16 @@ def lake_path(*parts: str) -> str:
 
 def get_mlflow(experiment: str):
     """mlflow, pointed at MLFLOW_TRACKING_URI (default: sqlite next to the lake) and
-    ``experiment``, created with its artifacts beside the lake if it is new."""
+    ``experiment``, created if it is new with its artifacts under DATECT_MLFLOW_ARTIFACTS
+    (default: beside the lake)."""
     import mlflow
 
     root = os.path.dirname(lake_path())
     mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI",
                                            "sqlite:///" + os.path.join(root, "mlflow.db")))
     if mlflow.get_experiment_by_name(experiment) is None:
-        mlflow.create_experiment(experiment, artifact_location=os.path.join(root, "mlartifacts"))
+        artifacts = os.environ.get("DATECT_MLFLOW_ARTIFACTS", os.path.join(root, "mlartifacts"))
+        mlflow.create_experiment(experiment, artifact_location=artifacts)
     mlflow.set_experiment(experiment)
     return mlflow
 

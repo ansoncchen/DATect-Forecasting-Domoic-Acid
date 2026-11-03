@@ -49,7 +49,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from datect_spark.session import get_mlflow, get_spark, lake_path
+from datect_spark.session import get_mlflow, get_spark, git_sha, lake_path
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(REPO_ROOT, "results", "spark_lake")
@@ -271,8 +271,7 @@ def files_overlapping(files: pd.DataFrame, box) -> tuple[int, int]:
 # ── Steps ────────────────────────────────────────────────────────────────────
 
 def _git_sha() -> str:
-    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT,
-                          capture_output=True, text=True).stdout.strip()
+    return git_sha(REPO_ROOT)
 
 
 def _spark(name: str):
@@ -617,15 +616,22 @@ def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(out_file, "w") as f:
         json.dump(result, f, indent=2, default=str)
+    try:
+        _log_step(args.step, sha, result, out_file)
+    except Exception as exc:  # the JSON above is the record; tracking is best effort
+        print(f"{args.step}: MLflow logging failed: {exc}")
+    print(f"{args.step}: done in {result['wall_seconds']:.0f}s -> {out_file}")
+
+
+def _log_step(step: str, sha: str, result: dict, out_file: str) -> None:
     mlflow = get_mlflow("datect-modis-lake")
-    with mlflow.start_run(run_name=args.step):
-        mlflow.log_params({"step": args.step, "git_sha": sha, "raw_root": RAW_ROOT})
+    with mlflow.start_run(run_name=step):
+        mlflow.log_params({"step": step, "git_sha": sha, "raw_root": RAW_ROOT})
         flat = pd.json_normalize(result, sep=".").iloc[0]
         # MLflow keys allow only [A-Za-z0-9_-./ ]; region names have dashes and parentheses
         mlflow.log_metrics({re.sub(r"[^A-Za-z0-9_\-./ ]", "_", k): float(v) for k, v in flat.items()
                             if isinstance(v, (int, float, np.integer, np.floating)) and not isinstance(v, bool)})
         mlflow.log_artifact(out_file)
-    print(f"{args.step}: done in {result['wall_seconds']:.0f}s -> {out_file}")
 
 
 if __name__ == "__main__":

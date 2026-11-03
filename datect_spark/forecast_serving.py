@@ -35,7 +35,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from datect_spark.session import get_mlflow, get_spark, lake_path
+from datect_spark.session import get_mlflow, get_spark, git_sha, lake_path
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(REPO_ROOT, "results", "serving")
@@ -174,8 +174,7 @@ def register_model(mlflow, tags: dict) -> str:
 # ── Steps ────────────────────────────────────────────────────────────────────
 
 def _git_sha() -> str:
-    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT,
-                          capture_output=True, text=True).stdout.strip()
+    return git_sha(REPO_ROOT)
 
 
 def precompute(grid: str, limit: int | None) -> dict:

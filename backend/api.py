@@ -441,10 +441,19 @@ def get_config():
         "category_bins": [0, *config.DA_CATEGORY_BINS[1:-1], None],
         "category_labels": CATEGORY_LABELS,
         "eval_windows": get_eval_windows(),
-        "sites_north_to_south": sorted(config.SITES, key=lambda site: -config.SITES[site][0]),
+        "sites_north_to_south": _sites_north_to_south(),
         "newest_measurement_date": _raw_measurements()["date"].max().date().isoformat(),
-        "latest_forecast_week": pd.to_datetime(load_data_cached()["date"]).max().date().isoformat(),
+        "latest_forecast_week": _latest_forecast_week().date().isoformat(),
     }
+
+
+def _sites_north_to_south() -> list:
+    return sorted(config.SITES, key=lambda site: -config.SITES[site][0])
+
+
+def _latest_forecast_week() -> pd.Timestamp:
+    """The newest weekly row: the dashboard's default date, always precomputed."""
+    return pd.to_datetime(load_data_cached()["date"]).max()
 
 
 def _alert_levels() -> list:
@@ -829,6 +838,26 @@ def generate_enhanced_forecast(request: ForecastRequest):
         return clean_for_json(_forecast_payload(site, pd.to_datetime(request.date), model_type))
     except Exception as e:
         return {"success": False, "forecast_date": str(request.date), "site": request.site, "error": str(e)}
+
+
+@app.get("/api/forecast/all")
+def get_all_sites_forecast(date: date | None = None, model: str = "ensemble"):
+    """One week's forecast for every site, north to south (default: the latest week)."""
+    day = pd.Timestamp(date) if date is not None else _latest_forecast_week()
+    sites = []
+    for site in _sites_north_to_south():
+        payload = _forecast_payload(site, day, model)
+        ok = payload["success"]
+        sites.append({
+            "site": site,
+            "anchor_date": payload.get("anchor_date"),
+            "predicted_da": payload["regression"]["predicted_da"] if ok else None,
+            "band": payload.get("band"),
+            "alert": payload.get("alert"),
+            "last_measurement": payload.get("last_measurement"),
+            "source": payload["source"],
+        })
+    return clean_for_json({"date": day.date().isoformat(), "sites": sites})
 
 
 @app.post("/api/retrospective")

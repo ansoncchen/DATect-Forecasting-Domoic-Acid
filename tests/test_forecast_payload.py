@@ -112,3 +112,22 @@ def test_no_band_before_enough_past_errors(client):
     assert body["success"] is True and body["band"] is None
     assert body["band_p_exceed"] is None and body["category_probabilities"] is None
     assert "level_range" not in body["graphs"] and "category_range" not in body["graphs"]
+
+
+def test_all_sites_returns_every_site_for_one_week(client):
+    engine = client.use(_Engine(predicted=4.0))
+    config_body = client.get("/api/config").json()
+    body = client.get("/api/forecast/all").json()
+    assert body["date"] == config_body["latest_forecast_week"]
+    assert [s["site"] for s in body["sites"]] == config_body["sites_north_to_south"]
+    assert len(engine.calls) == 10 and {c[2] for c in engine.calls} == {"regression"}
+    first = body["sites"][0]
+    assert set(first) == {"site", "anchor_date", "predicted_da", "band", "alert", "last_measurement", "source"}
+    assert first["alert"]["level"] in ("Quiet", "Watch", "Warning", None)
+    picked = client.get("/api/forecast/all", params={"date": "2019-06-03"}).json()
+    assert picked["date"] == "2019-06-03" and picked["sites"][0]["anchor_date"] == "2019-05-27"
+
+
+def test_all_sites_rejects_a_malformed_date(client):
+    client.use(_Engine())
+    assert client.get("/api/forecast/all", params={"date": "next tuesday"}).status_code == 422

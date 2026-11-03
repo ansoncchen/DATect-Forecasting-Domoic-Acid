@@ -1,9 +1,9 @@
 """
 Precompute the dashboard's forecasts on Spark into Delta, registered in MLflow.
 
-A dashboard forecast (POST /api/forecast/enhanced) is two generate_single_forecast
-calls, regression and classification, each training the evaluated models on data up
-to the anchor. ``precompute`` runs those calls for every (site, date) on the grid
+A dashboard forecast (POST /api/forecast/enhanced) is one regression
+generate_single_forecast call, which trains the evaluated models on data up to the
+anchor (categories come from the error band, backend/band.py). ``precompute`` runs those calls for every (site, date) on the grid
 (one Spark task per pair, one thread each) and stores each output as-is
 (lossless JSON, backend/precomputed.encode) in ``gold/forecasts`` with the
 registered model version and the config hash. The API loads that table with
@@ -35,6 +35,7 @@ import time
 import numpy as np
 import pandas as pd
 
+from backend.precomputed import FORECAST_TASKS
 from datect_spark.session import get_mlflow, get_spark, git_sha, lake_path
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -42,7 +43,7 @@ OUT_DIR = os.path.join(REPO_ROOT, "results", "serving")
 TABLE = ("gold", "forecasts")
 REGISTERED_MODEL = "datect-forecaster"
 EXPERIMENT = "datect-serving"
-TASKS = ("regression", "classification")
+TASKS = FORECAST_TASKS  # backend/precomputed.py: what the API reads
 MODELS = ("ensemble",)
 OUT_SCHEMA = (
     "site string, forecast_date date, task string, model_type string, "
@@ -97,11 +98,6 @@ def _summary(result: dict | None) -> dict:
             "training_samples": result.get("training_samples")}
 
 
-def task_model(task: str, model: str) -> str:
-    """The model the API asks the engine for: "linear" classifies with "logistic"."""
-    return "logistic" if model == "linear" and task == "classification" else model
-
-
 def not_reproducible(result: dict | None) -> str | None:
     """Why an output must not be stored, or None. An ensemble interval normally comes
     from quantile XGBoost; if that fails the engine falls back to a bootstrap drawn
@@ -122,7 +118,7 @@ def _forecast_partition(batches):
         for r in pdf.itertuples(index=False):
             for task in TASKS:
                 t0 = time.time()
-                model = task_model(task, r.model_type)
+                model = r.model_type
                 row = {"site": r.site, "forecast_date": pd.Timestamp(r.date).date(), "task": task,
                        "model_type": model, "host": host}
                 try:

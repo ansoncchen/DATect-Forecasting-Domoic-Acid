@@ -353,3 +353,20 @@ def test_status_says_when_the_directory_is_missing(tmp_path, monkeypatch):
     monkeypatch.setenv(pf.STORE_ENV, str(tmp_path / "typo"))
     _reset(monkeypatch)
     assert pf.status()["exists"] is False
+
+
+def test_write_sample_stores_regression_forecasts_only(tmp_path, monkeypatch):
+    deltalake = pytest.importorskip("deltalake")
+    import forecasting
+
+    class _Stub:
+        def __init__(self, **kw):
+            pass
+
+        def generate_single_forecast(self, data_path, forecast_date, site, task, model_type):
+            return _result(site, pd.Timestamp(forecast_date).date().isoformat(), task)
+
+    monkeypatch.setattr(forecasting, "ForecastEngine", _Stub)
+    assert pf.write_sample(str(tmp_path), [("Newport", "2019-06-03"), ("Kalaloch", "2019-06-03")]) == 2
+    tasks = deltalake.DeltaTable(str(tmp_path / "forecasts")).to_pandas()["task"]
+    assert set(tasks) == {"regression"}

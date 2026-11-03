@@ -5,8 +5,8 @@
 **Status:** Draft for review
 **Mockup:** `dashboard-mockup/` (throwaway HTML on real 2023 results). Serve it with
 `python3 -m http.server 4600 -d docs/superpowers/specs/dashboard-mockup` and open
-`http://localhost:4600/?site=Newport`. `build_data.py` there rebuilds its `data.json` from
-`results/`.
+`http://localhost:4600/?site=Newport` (add `&callouts=1` for the numbered callouts).
+`build_data.py` there rebuilds its `data.json` from `results/`.
 
 ## 1. Who it is for, and what they ask
 
@@ -85,26 +85,29 @@ One screen, no configuration step. The numbered callouts match the mockup.
    category the forecast falls in, and a bar with the four categories and the 20 µg/g closure
    line, so the reader sees whether the range reaches 20. Under it, the site's 2022–2023 range
    reliability in counts ("held 23 of 48 measurements at Newport (48%), against 80% across all
-   sites"), in amber when the site is below 70% with at least 10 holdout rows.
+   sites"), marked with an amber rule when the site is below 70% with at least 10 holdout rows.
 3. **Spike risk.** Graded, not a single alarm (see "Spike risk, graded" below): the classifier's
    probability of a jump to ≥ 20 µg/g on a Quiet / Watch / Warning bar; which conditions hold
    (classifier ≥ 10%, forecast ≥ 12); what weeks at this level were followed by in 2022–2023
    ("a jump followed 9 of 73 Watch weeks"); the last five measurements as a trend line; and the
    track record in plain words, overall and at the site.
 4. **Latest measurement.** Value, date, and age relative to the forecast's anchor; the last six
-   real measurements as small bars against the 20 line. Amber "No recent sample" when the newest
-   one is more than 21 days older than the anchor.
-5. **Measurements and forecasts (ground data).** Real measurements as dots; the forecast each one
-   was given a week earlier as a line with its 80% range; measurements outside the range in
-   orange; next week's forecast with its range at the right edge; a strip of red ticks for weeks
-   the alert fired; the 20 µg/g line. Range buttons 6 mo / 1 yr / 2 yr (default) / since 2019.
+   real measurements as small bars against the 20 line. "No recent sample" (amber rule) when the
+   newest one is more than 21 days older than the anchor.
+5. **Measurements and forecasts (ground data).** Real measurements as dots, hollow when outside
+   the range; the forecast each one was given a week earlier as a line with its 80% range; next
+   week's forecast with its range at the right edge; a strip of ticks for Watch and Warning weeks;
+   the 20 µg/g line. Range buttons 6 mo / 1 yr / 2 yr (default) / since 2019.
    Line and range break across gaps of more than three weeks, so they never imply forecasts that
    were not made. Hover gives date, measured, forecast and range, inside/outside, classifier
    probability.
-6. **Metrics for <site>.** Chips to choose which tiles show, ranked (below); the first four are on
-   by default and the choice is remembered in the browser.
-7. **All sites, north to south.** Last measurement and its age, forecast and range, alert,
-   range held in 2022–2023. Clicking a row switches the site.
+6. **Metrics for <site>.** A row of checkboxes chooses which tiles show, in rank order (below);
+   the first four are on by default and the choice is remembered in the browser.
+7. **All sites, north to south.** Last measurement and its age, forecast and range, spike-risk
+   level, range held in 2022–2023, with footnote marks for stale samples and unreliable ranges.
+   Clicking a row switches the site. It stays at the bottom: the page answers one site's
+   question first, but blooms move along the coast, so a rise at a neighbouring beach is early
+   warning in itself.
 
 The same page in two other states:
 
@@ -243,7 +246,27 @@ Proposed names; the API session decides the shapes.
   axis says µg/L. `_compute_summary` puts Clatsop Beach and Cannon Beach in Washington (both are
   in Oregon).
 
-## 7. Goals, non-goals, anti-goals
+## 7. Visual style
+
+The user wants it simple and scientific, with colour used sparingly. Read it like a figure in a
+paper, not a product page.
+
+- **Colour budget, one meaning each:** blue = the model's output (forecast, range); red = the
+  20 µg/g line and the Warning level; amber = the Watch level and caution notes. Everything else
+  is black and grays. Measurements are black; outside the range they are hollow, not recoloured.
+  Category bars are a gray ramp.
+- **No tinted cards, no emoji, no pill badges, no icons in headings.** White panels with a 1px
+  gray border and no drop shadow; a caution is a thin amber rule beside plain text, not a
+  coloured box. A level is a small square plus its word.
+- **Typography:** the system sans already in use; sentence-case labels in gray-500; large
+  values in semibold black; tabular figures where numbers line up (tables, lists, axes).
+- **Charts:** hairline axes and grid, no chart titles inside the plot (the panel heading names
+  it), legend below, a dotted red line only for the 20 µg/g threshold.
+- **Controls:** plain selects, a segmented range control, checkboxes for metrics.
+- Phase 2 applies this to every page, so the current emoji (🎯 📊 ⚠️ ✅ 💡 🟢), coloured stat
+  cards and blue/green/purple panels go too.
+
+## 8. Goals, non-goals, anti-goals
 
 - **Goals:** the five questions answered on one screen without configuration; every number names
   its window and N; no metric computed in the browser that the API reports; the current look
@@ -253,7 +276,7 @@ Proposed names; the API session decides the shapes.
 - **Anti-goals:** a green "safe to harvest" verdict; hiding the weak sites; two unexplained
   P(DA ≥ 20); gap-filled values shown as measurements; more decimals than the error supports.
 
-## 8. Calls made in this draft (check these)
+## 9. Calls made in this draft (check these)
 
 - "Less reliable" = range held below 70% of at least 10 holdout measurements (today: Gold Beach,
   Newport).
@@ -273,20 +296,24 @@ Proposed names; the API session decides the shapes.
   carry "measured on an earlier model version".
 - Watch is today's hybrid alert unchanged; Warning uses a placeholder 40% until the experiments
   set the tiers. Quiet is gray, never green.
-- Chart colours: forecast and range blue-600, measurements gray-800, misses orange-600, Watch
-  amber-600, Warning and the 20 line red-600 (categorical separation checked with the dataviz
-  validator; the gray is deliberately neutral for measured truth).
+- Colours follow the budget in section 7.
 
-## 9. Sequencing
+## 10. Sequencing
 
 Phase 2 starts from `main` after the Spark consolidation PR and the API work are merged: the API
 fields above come first, then the Forecast page, then Track record, then the cleanup. Build
 against the section 6 names with fixtures; a field that is not there yet hides its tile or line
 rather than being computed in the browser. The mockup folder is deleted when the real page lands.
 
-## 10. Open questions for the user
+## 11. Open questions for the user
 
-1. **The all-sites table:** keep it at the bottom of the Forecast page (as mocked), make it the
-   landing view with one site expanded, or drop it?
-2. **Spike-risk wording:** do "Quiet / Watch / Warning", with today's alert shown as an amber
-   Watch rather than a red alert, match what you want harvest managers to read?
+Recommended in this draft, awaiting the user's yes:
+
+1. **The all-sites table stays at the bottom of the Forecast page.** The single-site answer stays
+   above the fold; the table shows neighbouring beaches, which can rise first, and switches
+   site.
+2. **"Quiet / Watch / Warning", with today's alert as an amber Watch.** The words follow the
+   weather-service convention (a watch: conditions favour it; a warning: it is likely). Fewer than
+   1 in 5 of today's alarms are followed by a jump, which does not earn red. Red is kept for a
+   Warning cutoff the experiments choose on validation. Each level always carries its own record
+   ("followed by a jump 9 of 73 times"), so the label cannot claim more than the data.

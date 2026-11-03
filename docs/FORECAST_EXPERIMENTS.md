@@ -682,3 +682,122 @@ python scripts/experiments/holdout_check.py --raw-dir <raw>
 Hyak jobs: round 1 42629724–27, onset round 42630120–21, pooled 42630238–39 and 42632004,
 shortlist holdout 42631685, ablation 42632793–95.
 
+
+
+## 7. Transport-trigger round: do wind reversals and the offshore mooring flag onsets? (declared)
+
+Started 2026-11-03 from `main` at `ce9cb8d1`, on branch `claude/transport-trigger`.
+**This protocol was committed before any feature in this section was computed against
+an outcome.** Only data coverage and sign conventions were checked first. Round 2 (§6:
+no classifier, alert-design or recalibration change beat the classifier at a 10%
+false-alarm budget) is on `claude/onset-experiments` at `0ea6c88f`; its harness
+(`onset_study.py`, `onset_report.py`) is reused here.
+
+**Hypothesis.** About half the missed onsets jump from < 5 to ≥ 20 between two samples.
+On this coast, blooms grow offshore while north winds drive upwelling. They are pushed
+onshore within days when the wind turns south (relaxation or downwelling). That gives a
+lead of a few days, which fits the one-week horizon. The weekly `beuti` cannot see
+reversals that short. The old NDBC wind chain was judged only on pooled R² (−0.003, on
+the pre-cleanup targets), never on onsets.
+
+**Data.** Nothing is downloaded, and none of it enters the repo.
+1. **NDBC 46041 wind** (Cape Elizabeth, WA): the hourly parquet the old chain cached,
+   recovered from git (`git show e4a15a8c^:data/raw/ndbc_46041_wind.parquet`).
+   - Hours with both speed and direction, by year: 302 days in 2015, 248 in 2018, full
+     in 2016–2017 and 2019–2021, 79 in 2022, full in 2023.
+   - Sign: v = −WSPD·cos(WDIR), with WDIR the direction the wind comes from. v < 0 is
+     wind from the north (upwelling-favorable); v > 0 is from the south (downwelling or
+     relaxation). Checked: the monthly mean v is negative from May to September.
+2. **NEMO / ChaBa mooring** (off La Push, WA): PMEL `pCO2105_ALLdata_nemo23a.txt`
+   (2010-07 to 2024-04).
+   - Days with data in 2015–2021: SST 129–261 a year, chlorophyll 75–218, O2 74–184,
+     pH 73–195.
+   - The file says the data are unverified, for partners' qualitative use. So no raw
+     file and no derived per-timestamp value is committed; only aggregate metrics are.
+   - Values outside physical ranges are dropped: SST 5–25 °C, salinity 25–35,
+     chlorophyll 0–50 µg/L, O2 0–20 mg/L, pH 7.5–8.7.
+   - The older `ChaBa_pCO2ALLdata.mat` is not used: the text file is the newer release.
+3. **ESP particulate DA** (`ChaBa ESP database.xlsx`, sheet `cELISA`, 2016-05 to 2018-09;
+   NWFSC summary 2021-08 to 2023-09). A case study only, never a model feature. Shared
+   privately by NOAA, so it is never committed.
+
+**Features.** Each is computed as of a cutoff c, using only days ≤ c (UTC daily
+aggregates).
+- *Forecast row:* c = the anchor.
+- *Training row:* c = the sample date of that week's maximum − 7 days. This matches a
+  forecast row's 7-day lead, which matters for a mechanism with a lead of a few days.
+  It is leak-free because the week ends by the anchor.
+
+*Wind* (daily mean v):
+- `wind_v_1d`, `wind_v_3d`, `wind_v_7d`: mean v over the 1, 3 and 7 days ending at c.
+- `wind_upw_14d`: Σ max(0, −v) over the 14 days ending at c (upwelling preconditioning).
+- `wind_reversal_7d`: 1 if the 3-day running mean of v crossed from < 0 to ≥ 0 within
+  the 7 days ending at c.
+- `wind_days_since_reversal`: days since the last such crossing, capped at 60.
+- `wind_coverage`: fraction of the 14 days ending at c that have wind data.
+
+*Mooring* (daily means after the range filters):
+- `nemo_sst_rise`: SST mean over the 3 days ending at c minus the minimum daily SST over
+  the 14 days ending at c (a drop, then onshore warm water).
+- `nemo_sst_trend_7d`: SST mean of days c−2..c minus the mean of days c−9..c−7.
+- `nemo_o2_min_7d`, `nemo_ph_min_7d`: minimum over the 7 days ending at c (upwelled
+  water).
+- `nemo_chl_3d`, `nemo_chl_max_7d`: offshore chlorophyll.
+- `nemo_coverage`: fraction of the 7 days ending at c that have SST.
+
+*Interactions* (the transport trigger meeting the local state at c):
+- `wind_reversal_7d` × `pn_last_log`;
+- `wind_reversal_7d` × log1p(neighbour max DA in 14 days);
+- `wind_reversal_7d` × log1p(last known DA).
+
+Window statistics need at least half their days present; otherwise they are missing.
+The engine's transformer imputes missing values with the median, which is why the
+coverage columns are there. Features are computed for every site, because wind and
+upwelling are regionally coherent; results are reported for Washington separately.
+
+**Variants.** Each adds one feature group to the engine's classifier:
+- **T1 `wind`;**
+- **T2 `mooring`;**
+- **T3 `wind+mooring`;**
+- **T4 `wind+interactions`.**
+
+**Seeds.** Every variant is run with model seeds 42–46, and its score is the mean
+probability over those five fits. The baseline is scored the same way. The noise floor is
+the baseline with seeds 42–46 against the baseline with seeds 47–51.
+
+**Metric** (as amended in round 2; onset rows as in `forecasting.metrics.onset_scores`):
+- **Primary: onsets caught at ≤ 10% quiet-week alarms.** The threshold is chosen on
+  2015–2021 (all sites) and applied unchanged to the sub-windows 2015–2018 and
+  2019–2021.
+- Also reported:
+  - the alarm rate each window actually gets;
+  - false alarms per catch;
+  - false alarms split by measured DA (< 5, 5–10, 10–20);
+  - onset AUC.
+- CIs: paired bootstrap that resamples calendar months (2,000 resamples).
+
+**Decision rule (all sites, 2015–2021: 1,177 candidates, 108 onsets).** A variant passes
+when all three hold:
+1. Δ onsets caught > max(2, the seed-set noise floor), and the 95% CI excludes 0.
+2. Δ ≥ 0 in both 2015–2018 and 2019–2021, at the 2015–2021 threshold.
+3. Δ onset AUC ≥ 0.
+
+**Washington sites (secondary).** The same rule on WA rows only (671 candidates, 38
+onsets), with a threshold chosen for ≤ 10% of WA quiet weeks. A pass on WA alone is
+reported as a WA signal from a secondary test, not as a pass.
+
+**Holdout (reused, low-power: 27 onsets, 11 in WA).**
+- Holdout predictions come from the same Hyak job, but they are scored only for variants
+  that pass, and only after the selection result is committed.
+- Scored once at the 2015–2021 threshold: catches, realized alarm rate, false alarms per
+  catch, near-miss split, Δ with CI.
+- Wind data cover only 79 days of 2022.
+
+**ESP case study** (descriptive; WA sites; candidates are rows with last known < 20).
+- *Coverage:* a candidate row is ESP-covered when an ESP sample is dated in
+  [anchor − 14 days, anchor].
+- *Exposure:* any covered sample with pDA > its LLOD (detectable), and the maximum pDA.
+- *Design period:* 2016–2018. Report onsets and quiet weeks, covered and with detectable
+  pDA, the onset rate with and without detectable pDA, and Fisher's exact p (descriptive).
+- *Check:* once on 2021-08 to 2023 with the NWFSC file.
+- Only counts are reported.

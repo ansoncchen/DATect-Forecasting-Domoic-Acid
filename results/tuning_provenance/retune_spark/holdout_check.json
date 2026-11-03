@@ -1,0 +1,56 @@
+{
+  "pooled": {
+    "current": {
+      "r2": 0.49656087430033746,
+      "mae": 7.6031437346026856,
+      "n": 409
+    },
+    "proposed": {
+      "r2": 0.5313090376566134,
+      "mae": 7.340381186283789,
+      "n": 409
+    }
+  },
+  "per_site": {
+    "Cannon Beach": {
+      "current": NaN,
+      "proposed": NaN
+    },
+    "Clatsop Beach": {
+      "current": 0.553936065571542,
+      "proposed": 0.5847159357093159
+    },
+    "Coos Bay": {
+      "current": 0.6703319094023364,
+      "proposed": 0.7531254105502052
+    },
+    "Copalis": {
+      "current": 0.5763519256857406,
+      "proposed": 0.6172370393860083
+    },
+    "Gold Beach": {
+      "current": -0.14633325804382213,
+      "proposed": -0.14633325804382213
+    },
+    "Kalaloch": {
+      "current": 0.6502881986886988,
+      "proposed": 0.6332939500714068
+    },
+    "Long Beach": {
+      "current": 0.5023238522322635,
+      "proposed": 0.5162539882259105
+    },
+    "Newport": {
+      "current": 0.2155578119033017,
+      "proposed": 0.2155578119033017
+    },
+    "Quinault": {
+      "current": 0.5683620724831562,
+      "proposed": 0.5833734567858084
+    },
+    "Twin Harbors": {
+      "current": 0.6551479671177179,
+      "proposed": 0.6354372525192211
+    }
+  }
+}

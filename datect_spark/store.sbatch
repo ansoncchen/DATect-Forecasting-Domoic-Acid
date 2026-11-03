@@ -17,15 +17,17 @@
 #   parity         50 forecasts vs a fresh on-demand computation
 #   retrospective  precompute_store retrospective (8 slices; joblib -> Spark)
 #   visuals        precompute_store visuals (spectral + correlation)
-#   after          the API's precomputed-endpoint bodies from the store, compared with
-#                  BEFORE_JSON (a `before` run)
+#   after          the API's precomputed-endpoint bodies from the store ($STORE_DIR, default
+#                  this job's lake), compared with BEFORE_JSON (a `before` run)
 #   before         OLD_SHA's precompute_cache.py (joblib) -> cache/, then its API's bodies
 #   save           copy the store's tables to $DATECT_STORE_OUT/<sha>/ (the deploy input)
 # Runs on node-local disk (hyak_stage.sh); results/store/*.json is kept. The forecasts
 # and the other tables can be built by two jobs on two nodes, each saving its tables.
 #   sbatch -o ~/datect-spark-logs/%x-%j.out -e ~/datect-spark-logs/%x-%j.err \
 #       --export=ALL,STEPS="forecasts parity save" datect_spark/store.sbatch
-#   sbatch ... --export=ALL,STEPS="retrospective visuals after save",BEFORE_JSON=<path> datect_spark/store.sbatch
+#   sbatch ... --export=ALL,STEPS="retrospective save visuals save" datect_spark/store.sbatch
+#   sbatch ... --export=ALL,STEPS=after,STORE_DIR=~/datect-store/<sha>,BEFORE_JSON=<path> datect_spark/store.sbatch
+# SMOKE_SAMPLES=N caps each retrospective slice at N points (smoke runs).
 set -euo pipefail
 
 export MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-sqlite:////gscratch/stf/ac283/datect-mlflow/mlflow.db}
@@ -40,9 +42,10 @@ for step in ${STEPS:-forecasts parity retrospective visuals save}; do
                        mv results/serving/precompute.json results/store/precompute_forecasts.json ;;
         parity)        $PY -u -m datect_spark.forecast_serving parity
                        mv results/serving/parity.json results/store/parity_forecasts.json ;;
-        retrospective) $PY -u -m datect_spark.precompute_store retrospective ;;
+        retrospective) $PY -u -m datect_spark.precompute_store retrospective \
+                           ${SMOKE_SAMPLES:+--max-test-samples $SMOKE_SAMPLES} ;;
         visuals)       $PY -u -m datect_spark.precompute_store visuals ;;
-        after)         DATECT_PRECOMPUTED_DIR=$DATECT_LAKE/gold \
+        after)         DATECT_PRECOMPUTED_DIR=${STORE_DIR:-$DATECT_LAKE/gold} \
                            $PY -u scripts/eval/endpoint_bodies.py --repo . \
                            --out results/store/bodies_after.json \
                            ${BEFORE_JSON:+--compare-to $BEFORE_JSON} ;;

@@ -60,7 +60,7 @@ def _stamp(rows: list[dict], chash: str, sha: str) -> list[dict]:
     return [{**r, "config_hash": chash, "git_sha": sha, "computed_at": now} for r in rows]
 
 
-def retrospective() -> dict:
+def retrospective(max_test_samples: int | None = None) -> dict:
     # Must be set before config is imported: the engine's joblib calls go to Spark
     os.environ["DATECT_PARALLEL_BACKEND"] = "spark"
     from joblibspark import register_spark
@@ -74,7 +74,8 @@ def retrospective() -> dict:
     rows, timings = [], {}
     for task, model in SLICES:
         t0 = time.time()
-        results_df = engine.run_retrospective_evaluation(task=task, model_type=model)
+        results_df = engine.run_retrospective_evaluation(task=task, model_type=model,
+                                                         max_test_samples=max_test_samples)
         seconds = time.time() - t0
         records = retrospective_records(results_df) if results_df is not None and not results_df.empty else None
         timings[f"{task}/{model}"] = {"seconds": seconds, "records": len(records or [])}
@@ -155,10 +156,11 @@ def visuals() -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument("step", choices=["retrospective", "visuals"])
+    parser.add_argument("--max-test-samples", type=int, help="smoke runs: points per slice")
     args = parser.parse_args()
     os.chdir(REPO_ROOT)
     t0 = time.time()
-    out = retrospective() if args.step == "retrospective" else visuals()
+    out = retrospective(args.max_test_samples) if args.step == "retrospective" else visuals()
     out = {"step": args.step, "git_sha": git_sha(REPO_ROOT), "host": socket.gethostname(),
            "cpus": os.environ.get("SLURM_CPUS_PER_TASK", str(os.cpu_count())),
            "wall_seconds": time.time() - t0, **out}

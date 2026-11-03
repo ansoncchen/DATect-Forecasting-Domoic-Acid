@@ -293,8 +293,9 @@ paper, not a product page.
   can be checked against its outcome. The track-record tiles stay on the 2022–2023 holdout and say
   so; they describe the model, not the data the forecast used.
 - **Model versions.** The forecast and the saved evaluation can come from different model versions
-  after a retune. The Data and model tile shows both; when they differ, the track-record tiles
-  carry "measured on an earlier model version".
+  after a retune. The Data and model tile shows the forecast's model version and the
+  evaluation's source; the API has no per-summary version stamp, so there is no automatic
+  mismatch flag.
 - Watch is today's hybrid alert unchanged; Warning uses a placeholder 40% until the experiments
   set the tiers. Quiet is gray, never green.
 - Colours follow the budget in section 7.

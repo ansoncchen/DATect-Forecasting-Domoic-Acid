@@ -21,8 +21,8 @@ date-fns; Vitest (new, dev only).
 
 ## Global Constraints
 
-- Start only after the Spark consolidation PR (`claude/spark-consolidation`) and the API PR for
-  spec section 6 are merged to `main`; bring this branch up to date with the ccd_host
+- Start only after the Spark consolidation PR (merged as #23) and the API PR (`feat/dashboard-api`,
+  plan `docs/superpowers/plans/2026-11-03-dashboard-api-and-error-band.md`) are merged to `main`; bring this branch up to date with the ccd_host
   `sync_with_base_branch` tool. Never merge to `main`, never force-push.
 - Edit `frontend/` only. A missing or differently shaped API field is a message to the API
   session (`local_734451ed-99ad-4a7a-992c-b6e7b13ef45b`), never a backend edit.
@@ -51,8 +51,10 @@ date-fns; Vitest (new, dev only).
 
 ## Review Focus
 
-1. **Values exactly at a threshold** (forecast 12.0, classifier 0.10, measurement 20.0, forecast
-   5.0 or 20.0 for categories) must count as reaching it. Tests in Task 2.
+1. **Values exactly at a threshold** the frontend applies (a forecast of 5.0 or 20.0 for its
+   category, a range top of exactly 20 for "reaches the closure level", 21 vs 22 days for
+   staleness, coverage exactly 0.70) must land on the documented side. The API decides the alert
+   level; the frontend only maps it. Tests in Task 2.
 2. **A forecast with no band** (the first weeks with fewer than 30 past errors, or an older
    precomputed row) must still render its value, say "No range: too little error history",
    and hide the range-dependent tiles. Tests in Tasks 1 and 7; checked in Tasks 4 and 8.
@@ -101,17 +103,26 @@ date-fns; Vitest (new, dev only).
 - Test: `src/services/contract.test.js`, `src/lib/format.test.js` (the `windowLabel` case)
 
 **Interfaces:**
-- Produces (JSDoc typedefs in `contract.js`; every later task uses these names):
-  - `Config = { spikeThreshold, regressionAlert, levels: [{ key, label, classifierMin }], categories: [{ lo, hi, label }], windows: { validation: Window, holdout: Window }, bandLevel, newestMeasurement, sites: string[] /* north to south */, dateRange: { min, max } }`; `Window = { start, end, label }`. `levels` is sorted by `classifierMin` and holds what the API sends: one level (Watch) until the experiments add more.
-  - `Forecast = { site, date, anchorDate, value, band: { lo, hi } | null, categoryChances: number[4] | null, bandPExceed: number | null, alert: { probability, byClassifier, byRegression, fired, level: string | null }, lastMeasurement: { date, value } | null, recentMeasurements: [{ date, value }], parts: { xgb, rf, naive, weights } | null, drivers: [{ feature, importance }], provenance: { source, modelVersion, trainingSamples } }`
-  - `HistoryRow = { date, anchorDate, actual, predicted, lo, hi, probability, fired }`
-  - `SiteMetrics = { n, nSpikes, r2: [v, lo, hi], r2Log, mae: [v, lo, hi], spike: { recall, precision, f2 }, bandCoverage: { holdout, validation }, onsets: { n, caught, quiet, quietAlarmed } }`
-  - `Summary = { version, overall: SiteMetrics & { band: { coverage, onsetCoverage, medianWidth }, alarms: { onsets, caught, alarms, false, falseNearMiss, falseBelow5 }, levels: { holdout: { [key]: { weeks, followed } }, validation: {...} } }, perSite: { [site]: SiteMetrics | null } }`
-  - `TrackRecord = { window: Window, overall: SiteMetrics, perSite: { [site]: SiteMetrics | null }, rows: [{ date, site, actual, ensemble, naive, linear, lo, hi, probability, fired }] }`
-  - `toConfig(rawConfig, rawSites) → Config`, `toForecast(raw) → Forecast`, `toHistory(raw) → HistoryRow[]`, `toSummary(raw) → Summary`, `toTrackRecord(raw) → TrackRecord`
-  - `datect.js`: `getConfig()`, `getForecast(site, date)`, `getSiteHistory(site)`, `getSummary()`, `getAllSites(date)`, `getTrackRecord(windowKey)`; each returns a Promise of the view model and rejects with `Error(message)` carrying the API's `detail`.
+- Consumes (API names from the API session's plan, `docs/superpowers/plans/2026-11-03-dashboard-api-and-error-band.md` on `feat/dashboard-api`):
+  - `GET /api/config`: `spike_threshold`, `regression_alert_threshold`, `classifier_alert_cutoff`, `alert_levels [{ name, rule, cutoff, placeholder }]`, `category_bins [0, 5, 20, 40, null]`, `category_labels`, `eval_windows`, `band_level`, `newest_measurement_date`, `latest_forecast_week`
+  - `POST /api/forecast/enhanced` (regression only): `anchor_date`, `predicted_da`, `band { lo, hi, level, n_calibration, p_exceed, category_probabilities } | null`, `alert { classifier_probability, by_classifier, by_regression, alert, level: 'Quiet' | 'Watch' | 'Warning' | null, level_reason }`, `last_measurement { date, value }`, `recent_measurements` (≤ 6, newest last), plus the existing `regression` breakdown, `feature_importance`, `source`, `model_version`
+  - `GET /api/forecast/all?date=` → `{ date, sites: [{ site, predicted_da, band, alert, last_measurement, source }] }`
+  - `GET /api/sites/{site}/history?since=2019-01-01` → `{ site, rows }` (track-record row columns plus `alert`, `level`)
+  - `GET /api/track-record?window=holdout|validation&site=` → `{ window { name, start, end }, summary, per_site, rows }`; a summary is `{ n, r2, log_r2, mae, band { coverage, coverage_at_onsets, median_width }, onsets { n, caught, quiet, quiet_alarmed }, alarms { n, followed_by_jump }, levels { Quiet|Watch|Warning: { weeks, followed_by_jump } } }`
+  - `GET /api/metrics/summary`: adds `reliability { holdout | validation: { summary, per_site } }` and `source`
+- Produces (JSDoc typedefs in `contract.js`; every later task uses these names, never the API's):
+  - `Config = { spikeThreshold, regressionAlert, classifierCutoff, levels: [{ name, cutoff, placeholder }], categories: [{ lo, hi, label }] /* null bin → Infinity */, windows: { validation: Window, holdout: Window }, bandLevel, newestMeasurement, latestWeek, sites: string[] /* north to south */, dateRange: { min, max } }`; `Window = { name, start, end, label }`
+  - `Alert = { probability, byClassifier, byRegression, fired, level: 'Quiet' | 'Watch' | 'Warning' | null, reason: string | null }`
+  - `Forecast = { site, date, anchorDate, value, band: { lo, hi, nCalibration } | null, categoryChances: number[4] | null, bandPExceed: number | null, alert: Alert, lastMeasurement: { date, value } | null, recentMeasurements: [{ date, value }], parts: { xgb, rf, naive, weights } | null, drivers: [{ feature, importance }], provenance: { source, modelVersion, trainingSamples } }`
+  - `HistoryRow = { date, anchorDate, actual, predicted, lo, hi, probability, fired, level }`
+  - `Stat = { value, ci: [lo, hi] | null }` (the API sends `r2`/`mae` as a number or `[v, lo, hi]`)
+  - `Reliability = { n, r2: Stat, logR2: Stat | null, mae: Stat, band: { coverage, onsetCoverage, medianWidth }, onsets: { n, caught, quiet, quietAlarmed }, alarms: { n, followed, falseNearMiss: number | null, falseBelow5: number | null }, levels: { [levelName]: { weeks, followed } } }`
+  - `Summary = { source, reliability: { holdout: { overall: Reliability, perSite: { [site]: Reliability } }, validation: {...} } }`
+  - `TrackRecord = { window: Window, overall: Reliability, perSite: { [site]: Reliability }, rows: [{ date, site, actual, ensemble, naive, linear, lo, hi, pExceed, probability, fired, level }] }`
+  - `toConfig(rawConfig, rawSites) → Config`, `toForecast(raw) → Forecast`, `toAllSites(raw) → Forecast[]` (fields the endpoint lacks are `null` / `[]`), `toHistory(raw) → HistoryRow[]`, `toSummary(raw) → Summary`, `toTrackRecord(raw) → TrackRecord`
+  - `datect.js`: `getConfig()`, `getForecast(site, date)`, `getAllSites(date)`, `getSiteHistory(site)`, `getSummary()`, `getTrackRecord(windowName, site?)`; each returns a Promise of the view model and rejects with `Error(message)` carrying the API's `detail`.
 
-- [ ] **Step 1: Capture fixtures.** Start `datect-api-maincache` (`.claude/launch.json`) on the merged `main`, then save each endpoint's JSON for Newport, week of the latest weekly row, into `__fixtures__/`. Save `forecast_noband.json` from the earliest week the store holds (no band). Compare every field against spec section 6; for each one missing or renamed, message the API session and write the actual name into `contract.js`. Expected: one fixture per file above, each valid JSON.
+- [ ] **Step 1: Capture fixtures.** Start `datect-api-maincache` (`.claude/launch.json`) on the merged `main`, then save each endpoint's JSON for Newport, week `latest_forecast_week`, into `__fixtures__/`. Save `forecast_noband.json` from the earliest week the store holds (`band: null`). Check each response against the Consumes list; for anything missing or renamed, message the API session (`local_734451ed-99ad-4a7a-992c-b6e7b13ef45b`) and map the actual name in `contract.js`. Expected: one fixture per file above, each valid JSON.
 - [ ] **Step 2: Write the failing tests** in `contract.test.js`:
 
 ```js
@@ -122,30 +133,39 @@ it('maps a forecast with its band and alert parts', () => {
   expect(f.band.hi).toBeGreaterThan(f.value)
   expect(f.categoryChances.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 6)
   expect(typeof f.alert.byClassifier).toBe('boolean')
+  expect(['Quiet', 'Watch', 'Warning', null]).toContain(f.alert.level)
   expect(f.lastMeasurement.date <= f.anchorDate).toBe(true)
   expect(f.recentMeasurements.length).toBeLessThanOrEqual(6)
+  expect(f.recentMeasurements.at(-1)).toEqual(f.lastMeasurement)
 })
 it('leaves band fields null when the API sends no band', () => {
   const f = toForecast(forecastNoBandFixture)
   expect(f.band).toBeNull(); expect(f.categoryChances).toBeNull(); expect(f.bandPExceed).toBeNull()
 })
-it('builds config labels and site order', () => {
+it('builds config thresholds, levels, categories and site order', () => {
   const c = toConfig(configFixture, sitesFixture)
-  expect(c.spikeThreshold).toBe(20); expect(c.regressionAlert).toBe(12)
+  expect(c.spikeThreshold).toBe(20); expect(c.regressionAlert).toBe(12); expect(c.classifierCutoff).toBe(0.1)
+  expect(c.levels.find(l => l.name === 'Warning')).toMatchObject({ cutoff: 0.4, placeholder: true })
   expect(c.windows.holdout.label).toBe('2022–2023'); expect(c.windows.validation.label).toBe('2019–2021')
-  expect(c.categories.map(k => k.lo)).toEqual([0, 5, 20, 40])
+  expect(c.categories.map(k => k.lo)).toEqual([0, 5, 20, 40]); expect(c.categories.at(-1).hi).toBe(Infinity)
   expect(c.sites[0]).toBe('Kalaloch'); expect(c.sites.at(-1)).toBe('Gold Beach')
 })
-it('maps the summary, null for sites with too few rows', () => {
-  const s = toSummary(summaryFixture)
-  expect(s.overall.alarms).toMatchObject({ onsets: 27, caught: 19, alarms: 106 })
-  expect(s.perSite['Cannon Beach']).toBeNull()
-  expect(s.perSite.Newport.onsets).toEqual({ n: 6, caught: 5, quiet: 24, quietAlarmed: 8 })
+it('maps the holdout reliability summary', () => {
+  const r = toSummary(summaryFixture).reliability.holdout
+  expect(r.overall.onsets).toEqual({ n: 27, caught: 19, quiet: 292, quietAlarmed: 87 })
+  expect(r.overall.alarms).toMatchObject({ n: 106, followed: 19 })
+  expect(r.overall.levels.Watch).toEqual({ weeks: 73, followed: 9 })
+  expect(r.perSite.Newport.onsets).toEqual({ n: 6, caught: 5, quiet: 24, quietAlarmed: 8 })
+  expect(r.perSite['Cannon Beach'].n).toBe(2)
+})
+it('normalizes r2 sent as a number or as [v, lo, hi]', () => {
+  expect(toStat(0.516)).toEqual({ value: 0.516, ci: null })
+  expect(toStat([0.516, 0.308, 0.654])).toEqual({ value: 0.516, ci: [0.308, 0.654] })
 })
 ```
 
 - [ ] **Step 3: Run** `npm run test` — Expected: FAIL, `toForecast is not a function`.
-- [ ] **Step 4: Implement** `windowLabel(start, end)` (end exclusive: `'2022-01-01', '2024-01-01'` → `'2022–2023'`), the five adapters and `datect.js` (axios instance from `services/api.js`). Sites are ordered by latitude, north first, from `/api/sites`; if it lacks latitude, ask the API session and keep its order meanwhile.
+- [ ] **Step 4: Implement** `windowLabel(start, end)` (end exclusive: `'2022-01-01', '2024-01-01'` → `'2022–2023'`), `toStat`, the six adapters and `datect.js` (axios instance from `services/api.js`). Site order and the false-alarm breakdown (`falseNearMiss`, `falseBelow5`) were requested from the API session on 2026-11-03: use the field it added, or else keep `/api/sites` order and leave both breakdown fields `null`.
 - [ ] **Step 5: Run** `npm run test` — Expected: PASS. Run `npm run lint` — Expected: no errors.
 - [ ] **Step 6: Commit** `feat(frontend): API contract adapters, fetchers and Vitest`.
 
@@ -159,12 +179,12 @@ it('maps the summary, null for sites with too few rows', () => {
 - Consumes: `Config`, `Forecast`, `SiteMetrics`, `Summary` (Task 1).
 - Produces:
   - `format.js` (beside Task 1's `windowLabel`): `formatValue(v) → string`, `formatPct(p) → string`, `formatDate(iso) → '28 Nov 2023'`, `daysBetween(isoA, isoB) → int`, `formatAge(days) → '5 days' | '3 weeks' | '15 months'`, `ratioWords(k, n) → string`.
-  - `risk.js`: `STALE_DAYS = 21`, `WEAK_COVERAGE = 0.7`, `MIN_ROWS = 10`; `categoryOf(v, categories) → category`, `levelOf(forecast, config) → 'already' | 'quiet' | level key`, `isStale(lastDate, anchorDate) → bool`, `siteReliability(siteMetrics) → 'weak' | 'ok' | 'too-few'`, `dataCurrencyNotice(newestIso, todayIso) → string | null`.
-  - `copy.js`: `reliabilityText(site, siteMetrics, overall, holdoutLabel)`, `levelRecordText(levelLabel, { weeks, followed }, holdoutLabel)`, `trackRecordText(alarms, holdoutLabel)`, `siteRecordText(site, onsets)`, `bandVsAlertText(forecast)`, `versionNote(forecast, summary) → string | null`.
+  - `risk.js`: `STALE_DAYS = 21`, `WEAK_COVERAGE = 0.7`, `MIN_ROWS = 10`; `categoryOf(v, categories) → category`, `reachesThreshold(band, threshold) → bool`, `levelKey(alert) → 'already' | 'quiet' | 'watch' | 'warning' | 'unavailable'` (the API decides the level; this only maps it), `isStale(lastDate, anchorDate) → bool`, `siteReliability(reliability) → 'weak' | 'ok' | 'too-few'`, `dataCurrencyNotice(newestIso, todayIso) → string | null`.
+  - `copy.js`: `reliabilityText(site, reliability, overall, holdoutLabel)`, `levelRecordText(levelName, { weeks, followed }, holdoutLabel)`, `trackRecordText(overall, holdoutLabel)`, `siteRecordText(site, onsets)`, `bandVsAlertText(forecast)`.
   - `scale.js`: `categoryScaleX(v, categories) → 0..100` (each category a quarter; the open last category is drawn to `2 × lo`).
   - `colors.js`: `BLUE`, `RED`, `AMBER`, `INK` (values in Global Constraints).
 
-- [ ] **Step 1: Write the failing tests** (`levels` below is `[{ key: 'watch', label: 'Watch', classifierMin: 0.10 }, { key: 'warning', label: 'Warning', classifierMin: 0.40 }]`):
+- [ ] **Step 1: Write the failing tests** (`cats` is `Config.categories` for bins `[0, 5, 20, 40, null]`; `newport` and `overall` are holdout `Reliability` objects with the values shown in the copy):
 
 ```js
 // format.test.js
@@ -175,17 +195,18 @@ expect(ratioWords(19, 27)).toBe('about 7 in 10'); expect(ratioWords(19, 106)).to
 expect(ratioWords(9, 73)).toBe('about 1 in 8'); expect(ratioWords(0, 213)).toBe('never')
 // risk.test.js
 expect(categoryOf(5, cats).label).toBe('Moderate'); expect(categoryOf(20, cats).label).toBe('High')
-expect(levelOf(f({ probability: 0.10, byClassifier: true, fired: true }), cfg)).toBe('watch')
-expect(levelOf(f({ probability: 0.05, byRegression: true, fired: true, value: 12 }), cfg)).toBe('watch')
-expect(levelOf(f({ probability: 0.40, fired: true }), cfg)).toBe('warning')
-expect(levelOf(f({ probability: 0.40, fired: true, last: 20 }), cfg)).toBe('already')
-expect(levelOf(f({ probability: 0.02, fired: false }), cfg)).toBe('quiet')
-expect(levelOf(f({ probability: 0.2, fired: true, last: null }), cfg)).toBe('watch')        // no measurement before the anchor
-expect(levelOf(f({ probability: 0.5, fired: true, level: 'watch' }), cfg)).toBe('watch')   // API level wins
+expect(reachesThreshold({ lo: 2, hi: 20 }, 20)).toBe(true); expect(reachesThreshold(null, 20)).toBe(false)
+expect(levelKey({ level: 'Watch', reason: null })).toBe('watch')
+expect(levelKey({ level: 'Warning', reason: null })).toBe('warning')
+expect(levelKey({ level: 'Quiet', reason: null })).toBe('quiet')
+expect(levelKey({ level: null, reason: 'already_at_or_above_threshold' })).toBe('already')
+expect(levelKey({ level: 'Watch', reason: 'already_at_or_above_threshold' })).toBe('already')
+expect(levelKey({ level: null, reason: null })).toBe('unavailable')
 expect(isStale('2023-10-30', '2023-11-20')).toBe(false); expect(isStale('2023-10-29', '2023-11-20')).toBe(true)
-expect(siteReliability({ n: 48, bandCoverage: { holdout: 0.479 } })).toBe('weak')
-expect(siteReliability({ n: 40, bandCoverage: { holdout: 0.70 } })).toBe('ok')
-expect(siteReliability(null)).toBe('too-few')
+expect(isStale(null, '2023-11-20')).toBe(true)                                               // no measurement before the anchor
+expect(siteReliability({ n: 48, band: { coverage: 0.479 } })).toBe('weak')
+expect(siteReliability({ n: 40, band: { coverage: 0.70 } })).toBe('ok')
+expect(siteReliability({ n: 2, band: { coverage: 1 } })).toBe('too-few'); expect(siteReliability(undefined)).toBe('too-few')
 expect(dataCurrencyNotice('2023-11-30', '2026-11-03')).toBe('Forecasts use data through 30 Nov 2023; they are not live.')
 expect(dataCurrencyNotice('2026-10-20', '2026-11-03')).toBeNull()
 // copy.test.js (Newport, overall coverage 0.802)
@@ -193,8 +214,10 @@ expect(reliabilityText('Newport', newport, overall, '2022–2023')).toBe(
   'Less reliable here. In 2022–2023 the range held 23 of 48 measurements at Newport (48%), against 80% across all sites. Expect values outside it.')
 expect(levelRecordText('Watch', { weeks: 73, followed: 9 }, '2022–2023')).toBe(
   'Watch weeks in 2022–2023 were followed by a jump 9 of 73 times (about 1 in 8).')
-expect(trackRecordText(alarms, '2022–2023')).toBe(
+expect(trackRecordText(overall, '2022–2023')).toBe(          // overall.alarms.falseNearMiss = 48
   '2022–2023, all sites: caught 19 of 27 jumps (about 7 in 10); 19 of 106 alarms were followed by one (about 1 in 6). 48 of the 87 false alarms were near misses at 10–20 µg/g.')
+expect(trackRecordText(withoutBreakdown, '2022–2023')).toBe(  // falseNearMiss = null
+  '2022–2023, all sites: caught 19 of 27 jumps (about 7 in 10); 19 of 106 alarms were followed by one (about 1 in 6).')
 expect(siteRecordText('Newport', { n: 6, caught: 5, quiet: 24, quietAlarmed: 8 })).toBe(
   'Newport: 5 of 6 jumps caught; 5 of 13 alarms followed by one.')
 expect(bandVsAlertText({ bandPExceed: 0.064, alert: { probability: 0.223 } })).toMatch(/^Not the alert\. The range puts ≥ 20 at 6%; the alert's classifier says 22%\./)
@@ -204,7 +227,7 @@ expect(categoryScaleX(20, cats)).toBe(50); expect(categoryScaleX(200, cats)).toB
 ```
 
 - [ ] **Step 2: Run** `npm run test` — Expected: FAIL on missing modules.
-- [ ] **Step 3: Implement.** `ratioWords`: `'never'` when `k = 0`; `'about N in 10'` (N = round(10k/n)) when `k/n >= 0.3`; else `'about 1 in ' + round(n/k)`. `levelOf`: `'already'` when `lastMeasurement.value >= spikeThreshold`; else `alert.level` if set; else the highest level whose `classifierMin <= probability` if it is above the first; else the first level's key if `fired`; else `'quiet'`. `reliabilityText` covers the three `siteReliability` cases with the mockup's copy (too few: "Only N measurements here in 2022–2023, too few to check the range at this site (all sites: 80%)."; ok: "In 2022–2023 the range held K of N measurements at Site (P%; all sites 80%).").
+- [ ] **Step 3: Implement.** `ratioWords`: `'never'` when `k = 0`; `'about N in 10'` (N = round(10k/n)) when `k/n >= 0.3`; else `'about 1 in ' + round(n/k)`. `levelKey`: `'already'` when `reason === 'already_at_or_above_threshold'`, else the lower-cased `level`, else `'unavailable'` (the card then says "Spike classifier unavailable for this week"). `reliabilityText` covers the three `siteReliability` cases with the mockup's copy (too few: "Only N measurements here in 2022–2023, too few to check the range at this site (all sites: 80%)."; ok: "In 2022–2023 the range held K of N measurements at Site (P%; all sites 80%).").
 - [ ] **Step 4: Run** `npm run test` — Expected: PASS; `npm run lint` — no errors.
 - [ ] **Step 5: Commit** `feat(frontend): decision and copy helpers with tests`.
 
@@ -230,9 +253,9 @@ expect(categoryScaleX(20, cats)).toBe(50); expect(categoryScaleX(200, cats)).toB
 
 **Interfaces:**
 - Consumes: `useConfig`, `getForecast`, `getSummary`, `formatValue`, `formatDate`, `categoryOf`, `categoryScaleX`, `reliabilityText`, `siteReliability`.
-- Produces: `Forecast.jsx` state `{ site, week, forecast, summary, loading, error }` passed to every card; `site` persists in `localStorage['datect.site']` (try/catch; default `config.sites[0]`); `week` defaults to `config.dateRange.max`.
+- Produces: `Forecast.jsx` state `{ site, week, forecast, summary, loading, error }` passed to every card; `site` persists in `localStorage['datect.site']` (try/catch; default `config.sites[0]`); `week` defaults to `config.latestWeek`.
 
-- [ ] **Step 1: Implement `FilterBar`**: native `<select>` of `config.sites` with " (less reliable)" / " (little recent data)" from `siteReliability`; native `<input type="date">` with `min = dateRange.min` (weeks before the first band render "No range", spec section 9), `max = dateRange.max`, snapping any pick to that week's Monday (`startOfWeek(d, { weekStartsOn: 1 })`), labelled "Forecast week"; "Uses data through <anchor>"; right-aligned "Model: ensemble (XGBoost + Random Forest)".
+- [ ] **Step 1: Implement `FilterBar`**: native `<select>` of `config.sites` with " (less reliable)" / " (little recent data)" from `siteReliability`; native `<input type="date">` with `min = dateRange.min` (weeks before the first band render "No range", spec section 9), `max = config.latestWeek`, snapping any pick to that week's Monday (`startOfWeek(d, { weekStartsOn: 1 })`), labelled "Forecast week"; "Uses data through <anchor>"; right-aligned "Model: ensemble (XGBoost + Random Forest)".
 - [ ] **Step 2: Implement `ForecastCard` and `CategoryScaleBar`** to the mockup's card 2: value, "80% range lo–hi µg/g", "In the <Category (lo–hi)> category" plus "; the range reaches the 20 µg/g closure level" when `band.hi >= spikeThreshold`, the scale bar (four gray segments, band in blue at 18% fill, forecast tick blue, 20 line red), then `reliabilityText` (wrapped in `<Caution>` when weak). With `band === null`: "No range: too little error history" and no band on the bar.
 - [ ] **Step 3: Loading and errors.** While a request is in flight, keep the previous cards at `opacity-60`; after 3 s without a response show "Computing forecast; this week is not precomputed". On error show the API detail in a `<Caution>` above the cards.
 - [ ] **Step 4: Verify in the preview** for Newport (latest week), Gold Beach and a no-band week: the card matches the mockup's card 2; the Newport reliability line reads "held 23 of 48 … (48%)"; 375 px has no horizontal scroll (`document.documentElement.scrollWidth === innerWidth`). Screenshot Newport.
@@ -245,9 +268,9 @@ expect(categoryScaleX(20, cats)).toBe(50); expect(categoryScaleX(200, cats)).toB
 - Modify: `src/pages/Forecast.jsx`
 
 **Interfaces:**
-- Consumes: `levelOf`, `levelRecordText`, `trackRecordText`, `siteRecordText`, `formatPct`, `LevelTag`, `Summary.overall.levels.holdout`, `Summary.overall.alarms`, `Summary.perSite[site].onsets`.
+- Consumes: `levelKey`, `levelRecordText`, `trackRecordText`, `siteRecordText`, `formatPct`, `LevelTag`, `Config.levels`, and `Summary.reliability.holdout` (`overall.levels`, `overall.onsets`, `overall.alarms`, `perSite[site].onsets`).
 
-- [ ] **Step 1: Implement** to the mockup's card 3: header "Spike risk" with `<LevelTag>`; the probability (`formatPct`) and "chance of a jump to ≥ 20 µg/g next week"; a gray track with one tick per config level labelled "10% Watch" (labels from config) and a black marker at the probability; two condition rows (● holds / ○ does not) for classifier ≥ cutoff and forecast ≥ regression alert, taken from `alert.byClassifier` / `alert.byRegression`; `levelRecordText` for the current level (omitted for `'already'`, replaced by "The last measurement (v on date) is already at or above 20. This alert is for jumps from below 20; follow the forecast and the measurements."); "Measured lately:" with the last five `recentMeasurements` values; a rule, then `trackRecordText` and `siteRecordText`. When config has a single level, no Warning tick is drawn.
+- [ ] **Step 1: Implement** to the mockup's card 3: header "Spike risk" with `<LevelTag>`; the probability (`formatPct`) and "chance of a jump to ≥ 20 µg/g next week"; a gray track with one tick per `Config.levels` entry above Quiet, labelled "10% Watch" / "40% Warning" from `cutoff` and `name`, and a black marker at the probability; two condition rows (● holds / ○ does not) for classifier ≥ cutoff and forecast ≥ regression alert, taken from `alert.byClassifier` / `alert.byRegression`; `levelRecordText` for the current level (omitted for `'already'`, replaced by "The last measurement (v on date) is already at or above 20. This alert is for jumps from below 20; follow the forecast and the measurements."); "Measured lately:" with the last five `recentMeasurements` values; a rule, then `trackRecordText` and `siteRecordText`, then "The Warning cutoff is a placeholder until the alert experiments set the levels." in gray-400 for each level with `placeholder: true`. `'unavailable'` shows the probability as "—" and "Spike classifier unavailable for this week".
 - [ ] **Step 2: Verify in the preview**: Newport reads Watch with "followed by a jump 9 of 73 times"; Gold Beach shows its level from config; a week whose last measurement is ≥ 20 shows "Already ≥ 20". Screenshot.
 - [ ] **Step 3: Commit** `feat(frontend): graded spike-risk card`.
 
@@ -269,7 +292,7 @@ expect(categoryScaleX(20, cats)).toBe(50); expect(categoryScaleX(200, cats)).toB
 - Modify: `src/pages/Forecast.jsx`
 
 **Interfaces:**
-- Consumes: `getSiteHistory`, `HistoryRow`, `Forecast`, `levelOf`-style rule for history rows (`levelOfRow(row, config)`, exported from `risk.js` in this task), colours.
+- Consumes: `getSiteHistory`, `HistoryRow` (its `level` comes from the API), `Forecast`, colours.
 - Produces: `buildGroundTraces(rows, forecast, config, { range, showAfter }) → { traces, layout }`, used again by Task 10 with `rows` mapped to `HistoryRow`.
 
 - [ ] **Step 1: Write the failing tests:**
@@ -299,7 +322,7 @@ it('adds next week with an asymmetric error bar, none without a band', () => {
 - [ ] **Step 2: Run** `npm run test` — Expected: FAIL.
 - [ ] **Step 3: Implement** to the mockup's chart: trace names and styles as in the mockup (`80% range` fill `rgba(37,99,235,0.12)`, forecast line blue 1.5 px, measurements black, outside hollow, Watch/Warning ticks on a 5% strip `yaxis2`, dotted red 20 line labelled "20 µg/g" at the right), legend below with `traceorder: 'normal'`, ranges `6m | 1y | 2y | all` counted back from the forecast week (`all` = every returned row). A vertical gray line at the anchor appears when `showAfter`.
 - [ ] **Step 4: Run** `npm run test` — Expected: PASS.
-- [ ] **Step 5: Implement `GroundDataChart`**: panel title "Measurements and forecasts, <site>", the mockup's explanatory paragraph with window labels from config, the segmented range control (default `2y`), and a "Show what happened" checkbox shown only when the selected week is before `dateRange.max`.
+- [ ] **Step 5: Implement `GroundDataChart`**: panel title "Measurements and forecasts, <site>", the mockup's explanatory paragraph with window labels from config, the segmented range control (default `2y`), and a "Show what happened" checkbox shown only when the selected week is before `config.latestWeek`.
 - [ ] **Step 6: Verify in the preview** for Newport at 2 yr and since 2019; hover shows date, measured, forecast and range, inside/outside, classifier %. Screenshot.
 - [ ] **Step 7: Commit** `feat(frontend): ground-data chart with the conformal band`.
 
@@ -330,7 +353,7 @@ expect(featureLabel('something_new')).toBe('something_new')
 - [ ] **Step 2: Run** `npm run test` — Expected: FAIL.
 - [ ] **Step 3: Implement** both modules. `featureLabel` is a lookup table for every feature in `final_output.parquet` plus the engine's derived ones (`last_observed_da_raw`, `weeks_since_last_spike`, `da_raw_prev_obs_N`, `month`, OAD lags and windows), with the unknown-name fallback.
 - [ ] **Step 4: Run** `npm run test` — Expected: PASS.
-- [ ] **Step 5: Implement `MetricsPanel` and the ten tiles** to the mockup's section 6: checkbox row in `METRICS` order, tiles in the same order, each tile naming its window and N. Tile sources: spec section 3 "Metrics, ranked" table; copy for `cats` from `bandVsAlertText`; `prov` shows `versionNote` when set, and every track-record tile shows "Measured on an earlier model version" when `versionNote` is set. Range-dependent tiles (`coverage` stays; `cats`, `width`) render "No range for this forecast" when `band === null`.
+- [ ] **Step 5: Implement `MetricsPanel` and the ten tiles** to the mockup's section 6: checkbox row in `METRICS` order, tiles in the same order, each tile naming its window and N. Tile sources: spec section 3 "Metrics, ranked" table; copy for `cats` from `bandVsAlertText`; `prov` shows the forecast's `source` and `modelVersion` and the summary's `source` (the API has no per-summary version stamp, so there is no automatic mismatch flag). Range-dependent tiles (`coverage` stays; `cats`, `width`) render "No range for this forecast" when `band === null`.
 - [ ] **Step 6: Verify in the preview**: toggling a checkbox persists across reload; Cannon Beach tiles show "Too few 2022–2023 measurements (2)". Screenshot.
 - [ ] **Step 7: Commit** `feat(frontend): ranked, selectable metrics panel`.
 
@@ -352,7 +375,7 @@ expect(featureLabel('something_new')).toBe('something_new')
 - Modify: `src/pages/TrackRecord.jsx`
 
 **Interfaces:**
-- Consumes: `getTrackRecord(windowKey)`, `TrackRecord`, `buildGroundTraces` (Task 7) for the single-site view, `siteReliability`, `formatValue`.
+- Consumes: `getTrackRecord(windowName, site?)`, `TrackRecord`, `buildGroundTraces` (Task 7) for the single-site view, `siteReliability`, `formatValue`.
 - Produces: `toCsv(rows, columns) → string` (pure; `exportCsv` wraps it with the download).
 
 - [ ] **Step 1: Write the failing test:**
@@ -373,7 +396,7 @@ expect(toCsv([{ site: 'X', v: null }], ['site', 'v'])).toBe('site,v\nX,')
 - Rename: `src/pages/Historical.jsx` → `src/pages/DataExplorer.jsx`
 - Modify: `src/pages/DataExplorer.jsx`, `src/pages/About.jsx`
 
-- [ ] **Step 1: Restyle `DataExplorer`** per Global Constraints: chart-type buttons become a segmented control of plain text; `react-select` becomes native `<select>`; the waterfall and DA-vs-PN panels carry "Weekly values; gaps between measurements are filled" unless the API reports them as raw (check the response for a `source` or `raw` flag after the API PR). Title "Data explorer".
+- [ ] **Step 1: Restyle `DataExplorer`** per Global Constraints: chart-type buttons become a segmented control of plain text; `react-select` becomes native `<select>`; the waterfall and DA-vs-PN figures already carry the API's subtitle "Weekly maximum; gaps filled by decay", so add no label of your own. Title "Data explorer".
 - [ ] **Step 2: Update `About`**: keep the description and data sources; add "What the dashboard cannot do" with the three limits from spec section 4 (range calibrated over all sites, not per site; the alert misses about 3 in 10 onsets and fewer than 1 in 5 of its 2022–2023 alarms were followed by a jump; data ends <newestMeasurement>), numbers taken from `useConfig` / `getSummary`, not literals.
 - [ ] **Step 3: Verify** `npm run lint && npm run test && npm run build`; both pages render in the preview at desktop and 375 px. Screenshot.
 - [ ] **Step 4: Commit** `feat(frontend): data explorer and about page`.

@@ -59,7 +59,7 @@ All fitted models are seeded with `config.MODEL_SEED` (42).
 
 ## 6. Ensemble weights
 
-`ensemble = w_xgb · XGB + w_rf · RF` with per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` is always 0). They are winners of the constrained grid search in `scripts/eval/grid_search_weights_clip.py`, which chose them jointly with the clip quantiles that were later removed. Current values:
+`ensemble = w_xgb · XGB + w_rf · RF` with per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` is always 0). They are winners of the constrained grid search in the since-removed `scripts/eval/grid_search_weights_clip.py` (promoted in `cdc2a32c`), which chose them jointly with the clip quantiles that were later removed. The weight tuner is now `datect_spark/retune.py` (weights only, yearly folds 2015–2021). Current values:
 
 | Site | w_xgb | w_rf |
 |---|---|---|

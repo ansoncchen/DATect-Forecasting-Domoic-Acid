@@ -140,9 +140,11 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
   (`multi_seed_baseline.py`, seeds 42-46 at 20%). Single-seed R² at N~1,000 is noise-dominated
   (std across seeds ~0.05 pooled, ~0.10 on the holdout rows); never report one seed alone.
 - **Never tune all dimensions at once.** A full Optuna search over 18 dims overfit badly
-  (validation +0.07 R², holdout -0.16). Tune only ensemble weights with constrained
-  chronological CV (`grid_search_weights_clip.py`; forecasts are no longer clipped), and verify on the holdout
-  (`validate_tuned_on_holdout.py`). Per-site fold CV with < 50 test points per fold is
+  (validation +0.07 R², holdout -0.16). Tune only ensemble weights, with the one
+  weight tuner `datect_spark/retune.py` (Spark; yearly folds 2015-2021, all before the holdout;
+  weights only, nothing is clipped), and verify on the holdout (`validate_tuned_on_holdout.py`).
+  The current weights predate it: they came from the removed `scripts/eval/grid_search_weights_clip.py` (75 weight × clip configurations per site, 3-fold chronological CV on 2019–2021, chosen jointly with the clip that #18 removed; winners promoted to the JSON in `cdc2a32c`, per-site outputs in `results/tuning_provenance/grid_search_results/`, script last changed in `9c435f59`). The folds differ, so a re-run can
+  propose different weights; adopting them is a separate decision. Per-site fold CV with < 50 test points per fold is
   unreliable.
 - **Results files:** `results/chronological` (headline), `results/multi_seed`,
   `results/paper_metrics`, `results/ablation`, `results/final_verification`,

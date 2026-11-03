@@ -101,9 +101,9 @@ print('holdout   ', w['holdout_start'], '->', w['holdout_end'])
 "
 ```
 
-The per-site grid search that sets ensemble weights and clipping uses 3-fold
-chronological CV on pre-2022 data only (folds defined in the docstring of
-`scripts/eval/grid_search_weights_clip.py`). OAD features carry an extra 5-day
+Per-site ensemble weights are tuned on pre-2022 data only: `datect_spark/retune.py`
+scores each weight on yearly folds 2015–2021 (nothing is clipped since #18). The
+current weights came from the removed `scripts/eval/grid_search_weights_clip.py` (75 weight × clip configurations per site, 3-fold chronological CV on 2019–2021, chosen jointly with the clip that #18 removed; winners promoted to the JSON in `cdc2a32c`, per-site outputs in `results/tuning_provenance/grid_search_results/`, script last changed in `9c435f59`). OAD features carry an extra 5-day
 lag so the centered MODIS composites never overlap the forecast window
 (`forecasting/oad_features.py`, [`OAD_INTEGRATION_RESULTS.md`](OAD_INTEGRATION_RESULTS.md)).
 
@@ -206,7 +206,7 @@ and changes into it. None of these are imported by the API or `run_datect.py`.
 | `eval_paper_metrics.py` | Paper Tables 1–3: model comparison, per-site metrics, 4-category classification, bootstrap CIs | `results/paper_metrics/` |
 | `spike_detection_eval.py` | Spike and transition detection of each model vs naive persistence | `results/spike_metrics[_seed<N>]/` |
 | `paper_ablation_study.py` | Component ablations (interpolated training, per-site config, lags, derived features, OAD), each in a fresh subprocess | `results/ablation/paper_ablation_results.json` |
-| `grid_search_weights_clip.py` (+ `.sbatch`) | Per-site grid over ensemble weights × clip quantile × clip max, chronological 3-fold CV | `results/tuning_provenance/grid_search_results/` |
+| `datect_spark/retune.py` (+ `.sbatch`) | The weight tuner: per-site grid over ensemble weights on Spark, yearly folds 2015–2021, MLflow runs; proposes, never adopts | `results/tuning_provenance/retune_weights/` |
 | `validate_tuned_on_holdout.py` | Runs a labeled config, then `--compare A B` scores both by window and prints a REAL / OVERFITTING / NEUTRAL verdict | `results/holdout_validation/` |
 | `golden_baseline.sh` / `.sbatch` | Re-run every reported evaluation for a git ref (Hyak) | worktree under `/gscratch/scrubbed/$USER/golden/` |
 | `compare_golden.py` | Diff two golden runs | stdout |

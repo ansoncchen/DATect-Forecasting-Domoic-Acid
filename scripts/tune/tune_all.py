@@ -23,9 +23,10 @@ Usage:
 
 The workflow:
 
-  Stage 1 — leak-free per-site grid search (3-fold chronological CV on pre-2022)
-            → produces results/tuning_provenance/grid_search_results/*_summary.json
-            → defines per-site ensemble_weights, prediction_clip_q, clip_max
+  Stage 1 — per-site ensemble-weight re-tune on Spark (datect_spark/retune.py:
+            yearly folds 2015-2021, all before the holdout; no clip since #18)
+            → produces results/tuning_provenance/retune_weights/proposed_overrides.json
+            → defines per-site ensemble_weights
   Stage 2 — per-site xgb_params perturbation verification (5 perturbations)
             → produces results/tuning_provenance/xgb_verify_results/p{0..4}_*/
             → confirms hand-tuned xgb_params are stable (paper claim)
@@ -49,6 +50,7 @@ import argparse
 import glob
 import json
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -61,7 +63,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 # Stage definitions: (label, sbatch_path, output_dir_to_check)
 STAGES = [
-    ("grid_search",     "scripts/eval/grid_search_weights_clip.sbatch",   "results/tuning_provenance/grid_search_results"),
+    ("weights",         "datect_spark/retune.sbatch",                     "results/tuning_provenance/retune_weights"),
     ("xgb_verify",      "scripts/eval/run_per_site_xgb_verify.sbatch",   "results/tuning_provenance/xgb_verify_results"),
     ("xgb_sweep",       "scripts/eval/run_global_xgb_sweep.sbatch",      "results/tuning_provenance/xgb_sweep_results"),
     ("spike_clf_sweep", "scripts/eval/run_spike_classifier_sweep.sbatch", "results/tuning_provenance/spike_clf_sweep_results"),
@@ -107,23 +109,27 @@ def wait_for_jobs(job_ids: list[str], poll_interval: int = 60) -> None:
         time.sleep(poll_interval)
 
 
+def collect_node_local_results(job_id: str, subdir: str) -> None:
+    """The Spark jobs run on node-local disk and copy results/<subdir> to
+    ~/datect-spark-results/<job id>/ (datect_spark/hyak_stage.sh); bring it home."""
+    src = Path.home() / "datect-spark-results" / job_id / Path(subdir).name
+    if src.is_dir():
+        shutil.copytree(src, _REPO_ROOT / subdir, dirs_exist_ok=True)
+        print(f"  ✓ copied {src} → {subdir}")
+    else:
+        print(f"  WARN: {src} not found; copy the job's results into {subdir} by hand", file=sys.stderr)
+
+
 def assemble_grid_winners() -> Dict[str, Dict[str, Any]]:
-    """Parse results/tuning_provenance/grid_search_results/*_summary.json → per-site overrides."""
-    out: Dict[str, Dict[str, Any]] = {}
-    pattern = str(_REPO_ROOT / "results" / "tuning_provenance" / "grid_search_results" / "*_summary.json")
-    for path in sorted(glob.glob(pattern)):
-        with open(path) as f:
-            s = json.load(f)
-        site = s["site"]
-        # winner_config is "w_xgb=1.0|clip_q=0.97|clip_max=None"
-        parts = dict(kv.split("=") for kv in s["winner_config"].split("|"))
-        w_xgb = float(parts["w_xgb"])
-        out[site] = {
-            "ensemble_weights": [w_xgb, 1.0 - w_xgb, 0.0],
-            "prediction_clip_q": float(parts["clip_q"]),
-            "prediction_clip_max": None if parts["clip_max"] == "None" else float(parts["clip_max"]),
-        }
-    return out
+    """Read the weight tuner's proposal → per-site ensemble_weights overrides."""
+    path = _REPO_ROOT / "results" / "tuning_provenance" / "retune_weights" / "proposed_overrides.json"
+    if not path.exists():
+        print(f"  WARN: {path} not found; no weights to assemble", file=sys.stderr)
+        return {}
+    with open(path) as f:
+        proposed = json.load(f)
+    return {site: {"ensemble_weights": [float(w) for w in cfg["ensemble_weights"]]}
+            for site, cfg in proposed.items()}
 
 
 def assemble_xgb_verify_status() -> str:
@@ -183,11 +189,9 @@ def assemble_json(grid_winners: Dict[str, Dict[str, Any]], dry_run: bool = False
 
     # Update provenance with current sweep results
     data["provenance"]["ensemble_weights"] = (
-        "scripts/eval/grid_search_weights_clip.py (75 configs/site × pre-2022 3-fold CV) — "
+        "datect_spark/retune.py (5 weights/site, yearly folds 2015-2021, mean - 0.5*std R²) — "
         f"refreshed {today} via scripts/tune/tune_all.py"
     )
-    data["provenance"]["prediction_clip_q"] = data["provenance"]["ensemble_weights"]
-    data["provenance"]["prediction_clip_max"] = data["provenance"]["ensemble_weights"]
     data["provenance"]["xgb_params_per_site"] = (
         f"HAND-TUNED on dev set; {assemble_xgb_verify_status()} (refreshed {today})"
     )
@@ -237,6 +241,9 @@ def main() -> int:
             return 0
         if not args.dry_run:
             wait_for_jobs(job_ids)
+            weights_job = dict(zip([s[0] for s in STAGES], job_ids)).get("weights")
+            if weights_job:
+                collect_node_local_results(weights_job, STAGES[0][2])
 
     print("\n=== Stage 5 — assemble JSON from sweep winners ===")
     grid_winners = assemble_grid_winners()

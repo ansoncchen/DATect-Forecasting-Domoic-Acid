@@ -168,8 +168,9 @@ one-off and are not in the repo.
   clip quantile, clip maximum) with 3-fold chronological CV on pre-2022 data
   held up on the holdout. Its winners were promoted to
   `config/tuned_hyperparameters.json` (commit `cdc2a32c`) and are the current
-  per-site configuration (`scripts/eval/grid_search_weights_clip.py`;
-  per-site outputs in `results/tuning_provenance/grid_search_results/`).
+  per-site configuration (`scripts/eval/grid_search_weights_clip.py`, since
+  removed in favor of `datect_spark/retune.py`; per-site outputs in
+  `results/tuning_provenance/grid_search_results/`).
 - The earlier hand-tuned values had been chosen on a seed-42 sample spanning all
   years, so they had indirectly seen part of the validation window. The leak-free
   grid removes that dependence.

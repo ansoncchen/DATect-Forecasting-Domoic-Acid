@@ -194,7 +194,7 @@ All tunable values live in `config/tuned_hyperparameters.json`. Re-tuning runs o
 sbatch scripts/tune/tune_all.sbatch
 ```
 
-`tune_all.py` submits four sweeps (per-site grid search over ensemble weights and clipping with leak-free 3-fold chronological CV on pre-2022 data; per-site XGBoost perturbation check; global XGBoost sweep; spike-classifier sweep), waits for them, and writes a new JSON with provenance. `python scripts/tune/tune_all.py --assemble-only` rebuilds the JSON from existing sweep outputs. Individual stages and evaluations are listed in [docs/QUICKSTART_FOR_REVIEWERS.md](docs/QUICKSTART_FOR_REVIEWERS.md).
+`tune_all.py` submits four sweeps (per-site ensemble weights on Spark, `datect_spark/retune.py`, with leak-free yearly folds 2015–2021; per-site XGBoost perturbation check; global XGBoost sweep; spike-classifier sweep), waits for them, and writes a new JSON with provenance. `python scripts/tune/tune_all.py --assemble-only` rebuilds the JSON from existing sweep outputs. Individual stages and evaluations are listed in [docs/QUICKSTART_FOR_REVIEWERS.md](docs/QUICKSTART_FOR_REVIEWERS.md).
 
 To re-run every evaluation behind a reported number for a commit, use the golden baseline (`scripts/eval/golden_baseline.sh`, then `scripts/eval/compare_golden.py` to diff two runs).
 

@@ -25,7 +25,7 @@ module load coenv/jdk/17.0.8
 PY=${DATECT_SPARK_PY:-/gscratch/scrubbed/ac283/envs/datect_spark/bin/python}
 ROOT=${DATECT_LAKE_ROOT:-/gscratch/scrubbed/ac283/datect-lake}
 export DATECT_LAKE=$ROOT/lake
-export DATECT_IVY_DIR=$ROOT/ivy
+export DATECT_IVY_DIR=${DATECT_IVY_DIR:-$ROOT/ivy}
 export SPARK_LOCAL_DIRS=$ROOT/tmp
 export MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-sqlite:////gscratch/stf/ac283/datect-mlflow/mlflow.db}
 export SPARK_MASTER="local[${SLURM_CPUS_PER_TASK:-8}]"

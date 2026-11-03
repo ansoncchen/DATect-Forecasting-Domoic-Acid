@@ -152,6 +152,14 @@ def grid_sha(lat: np.ndarray, lon: np.ndarray) -> str:
                           + np.ascontiguousarray(lon, dtype=np.float64).tobytes()).hexdigest()
 
 
+def grid_axes(grid: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """(lat, lon) coordinates from the bronze grid table, in index order (Spark
+    returns rows in no particular order)."""
+    grid = grid.sort_values(["axis", "idx"])
+    return (grid.loc[grid["axis"] == "lat", "coord"].to_numpy(),
+            grid.loc[grid["axis"] == "lon", "coord"].to_numpy())
+
+
 def region_boxes(lat: np.ndarray, lon: np.ndarray) -> pd.DataFrame:
     """Index ranges of each region's box on the grid, with the reference's pixel count
     (lat_in.sum() * lon_in.sum(), same comparisons as compute_region_valid_fractions)."""
@@ -387,9 +395,7 @@ def _region_counts(spark):
     so Delta can skip files by their lat_idx/lon_idx statistics."""
     from pyspark.sql import functions as F
 
-    grid = spark.read.format("delta").load(table("grid")).toPandas()
-    boxes = region_boxes(grid.loc[grid["axis"] == "lat", "coord"].to_numpy(),
-                         grid.loc[grid["axis"] == "lon", "coord"].to_numpy())
+    boxes = region_boxes(*grid_axes(spark.read.format("delta").load(table("grid")).toPandas()))
     cube = (spark.read.format("delta").load(table("cube"))
             .where(F.col("valid"))
             .where(F.col("lat_idx").between(int(boxes["lat_lo"].min()), int(boxes["lat_hi"].max())))
@@ -427,9 +433,7 @@ def optimize() -> dict:
                             "seconds": time.time() - t0}
 
     # Silver: Z-order on the grid indices, measured by the region aggregation
-    grid = spark.read.format("delta").load(table("grid")).toPandas()
-    boxes = region_boxes(grid.loc[grid["axis"] == "lat", "coord"].to_numpy(),
-                         grid.loc[grid["axis"] == "lon", "coord"].to_numpy())
+    boxes = region_boxes(*grid_axes(spark.read.format("delta").load(table("grid")).toPandas()))
 
     def skipping():
         files = live_files(table("cube"))

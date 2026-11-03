@@ -115,3 +115,15 @@ def test_live_files_replays_the_delta_log(lake, tmp_path):
     assert (files["min_lat_idx"].iloc[0], files["max_lat_idx"].iloc[0]) == (5, 7)
     box = pd.DataFrame([{"lat_lo": 8, "lat_hi": 20, "lon_lo": 0, "lon_hi": 5}]).iloc[0]
     assert lake.files_overlapping(files, box) == (0, 0)
+
+
+def test_grid_axes_restore_index_order(lake):
+    # Spark returns the grid table's rows in no particular order
+    lat = np.round(np.arange(321) * 0.025 + 41.0, 3)
+    lon = np.round(np.arange(409) * 0.025 - 131.0, 3)
+    grid = pd.concat([pd.DataFrame({"axis": "lat", "idx": np.arange(len(lat)), "coord": lat}),
+                      pd.DataFrame({"axis": "lon", "idx": np.arange(len(lon)), "coord": lon})])
+    shuffled = grid.sample(frac=1.0, random_state=0)
+    got_lat, got_lon = lake.grid_axes(shuffled)
+    np.testing.assert_array_equal(got_lat, lat)
+    np.testing.assert_array_equal(got_lon, lon)

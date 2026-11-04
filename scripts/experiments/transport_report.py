@@ -9,6 +9,7 @@ re-choose both thresholds in every resample.
 
     python scripts/experiments/transport_report.py --raw-dir <onset_study out-dir>
     python scripts/experiments/transport_report.py --raw-dir <dir> --holdout wind   # passing variants only
+    python scripts/experiments/transport_report.py --coverage-only                  # needs DATECT_TT_WIND/NEMO
 """
 from __future__ import annotations
 
@@ -102,6 +103,23 @@ def deployment(df: pd.DataFrame, t: float, window: tuple, rows_mask=None) -> dic
     return transfer(w, w["score"].to_numpy(float), t)
 
 
+def holdout_delta(df0: pd.DataFrame, df1: pd.DataFrame, t0: float, t1: float, rows_mask=None) -> dict:
+    """Variant minus baseline onsets caught on the holdout, each at its 2015-2021 threshold.
+    The CI resamples holdout months with both thresholds held fixed."""
+    m = (df0["date"] >= HOLDOUT[0]) & (df0["date"] < HOLDOUT[1])
+    if rows_mask is not None:
+        m &= rows_mask
+    w0, w1 = df0[m].reset_index(drop=True), df1[m].reset_index(drop=True)
+    cand, onset = candidates(w0)
+    c = np.flatnonzero(cand)
+    oc = onset[c]
+    s0, s1 = w0["score"].to_numpy()[c], w1["score"].to_numpy()[c]
+    d = [caught_at(oc[i], s1[i], t1) - caught_at(oc[i], s0[i], t0)
+         for i in block_resamples(w0["date"].iloc[c].reset_index(drop=True))]
+    lo, hi = np.percentile(d, [2.5, 97.5])
+    return {"d_caught": caught_at(oc, s1, t1) - caught_at(oc, s0, t0), "d_caught_lo": lo, "d_caught_hi": hi}
+
+
 def coverage(start: str = "2015", end: str = "2022") -> pd.DataFrame:
     """How many onset candidates (and onsets) have each §7 signal at the forecast cutoff
     (the anchor): wind (>= half of 14 days), mooring SST (>= half of 7 days), a computable
@@ -139,10 +157,10 @@ def main() -> int:
     ap.add_argument("--coverage-only", action="store_true")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
-    cov = coverage()
-    cov.to_csv(OUT / "transport_coverage.csv", index=False)
-    print(cov.to_string(index=False))
     if args.coverage_only:
+        cov = coverage()
+        cov.to_csv(OUT / "transport_coverage.csv", index=False)
+        print(cov.to_string(index=False))
         return 0
     raw = Path(args.raw_dir)
     base = mean_score(raw, "baseline", SEEDS)
@@ -182,7 +200,8 @@ def main() -> int:
             for name in ["baseline"] + args.holdout.split(","):
                 df = base if name == "baseline" else models[name]
                 t = t0 if name == "baseline" else tab[(tab.scope == scope) & (tab.variant == name)]["threshold"].iloc[0]
-                hold.append({"scope": scope, "variant": name, "threshold": t, **deployment(df, t, HOLDOUT, mask)})
+                delta = holdout_delta(base, df, t0, t, mask) if name != "baseline" else {}
+                hold.append({"scope": scope, "variant": name, "threshold": t, **deployment(df, t, HOLDOUT, mask), **delta})
         hold = pd.DataFrame(hold)
         hold.to_csv(OUT / "transport_holdout.csv", index=False, float_format="%.4f")
         print(hold.round(3).to_string(index=False))

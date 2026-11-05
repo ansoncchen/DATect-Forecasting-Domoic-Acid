@@ -69,7 +69,7 @@ was below 20, followed by a jump to ≥ 20:
 | Below 0.10 | 10 of 224 | 8 of 432 |
 | 0.10–0.35 | 7 of 57 | 12 of 51 |
 | 0.35–0.60 | 3 of 20 | 7 of 20 |
-| 0.60 or more | 7 of 18 | 7 of 17 |
+| 0.60+ | 7 of 18 | 7 of 17 |
 
 Bins are left-closed. The rows sum to the onsets and quiet weeks above (27 of 319,
 34 of 520). Source: `results/conformal_band/band_predictions.parquet`

@@ -58,11 +58,11 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
         </div>
       </div>
       {!already && (
-        <div className="mt-1 flex items-baseline gap-2 tabular-nums">
-          <span className="text-4xl font-semibold">{formatScore(score)}</span>
-          <span className="text-xs text-gray-600 leading-snug">
+        <div className="mt-1 tabular-nums">
+          <div className="text-4xl font-semibold">{formatScore(score)}</div>
+          <p className="mt-1 text-sm text-gray-600 leading-snug">
             {score != null ? scoreCaption(config.spikeThreshold, Boolean(record)) : 'Spike classifier unavailable for this week'}
-          </span>
+          </p>
         </div>
       )}
       {score != null && (

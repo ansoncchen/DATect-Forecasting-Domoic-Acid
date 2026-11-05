@@ -256,7 +256,7 @@ export function LineTile({ site, summary, config }) {
         <>
           <Big>{dash(spike.recall, formatPct)}</Big>
           <div className="text-sm text-gray-600">
-            of {headline.nSpikes} readings ≥ {config.spikeThreshold} had a forecast ≥ {config.regressionAlert}
+            of {headline.nSpikes} reading{headline.nSpikes === 1 ? '' : 's'} ≥ {config.spikeThreshold} had a forecast ≥ {config.regressionAlert}
           </div>
         </>
       ) : (

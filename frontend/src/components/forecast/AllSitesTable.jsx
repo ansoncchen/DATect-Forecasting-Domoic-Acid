@@ -31,11 +31,11 @@ function ForecastCells({ forecast, config }) {
   const score = level === 'already' ? null : alert?.probability
   return (
     <>
-      <td className="pr-3">
+      <td className="pr-3 whitespace-nowrap">
         {forecast.value == null ? '—' : formatValue(forecast.value)}{' '}
         {band && <span className={muted}>[{formatValue(band.lo)}–{formatValue(band.hi)}]</span>}
       </td>
-      <td className="pr-3">
+      <td className="pr-3 whitespace-nowrap">
         <LevelTag level={level} config={config} />{' '}
         {score != null && <span className={muted}>{formatScore(score)}</span>}
       </td>

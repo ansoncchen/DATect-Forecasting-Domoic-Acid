@@ -56,7 +56,7 @@ function SiteHistoryChart({ site, rows, window, config }) {
       <h2 className="text-base font-semibold">Measurements and forecasts, {site}</h2>
       <p className="text-sm text-gray-600 max-w-3xl mt-0.5">
         Dots are lab measurements; hollow dots fell outside the {Math.round(config.bandLevel * 100)}% range. The line is
-        the forecast made a week before each measurement, shaded by its range.
+        the forecast made a week before each measurement, shaded by its range; a forecast with no neighbours is a short bar.
       </p>
       {error && <Caution>{error}</Caution>}
       {built && rows.length > 0 && (

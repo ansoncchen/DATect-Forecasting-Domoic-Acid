@@ -27,6 +27,9 @@ function endpointFor(type, scope, site) {
   return `/api/visualizations/${type}/all`
 }
 
+// Server-rendered layouts carry a fixed width; drop it so the figure fills its panel and redraws on resize.
+const fitted = (layout) => ({ ...layout, autosize: true, width: undefined })
+
 const selectClass = 'px-2 py-1.5 border border-gray-300 rounded text-sm min-w-[14rem] max-w-full bg-white'
 
 export default function DataExplorer() {
@@ -71,6 +74,7 @@ function DataExplorerPage({ sites }) {
   const plotProps = (suffix) => ({
     config: {
       ...plotConfig,
+      responsive: true,
       toImageButtonOptions: {
         ...plotConfig.toImageButtonOptions,
         filename: getPlotFilename(suffix ? `${type}_plot${suffix}` : filenameBase),
@@ -85,18 +89,14 @@ function DataExplorerPage({ sites }) {
     if (!figure) return <p className="text-sm text-gray-500">Loading</p>
     if (figure.plot) {
       return (
-        <div className="overflow-x-auto">
-          <Plot data={figure.plot.data} layout={figure.plot.layout} {...plotProps()} />
-        </div>
+        <Plot data={figure.plot.data} layout={fitted(figure.plot.layout)} {...plotProps()} />
       )
     }
     if (Array.isArray(figure.plots)) {
       return (
         <div className="space-y-4">
           {figure.plots.map((p, i) => (
-            <div key={i} className="overflow-x-auto">
-              <Plot data={p.data} layout={p.layout} {...plotProps(i + 1)} />
-            </div>
+            <Plot key={i} data={p.data} layout={fitted(p.layout)} {...plotProps(i + 1)} />
           ))}
         </div>
       )

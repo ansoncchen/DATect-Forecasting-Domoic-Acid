@@ -7,6 +7,7 @@ import SpikeRiskCard from '../components/forecast/SpikeRiskCard'
 import LatestMeasurementCard from '../components/forecast/LatestMeasurementCard'
 import GroundDataChart from '../components/forecast/GroundDataChart'
 import MetricsPanel from '../components/forecast/MetricsPanel'
+import AllSitesTable from '../components/forecast/AllSitesTable'
 import Caution from '../components/ui/Caution'
 
 const SLOW_MS = 3000
@@ -44,6 +45,7 @@ function ForecastPage({ config }) {
   const [loading, setLoading] = useState(true)
   const [slow, setSlow] = useState(false)
   const [error, setError] = useState(null)
+  const [settled, setSettled] = useState(false)
   const latest = useRef(0)
   const [storage] = useState(safeStorage)
 
@@ -64,11 +66,11 @@ function ForecastPage({ config }) {
     setError(null)
     const timer = setTimeout(() => latest.current === id && setSlow(true), SLOW_MS)
     getForecast(site, week)
-      .then((f) => latest.current === id && (setForecast(f), setLoading(false)))
+      .then((f) => latest.current === id && (setForecast(f), setLoading(false), setSettled(true)))
       .catch(
         (e) =>
           latest.current === id &&
-          (setForecast(null), setError(e?.message || String(e)), setLoading(false)),
+          (setForecast(null), setError(e?.message || String(e)), setLoading(false), setSettled(true)),
       )
       .finally(() => clearTimeout(timer))
     return () => clearTimeout(timer)
@@ -105,6 +107,7 @@ function ForecastPage({ config }) {
       )}
       <GroundDataChart site={site} week={week} forecast={forecast} config={config} loading={loading} />
       <MetricsPanel site={site} forecast={forecast} summary={summary} config={config} storage={storage} loading={loading} />
+      <AllSitesTable week={week} site={site} ready={settled} config={config} summary={summary} onSelectSite={chooseSite} />
     </div>
   )
 }

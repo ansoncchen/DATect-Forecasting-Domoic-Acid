@@ -356,8 +356,9 @@ capped at 81 µg/g while its real 95th percentile was 145. Removing the clip rai
 R² by 0.102 [−0.031, +0.207] (validation) and 0.053 [−0.012, +0.115] (holdout), MAE
 7.19 → 6.55 and 7.60 → 7.39, with log-scale R² and every spike metric unchanged.
 Most of the holdout gain is Coos Bay (0.670 → 0.789); the other sites together
-moved 0.292 → 0.304. The Spark re-tune independently chose "no clip" at 7 of 10
-sites. The ensemble weights, chosen jointly with the clip, are unchanged.
+moved 0.292 → 0.304. The Spark re-tune chose no quantile clip at 7 of 10 sites,
+though 5 of those kept a hard ceiling, so only 2 chose no clip at all. The ensemble
+weights, chosen jointly with the clip, are unchanged.
 
 **`c099f20b`: forecast rows saw older information than training rows.** A training
 row for week T sees measurements up to the end of week T−1; the forecast row was the

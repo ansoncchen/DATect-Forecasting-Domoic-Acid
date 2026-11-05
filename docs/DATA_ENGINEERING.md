@@ -23,12 +23,12 @@ maps each piece to its Databricks equivalent.
 | System | Result | Verified by |
 |---|---|---|
 | MODIS → Delta Lake (bronze / silver / gold) | 13.90 GB, 2,563 NetCDF files → 1.96 billion pixel rows → 374 million cube rows → 23,460 region rows | Gold equals the existing pipeline's output exactly (23,460 / 23,460 rows); five sampled dates are bitwise identical to the existing `cube.zarr` |
-| OPTIMIZE + Z-ORDER | A region query reads 22–67% fewer bytes; bronze file count 2,584 → 130 | File statistics in the Delta transaction log |
-| Distributed training + MLflow | 1,990 XGBoost + Random Forest pairs, 8.7× task time over wall time on 16 cores, 2,990 MLflow runs | Predictions equal the committed evaluation exactly (max abs diff 0.0, 1,044 rows) |
-| Batch inference | 21,900 forecasts in 2.19 h wall (26.0 h of task time, 11.9×), 16.9 MB Delta table | 50 / 50 random entries equal a fresh on-demand run in every value and type |
-| Serving from Delta | API latency p50 3.28 s → 0.12 s, p95 10.6 s → 0.13 s | All 20 timed responses byte-identical to the on-demand API (sha256) |
+| OPTIMIZE + Z-ORDER | File statistics let a region filter skip 22–67% of silver's bytes; the one timed query got no faster; bronze file count 2,584 → 130 | Counted from the Delta transaction log, not from measured reads |
+| Parallel training on one node + MLflow | 1,990 XGBoost + Random Forest pairs, 7,362 s of task time in 815 s wall on 16 cores, 2,040 MLflow runs | The 1,044 predictions that have a reference equal the committed evaluation exactly (max abs diff 0.0) |
+| Batch inference | 21,900 entries (21,680 forecasts, 220 too early to forecast) in 2.19 h wall (26.0 h of task time, 11.9× the wall time), 16.9 MB Delta table | 50 / 50 random entries equal a fresh on-demand run in every value and type |
+| Serving from Delta | API latency on precomputed dates p50 3.28 s → 0.12 s, p95 10.6 s → 0.13 s (20 sequential requests on a Hyak node) | All 20 timed responses equal the on-demand API's (sha256 of the body without `source` and `model_version`) |
 | Reproducibility | Every behavior-neutral refactor reproduced the golden baseline byte for byte | `scripts/eval/compare_golden.py` on Hyak |
-| Leakage audit | Three train/test leaks found and fixed; headline holdout R² now 0.516 [0.308, 0.654] | `tests/test_leakage_audit.py`, deterministic chronological evaluation |
+| Leakage audit | Two train/test leaks and one train/test feature mismatch found and fixed; headline holdout R² now 0.516 [0.308, 0.654] | `tests/test_leakage_audit.py`, deterministic chronological evaluation |
 | Data quality | 339 non-detects, 1,604 PN counts with thousands separators, ~1,200 duplicate site-days handled | The published holdout R² of 0.485 is shown to come from file order (0.419 once fixed) |
 | Dashboard | JavaScript 5.07 MB → 2.40 MB; first page load 1,586 KB → 56 KB gzipped | `vite build` |
 
@@ -52,7 +52,7 @@ flowchart TB
   features --> engine["Forecast engine<br/>leak-free, retrains per anchor"]
   engine -- joblib --> evals["Evaluation<br/>golden baselines"]
   engine -- Spark tasks --> retune["Re-tune<br/>1,990 model pairs"]
-  engine -- Spark tasks --> pre["Precompute<br/>21,900 forecasts"]
+  engine -- Spark tasks --> pre["Precompute<br/>21,900 entries"]
   retune --> mlflow[("MLflow<br/>runs + model registry")]
   pre --> table[("Delta<br/>gold/forecasts")]
   mlflow -. model_version .-> table
@@ -90,15 +90,18 @@ original pipeline's glob did.
 - **Deduplication matches the original's rule.** 1,507 per-day files repeat composites
   that are already in the monthly files. Silver keeps the first file in the original's
   sort order, which reproduces its `drop_duplicates(keep="first")` and drops 1,749 rows.
-- **Lineage from input byte to gold row.** The sha256 column ties every gold row back
-  to the exact input files, and the Delta log records every version.
+- **Input hashes.** Bronze records the sha256 of every input file, and silver's
+  `satellite_times` records which file supplied each (channel, time). Gold has no file
+  column, so tracing a gold row to its files means joining through those tables; that
+  join was never run.
 - **OPTIMIZE / Z-ORDER.** Silver is written in time order, so every file spans the whole
   grid and a region filter can skip nothing. `ZORDER BY (lon_idx, lat_idx)` clusters
   files spatially, and Delta's per-file min/max statistics let a region filter skip
-  files. A region box now reads 1.35–3.16 GB of the 4.06 GB it read before (22–67%
-  less), counted from the transaction log's statistics, not measured reads.
-  Compaction cut bronze from 2,584 files to 130. VACUUM brought the lake from about
-  22 GB at its peak to 12.4 GB.
+  files. By the transaction log's statistics, a filter on one region box leaves
+  1.35–3.16 GB of the 4.06 GB to read (22–67% less); no read was measured. The one
+  timed query, the gold aggregation, got no faster (warm 6.1 s → 6.6 s, cold 9.0 s →
+  6.5 s). Compaction cut bronze from 2,584 files to 130 but made it 35% larger (5.85 GB
+  → 7.92 GB). VACUUM brought the lake from about 22 GB at its peak to 12.4 GB.
 
 **Parity** (Hyak job 42764314, all exact):
 - the gold table equals the committed `oad_cloud_fractions.parquet`
@@ -111,37 +114,44 @@ original pipeline's glob did.
 **Speed, honestly.** On one 16-core node, raw files to gold took 19.4 min on Spark
 against 9.3 min for the original xarray script. Spark also hashes all 13.9 GB and
 writes three queryable layers (about 2 billion rows), where xarray writes one dense
-array. What the lake adds is SQL over every pixel, data skipping, time travel and
-lineage, not speed on a single node. Multi-node runs were not measured.
+array. What the lake offers is SQL over every pixel and data skipping, not speed on
+a single node. Time travel was never used: the job runs `vacuum(0)`, which removes
+earlier versions' files, and deletes the lake when it ends (`hyak_stage.sh`).
+Multi-node runs were not measured.
 
 Tests: `tests/test_modis_lake.py` (file order and stub skipping, decoded pixels against
 the NetCDF, region pixel counts, the bitwise standardization, Delta log replay, grid
 index order).
 
-## 2. Distributed training on Spark, tracked in MLflow
+## 2. Parallel training on Spark, tracked in MLflow
 
-The ensemble's per-site weights and clip quantiles are post-processing: a test
-point's XGBoost and Random Forest models are the same whatever those settings are.
-So `datect_spark/retune.py` trains each test point's model pair once and then scores
-every setting cheaply. The original grid search re-ran the whole evaluation per
-setting: 2,250 full retrospectives.
+The ensemble's per-site weights are post-processing: a test point's XGBoost and
+Random Forest models are the same whatever the weights are. So
+`datect_spark/retune.py` trains each test point's model pair once and then scores
+every setting cheaply. The original grid search, since removed, re-ran the whole
+evaluation per setting: 2,250 full retrospectives.
 
 1. **`predict`.** One Spark task per real DA measurement. Each task trains that point's
    XGBoost + RF pair on that point's own pre-anchor data, through the engine's
    retrospective function, so it inherits the leak-free protocol. The
    predictions go to Delta.
-2. **`score`.** Spark SQL applies the 100 weight × clip settings to the predictions and
-   scores each (site, setting) on yearly folds 2015–2021.
+2. **`score`.** Spark SQL applies the weight settings to the predictions and scores each
+   (site, weight) on yearly folds 2015–2021.
 3. **`holdout`.** Scores the chosen and the current settings once on 2022–2023, and
    chooses nothing there.
 
-| | |
-|---|---|
-| Model pairs trained | 1,990 (1,581 tuning + 409 holdout points) |
-| Wall time, 16 cores | 883 s |
-| Task time | 7,710 s (8.7× the wall time) |
-| MLflow runs | 2,990: 1,990 forecast runs + 1,000 (site, setting) scoring runs |
-| Parity | The current setting rebuilt from Spark's predictions equals the committed evaluation exactly |
+| | First run (job 42629914, weights + clip) | Current tuner (job 42774505, weights only) |
+|---|---:|---:|
+| Model pairs trained, 1,581 tuning + 409 holdout | 1,990 | 1,990 |
+| Wall time, 16 cores | 883 s | 815 s |
+| Task time | 7,710 s (8.7× the wall time) | 7,362 s (9.0× the wall time) |
+| MLflow runs: forecasts + (site, setting) scores | 2,990 (1,990 + 1,000) | 2,040 (1,990 + 50) |
+| Rows equal to the committed evaluation, max abs diff 0.0 | 1,044 of 1,990 | 1,044 of 1,990 |
+
+The other 946 points, from 2015–2018, have no committed reference to compare with. The
+first run's timings and run counts are in the MLflow database and commit `e76647bd`,
+with no committed result file; the current tuner's are in
+`results/tuning_provenance/retune_weights/`.
 
 **What MLflow records.** Each `predict` run is a parent run, with params (window,
 dates, git SHA) and metrics (point count, successes, child count). Each forecast is a
@@ -156,9 +166,11 @@ registry are a SQLite file on Hyak.
 - seeds and settings travel as environment variables, because workers re-import
   `config` and never see changes patched into the driver.
 
-**Outcome.** The per-site picks tied one shared rule on the holdout, so they were not
-adopted. The re-tune independently chose "no clip" at 7 of 10 sites, which supported
-removing the clip (`0f4466d2`, holdout R² 0.497 → 0.550 before the next fix).
+**Outcome.** Neither run's picks were adopted. The first run's per-site picks tied one
+shared rule on the holdout. At 7 of its 10 sites it chose no quantile clip, though 5 of
+those kept a hard ceiling, so only 2 chose no clip at all; removing the clip rests on
+its own before and after (`0f4466d2`, holdout R² 0.497 → 0.550 before the next fix).
+The current tuner's proposal scores holdout R² 0.507 against the current weights' 0.516.
 
 ## 3. Batch inference: serving precomputed forecasts from Delta
 
@@ -200,7 +212,8 @@ a registered version and a commit.
 - 50 of 50 random entries equal a fresh on-demand run in another process, floats
   bitwise;
 - the registered pyfunc reproduces 3 of 3 entries;
-- all 20 timed responses equal `main`'s byte for byte (sha256);
+- all 20 timed responses equal `main`'s (sha256 of the body without `source` and
+  `model_version`);
 - the 50-entry check ran with the API's threading, so it also shows that
   single-threaded XGBoost on Spark workers matches the API's multithreaded XGBoost;
 - no stored entry uses the random bootstrap interval fallback, and the precompute now
@@ -210,6 +223,8 @@ a registered version and a commit.
 - Only weekly dates and the `ensemble` model are precomputed. A daily grid would take
   at least 11.4 node-hours even at a perfect 16× (about 15.3 at the measured 11.9×),
   against a budget of about 2.
+- The table is a historical backfill, 2003-01-06 to 2023-12-25. 220 of its 21,900 entries
+  are early dates with too little training data, stored empty as the engine returns them.
 - `linear` can't be precomputed exactly, because its interval bootstrap draws from
   NumPy's global RNG and changes from call to call.
 - Any change to code, config or data makes the table stale until it is recomputed.
@@ -242,13 +257,13 @@ Each forecast for date *t* is anchored at *t* − 7 days. Training rows and the 
 row use only weeks that end by the anchor (`date + 6 days <= anchor`). Persistence
 features and the naive baseline come from raw daily measurements dated on or before
 the anchor. Test points are raw measurements only, never gap-filled values. An audit
-found three ways the pipeline broke this, each fixed in its own commit:
+found two leaks and one train/test feature mismatch, each fixed in its own commit:
 
-| Commit | Leak | Effect |
+| Commit | Problem | Effect |
 |---|---|---|
 | `e14db2eb` | Training rows' "last observation" included the row's own target (equal on all 4,447 real-measurement rows) | The model learned to copy it and lagged every onset. Fixing it raised holdout R² 0.419 → 0.458 |
 | `2688fb8d` | Weekly rows dated on or before the anchor held up to six days after it | Removed real future information (about 23% of evaluation points' PN maximum) |
-| `c099f20b` | Forecast rows' lags stopped 13–19 days before the target, unlike training rows | Rebuilt like training rows; exact on 2,977 of 2,977 sampled rows; onsets caught 18 → 19 of 27 |
+| `c099f20b` | Not a leak: forecast rows' lags stopped 13–19 days before the target, unlike training rows | Rebuilt like training rows; exact on 2,977 of 2,977 sampled rows; onsets caught 18 → 19 of 27 |
 
 `tests/test_leakage_audit.py` guards the first two. The third has a property test
 (`TestTestRowMatchesTrainingRows`) checking that forecast rows equal training rows.
@@ -331,7 +346,7 @@ rule were committed before the holdout was scored.
 
 ## What runs where
 
-Spark is the scale-out executor and Delta the serving store. Evaluation stays on joblib
+Spark runs the batch jobs and Delta is the serving store. Evaluation stays on joblib
 because it has to run on a laptop and in CI without Java, and it is the reference that
 every Spark output is checked against.
 
@@ -363,12 +378,23 @@ path only after its replacement reproduced the old output exactly.
 ## Caveats
 
 - Every Spark job ran on one node in local mode; multi-node scaling was not measured.
+- Task time over wall time (8.7×, 9.0×, 11.9×) is not a speedup: there was no serial run.
+  It is 55–74% of the 16 cores.
+- Serving from Delta is not deployed. No store at the current config hash exists, so
+  the production image build stops at its check until the store is rebuilt. CI serves
+  only a two-entry stub table.
 - On one node, Spark was 2× slower than xarray for the MODIS pipeline. The gain is the
   lake, not speed.
 - "13.9 GB" is the satellite imagery alone. The tabular features were not rebuilt on
   Spark, and the ERDDAP-derived columns are frozen by policy.
 - The 0.12 s latency applies to precomputed weekly dates and the `ensemble` model;
-  anything else is computed on demand at the old latency.
+  anything else is computed on demand at the old latency. It is 20 sequential requests
+  on a Hyak node with no other load. The gain comes from precomputing and an in-memory
+  lookup: Delta is read once, at startup.
+- The API never loads the registered MLflow model; it only reports the version string
+  stored with each row.
+- Spark did not improve forecast skill. The headline comes from the joblib evaluation,
+  which Spark reproduces, and no re-tune was adopted.
 - MLflow tracking is a SQLite file without a tracking server; `mlflow ui` can open it.
 
 ## Reproduce
@@ -379,7 +405,7 @@ L="-o $HOME/datect-spark-logs/%x-%j.out -e $HOME/datect-spark-logs/%x-%j.err"
 sbatch $L datect_spark/modis_lake.sbatch                                  # MODIS -> Delta + parity
 sbatch $L --export=ALL,STEPS=reference datect_spark/modis_lake.sbatch     # timed xarray reference
 sbatch $L --export=ALL,MAIN_SHA=$(git rev-parse origin/main) datect_spark/serving.sbatch
-sbatch datect_spark/retune.sbatch    # re-tune + MLflow, from a disposable worktree (being updated for the no-clip config)
+sbatch $L datect_spark/retune.sbatch                                     # weight re-tune + MLflow
 
 # Golden baseline for any git ref, then compare two runs
 bash scripts/eval/golden_baseline.sh <git-ref> <label>
@@ -395,7 +421,7 @@ DATECT_PRECOMPUTED_DIR=/path/to/store python3 run_datect.py
 |---|---|
 | `datect_spark/session.py` | Spark session with Delta, pinned threads and UTC; MLflow setup |
 | `datect_spark/modis_lake.py` | MODIS bronze / silver / gold, OPTIMIZE, Z-ORDER, VACUUM, parity |
-| `datect_spark/retune.py` | Distributed re-tune with MLflow tracking |
+| `datect_spark/retune.py` | Weight re-tune on Spark with MLflow tracking |
 | `datect_spark/forecast_serving.py` | Spark precompute, MLflow registry, serving parity |
 | `datect_spark/hyak_stage.sh`, `*.sbatch` | Node-local staging and Slurm jobs |
 | `backend/precomputed.py` | delta-rs loader for the store's tables, config hash, lookup with fallback |
@@ -405,4 +431,4 @@ DATECT_PRECOMPUTED_DIR=/path/to/store python3 run_datect.py
 | `scripts/eval/golden_baseline.sh`, `compare_golden.py` | Golden baselines and byte-level comparison |
 | `scripts/data/rebuild_final_output.py` | Offline feature rebuild, no downloads |
 | `forecasting/measurements.py` | The shared measurement parser |
-| `results/spark_lake/`, `results/serving/`, `results/tuning_provenance/retune_spark/` | Result JSONs behind every number above |
+| `results/spark_lake/`, `results/serving/`, `results/store/`, `results/tuning_provenance/retune_weights/`, `results/tuning_provenance/retune_spark/` | Result files behind the numbers above, except the first re-tune's timings and run counts (section 2) |

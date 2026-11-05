@@ -74,7 +74,7 @@ def _window_bounds(window: str) -> tuple[str, str]:
     return (w[f"{window}_start"], w[f"{window}_end"])
 
 
-# ── 1. Distributed training ──────────────────────────────────────────────────
+# ── 1. Parallel training ─────────────────────────────────────────────────────
 
 _ENGINE = None
 

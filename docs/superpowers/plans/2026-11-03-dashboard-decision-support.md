@@ -24,11 +24,11 @@ date-fns; Vitest (new, dev only).
 - Start only after the Spark consolidation PR (merged as #23) and the API PR (`feat/dashboard-api`,
   plan `docs/superpowers/plans/2026-11-03-dashboard-api-and-error-band.md`) are merged to `main`; bring this branch up to date with the ccd_host
   `sync_with_base_branch` tool. Never merge to `main`, never force-push.
-- Edit `frontend/` only. A missing or differently shaped API field is a message to the API
+- Edit `frontend/` only (Task 12's listed docs are the one exception). A missing or differently shaped API field is a message to the API
   session (`local_734451ed-99ad-4a7a-992c-b6e7b13ef45b`), never a backend edit.
 - No metric the API reports is computed in the browser. Thresholds (20, 12, 0.10), alert levels,
   category bins and labels, eval windows and the band level come from `GET /api/config`; none
-  is a literal in components.
+  is a literal in components (the tested sentences in `src/lib/copy.js` are the one exception).
 - A value at a threshold counts: spike = actual `>= 20`, regression alert = forecast `>= 12`,
   classifier `>= cutoff`, categories left-closed `[0,5) [5,20) [20,40) [40,inf)`.
 - Values print to one decimal; `0 < v < 0.1` prints `<0.1`. Percentages are whole numbers.
@@ -125,7 +125,7 @@ date-fns; Vitest (new, dev only).
   - `toConfig(rawConfig, rawSites) → Config`, `toForecast(raw) → Forecast`, `toAllSites(raw) → Forecast[]` (fields the endpoint lacks are `null` / `[]`), `toHistory(raw) → HistoryRow[]`, `toSummary(raw) → Summary`, `toTrackRecord(raw) → TrackRecord`
   - `datect.js`: `getConfig()`, `getForecast(site, date)`, `getAllSites(date)`, `getSiteHistory(site)`, `getSummary()`, `getTrackRecord(windowName, site?)`; each returns a Promise of the view model and rejects with `Error(message)` carrying the API's `detail`.
 
-- [ ] **Step 1: Capture fixtures.** Start `datect-api-maincache` (`.claude/launch.json`) on the merged `main`, then save each endpoint's JSON for Newport, week `latest_forecast_week`, into `__fixtures__/`. Save `forecast_noband.json` (`2005-11-07`, `band: null`) and `forecast_failed.json` (`2003-01-06`, `success: false`); drop `graphs` from forecasts and keep 5 `rows` of the track record. Responses captured from PR #25 at `02148997` are already committed: recapture after the merge and review the diff. Check each response against the Consumes list; for anything missing or renamed, message the API session (`local_734451ed-99ad-4a7a-992c-b6e7b13ef45b`) and map the actual name in `contract.js`. Expected: one fixture per file above, each valid JSON.
+- [ ] **Step 1: Fixtures are already in place.** The controller recaptured them from `main` at `f89b87b6` with no differences from the committed files; do not recapture (the API may not be running for you). Read them to see the real shapes.
 - [ ] **Step 2: Write the failing tests** in `contract.test.js`:
 
 ```js
@@ -152,6 +152,7 @@ it('keeps measurements on a failed forecast', () => {
   const f = toForecast(forecastFailedFixture)
   expect(f.error).toBeTruthy(); expect(f.value).toBeNull(); expect(f.alert).toBeNull(); expect(f.band).toBeNull()
   expect(f.anchorDate).toBe('2002-12-30')
+  expect(f.lastMeasurement).toBeTruthy(); expect(f.recentMeasurements).toHaveLength(6)
 })
 it('builds config thresholds, levels, categories and site order', () => {
   const c = toConfig(configFixture, sitesFixture)
@@ -174,6 +175,7 @@ it('maps the holdout reliability summary', () => {
 it('normalizes r2 sent as a number or as [v, lo, hi]', () => {
   expect(toStat(0.516)).toEqual({ value: 0.516, ci: null })
   expect(toStat([0.516, 0.308, 0.654])).toEqual({ value: 0.516, ci: [0.308, 0.654] })
+  expect(toStat(null)).toBeNull()
 })
 ```
 
@@ -185,11 +187,12 @@ it('normalizes r2 sent as a number or as [v, lo, hi]', () => {
 ### Task 2: Pure decision and copy helpers
 
 **Files:**
-- Create: `src/lib/format.js`, `src/lib/risk.js`, `src/lib/copy.js`, `src/lib/scale.js`, `src/lib/colors.js`
-- Test: `src/lib/format.test.js`, `src/lib/risk.test.js`, `src/lib/copy.test.js`, `src/lib/scale.test.js`
+- Modify: `src/lib/format.js` (from Task 1)
+- Create: `src/lib/risk.js`, `src/lib/copy.js`, `src/lib/scale.js`, `src/lib/colors.js`
+- Test: `src/lib/format.test.js` (extend), `src/lib/risk.test.js`, `src/lib/copy.test.js`, `src/lib/scale.test.js`
 
 **Interfaces:**
-- Consumes: `Config`, `Forecast`, `SiteMetrics`, `Summary` (Task 1).
+- Consumes: `Config`, `Forecast`, `Reliability`, `Summary` (Task 1).
 - Produces:
   - `format.js` (beside Task 1's `windowLabel`): `formatValue(v) → string`, `formatPct(p) → string`, `formatDate(iso) → '28 Nov 2023'`, `daysBetween(isoA, isoB) → int`, `formatAge(days) → '5 days' | '3 weeks' | '15 months'`, `ratioWords(k, n) → string`.
   - `risk.js`: `STALE_DAYS = 21`, `WEAK_COVERAGE = 0.7`, `MIN_ROWS = 10`; `categoryOf(v, categories) → category`, `reachesThreshold(band, threshold) → bool`, `levelKey(alert) → 'already' | 'quiet' | 'watch' | 'warning' | 'unavailable'` (the API decides the level; this only maps it), `isStale(lastDate, anchorDate) → bool`, `siteReliability(reliability) → 'weak' | 'ok' | 'too-few'`, `dataCurrencyNotice(newestIso, todayIso) → string | null`.
@@ -203,7 +206,7 @@ it('normalizes r2 sent as a number or as [v, lo, hi]', () => {
 // format.test.js
 expect(formatValue(0)).toBe('0.0'); expect(formatValue(0.05)).toBe('<0.1'); expect(formatValue(17.46)).toBe('17.5')
 expect(formatDate('2023-11-28')).toBe('28 Nov 2023')          // runs under TZ=America/Los_Angeles
-expect(formatAge(5)).toBe('5 days'); expect(formatAge(20)).toBe('3 weeks'); expect(formatAge(475)).toBe('16 months')
+expect(formatAge(1)).toBe('1 day'); expect(formatAge(5)).toBe('5 days'); expect(formatAge(20)).toBe('3 weeks'); expect(formatAge(475)).toBe('16 months')
 expect(ratioWords(19, 27)).toBe('about 7 in 10'); expect(ratioWords(19, 106)).toBe('about 1 in 6')
 expect(ratioWords(9, 68)).toBe('about 1 in 8'); expect(ratioWords(0, 213)).toBe('never')
 // risk.test.js
@@ -250,10 +253,10 @@ expect(categoryScaleX(20, cats)).toBe(50); expect(categoryScaleX(200, cats)).toB
 
 **Interfaces:**
 - Consumes: `getConfig` (Task 1), `dataCurrencyNotice` (Task 2), colours (Task 2).
-- Produces: `<ConfigProvider>` and `useConfig() → { config: Config | null, error: string | null }`; `<Panel n?>` (white bordered section), `<Caution>` (amber left rule), `<LevelTag level config />` (square + label; `'already'` renders "Already ≥ 20"; `'quiet'` renders a gray square and "Quiet").
+- Produces: `<ConfigProvider>` and `useConfig() → { config: Config | null, error: string | null }`; `<Panel n?>` (white bordered section), `<Caution>` (amber left rule), `<LevelTag level config />` (square + label; `'already'` renders "Already ≥ <config.spikeThreshold>"; `'quiet'` renders a gray square and "Quiet"; `'unavailable'` renders "Unavailable").
 
-- [ ] **Step 1: Implement** routes `/` Forecast, `/track-record` Track record, `/data` Data explorer, `/about` About, and `/historical` → `<Navigate to="/data" replace />`. Navigation: wordmark unchanged; links as plain text, the active one `bg-gray-100 text-gray-900`; no icons. `DataCurrencyBanner` renders `dataCurrencyNotice(config.newestMeasurement, today)` as one gray line under the nav on every page. Config load failure shows "Could not load settings from the API: <detail>" and no page body.
-- [ ] **Step 2: Verify.** `npm run lint && npm run test && npm run build` pass. With `datect-api-maincache` and `datect-frontend` running, each route renders its heading, `/historical` lands on `/data`, and the banner reads "Forecasts use data through … ; they are not live."
+- [ ] **Step 1: Implement** routes `/` Forecast, `/track-record` Track record, `/data` Data explorer (renders the existing `Historical` page until Task 11 renames it), `/about` About, and `/historical` → `<Navigate to="/data" replace />`. Navigation: wordmark unchanged; links as plain text, the active one `bg-gray-100 text-gray-900`; no icons. `DataCurrencyBanner` renders `dataCurrencyNotice(config.newestMeasurement, today)` as one gray line under the nav on every page. Config load failure shows "Could not load settings from the API: <detail>" and no page body.
+- [ ] **Step 2: Verify.** `npm run lint && npm run test && npm run build` pass. With `datect-api` and `datect-frontend` running, each route renders its heading, `/historical` lands on `/data`, and the banner reads "Forecasts use data through … ; they are not live."
 - [ ] **Step 3: Commit** `feat(frontend): config context, routes and UI primitives`.
 
 ### Task 4: Forecast page, filter bar and forecast card
@@ -267,7 +270,7 @@ expect(categoryScaleX(20, cats)).toBe(50); expect(categoryScaleX(200, cats)).toB
 - Produces: `Forecast.jsx` state `{ site, week, forecast, summary, loading, error }` passed to every card; `site` persists in `localStorage['datect.site']` (try/catch; default `config.sites[0]`); `week` defaults to `config.latestWeek`.
 
 - [ ] **Step 1: Implement `FilterBar`**: native `<select>` of `config.sites` with " (less reliable)" / " (little recent data)" from `siteReliability`; native `<input type="date">` with `min = dateRange.min` (weeks before the first band render "No range", spec section 9), `max = config.latestWeek`, snapping any pick to that week's Monday (`startOfWeek(d, { weekStartsOn: 1 })`), labelled "Forecast week"; "Uses data through <anchor>"; right-aligned "Model: ensemble (XGBoost + Random Forest)".
-- [ ] **Step 2: Implement `ForecastCard` and `CategoryScaleBar`** to the mockup's card 2: value, "80% range lo–hi µg/g", "In the <Category (lo–hi)> category" plus "; the range reaches the 20 µg/g closure level" when `band.hi >= spikeThreshold`, the scale bar (four gray segments, band in blue at 18% fill, forecast tick blue, 20 line red), then `reliabilityText` (wrapped in `<Caution>` when weak). With `band === null`: "No range: <bandReason>" and no band on the bar. With `error`: the error in a `<Caution>` in place of the value and bar.
+- [ ] **Step 2: Implement `ForecastCard` and `CategoryScaleBar`** to the mockup's card 2: value, "80% range lo–hi µg/g", "In the <Category (lo–hi)> category" plus "; the range reaches the <spikeThreshold> µg/g closure level" when `reachesThreshold(band, spikeThreshold)`, the scale bar (four gray segments, band in blue at 18% fill, forecast tick blue, 20 line red), then `reliabilityText` (wrapped in `<Caution>` when weak). With `band === null`: "No range: <bandReason>" and no band on the bar. With `error`: the error in a `<Caution>` in place of the value and bar.
 - [ ] **Step 3: Loading and errors.** While a request is in flight, keep the previous cards at `opacity-60`; after 3 s without a response show "Computing forecast; this week is not precomputed". On error show the API detail in a `<Caution>` above the cards.
 - [ ] **Step 4: Verify in the preview** for Newport (latest week), Gold Beach and a no-band week: the card matches the mockup's card 2; the Newport reliability line reads "held 23 of 48 … (48%)"; 375 px has no horizontal scroll (`document.documentElement.scrollWidth === innerWidth`). Screenshot Newport.
 - [ ] **Step 5: Commit** `feat(frontend): forecast page, filter bar and forecast card`.
@@ -281,7 +284,7 @@ expect(categoryScaleX(20, cats)).toBe(50); expect(categoryScaleX(200, cats)).toB
 **Interfaces:**
 - Consumes: `levelKey`, `levelRecordText`, `trackRecordText`, `siteRecordText`, `formatPct`, `LevelTag`, `Config.levels`, and `Summary.reliability.holdout` (`overall.levels`, `overall.onsets`, `overall.alarms`, `perSite[site].onsets`).
 
-- [ ] **Step 1: Implement** to the mockup's card 3: header "Spike risk" with `<LevelTag>`; the probability (`formatPct`) and "chance of a jump to ≥ 20 µg/g next week"; a gray track with one tick per `Config.levels` entry above Quiet, labelled "10% Watch" / "40% Warning" from `cutoff` and `name`, and a black marker at the probability; two condition rows (● holds / ○ does not) for classifier ≥ cutoff and forecast ≥ regression alert, taken from `alert.byClassifier` / `alert.byRegression`; `levelRecordText` for the current level (omitted for `'already'`, replaced by "The last measurement (v on date) is already at or above 20. This alert is for jumps from below 20; follow the forecast and the measurements."); "Measured lately:" with the last five `recentMeasurements` values; a rule, then `trackRecordText` and `siteRecordText`, then "The Warning cutoff is a placeholder until the alert experiments set the levels." in gray-400 for each level with `placeholder: true`. `'unavailable'` shows the probability as "—" and "Spike classifier unavailable for this week".
+- [ ] **Step 1: Implement** to the mockup's card 3: header "Spike risk" with `<LevelTag>`; the probability (`formatPct`) and "chance of a jump to ≥ 20 µg/g next week"; a gray track with one tick per `Config.levels` entry above Quiet, labelled "10% Watch" / "35% Warning" from `cutoff` and `name`, and a black marker at the probability; two condition rows (● holds / ○ does not) for classifier ≥ cutoff and forecast ≥ regression alert, taken from `alert.byClassifier` / `alert.byRegression`; `levelRecordText` for the current level (omitted for `'already'`, replaced by "The last measurement (v on date) is already at or above 20. This alert is for jumps from below 20; follow the forecast and the measurements."); "Measured lately:" with the last five `recentMeasurements` values; a rule, then `trackRecordText` and `siteRecordText`, then "The Warning cutoff is a placeholder until the alert experiments set the levels." in gray-400 for each level with `placeholder: true`. `'unavailable'` shows the probability as "—" and "Spike classifier unavailable for this week".
 - [ ] **Step 2: Verify in the preview**: Newport reads Watch with "followed by a jump 9 of 68 times"; Gold Beach shows its level from config; a week whose last measurement is ≥ 20 shows "Already ≥ 20". Screenshot.
 - [ ] **Step 3: Commit** `feat(frontend): graded spike-risk card`.
 
@@ -304,7 +307,7 @@ expect(categoryScaleX(20, cats)).toBe(50); expect(categoryScaleX(200, cats)).toB
 
 **Interfaces:**
 - Consumes: `getSiteHistory`, `HistoryRow` (its `level` comes from the API), `Forecast`, colours.
-- Produces: `buildGroundTraces(rows, forecast, config, { range, showAfter }) → { traces, layout }`, used again by Task 10 with `getSiteHistory` rows limited to the window.
+- Produces: `buildGroundTraces(rows, forecast | null, config, { range, showAfter }) → { traces, layout }`, used again by Task 10 with `getSiteHistory` rows limited to the window.
 
 - [ ] **Step 1: Write the failing tests:**
 
@@ -327,6 +330,12 @@ it('adds next week with an asymmetric error bar, none without a band', () => {
   const nw = buildGroundTraces([], fc, cfg, { range: '2y' }).traces.find(t => t.name === 'Next week')
   expect(nw.error_y.array[0]).toBeCloseTo(fc.band.hi - fc.value)
   expect(buildGroundTraces([], { ...fc, band: null }, cfg, { range: '2y' }).traces.find(t => t.name === 'Next week').error_y).toBeUndefined()
+})
+it('omits next week for a failed forecast and for no forecast at all', () => {
+  expect(buildGroundTraces([], { ...fc, value: null, band: null }, cfg, { range: '2y' }).traces.find(t => t.name === 'Next week')).toBeUndefined()
+  const { traces } = buildGroundTraces([row({ date: '2023-12-04' })], null, cfg, { range: 'all' })  // Track record: no forecast, no anchor cut
+  expect(traces.find(t => t.name === 'Next week')).toBeUndefined()
+  expect(allX(traces)).toContain('2023-12-04')
 })
 ```
 
@@ -364,7 +373,7 @@ expect(featureLabel('something_new')).toBe('something_new')
 - [ ] **Step 2: Run** `npm run test` — Expected: FAIL.
 - [ ] **Step 3: Implement** both modules. `featureLabel` is a lookup table for every feature in `final_output.parquet` plus the engine's derived ones (`last_observed_da_raw`, `weeks_since_last_spike`, `da_raw_prev_obs_N`, `month`, OAD lags and windows), with the unknown-name fallback.
 - [ ] **Step 4: Run** `npm run test` — Expected: PASS.
-- [ ] **Step 5: Implement `MetricsPanel` and the ten tiles** to the mockup's section 6: checkbox row in `METRICS` order, tiles in the same order, each tile naming its window and N. Tile sources: spec section 3 "Metrics, ranked" table; `mae`, `r2` and `line` read `Summary.headline.perSite[site]` (with `headline.overall` for "all sites"), `alert` and `coverage` read `Summary.reliability` (holdout, plus validation for the 2019–21 column); copy for `cats` from `bandVsAlertText`; `prov` shows the forecast's `source` and `modelVersion` and the summary's `source` (the API has no per-summary version stamp, so there is no automatic mismatch flag). Range-dependent tiles (`coverage` stays; `cats`, `width`) render "No range for this forecast" when `band === null`.
+- [ ] **Step 5: Implement `MetricsPanel` and the ten tiles** to the mockup's section 6: checkbox row in `METRICS` order, tiles in the same order, each tile naming its window and N. Tile sources: spec section 3 "Metrics, ranked" table; `mae`, `r2` and `line` read `Summary.headline.perSite[site]` (with `headline.overall` for "all sites"), `alert` and `coverage` read `Summary.reliability` (holdout, plus validation for the 2019–21 column); copy for `cats` from `bandVsAlertText`; `prov` shows the forecast's `source` and `modelVersion` and the summary's `source` (the API has no per-summary version stamp, so there is no automatic mismatch flag). Range-dependent tiles (`coverage` stays; `cats`, `width`) render "No range for this forecast" when `band === null`. On a failed forecast (`error` set) `parts` and `drivers` render "No forecast for this week"; the track-record tiles still show.
 - [ ] **Step 6: Verify in the preview**: toggling a checkbox persists across reload; Cannon Beach tiles show "Too few 2022–2023 measurements (2)". Screenshot.
 - [ ] **Step 7: Commit** `feat(frontend): ranked, selectable metrics panel`.
 
@@ -381,7 +390,7 @@ expect(featureLabel('something_new')).toBe('something_new')
 ### Task 10: Track record page
 
 **Files:**
-- Create: `src/lib/csv.js` (moved `exportResultsCSV`, now `exportCsv(rows, filename)`), `src/components/trackrecord/{WindowSelector,PerSiteTable,PredictedVsActualChart,ModelComparison}.jsx`
+- Create: `src/lib/csv.js` (the logic of `exportResultsCSV`, now `exportCsv(rows, filename)`; leave `utils/retrospective.js` alone, Task 12 deletes it), `src/components/trackrecord/{WindowSelector,PerSiteTable,PredictedVsActualChart,ModelComparison}.jsx`
 - Test: `src/lib/csv.test.js`
 - Modify: `src/pages/TrackRecord.jsx`
 
@@ -405,10 +414,10 @@ expect(toCsv([{ site: 'X', v: null }], ['site', 'v'])).toBe('site,v\nX,')
 
 **Files:**
 - Rename: `src/pages/Historical.jsx` → `src/pages/DataExplorer.jsx`
-- Modify: `src/pages/DataExplorer.jsx`, `src/pages/About.jsx`
+- Modify: `src/pages/DataExplorer.jsx`, `src/pages/About.jsx`, `src/App.jsx` (route import)
 
 - [ ] **Step 1: Restyle `DataExplorer`** per Global Constraints: chart-type buttons become a segmented control of plain text; `react-select` becomes native `<select>`; the waterfall and DA-vs-PN figures already carry the API's subtitle "Weekly maximum; gaps filled by decay", so add no label of your own. Title "Data explorer".
-- [ ] **Step 2: Update `About`**: keep the description and data sources; add "What the dashboard cannot do" with the three limits from spec section 4 (range calibrated over all sites, not per site; the alert misses about 3 in 10 onsets and fewer than 1 in 5 of its 2022–2023 alarms were followed by a jump; data ends <newestMeasurement>), numbers taken from `useConfig` / `getSummary`, not literals.
+- [ ] **Step 2: Update `About`**: keep the description and data sources; add "What the dashboard cannot do" with the three limits from spec section 4: the range is calibrated over all sites, not per site; `trackRecordText` for the alert's misses and false alarms; data ends <newestMeasurement>. Numbers come from `useConfig` / `getSummary`, not literals.
 - [ ] **Step 3: Verify** `npm run lint && npm run test && npm run build`; both pages render in the preview at desktop and 375 px. Screenshot.
 - [ ] **Step 4: Commit** `feat(frontend): data explorer and about page`.
 
@@ -420,6 +429,6 @@ expect(toCsv([{ site: 'X', v: null }], ['site', 'v'])).toBe('site,v\nX,')
 - Delete: `docs/superpowers/specs/dashboard-mockup/` except `screenshots/` (the spec still embeds them), and the `dashboard-mockup` entry in `.claude/launch.json` if present
 
 - [ ] **Step 1: Delete and uninstall.** `npm uninstall react-datepicker react-select`.
-- [ ] **Step 2: Verify** `grep -rn "retrospective\|Dashboard\|react-select\|react-datepicker\|🎯\|📊\|⚠️\|✅\|💡\|🟢" frontend/src` returns nothing; `npm run lint && npm run test && npm run build` pass; `.venv/bin/python -m pytest tests/ -q` still passes (no backend change expected). Compare the built bundle size with `main` (`ls -l dist/assets`) and note it in the PR.
+- [ ] **Step 2: Verify** `grep -rn --exclude-dir=__fixtures__ "retrospective\|Dashboard\|react-select\|react-datepicker\|🎯\|📊\|⚠️\|✅\|💡\|🟢" frontend/src` returns nothing (reword the `retrospective` comment in `services/api.js`); `npm run lint && npm run test && npm run build` pass; `.venv/bin/python -m pytest tests/ -q` still passes (no backend change expected). Compare the built bundle size with `main` (`ls -l dist/assets`) and note it in the PR.
 - [ ] **Step 3: Full walk-through in the preview** (desktop and 375 px): Forecast for Newport, Gold Beach, Cannon Beach and a past week with "Show what happened"; Track record holdout and validation; Data explorer; About. Read the console for errors.
-- [ ] **Step 4: Commit** `refactor(frontend): remove the old dashboard and unused dependencies`, push, and open a PR against `main` with before/after screenshots, the bundle sizes, and the list of API fields the frontend now depends on.
+- [ ] **Step 4: Commit** `refactor(frontend): remove the old dashboard and unused dependencies`, and update the spec's header (the mockup folder is gone; only its screenshots remain). The controller pushes and opens the PR against `main` after the final review, with before/after screenshots, the bundle sizes, and the list of API fields the frontend now depends on.

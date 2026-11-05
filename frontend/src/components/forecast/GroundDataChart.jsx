@@ -20,30 +20,36 @@ const PLOT_CONFIG = { displaylogo: false, responsive: true, modeBarButtonsToRemo
  *   config: import('../../services/contract').Config, loading?: boolean }} props
  */
 export default function GroundDataChart({ site, week, forecast, config, loading = false }) {
-  const [rows, setRows] = useState(null)
-  const [historyLoading, setHistoryLoading] = useState(true)
+  const [history, setHistory] = useState(null) // { site, rows }
   const [error, setError] = useState(null)
   const [range, setRange] = useState('2y')
   const [showAfter, setShowAfter] = useState(false)
   const latest = useRef(0)
+  const lastChart = useRef(null)
 
   useEffect(() => {
     const id = ++latest.current
-    setHistoryLoading(true)
     setError(null)
     getSiteHistory(site)
-      .then((r) => latest.current === id && (setRows(r), setHistoryLoading(false)))
-      .catch((e) => latest.current === id && (setRows(null), setError(e?.message || String(e)), setHistoryLoading(false)))
+      .then((r) => latest.current === id && setHistory({ site, rows: r }))
+      .catch((e) => latest.current === id && (setHistory(null), setError(e?.message || String(e))))
   }, [site])
 
   useEffect(() => {
     setShowAfter(false)
   }, [site, week])
 
-  const chart = useMemo(
-    () => (rows && forecast ? buildGroundTraces(rows, forecast, config, { range, showAfter }) : null),
-    [rows, forecast, config, range, showAfter],
+  // Plot history only against the forecast of the same site; while they differ (a request
+  // is in flight) keep the last matched chart, dimmed, under its own site's heading.
+  const matched = history && forecast && history.site === forecast.site
+  const built = useMemo(
+    () => (matched ? buildGroundTraces(history.rows, forecast, config, { range, showAfter }) : null),
+    [matched, history, forecast, config, range, showAfter],
   )
+  if (built) lastChart.current = { site: forecast.site, ...built }
+  if (error) lastChart.current = null
+  const shown = lastChart.current
+  const stale = !built && shown !== null
 
   if (!forecast) return null
   const { holdout, validation } = config.windows
@@ -53,7 +59,7 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
     <Panel className="p-5">
       <div className="flex flex-wrap items-start gap-3">
         <div>
-          <h2 className="text-base font-semibold">Measurements and forecasts, {forecast.site}</h2>
+          <h2 className="text-base font-semibold">Measurements and forecasts, {shown ? shown.site : site}</h2>
           <p className="text-sm text-gray-600 max-w-3xl mt-0.5">
             Dots are lab measurements; hollow dots fell outside the {Math.round(config.bandLevel * 100)}% range. The line is
             the forecast made a week before each measurement, shaded by its range. Ticks below mark Watch and Warning weeks.
@@ -81,18 +87,18 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
         </label>
       )}
       {error && <Caution>{error}</Caution>}
-      {chart && (
-        <div className={`mt-2 ${loading || historyLoading ? 'opacity-60' : ''}`}>
+      {shown && (
+        <div className={`mt-2 ${loading || stale ? 'opacity-60' : ''}`}>
           <Plot
-            data={chart.traces}
-            layout={chart.layout}
+            data={shown.traces}
+            layout={shown.layout}
             config={PLOT_CONFIG}
             useResizeHandler
             style={{ width: '100%', height: 400 }}
           />
         </div>
       )}
-      {!chart && !error && <p className="mt-2 text-sm text-gray-500">Loading</p>}
+      {!shown && !error && <p className="mt-2 text-sm text-gray-500">Loading</p>}
     </Panel>
   )
 }

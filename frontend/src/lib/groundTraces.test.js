@@ -61,7 +61,6 @@ describe('buildGroundTraces', () => {
     const x = (range) => named(buildGroundTraces(rs, fc, cfg, { range }).traces, 'Measurement').x
     expect(x('6m')).toEqual(['2023-09-04'])
     expect(x('1y')).toEqual(['2023-09-04'])
-    expect(x('6m')).not.toContain('2022-06-06')
     expect(x('2y')).toEqual(['2022-06-06', '2023-09-04'])
     expect(x('all')).toHaveLength(3)
   })
@@ -78,6 +77,13 @@ describe('buildGroundTraces', () => {
     const { traces } = buildGroundTraces([row({ date: '2023-12-04' })], null, cfg, { range: 'all' })
     expect(named(traces, 'Next week')).toBeUndefined()
     expect(allX(traces)).toContain('2023-12-04')
+  })
+
+  it('draws rows up to the anchor for a failed forecast, with no next week', () => {
+    const failed = { ...fc, value: null, band: null, error: 'boom' }
+    const { traces } = buildGroundTraces(rows(['2023-11-13', '2023-12-04']), failed, cfg, { range: '2y' })
+    expect(named(traces, 'Measurement').x).toEqual(['2023-11-13'])
+    expect(named(traces, 'Next week')).toBeUndefined()
   })
 
   it('without a forecast, ranges count back from the newest row', () => {

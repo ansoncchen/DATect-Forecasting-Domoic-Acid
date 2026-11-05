@@ -25,7 +25,7 @@ export default function ModelComparison({ models }) {
           return (
             <tr key={key} className="border-b border-gray-100 last:border-0">
               <td className="py-1.5 pr-6 whitespace-nowrap">{label}</td>
-              {m ? (
+              {m && m.r2 != null && m.mae != null ? (
                 <>
                   <td className="pr-6">{m.r2.toFixed(2)}</td>
                   <td>{m.mae.toFixed(1)}</td>

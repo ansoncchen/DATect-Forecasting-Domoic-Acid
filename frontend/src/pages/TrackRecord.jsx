@@ -143,7 +143,7 @@ function TrackRecordPage({ config }) {
           <Panel className="p-5">
             <h2 className="text-base font-semibold">Against simpler models, {site || 'all sites'}</h2>
             <p className="text-xs text-gray-500 mt-0.5">Same measurements, same week-ahead anchors.</p>
-            <ModelComparison models={scope?.models ?? null} />
+            <ModelComparison models={scope?.r2 ? scope.models : null} />
           </Panel>
 
           <PerSiteTable config={config} perSite={data.perSite} site={site} label={label} onSelectSite={setSite} />

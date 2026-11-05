@@ -9,7 +9,7 @@ import './App.css'
 // Pages load on demand so the About page does not wait for the charting code
 const Forecast = lazy(() => import('./pages/Forecast'))
 const TrackRecord = lazy(() => import('./pages/TrackRecord'))
-const DataExplorer = lazy(() => import('./pages/Historical'))
+const DataExplorer = lazy(() => import('./pages/DataExplorer'))
 const About = lazy(() => import('./pages/About'))
 
 function Pages() {

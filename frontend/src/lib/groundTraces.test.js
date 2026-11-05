@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGroundTraces } from './groundTraces'
+import { buildGroundTraces, noRowsNote } from './groundTraces'
 
 const row = (o = {}) => ({
   date: '2023-01-02', anchorDate: '2022-12-26', actual: 4, predicted: 5, lo: 1, hi: 10,
@@ -12,6 +12,7 @@ const fc = {
 }
 const cfg = {
   spikeThreshold: 20,
+  bandLevel: 0.8,
   levels: [
     { name: 'Quiet', cutoff: null, placeholder: false },
     { name: 'Watch', cutoff: 12, placeholder: false },
@@ -25,6 +26,71 @@ describe('buildGroundTraces', () => {
   it('breaks line and band across gaps longer than 21 days', () => {
     const { traces } = buildGroundTraces(rows(['2023-01-02', '2023-01-09', '2023-03-06']), fc, cfg, { range: 'all' })
     expect(named(traces, 'Forecast, made a week ahead').x).toEqual(['2023-01-02', '2023-01-09', null, '2023-03-06'])
+  })
+
+  it('draws the range as one closed polygon per segment, with nulls between segments', () => {
+    const rs = [
+      row({ date: '2023-01-02', lo: 1, hi: 10 }),
+      row({ date: '2023-01-09', lo: 2, hi: 12 }),
+      row({ date: '2023-03-06', lo: 3, hi: 14 }),
+      row({ date: '2023-03-13', lo: 4, hi: 16 }),
+    ]
+    const { traces } = buildGroundTraces(rs, fc, cfg, { range: 'all' })
+    const band = named(traces, '80% range')
+    expect(band.fill).toBe('toself')
+    expect(band.x).toEqual([
+      '2023-01-02', '2023-01-09', '2023-01-09', '2023-01-02', null,
+      '2023-03-06', '2023-03-13', '2023-03-13', '2023-03-06',
+    ])
+    expect(band.y).toEqual([10, 12, 2, 1, null, 14, 16, 4, 3])
+    expect(traces.filter((t) => t.fill)).toEqual([band])
+  })
+
+  it('keeps a gap of exactly 21 days inside one segment and breaks at 22', () => {
+    const x = (dates) => named(buildGroundTraces(rows(dates), fc, cfg, { range: 'all' }).traces, 'Forecast, made a week ahead').x
+    expect(x(['2023-01-02', '2023-01-23'])).toEqual(['2023-01-02', '2023-01-23'])
+    expect(x(['2023-01-02', '2023-01-24'])).toEqual(['2023-01-02', null, '2023-01-24'])
+  })
+
+  it('names the range from the band level', () => {
+    const { traces } = buildGroundTraces([], fc, { ...cfg, bandLevel: 0.9 }, { range: 'all' })
+    expect(named(traces, '90% range')).toBeDefined()
+    expect(named(traces, '80% range')).toBeUndefined()
+  })
+
+  it('draws a lone forecast as a bar from lo to hi with a small marker, outside the polygon', () => {
+    const rs = [
+      row({ date: '2023-01-02', predicted: 5, lo: 1, hi: 10 }),
+      row({ date: '2023-03-06', predicted: 6, lo: 2, hi: 14 }),
+      row({ date: '2023-03-13', predicted: 7, lo: 3, hi: 15 }),
+    ]
+    const { traces } = buildGroundTraces(rs, fc, cfg, { range: 'all' })
+    const lone = named(traces, 'Lone forecast')
+    expect(lone.x).toEqual(['2023-01-02'])
+    expect(lone.y).toEqual([5])
+    expect(lone.mode).toBe('markers')
+    expect(lone.showlegend).toBe(false)
+    expect(lone.error_y.array).toEqual([5])
+    expect(lone.error_y.arrayminus).toEqual([4])
+    expect(named(traces, '80% range').x).not.toContain('2023-01-02')
+  })
+
+  it('leaves the strip clear of the x-axis labels', () => {
+    const { layout } = buildGroundTraces([], fc, cfg, { range: 'all' })
+    expect(layout.yaxis.domain[0] - layout.yaxis2.domain[1]).toBeGreaterThanOrEqual(0.12)
+  })
+
+  it('reports when there are no rows to show', () => {
+    expect(buildGroundTraces([], fc, cfg, { range: 'all' }).empty).toBe(true)
+    expect(buildGroundTraces(rows(['2023-01-02']), fc, cfg, { range: 'all' }).empty).toBe(false)
+    expect(buildGroundTraces(rows(['2023-01-02']), { ...fc, date: '2019-01-07', anchorDate: '2018-12-31' }, cfg, { range: 'all' }).empty).toBe(true)
+  })
+
+  it('shows rows up to the forecast date when a failed forecast has no anchor', () => {
+    const failed = { ...fc, value: null, band: null, error: 'boom', anchorDate: null }
+    const { traces, layout } = buildGroundTraces(rows(['2023-11-13', '2023-12-04']), failed, cfg, { range: '2y', showAfter: true })
+    expect(named(traces, 'Measurement').x).toContain('2023-11-13')
+    expect(layout.shapes.some((s) => s.xref === 'x')).toBe(false)
   })
 
   it('draws measurements outside the range hollow', () => {
@@ -44,7 +110,8 @@ describe('buildGroundTraces', () => {
     const { traces } = buildGroundTraces(rs, fc, cfg, { range: 'all' })
     expect(named(traces, 'Measurement outside the range').x).toHaveLength(0)
     expect(named(traces, 'Measurement').x).toEqual(['2023-01-02', '2023-01-09', '2023-01-16'])
-    expect(named(traces, '80% range').x).toEqual(['2023-01-02', null, '2023-01-16'])
+    expect(named(traces, '80% range').x).toEqual([])
+    expect(named(traces, 'Lone forecast').x).toEqual(['2023-01-02', '2023-01-16'])
     expect(named(traces, 'Forecast, made a week ahead').y).toEqual([5, null, 5])
   })
 
@@ -105,5 +172,18 @@ describe('buildGroundTraces', () => {
     const { layout } = buildGroundTraces([], fc, cfg, { range: 'all' })
     expect(layout.annotations[0].text).toBe('20 µg/g')
     expect(layout.shapes[0].y0).toBe(20)
+  })
+})
+
+describe('noRowsNote', () => {
+  const early = { date: '2015-06-01' }
+  it('names the first row\'s year for a week before the chart\'s history', () => {
+    expect(noRowsNote(rows(['2020-03-02', '2021-01-04']), early, '2019-01-01')).toBe('History on this chart starts in 2020.')
+  })
+  it('falls back to the requested start when the site has no rows', () => {
+    expect(noRowsNote([], early, '2019-01-01')).toBe('History on this chart starts in 2019.')
+  })
+  it('says the range is empty when history has started', () => {
+    expect(noRowsNote(rows(['2020-03-02']), { date: '2023-11-27' }, '2019-01-01')).toBe('No measurements at this site in this range.')
   })
 })

@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Plot from '../../utils/Plot'
 import Panel from '../ui/Panel'
 import Caution from '../ui/Caution'
-import { getSiteHistory } from '../../services/datect'
-import { buildGroundTraces } from '../../lib/groundTraces'
+import { HISTORY_SINCE, getSiteHistory } from '../../services/datect'
+import { buildGroundTraces, noRowsNote } from '../../lib/groundTraces'
 
 const RANGES = [
   ['6m', '6 mo'],
@@ -63,7 +63,7 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
           <p className="text-sm text-gray-600 max-w-3xl mt-0.5">
             Dots are lab measurements; hollow dots fell outside the {Math.round(config.bandLevel * 100)}% range. The line is
             the forecast made a week before each measurement, shaded by its range. Ticks below mark Watch and Warning weeks.
-            The models were tuned on {validation.label}; {holdout.label} is the untouched holdout.
+            The models were tuned on {validation.label}; {holdout.label} was never used for tuning.
           </p>
         </div>
         <div className="ml-auto flex text-xs border border-gray-300 rounded overflow-hidden divide-x divide-gray-300">
@@ -87,6 +87,7 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
         </label>
       )}
       {error && <Caution>{error}</Caution>}
+      {built?.empty && <p className="mt-2 text-sm text-gray-500">{noRowsNote(history.rows, forecast, HISTORY_SINCE)}</p>}
       {shown && (
         <div className={`mt-2 ${loading || stale ? 'opacity-60' : ''}`}>
           <Plot

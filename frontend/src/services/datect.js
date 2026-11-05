@@ -4,7 +4,7 @@ import {
   toConfig, toForecast, toAllSites, toHistory, toSummary, toTrackRecord,
 } from './contract'
 
-const HISTORY_SINCE = '2019-01-01'
+export const HISTORY_SINCE = '2019-01-01'
 
 async function request(call) {
   try {

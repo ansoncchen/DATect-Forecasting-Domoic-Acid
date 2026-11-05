@@ -161,7 +161,8 @@ The dashboard shows this band with every forecast (`backend/band.py`):
   the all-years run above. A forecast anchored at *t* is calibrated by the rows of that
   run measured on or before *t*, exactly as `past_residual_bands` selects them;
   `tests/test_band_service.py` checks 50 sampled forecasts against
-  `band_predictions.parquet` bit for bit.
+  `band_predictions.parquet`: the same errors and P(DA >= 20), and edges equal to within
+  1e-12 (`expm1`/`log1p` differ in the last bits across platforms).
 - **Variant:** read from `band_eval.json` (`selection.chosen`): the most recent 500 errors,
   no Mondrian, 80%. A forecast with fewer than 30 earlier errors (before about 2006) gets no band.
 - **Category chances** (`forecasting.conformal.category_probabilities`) spread the same

@@ -10,7 +10,10 @@ def test_serve_time_band_equals_the_evaluated_band():
     rows = pd.read_parquet("results/conformal_band/band_predictions.parquet").dropna(subset=["band_lo"])
     for _, r in rows.sample(50, random_state=0).iterrows():
         b = band.forecast_band(r.predicted_da, r.anchor_date)
-        assert (b["lo"], b["hi"], b["p_exceed"]) == (r.band_lo, r.band_hi, r.p_exceed)  # exact
+        # expm1/log1p differ in the last bits across platforms (the file was written on a
+        # Mac, CI runs Linux); the errors selected, and so the counted share, are exact
+        assert (b["lo"], b["hi"]) == pytest.approx((r.band_lo, r.band_hi), rel=1e-12)
+        assert b["p_exceed"] == r.p_exceed
         assert b["n_calibration"] == r.n_calibration and b["level"] == 0.8
 
 

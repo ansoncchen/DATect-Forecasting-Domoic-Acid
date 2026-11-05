@@ -166,9 +166,9 @@ DATect-Forecasting-Domoic-Acid/
 
 ## Using the Dashboard
 
-1. Choose the forecast mode: a single forecast for one date and site, or a retrospective evaluation over historical points.
-2. Pick the site, date and model: `ensemble` (recommended), `naive` (persistence) or `linear` (Ridge / logistic).
-3. Run it. Single forecasts show the predicted DA, its interval and its risk category.
+1. Forecast: pick a site and a forecast date. The page shows the predicted DA with its error range, the spike alert level, the latest measurement before the forecast, and, for a past week, what happened.
+2. Track record: how the forecasts performed on the 2022-2023 holdout and the 2019-2021 validation windows.
+3. Data explorer and About: charts of the underlying data, and the method and its limits.
 
 **Risk categories** (left-closed bins; a value on a boundary belongs to the higher category):
 

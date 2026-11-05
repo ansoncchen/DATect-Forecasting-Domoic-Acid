@@ -3,10 +3,8 @@
 **Date:** 2026-11-03
 **Branch:** `claude/dashboard-redesign-26311d` (phase 1: design only; no frontend changes)
 **Status:** Approved 2026-11-03
-**Mockup:** `dashboard-mockup/` (throwaway HTML on real 2023 results). Serve it with
-`python3 -m http.server 4600 -d docs/superpowers/specs/dashboard-mockup` and open
-`http://localhost:4600/?site=Newport` (add `&callouts=1` for the numbered callouts).
-`build_data.py` there rebuilds its `data.json` from `results/`.
+**Mockup:** the throwaway HTML mockup was removed when the real page landed; only its
+`dashboard-mockup/screenshots/` remain.
 
 ## 1. Who it is for, and what they ask
 

@@ -1,10 +1,10 @@
 # Visualizations Guide
 
-Every chart the dashboard shows, where it is produced, and how to read it. Plotly figures for the Historical page are built in `backend/visualizations.py` (and the site map in `backend/api.py`); dashboard result charts are built in the frontend (`frontend/src/pages/Dashboard.jsx`, `frontend/src/utils/retrospective.js`).
+Every chart the dashboard shows, where it is produced, and how to read it. Plotly figures for the Data explorer page are built in `backend/visualizations.py` (and the site map in `backend/api.py`); the forecast and track-record charts are built in the frontend (`frontend/src/pages/`).
 
 Risk categories used by every chart: Low `[0, 5)`, Moderate `[5, 20)`, High `[20, 40)`, Extreme `>= 40` µg/g; a value on a boundary belongs to the higher category.
 
-## Historical page (`frontend/src/pages/Historical.jsx`)
+## Data explorer (`frontend/src/pages/DataExplorer.jsx`)
 
 | Chart | Endpoint | Scope |
 |---|---|---|

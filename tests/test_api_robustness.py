@@ -179,3 +179,15 @@ def test_historical_returns_raw_measurements():
 def test_metrics_summary_is_computed_once_per_process():
     from backend import api
     assert hasattr(api._load_metrics_summary, "cache_info")
+
+
+def test_site_map_reports_measurements_not_a_risk_verdict():
+    """The map shows the last reading, which can be months old: no 'risk level', no reassuring green."""
+    with TestClient(app) as client:
+        plot = client.get("/api/visualizations/map").json()["plot"]
+    title = plot["layout"]["title"]["text"]
+    assert "Risk" not in title and "last measured" in title.lower()
+    trace = plot["data"][0]
+    assert not {"green", "yellow"} & set(trace["marker"]["color"])
+    hover = " ".join(trace["hovertemplate"])
+    assert "Risk Level" not in hover and "Last measured DA" in hover

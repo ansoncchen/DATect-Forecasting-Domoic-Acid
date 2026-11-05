@@ -89,7 +89,7 @@ One screen, no configuration step. The numbered callouts match the mockup.
 3. **Spike risk.** Graded, not a single alarm (see "Spike risk, graded" below): the classifier's
    probability of a jump to ≥ 20 µg/g on a Quiet / Watch / Warning bar; which conditions hold
    (classifier ≥ 10%, forecast ≥ 12); what weeks at this level were followed by in 2022–2023
-   ("a jump followed 9 of 73 Watch weeks"); the last five measurements as a trend line; and the
+   ("a jump followed 9 of 68 Watch weeks"); the last five measurements as a trend line; and the
    track record in plain words, overall and at the site.
 4. **Latest measurement.** Value, date, and age relative to the forecast's anchor; the last six
    real measurements as small bars against the 20 line. "No recent sample" (amber rule) when the
@@ -132,17 +132,16 @@ So the card shows a level instead of a red light:
 
 - **Quiet** (gray, never green): no alert condition holds.
 - **Watch** (amber): today's hybrid alert, unchanged (classifier ≥ 10% or forecast ≥ 12).
-- **Warning** (red): the classifier above an upper cutoff. 40% is a **placeholder**; the alert
-  experiments session sets the real tiers, choosing them on validation, never on the holdout.
+- **Warning** (red): the classifier at or above 35%. The onset experiments chose that cutoff on
+  validation, never on the holdout (`docs/FORECAST_EXPERIMENTS.md` section 6.2).
 
-Next to the level, the card says what that level has meant. With the placeholder cutoff, weeks
-followed by a jump were:
+Next to the level, the card says what that level has meant. Weeks followed by a jump were:
 
 | Level | 2022–2023 | 2019–2021 |
 |---|---:|---:|
 | Quiet | 8 of 213 | 7 of 420 |
-| Watch | 9 of 73 | 14 of 68 |
-| Warning (≥ 40%) | 10 of 33 | 13 of 32 |
+| Watch | 9 of 68 | 13 of 63 |
+| Warning (≥ 35%) | 10 of 38 | 14 of 37 |
 
 The card also states the track record in plain words ("catches about 7 in 10 jumps (19 of 27);
 fewer than 1 in 5 alarms was followed by one (19 of 106); 48 of the 87 false alarms were near
@@ -286,7 +285,7 @@ paper, not a product page.
   values stay readable; it is labelled, not a linear axis.
 - The forecast-week picker stops at the newest weekly row: past it the engine forecasts from
   stale data. Its earliest week is the dataset's first; weeks before the first band (fewer than
-  30 past errors) show the forecast with "No range: too little error history".
+  30 past errors) show the forecast with "No range: fewer than 30 earlier forecast errors" (the API's `band_reason`).
 - **Picking a past week** shows the page as it stood then: the ground-data chart, latest
   measurement and all-sites table stop at that week's anchor (history and all-sites calls take the
   date). A "Show what happened" toggle then adds the measurements that followed, so a past week
@@ -296,8 +295,8 @@ paper, not a product page.
   after a retune. The Data and model tile shows the forecast's model version and the
   evaluation's source; the API has no per-summary version stamp, so there is no automatic
   mismatch flag.
-- Watch is today's hybrid alert unchanged; Warning uses a placeholder 40% until the experiments
-  set the tiers. Quiet is gray, never green.
+- Watch is today's hybrid alert unchanged; Warning is the classifier at or above 35%. Quiet is
+  gray, never green.
 - Colours follow the budget in section 7.
 
 ## 10. Sequencing
@@ -307,15 +306,13 @@ fields above come first, then the Forecast page, then Track record, then the cle
 against the section 6 names with fixtures; a field that is not there yet hides its tile or line
 rather than being computed in the browser. The mockup folder is deleted when the real page lands.
 
-## 11. Open questions for the user
-
-Recommended in this draft, awaiting the user's yes:
+## 11. Decided with the user
 
 1. **The all-sites table stays at the bottom of the Forecast page.** The single-site answer stays
    above the fold; the table shows neighbouring beaches, which can rise first, and switches
    site.
 2. **"Quiet / Watch / Warning", with today's alert as an amber Watch.** The words follow the
    weather-service convention (a watch: conditions favour it; a warning: it is likely). Fewer than
-   1 in 5 of today's alarms are followed by a jump, which does not earn red. Red is kept for a
-   Warning cutoff the experiments choose on validation. Each level always carries its own record
-   ("followed by a jump 9 of 73 times"), so the label cannot claim more than the data.
+   1 in 5 of today's alarms are followed by a jump, which does not earn red. Red is kept for
+   Warning, whose cutoff the experiments chose on validation. Each level always carries its own record
+   ("followed by a jump 9 of 68 times"), so the label cannot claim more than the data.

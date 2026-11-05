@@ -1,0 +1,128 @@
+{
+ "success": true,
+ "forecast_date": "2023-12-25",
+ "site": "Newport",
+ "anchor_date": "2023-12-18",
+ "regression": {
+  "forecast_date": "2023-12-25T00:00:00",
+  "anchor_date": "2023-12-18T00:00:00",
+  "site": "Newport",
+  "task": "regression",
+  "model_type": "ensemble",
+  "training_samples": 1093,
+  "predicted_da": 5.040693283081055,
+  "feature_importance": {
+   "pdo": 0.053429875522851944,
+   "modis-sst": 0.04044751077890396,
+   "oad_score": 0.03846406564116478,
+   "oad_score_lag1week": 0.0,
+   "oad_score_lag2week": 0.009441686794161797,
+   "oad_score_30day_mean": 0.020435135811567307,
+   "oad_score_30day_max": 0.024768149480223656,
+   "oad_score_30day_trend": 0.04268331453204155,
+   "oad_score_zscore_doy": 0.03319557011127472,
+   "oad_overall_score": 0.017194977030158043,
+   "oad_overall_score_lag1week": 0.005474619567394257,
+   "oad_overall_score_lag2week": 0.01644432358443737,
+   "oad_overall_score_30day_mean": 0.02620004117488861,
+   "oad_overall_score_30day_max": 0.03020184487104416,
+   "oad_overall_score_30day_trend": 0.025159109383821487,
+   "oad_overall_score_zscore_doy": 0.02852659858763218,
+   "oad_valid_frac": 0.03484470024704933,
+   "oad_overall_valid_frac": 0.018870169296860695,
+   "month": 0.04337267950177193,
+   "last_observed_da_raw": 0.15935291349887848,
+   "weeks_since_last_spike": 0.1396874636411667,
+   "da_raw_prev_obs_1": 0.19180531799793243
+  },
+  "naive_prediction": 6.3,
+  "xgb_prediction": 5.040693283081055,
+  "rf_prediction": 5.661140230779626,
+  "ensemble_prediction": 5.040693283081055,
+  "ensemble_weights": [
+   1.0,
+   0.0,
+   0.0
+  ],
+  "bootstrap_quantiles": {
+   "q05": 0.0010109307477250695,
+   "q50": 5.087904930114746,
+   "q95": 37.926666259765625
+  },
+  "predicted_category": 1,
+  "spike_probability": 0.04719996824860573,
+  "spike_alert": false
+ },
+ "ensemble": {
+  "naive_prediction": 6.3,
+  "xgb_prediction": 5.040693283081055,
+  "rf_prediction": 5.661140230779626,
+  "ensemble_prediction": 5.040693283081055,
+  "ensemble_weights": [
+   1.0,
+   0.0,
+   0.0
+  ]
+ },
+ "band": {
+  "lo": 0.17973613474426997,
+  "hi": 12.180996640788369,
+  "level": 0.8,
+  "n_calibration": 500,
+  "p_exceed": 0.046,
+  "category_probabilities": [
+   0.55,
+   0.404,
+   0.032,
+   0.014
+  ]
+ },
+ "band_reason": null,
+ "band_p_exceed": 0.046,
+ "category_probabilities": [
+  0.55,
+  0.404,
+  0.032,
+  0.014
+ ],
+ "alert": {
+  "classifier_probability": 0.04719996824860573,
+  "by_classifier": false,
+  "by_regression": false,
+  "alert": false,
+  "level": "Quiet",
+  "level_reason": null
+ },
+ "last_measurement": {
+  "date": "2023-11-28",
+  "value": 6.3
+ },
+ "recent_measurements": [
+  {
+   "date": "2023-08-31",
+   "value": 32.0
+  },
+  {
+   "date": "2023-09-28",
+   "value": 0.0
+  },
+  {
+   "date": "2023-10-19",
+   "value": 0.0
+  },
+  {
+   "date": "2023-10-31",
+   "value": 15.0
+  },
+  {
+   "date": "2023-11-16",
+   "value": 0.0
+  },
+  {
+   "date": "2023-11-28",
+   "value": 6.3
+  }
+ ],
+ "source": "computed",
+ "model_version": null
+}

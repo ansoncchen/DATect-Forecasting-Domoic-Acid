@@ -22,9 +22,9 @@ out = {"overall": {
     "band_onset_coverage": band["holdout"]["coverage_at_onsets"],
 }, "sites": {}}
 
-# Alarm quality on below-20 weeks (onset weeks plus quiet weeks), and by placeholder tier.
-# WARN_AT is a placeholder for the alert experiments' tiers, not a tuned cutoff.
-WARN_AT = 0.40
+# Alarm quality on below-20 weeks (onset weeks plus quiet weeks), and by level.
+# WARN_AT is alert_warning_prob_cutoff from config/tuned_hyperparameters.json (API PR #25).
+WARN_AT = 0.35
 for name, (lo, hi) in {"holdout": ("2022-01-01", "2024-01-01"), "validation": ("2019-01-01", "2022-01-01")}.items():
     w = b[(b["date"] >= lo) & (b["date"] < hi) & (b["naive_prediction"] < 20)]
     spike, alarm = w["actual_da"] >= 20, w["spike_alert"]

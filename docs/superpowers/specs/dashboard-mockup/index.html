@@ -132,8 +132,8 @@ const caution = html => `<p class="mt-3 text-xs text-gray-800 border-l-2 pl-2" s
 let DATA, site, range = '2y'
 let shown = (() => { try { return JSON.parse(localStorage.getItem('datect.metrics')) || DEFAULT_ON } catch { return DEFAULT_ON } })()
 
-// Tiers: Watch is today's hybrid alert unchanged; Warning is a placeholder upper cutoff on the
-// classifier probability until the alert experiments settle real tiers (from /api/config).
+// Levels: Watch is today's hybrid alert unchanged; Warning is the classifier at or above the
+// cutoff the onset experiments chose on validation (from /api/config in the app).
 const LEVEL = {
   quiet: { label: 'Quiet', color: '#9ca3af' },
   watch: { label: 'Watch', color: AMBER },
@@ -218,7 +218,6 @@ function renderAlert(s) {
     <div class="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-600 space-y-1">
       <p>2022–2023, all sites: caught ${a.caught} of ${a.onsets} jumps (about 7 in 10); ${a.caught} of ${a.alarms} alarms were followed by one (fewer than 1 in 5). ${a.false_10_20} of the ${a.false} false alarms were near misses at 10–20 µg/g.</p>
       <p>${site}: ${so.n ? `${so.caught} of ${so.n} jumps caught` : 'no jumps to ≥ 20'}; ${siteAlarms ? `${so.caught} of ${siteAlarms} alarms followed by one` : 'no alarms'}.</p>
-      <p class="text-gray-400">The Warning cutoff is a placeholder until the alert experiments set the levels.</p>
     </div>`
 }
 

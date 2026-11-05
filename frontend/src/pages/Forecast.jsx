@@ -5,6 +5,7 @@ import FilterBar from '../components/forecast/FilterBar'
 import ForecastCard from '../components/forecast/ForecastCard'
 import SpikeRiskCard from '../components/forecast/SpikeRiskCard'
 import LatestMeasurementCard from '../components/forecast/LatestMeasurementCard'
+import GroundDataChart from '../components/forecast/GroundDataChart'
 import Caution from '../components/ui/Caution'
 
 const SLOW_MS = 3000
@@ -92,6 +93,7 @@ function ForecastPage({ config }) {
           <LatestMeasurementCard forecast={forecast} config={config} />
         </div>
       )}
+      <GroundDataChart site={site} week={week} forecast={forecast} config={config} loading={loading} />
     </div>
   )
 }

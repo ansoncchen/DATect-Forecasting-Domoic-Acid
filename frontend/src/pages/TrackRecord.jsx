@@ -3,6 +3,7 @@ import { useConfig } from '../context/ConfigContext'
 import { getSiteHistory, getTrackRecord } from '../services/datect'
 import { buildGroundTraces } from '../lib/groundTraces'
 import { exportCsv } from '../lib/csv'
+import { jumpDefinition } from '../lib/copy'
 import { formatPct, formatStat } from '../lib/format'
 import Panel from '../components/ui/Panel'
 import Caution from '../components/ui/Caution'
@@ -117,12 +118,13 @@ function TrackRecordPage({ config }) {
                 <Item label="Log R²">{scope.logR2 ? formatStat(scope.logR2, 2) : <span className={muted}>too few</span>}</Item>
                 <Item label="MAE (µg/g)">{scope.mae ? formatStat(scope.mae, 1) : <span className={muted}>too few</span>}</Item>
                 <Item label={`Range held (${formatPct(config.bandLevel)})`}><RangeHeld reliability={scope} /></Item>
-                <Item label="Onsets caught">{scope.onsets.caught} of {scope.onsets.n}</Item>
+                <Item label="Jumps caught">{scope.onsets.caught} of {scope.onsets.n}</Item>
                 <Item label="Alarms followed by a jump">{scope.alarms.followed} of {scope.alarms.n}</Item>
               </dl>
             ) : (
               <p className="mt-2 text-sm text-gray-500">No measurements at this site in this window.</p>
             )}
+            <p className="mt-3 text-xs text-gray-500">{jumpDefinition(config.spikeThreshold)}</p>
           </Panel>
 
           <Panel className="p-5">

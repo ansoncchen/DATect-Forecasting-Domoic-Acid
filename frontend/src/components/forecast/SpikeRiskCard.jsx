@@ -5,7 +5,7 @@ import { INK } from '../../lib/colors'
 import { formatDate, formatScore, formatValue } from '../../lib/format'
 import { levelKey } from '../../lib/risk'
 import {
-  classifierConditionText, levelCutoffsText, levelRecordText, scoreCaption, siteRecordText, trackRecordText,
+  classifierConditionText, levelCutoffsText, levelRecordText, recentValuesText, scoreCaption, siteRecordText, trackRecordText,
 } from '../../lib/copy'
 
 function Condition({ holds, children }) {
@@ -106,7 +106,7 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
       )}
       {recent.length > 0 && (
         <p className="mt-1 text-xs text-gray-500 tabular-nums">
-          Measured lately: {recent.map((r) => formatValue(r.value)).join(', ')} µg/g
+          {recentValuesText(recent.map((r) => r.value))}
         </p>
       )}
       {(holdout || placeholders.length > 0) && (

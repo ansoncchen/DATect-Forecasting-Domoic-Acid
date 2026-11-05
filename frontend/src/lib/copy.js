@@ -1,4 +1,4 @@
-import { formatPct, formatScore, ratioWords } from './format'
+import { formatPct, formatScore, formatValue, ratioWords } from './format'
 import { levelKey, siteReliability } from './risk'
 
 /**
@@ -57,6 +57,26 @@ export function siteRecordText(site, onsets) {
   const jumps = onsets.n ? `${onsets.caught} of ${onsets.n} jumps caught` : 'no jumps to ≥ 20'
   const followed = alarms ? `${onsets.caught} of ${alarms} alarms followed by one` : 'no alarms'
   return `${site}: ${jumps}; ${followed}.`
+}
+
+const COUNT_WORDS = ['one', 'two', 'three', 'four', 'five']
+
+/**
+ * The last few measurements, in words a reader cannot take for newest first.
+ * @param {number[]} values oldest first, at most five
+ * @returns {string}
+ */
+export function recentValuesText(values) {
+  const list = `${values.map((v) => formatValue(v)).join(', ')} µg/g`
+  return values.length === 1 ? `Last one: ${list}` : `Last ${COUNT_WORDS[values.length - 1]}, oldest to newest: ${list}`
+}
+
+/**
+ * @param {number} threshold
+ * @returns {string}
+ */
+export function jumpDefinition(threshold) {
+  return `A jump: the last value known when the forecast was made was below ${threshold} and the measurement reached ${threshold}.`
 }
 
 /**

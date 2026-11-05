@@ -1,7 +1,7 @@
 import React from 'react'
 import LevelTag from '../ui/LevelTag'
 import { formatDate, formatPct, formatValue } from '../../lib/format'
-import { bandVsAlertText, siteRecordText, trackRecordText } from '../../lib/copy'
+import { bandVsAlertText, jumpDefinition, siteRecordText, trackRecordText } from '../../lib/copy'
 import { siteReliability } from '../../lib/risk'
 import { featureLabel } from '../../lib/featureNames'
 
@@ -64,9 +64,9 @@ export function AlertTile({ site, summary, config }) {
   return (
     <Tile
       title="Alert track record"
-      help={`A jump: the last value known when the forecast was made was below ${config.spikeThreshold} and the measurement reached ${config.spikeThreshold}. Weeks already at or above ${config.spikeThreshold} are left out.`}
       foot={
         <>
+          {jumpDefinition(config.spikeThreshold)} Weeks already at or above {config.spikeThreshold} are left out.{' '}
           {trackRecordText(holdout.overall, config.windows.holdout.label)} Weeks at each level followed by a jump, all
           sites. Per-site counts are small; read them as counts, not rates.
         </>
@@ -121,7 +121,8 @@ export function CoverageTile({ site, summary, config }) {
       foot={
         <>
           Target {formatPct(config.bandLevel)}. All sites {dash(overall.band.coverage, formatPct)}; this site in{' '}
-          {config.windows.validation.label}: {dash(validation?.band.coverage, formatPct)}. At jumps to ≥{' '}
+          {config.windows.validation.label}: {dash(validation?.band.coverage, formatPct)}
+          {validation && ` of ${validation.band.nBanded} measurements`}. At jumps to ≥{' '}
           {config.spikeThreshold} the range held only {dash(overall.band.onsetCoverage, formatPct)}: it describes
           typical weeks; the alert covers jumps.
         </>
@@ -164,15 +165,23 @@ export function MaeTile({ site, summary, config }) {
   )
 }
 
-export function CatsTile({ forecast, config }) {
+export function CatsTile({ site, forecast, summary, config }) {
   if (!forecast) return null
   const { band, alert, categoryChances } = forecast
   const ready = band && alert && categoryChances
+  const weak = summary && siteReliability(summary.reliability.holdout.perSite[site]) === 'weak'
   return (
     <Tile
       title="Category chances (from the range)"
       help="Share of past forecast errors that would put next week in each category."
-      foot={ready && bandVsAlertText(forecast, config.spikeThreshold)}
+      foot={
+        ready && (
+          <>
+            {bandVsAlertText(forecast, config.spikeThreshold)}
+            {weak && ' The range is less reliable here (see Range reliability).'}
+          </>
+        )
+      }
     >
       {ready ? (
         <>
@@ -275,7 +284,7 @@ export function PartsTile({ forecast }) {
       <div className="text-sm space-y-0.5 tabular-nums">
         {rows.map(([name, v, w]) => (
           <div key={name} className={w == null ? 'font-medium' : ''}>
-            {name} {dash(v, formatValue)} µg/g
+            {name} {dash(v, formatValue)}
             {w != null && <span className="text-gray-500"> (weight {formatPct(w)})</span>}
           </div>
         ))}
@@ -285,7 +294,10 @@ export function PartsTile({ forecast }) {
     body = <span className="text-sm text-gray-500">Not available for this forecast</span>
   }
   return (
-    <Tile title="Model parts" foot={body !== NO_FORECAST && 'The forecast blends these three; large gaps between them mean the models disagree.'}>
+    <Tile
+      title="Model parts"
+      foot={body !== NO_FORECAST && "In µg/g, with each part's weight at this site. A part with weight 0% does not enter the forecast. Large gaps between the models mean they disagree."}
+    >
       {body}
     </Tile>
   )
@@ -293,22 +305,30 @@ export function PartsTile({ forecast }) {
 
 export function DriversTile({ forecast }) {
   if (!forecast) return null
-  const { drivers, error } = forecast
+  const { drivers, error, parts } = forecast
   const top = [...drivers].sort((a, b) => b.importance - a.importance).slice(0, TOP_DRIVERS)
   let body = NO_FORECAST
-  if (!error) {
-    body = top.length ? (
+  let foot = null
+  if (!error && parts?.weights[0] === 0) {
+    body = (
+      <span className="text-sm text-gray-500">
+        This site&apos;s forecast comes from the Random Forest, which reports no importances here.
+      </span>
+    )
+  } else if (!error && top.length) {
+    body = (
       <ol className="text-xs space-y-0.5 list-decimal list-inside text-gray-700">
         {top.map((d) => (
           <li key={d.feature}>{featureLabel(d.feature)}</li>
         ))}
       </ol>
-    ) : (
-      <span className="text-sm text-gray-500">Not available for this forecast</span>
     )
+    foot = 'Importance is association, not cause.'
+  } else if (!error) {
+    body = <span className="text-sm text-gray-500">Not available for this forecast</span>
   }
   return (
-    <Tile title="Top drivers" foot={body !== NO_FORECAST && 'Features the model leaned on most for this forecast. Importance is association, not cause.'}>
+    <Tile title="XGBoost's feature importances" foot={foot}>
       {body}
     </Tile>
   )
@@ -317,13 +337,13 @@ export function DriversTile({ forecast }) {
 export function WidthTile({ forecast, summary, config }) {
   if (!forecast || !summary) return null
   const { band } = forecast
-  const median = summary.reliability.holdout.overall.band.medianWidth
+  const { medianWidth, nBanded } = summary.reliability.holdout.overall.band
   return (
     <Tile
       title="Range width"
       foot={
         band &&
-        `Median ${formatPct(config.bandLevel)} width in ${config.windows.holdout.label}: ${dash(median, formatValue)} µg/g. The range widens with the forecast (it is built on a log scale).`
+        `Median ${formatPct(config.bandLevel)} width in ${config.windows.holdout.label}: ${dash(medianWidth, formatValue)} µg/g, over ${nBanded} measurements at all sites. The range widens with the forecast (it is built on a log scale).`
       }
     >
       {band ? <Big unit="µg/g">{formatValue(band.hi - band.lo)}</Big> : <span className="text-sm text-gray-500">No range for this forecast</span>}
@@ -336,13 +356,15 @@ const SOURCE_WORDS = { precomputed: 'Served from the precomputed store', compute
 export function ProvTile({ forecast, summary }) {
   if (!forecast) return null
   const { source, modelVersion, trainingSamples } = forecast.provenance
+  const { band } = forecast
   return (
     <Tile title="Data and model" foot="From the forecast response and the results files behind the track-record numbers.">
       <div className="text-xs space-y-0.5 text-gray-700 tabular-nums">
-        <div>Forecast made as of {forecast.anchorDate ? formatDate(forecast.anchorDate) : 'not reported'}</div>
+        <div>{forecast.anchorDate ? `Forecast made as of ${formatDate(forecast.anchorDate)}` : 'Forecast date not reported'}</div>
         <div>{source ? (SOURCE_WORDS[source] ?? source) : 'Source not reported'}</div>
         <div>Model version {modelVersion ?? 'not reported'}</div>
         <div>Training samples {trainingSamples ?? 'not reported'}</div>
+        {band && <div>Range calibrated on {band.nCalibration} earlier forecast errors</div>}
         {summary?.source && (
           <ul className="pt-1 text-gray-500 break-all">
             {Object.entries(summary.source).map(([name, path]) => (

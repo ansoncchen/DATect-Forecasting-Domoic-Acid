@@ -77,8 +77,8 @@ mockup screenshots predate the score wording: they print the classifier's number
 ![Mockup, Newport](dashboard-mockup/screenshots/mockup-newport.jpg)
 
 1. **Filter row.** Site (options tagged "less reliable" or "little recent data"), forecast week
-   (defaults to the latest precomputed week, as the Spark branch already does), and "uses data
-   through <anchor>". The forecast page always shows the evaluated ensemble; model and task
+   (defaults to the latest precomputed week, as the Spark branch already does), and "Forecast made
+   as of <anchor>". The forecast page always shows the evaluated ensemble; model and task
    choices move to Track record.
 2. **Next week's forecast.** Value to one decimal (`<0.1` below that), the 80% conformal range, the
    category the forecast falls in, and a bar with the four categories and the 20 µg/g closure
@@ -176,7 +176,7 @@ classifier score 0.22 (alert), band 6%.
 | 5 | Fit: R² with CI (and log R²), site vs all | Familiar to scientists; dominated by a few large values | `per_site` | off |
 | 6 | Spike detection by the forecast: recall, precision, F2 of forecast ≥ 12 for readings ≥ 20 | The regression path of the alert alone | `per_site` | off |
 | 7 | Model parts: XGBoost, Random Forest, last value carried forward, weights | Shows when the models disagree | forecast response | off |
-| 8 | Top drivers: feature importance with plain names | Context, not cause | forecast response | off |
+| 8 | XGBoost's feature importances, with plain names; where XGBoost's weight is 0 the tile says the forecast comes from the Random Forest | Context, not cause | forecast response | off |
 | 9 | Range width vs the holdout median (15.1 µg/g) | A wide range is itself information | forecast band | off |
 | 10 | Data and model: data through, training samples, precomputed or computed, model version | Provenance | forecast response | off |
 

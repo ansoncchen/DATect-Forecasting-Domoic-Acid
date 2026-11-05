@@ -62,14 +62,14 @@ export function daysBetween(isoA, isoB) {
 }
 
 /**
- * A span of days in the coarsest unit that reads naturally: days under two
- * weeks, weeks under about two months, otherwise months.
+ * A span of days: days up to 29, so a stale age never reads like a fresh one rounded
+ * ("3 weeks *" beside "3 weeks"), then weeks up to 59 days, then months.
  * @param {number} days
  * @returns {string}
  */
 export function formatAge(days) {
   const plural = (n, unit) => `${n} ${unit}${n === 1 ? '' : 's'}`
-  if (days < 14) return plural(days, 'day')
+  if (days < 30) return plural(days, 'day')
   if (days < 60) return plural(Math.round(days / 7), 'week')
   return plural(Math.round(days / 30.44), 'month')
 }

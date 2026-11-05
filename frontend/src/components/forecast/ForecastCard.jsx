@@ -30,7 +30,7 @@ export default function ForecastCard({ forecast, summary, config }) {
 
   return (
     <Panel className="p-5">
-      <div className="text-xs text-gray-500">Next week&apos;s forecast</div>
+      <div className="text-xs text-gray-500">Next week&apos;s forecast, {site}</div>
       {error ? (
         <Caution>{error}</Caution>
       ) : (

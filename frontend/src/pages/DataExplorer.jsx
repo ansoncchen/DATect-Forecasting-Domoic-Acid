@@ -3,6 +3,7 @@ import Plot from '../utils/Plot'
 import api from '../services/api'
 import { plotConfig, getPlotFilename } from '../utils/plotConfig'
 import { useConfig } from '../context/ConfigContext'
+import { INK } from '../lib/colors'
 import Panel from '../components/ui/Panel'
 import Caution from '../components/ui/Caution'
 
@@ -29,6 +30,13 @@ function endpointFor(type, scope, site) {
 
 // Server-rendered layouts carry a fixed width; drop it so the figure fills its panel and redraws on resize.
 const fitted = (layout) => ({ ...layout, autosize: true, width: undefined })
+
+// Stop-gap until the API changes the figure: it colours sites by their last reading and titles them
+// "Risk Levels", against the dashboard's colour rules. The hover text stays.
+const plainSiteMap = (plot) => ({
+  data: plot.data.map((trace) => ({ ...trace, marker: { ...trace.marker, color: INK } })),
+  layout: { ...plot.layout, title: { text: 'Monitoring sites' } },
+})
 
 const selectClass = 'px-2 py-1.5 border border-gray-300 rounded text-sm min-w-[14rem] max-w-full bg-white'
 
@@ -60,7 +68,7 @@ function DataExplorerPage({ sites }) {
     setError(null)
     api
       .get(endpoint)
-      .then((r) => latest.current === id && setFigure(r.data))
+      .then((r) => latest.current === id && setFigure({ ...r.data, type }))
       .catch((e) => {
         if (latest.current !== id) return
         const detail = e.response?.data?.detail
@@ -88,8 +96,9 @@ function DataExplorerPage({ sites }) {
     if (error) return <Caution>{error}</Caution>
     if (!figure) return <p className="text-sm text-gray-500">Loading</p>
     if (figure.plot) {
+      const plot = figure.type === 'map' ? plainSiteMap(figure.plot) : figure.plot
       return (
-        <Plot data={figure.plot.data} layout={fitted(figure.plot.layout)} {...plotProps()} />
+        <Plot data={plot.data} layout={fitted(plot.layout)} {...plotProps()} />
       )
     }
     if (Array.isArray(figure.plots)) {

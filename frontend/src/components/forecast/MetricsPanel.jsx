@@ -39,7 +39,7 @@ export default function MetricsPanel({ site, forecast, summary, summaryError, co
     <Panel className={`p-5 ${loading ? 'opacity-60' : ''}`}>
       <h2 className="text-base font-semibold">Metrics, {site}</h2>
       <p className="text-xs text-gray-500 mt-0.5">
-        Listed by how much each should move a harvest decision. The selection is remembered on this device.
+        Listed in the order we suggest reading them. The selection is remembered on this device.
       </p>
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
         {METRICS.map(([key, label]) => (

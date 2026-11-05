@@ -76,9 +76,9 @@ export default function FilterBar({ config, summary, site, week, anchorDate, onS
           />
         </div>
         {anchorDate && (
-          <div className="text-sm text-gray-600 pb-1.5">Uses data through {formatDate(anchorDate)}</div>
+          <div className="text-sm text-gray-600 pb-1.5">Forecast made as of {formatDate(anchorDate)}</div>
         )}
-        <div className="ml-auto text-xs text-gray-500 pb-1.5">Model: ensemble (XGBoost + Random Forest)</div>
+        <div className="ml-auto text-xs text-gray-500 pb-1.5">Model: per-site ensemble</div>
       </div>
       {rejected && <p className="mt-2 text-xs text-gray-500">{weekRangeNote(weekRange)}</p>}
     </Panel>

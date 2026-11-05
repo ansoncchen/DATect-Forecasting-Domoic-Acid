@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useConfig } from '../context/ConfigContext'
 import { getSummary } from '../services/datect'
 import { formatDate } from '../lib/format'
@@ -57,7 +58,7 @@ function AboutPage({ config }) {
             <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 mt-1">
               <li>21 years of temporal coverage (2003-2023)</li>
               <li>10 Pacific Coast monitoring sites</li>
-              <li>XGBoost + Random Forest ensemble with per-site configuration</li>
+              <li>XGBoost and Random Forest, chosen or blended per site</li>
               <li>One-week forecast with an {Math.round(config.bandLevel * 100)}% range, graded spike risk and a track record</li>
               <li>Scientific data visualization</li>
             </ul>
@@ -77,8 +78,8 @@ function AboutPage({ config }) {
         <div>
           <h3 className="text-sm font-semibold">Scientific validation</h3>
           <p className="text-sm text-gray-600 mt-1">
-            The system implements strict temporal safeguards to prevent data leakage and maintains
-            peer-review quality standards with comprehensive validation testing.
+            Each forecast is tested only on measurements after the data it was trained on; the{' '}
+            <Link to="/track-record" className="underline">Track record</Link> page shows the results.
           </p>
         </div>
       </Panel>

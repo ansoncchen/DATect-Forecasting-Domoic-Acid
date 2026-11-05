@@ -6,7 +6,7 @@ export const METRICS = [
   ['r2', 'Fit (R²)'],
   ['line', 'Spike detection by the forecast'],
   ['parts', 'Model parts'],
-  ['drivers', 'Top drivers'],
+  ['drivers', "XGBoost's feature importances"],
   ['width', 'Range width'],
   ['prov', 'Data and model'],
 ]

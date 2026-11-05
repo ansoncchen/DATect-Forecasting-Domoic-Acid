@@ -36,7 +36,7 @@ export default function PerSiteTable({ config, perSite, site, label, onSelectSit
               <th className="pr-3 font-normal">Log R²</th>
               <th className="pr-3 font-normal">MAE (µg/g)</th>
               <th className="pr-3 font-normal">Range held</th>
-              <th className="pr-3 font-normal">Onsets caught</th>
+              <th className="pr-3 font-normal">Jumps caught</th>
               <th className="font-normal">Alarms followed</th>
             </tr>
           </thead>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   reliabilityText, levelRecordText, trackRecordText, siteRecordText, bandVsAlertText,
-  scoreCaption, levelCutoffsText, classifierConditionText,
+  scoreCaption, levelCutoffsText, classifierConditionText, recentValuesText, jumpDefinition,
 } from './copy'
 
 const overall = {
@@ -93,5 +93,22 @@ describe('score sentences', () => {
   })
   it('says when there is no score', () => {
     expect(classifierConditionText(null, 0.1, false)).toBe('Classifier score unavailable')
+  })
+})
+
+describe('recentValuesText', () => {
+  it('says how many and in what order', () => {
+    expect(recentValuesText([0, 0, 15, 0, 6.3])).toBe('Last five, oldest to newest: 0.0, 0.0, 15.0, 0.0, 6.3 µg/g')
+    expect(recentValuesText([1, 2])).toBe('Last two, oldest to newest: 1.0, 2.0 µg/g')
+  })
+  it('has no order to state for one value', () => {
+    expect(recentValuesText([6.3])).toBe('Last one: 6.3 µg/g')
+  })
+})
+
+describe('jumpDefinition', () => {
+  it('defines a jump from the threshold', () => {
+    expect(jumpDefinition(20)).toBe(
+      'A jump: the last value known when the forecast was made was below 20 and the measurement reached 20.')
   })
 })

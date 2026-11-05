@@ -36,7 +36,12 @@ describe('formatters', () => {
   it('picks a natural unit for ages', () => {
     expect(formatAge(1)).toBe('1 day')
     expect(formatAge(5)).toBe('5 days')
-    expect(formatAge(20)).toBe('3 weeks')
+    expect(formatAge(20)).toBe('20 days')
+    expect(formatAge(22)).toBe('22 days')
+    expect(formatAge(29)).toBe('29 days')
+    expect(formatAge(30)).toBe('4 weeks')
+    expect(formatAge(59)).toBe('8 weeks')
+    expect(formatAge(60)).toBe('2 months')
     expect(formatAge(475)).toBe('16 months')
   })
   it('puts ratios in words', () => {

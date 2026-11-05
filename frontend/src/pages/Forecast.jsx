@@ -97,7 +97,7 @@ function ForecastPage({ config }) {
         onSite={chooseSite}
         onWeek={setWeek}
       />
-      {loading && slow && <p className="text-xs text-gray-500">Computing forecast; this week is not precomputed</p>}
+      {loading && slow && <p className="text-xs text-gray-500">Computing forecast; this can take a minute.</p>}
       {error && <Caution>{error}</Caution>}
       {summaryError && <Caution>The track record could not be loaded: {summaryError}</Caution>}
       {forecast && (

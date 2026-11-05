@@ -25,6 +25,7 @@ function Pages() {
         <Route path="/data" element={<DataExplorer />} />
         <Route path="/about" element={<About />} />
         <Route path="/historical" element={<Navigate to="/data" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   )

@@ -3,6 +3,7 @@ import { useConfig } from '../context/ConfigContext'
 import { getForecast, getSummary } from '../services/datect'
 import FilterBar from '../components/forecast/FilterBar'
 import ForecastCard from '../components/forecast/ForecastCard'
+import SpikeRiskCard from '../components/forecast/SpikeRiskCard'
 import Caution from '../components/ui/Caution'
 
 const SLOW_MS = 3000
@@ -86,6 +87,7 @@ function ForecastPage({ config }) {
       {forecast && (
         <div className={`grid grid-cols-1 md:grid-cols-3 gap-5 ${loading ? 'opacity-60' : ''}`}>
           <ForecastCard forecast={forecast} summary={summary} config={config} />
+          <SpikeRiskCard forecast={forecast} summary={summary} config={config} />
         </div>
       )}
     </div>

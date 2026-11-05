@@ -1,0 +1,43 @@
+{
+  "step": "retrospective",
+  "git_sha": "2401ecace71498c7f0f2c8186c7a5f252f0c9158",
+  "host": "n3361",
+  "cpus": "16",
+  "wall_seconds": 2660.938054084778,
+  "table": "/tmp/datect-42775261/lake/gold/retrospective",
+  "slices": {
+    "regression/ensemble": {
+      "seconds": 257.48026728630066,
+      "records": 1054
+    },
+    "regression/xgboost": {
+      "seconds": 328.9504759311676,
+      "records": 1054
+    },
+    "regression/rf": {
+      "seconds": 329.6759021282196,
+      "records": 1054
+    },
+    "regression/naive": {
+      "seconds": 334.58494806289673,
+      "records": 1054
+    },
+    "regression/linear": {
+      "seconds": 329.78874373435974,
+      "records": 1054
+    },
+    "classification/ensemble": {
+      "seconds": 325.0435833930969,
+      "records": 1054
+    },
+    "classification/naive": {
+      "seconds": 332.07896757125854,
+      "records": 1054
+    },
+    "classification/logistic": {
+      "seconds": 329.87477850914,
+      "records": 1054
+    }
+  },
+  "total_seconds": 2567.47766661644
+}

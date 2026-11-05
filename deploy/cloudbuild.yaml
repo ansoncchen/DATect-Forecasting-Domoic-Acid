@@ -1,9 +1,9 @@
 # Google Cloud Build configuration for DATect deployment
-# Builds the container image with pre-computed cache
+# Builds the container image with the precomputed store
 # Cost-optimized: scales to zero when idle (~$0/month for low-traffic demos)
 
 steps:
-  # Step 1: Build the production container image with pre-computed cache
+  # Step 1: Build the production container image with the precomputed store
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-production-image'
     args:
@@ -13,7 +13,7 @@ steps:
       - '-t'
       - 'gcr.io/${PROJECT_ID}/datect:latest'
       - '.'
-    timeout: '900s'  # 15 minutes for build (no cache computation)
+    timeout: '900s'  # 15 minutes for build (the store is built on Hyak)
 
   # Step 2: Push the image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
@@ -49,7 +49,7 @@ steps:
       - '--timeout'
       - '300'
       - '--set-env-vars'
-      - 'CACHE_DIR=/app/cache,NODE_ENV=production,PYTHONPATH=/app'
+      - 'DATECT_PRECOMPUTED_DIR=/app/store,PYTHONPATH=/app'
 
 # Configure build resources
 options:
@@ -66,4 +66,4 @@ timeout: '1200s'  # 20 minutes total
 tags:
   - 'datect'
   - 'production'
-  - 'cached'
+  - 'precomputed'

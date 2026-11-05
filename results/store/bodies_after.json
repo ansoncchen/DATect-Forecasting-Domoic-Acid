@@ -1,0 +1,354 @@
+{
+  "repo_sha": "2401ecace71498c7f0f2c8186c7a5f252f0c9158",
+  "requests": [
+    {
+      "name": "retrospective/regression/ensemble",
+      "status": 200,
+      "seconds": 0.06752878287807107,
+      "success": true,
+      "served_from": {
+        "precomputed": {
+          "hit": true,
+          "dir": "/tmp/datect-42775261/lake/gold",
+          "table_version": 0
+        }
+      },
+      "body_sha256": "bc1bba616190c38c778f375570ab924e99ed12e9f305e10ad3d94487f2459450"
+    },
+    {
+      "name": "retrospective/regression/naive",
+      "status": 200,
+      "seconds": 0.05489961104467511,
+      "success": true,
+      "served_from": {
+        "precomputed": {
+          "hit": true,
+          "dir": "/tmp/datect-42775261/lake/gold",
+          "table_version": 0
+        }
+      },
+      "body_sha256": "1cb0f0d14416f70679b1f81ecc143e0e1c8f92b63cb6e613ea75225b9506232a"
+    },
+    {
+      "name": "retrospective/regression/linear",
+      "status": 200,
+      "seconds": 0.04846792598254979,
+      "success": true,
+      "served_from": {
+        "precomputed": {
+          "hit": true,
+          "dir": "/tmp/datect-42775261/lake/gold",
+          "table_version": 0
+        }
+      },
+      "body_sha256": "c449596d8a4b245f2ad60090bd8ee86d2c7b392ab9417985baace9f9a605ca9f"
+    },
+    {
+      "name": "retrospective/classification/ensemble",
+      "status": 200,
+      "seconds": 0.0500500809866935,
+      "success": true,
+      "served_from": {
+        "precomputed": {
+          "hit": true,
+          "dir": "/tmp/datect-42775261/lake/gold",
+          "table_version": 0
+        }
+      },
+      "body_sha256": "32e90d5abb9e147b08409acd590bc5285605fccb08f48cd3369ce9b427bd860b"
+    },
+    {
+      "name": "retrospective/classification/naive",
+      "status": 200,
+      "seconds": 0.0516479960642755,
+      "success": true,
+      "served_from": {
+        "precomputed": {
+          "hit": true,
+          "dir": "/tmp/datect-42775261/lake/gold",
+          "table_version": 0
+        }
+      },
+      "body_sha256": "da57c286dd3e617a28fb282c0eb05880d3dded812f3db3981541e95f978598bc"
+    },
+    {
+      "name": "retrospective/classification/linear",
+      "status": 200,
+      "seconds": 0.04812362394295633,
+      "success": true,
+      "served_from": {
+        "precomputed": {
+          "hit": true,
+          "dir": "/tmp/datect-42775261/lake/gold",
+          "table_version": 0
+        }
+      },
+      "body_sha256": "71e61592a24ab967482fe9b5e8dcb54fd82fe68497991765a4391a0bbacbe852"
+    },
+    {
+      "name": "retrospective/regression/xgboost",
+      "status": 200,
+      "seconds": 0.05536215100437403,
+      "success": true,
+      "served_from": {
+        "precomputed": {
+          "hit": true,
+          "dir": "/tmp/datect-42775261/lake/gold",
+          "table_version": 0
+        }
+      },
+      "body_sha256": "455716474d6c219cae10f287f8562ad4a254706354c892e0aa3ed070d0e9101c"
+    },
+    {
+      "name": "retrospective/regression/rf",
+      "status": 200,
+      "seconds": 0.05065361922606826,
+      "success": true,
+      "served_from": {
+        "precomputed": {
+          "hit": true,
+          "dir": "/tmp/datect-42775261/lake/gold",
+          "table_version": 0
+        }
+      },
+      "body_sha256": "ba5981768fcc1c53127fac118f93c6d339e004ff8f191ba059a4c8cacdce77a8"
+    },
+    {
+      "name": "spectral/all",
+      "status": 200,
+      "seconds": 0.01958304806612432,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "af8bed39cb05ff0965967a7493d4329dbbb8f6fbacb1f8a076b6929bb6517948"
+    },
+    {
+      "name": "spectral/Cannon Beach",
+      "status": 200,
+      "seconds": 0.046556339133530855,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "e5c79af0bf12ce27c1ea7c8e735718601c6e115c9e7b113a5e168b914da1a318"
+    },
+    {
+      "name": "spectral/Clatsop Beach",
+      "status": 200,
+      "seconds": 0.017974564107134938,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "7ec4eb0723f531074539f74077f5735796f13bc99f7d4e2889e7fd7d880cb423"
+    },
+    {
+      "name": "spectral/Coos Bay",
+      "status": 200,
+      "seconds": 0.020962665788829327,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "827f1958f690d913122db1b5a3098f060ccc86608344920bb6046bb82a9a1068"
+    },
+    {
+      "name": "spectral/Copalis",
+      "status": 200,
+      "seconds": 0.017846468137577176,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "63c682afa4e94f503dc6691bb1c306a84e1bfc5227c09629fb84ba541831850c"
+    },
+    {
+      "name": "spectral/Gold Beach",
+      "status": 200,
+      "seconds": 0.019511462189257145,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "48bdc7341f9fcb08802d5bedeee42fccf9362fc734bc83f37f401c20ec58ea4a"
+    },
+    {
+      "name": "spectral/Kalaloch",
+      "status": 200,
+      "seconds": 0.017571693984791636,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "9f06feff6f2b5ab50893e69e6a63ba0bf2a14777efa475864851f825d88c6b13"
+    },
+    {
+      "name": "spectral/Long Beach",
+      "status": 200,
+      "seconds": 0.01624159887433052,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "5cd8aff7a79178d773226992b909b86f94cf21d4ebc56870bd592f160164abbe"
+    },
+    {
+      "name": "spectral/Newport",
+      "status": 200,
+      "seconds": 0.016223493963479996,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "b52f78416072a56cc68e0aab0f1bb79b14c502f71c361f107604c556b0d2cea0"
+    },
+    {
+      "name": "spectral/Quinault",
+      "status": 200,
+      "seconds": 0.017635267926380038,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "060fc04121ec531a940e024bb4239225943b60f692b2404cf7212e81daf00e15"
+    },
+    {
+      "name": "spectral/Twin Harbors",
+      "status": 200,
+      "seconds": 0.019630525959655643,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "8392eedc11d71ea8f744775e8893c3330cbca996ef99d007861b71508e4b56f8"
+    },
+    {
+      "name": "correlation/Cannon Beach",
+      "status": 200,
+      "seconds": 0.03566437587141991,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "f55e0b9f3d6739c1d7e28009dfdba4b70cc75dd31f80f9085b0360a0a4d1e3bb"
+    },
+    {
+      "name": "correlation/Clatsop Beach",
+      "status": 200,
+      "seconds": 0.03409571014344692,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "b08b659ff33f4a121415dc1b4b6229742d7002269acb4af535cc60c01e394ca9"
+    },
+    {
+      "name": "correlation/Coos Bay",
+      "status": 200,
+      "seconds": 0.03139886911958456,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "ac5f2256a2f21682e2cdb2de94a731218c91de56cb912bd88dd90b059ce3d3cb"
+    },
+    {
+      "name": "correlation/Copalis",
+      "status": 200,
+      "seconds": 0.03240467607975006,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "558adfd0188ae9cf34fe83b25351fb6ff20376f1e8c489bcac16f899b81e41a9"
+    },
+    {
+      "name": "correlation/Gold Beach",
+      "status": 200,
+      "seconds": 0.031436051009222865,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "64b3fe307ec66aa3dfe9ee380b1f75fe0c8d64fe5b1a3597f36ca4ce5986c529"
+    },
+    {
+      "name": "correlation/Kalaloch",
+      "status": 200,
+      "seconds": 0.03412993997335434,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "6ea8d896c1bd67826c171c6658ed5aeaf2772b7d52a89a517bc779238f93241e"
+    },
+    {
+      "name": "correlation/Long Beach",
+      "status": 200,
+      "seconds": 0.03166337893344462,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "fb7a16ced07d3a4c0d652dcedc88f90a47529fbc544a8814ca51b06c51318ab5"
+    },
+    {
+      "name": "correlation/Newport",
+      "status": 200,
+      "seconds": 0.03490578103810549,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "072d56f556cb64fc8911ef0515a67451064615496c043016c0a804ba93938309"
+    },
+    {
+      "name": "correlation/Quinault",
+      "status": 200,
+      "seconds": 0.035228335997089744,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "cbc47e37c168631b7d13ee5f1e9451f3f6cf4d4b2b1c944bfcbcdc493fcaff8b"
+    },
+    {
+      "name": "correlation/Twin Harbors",
+      "status": 200,
+      "seconds": 0.03248845716007054,
+      "success": true,
+      "served_from": {
+        "cached": true,
+        "source": "precomputed"
+      },
+      "body_sha256": "8fadd07db996167f027c0342d257a47122c749650608504041d42ff136ed1722"
+    }
+  ],
+  "compared_to": {
+    "file": "/mmfs1/home/ac283/datect-spark-results/42774205/store/bodies_before.json",
+    "identical": 29,
+    "n": 29,
+    "different": []
+  }
+}

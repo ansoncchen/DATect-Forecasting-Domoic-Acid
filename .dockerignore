@@ -7,8 +7,10 @@
 !config.py
 !results/chronological
 !results/multi_seed
+!results/conformal_band
 !requirements.txt
-!cache
+!store
+!constraints.txt
 !frontend
 
 frontend/node_modules

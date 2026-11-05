@@ -5,6 +5,10 @@ For each (region, method) pair, compute Pearson r between OAD anomaly score
 and the per-frame valid-pixel fraction inside that region. A high |r| means
 the AE may be tracking cloud cover instead of actual ocean-state anomaly.
 
+The valid-pixel fractions come from data/processed/oad_cloud_fractions.parquet,
+which the MODIS Delta lake produces (``python -m datect_spark.modis_lake export``,
+from the same NetCDFs as cube.zarr; equal to the cube's mask counts exactly).
+
 Outputs:
     outputs/figures/sanity_cloud_confound.parquet  — per (region, method) r + n
     outputs/figures/sanity_cloud_confound.png      — heatmap
@@ -21,44 +25,16 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import xarray as xr
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
-from src.regions import REGIONS
 
-
-def compute_region_valid_fractions(cube_path: Path) -> pd.DataFrame:
-    """For each (date, region), fraction of in-region pixels that are valid (4-channel ∩)."""
-    ds = xr.open_zarr(cube_path)
-    mask = ds["mask"]  # (time, lat, lon), bool — True = valid
-    lat = ds.lat.values
-    lon = ds.lon.values
-    dates = pd.to_datetime(ds.time.values)
-
-    rows = []
-    for region in REGIONS:
-        lat_in = (lat >= region.lat_min) & (lat <= region.lat_max)
-        lon_in = (lon >= region.lon_min) & (lon <= region.lon_max)
-        # rectangular bbox mask
-        region_pixels = int(lat_in.sum() * lon_in.sum())
-        if region_pixels == 0:
-            print(f"  WARN: 0 pixels in {region.name}")
-            continue
-        # sum valid pixels per time step inside this region
-        sub = mask.isel(lat=lat_in, lon=lon_in)
-        valid_per_t = sub.sum(dim=["lat", "lon"]).values.astype(np.float64)
-        frac = valid_per_t / region_pixels
-        for d, f in zip(dates, frac):
-            rows.append({"date": d, "region": region.name, "valid_frac": float(f)})
-        print(f"  {region.name:40s}  pixels={region_pixels:6d}  "
-              f"frac mean={frac.mean():.3f}  min={frac.min():.3f}  max={frac.max():.3f}")
-    return pd.DataFrame(rows)
+VALID_FRACTIONS = Path(__file__).resolve().parents[2] / "data" / "processed" / "oad_cloud_fractions.parquet"
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cube", default=str(config.CUBE_PATH))
+    parser.add_argument("--valid-fractions", default=str(VALID_FRACTIONS))
     parser.add_argument("--scores-dir", default=str(config.SCORES_DIR))
     parser.add_argument("--out-dir", default=str(config.FIGURES_DIR))
     parser.add_argument("--aggregation", default="mean")
@@ -67,8 +43,8 @@ def main():
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Computing valid-pixel fraction per (date, region) from {args.cube} ...")
-    valid_df = compute_region_valid_fractions(Path(args.cube))
+    print(f"Loading valid-pixel fraction per (date, region) from {args.valid_fractions} ...")
+    valid_df = pd.read_parquet(args.valid_fractions)
     valid_df["date"] = pd.to_datetime(valid_df["date"])
 
     all_scores = Path(args.scores_dir) / "all_scores.parquet"

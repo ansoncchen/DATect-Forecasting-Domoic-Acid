@@ -56,7 +56,7 @@ def test_global_block_required_keys():
         "spike_classifier_params", "param_grid",
         "per_anchor_tuning", "min_training_for_tuning", "calibration_fraction",
         "max_calibration_rows", "min_tuning_samples",
-        "spike_alert_prob_threshold", "spike_regression_alert_threshold",
+        "spike_alert_prob_threshold", "spike_regression_alert_threshold", "alert_warning_prob_cutoff",
         "spike_threshold_actual", "linear_regression_alpha",
         "prediction_clip_q_default", "zero_importance_features",
     )

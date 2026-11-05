@@ -330,8 +330,8 @@ The validation window followed the same path: 0.384 (published) → 0.312 → 0.
 
 ## Clip removal and forecast-row lags (after the leakage fixes)
 
-A forecast-pipeline audit (branch `claude/forecast-experiments-b1c907`,
-`docs/FORECAST_EXPERIMENTS.md`) checked the engine against its own description and
+A forecast-pipeline audit ([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md); code on
+branch `claude/forecast-experiments-b1c907`) checked the engine against its own description and
 ran small, pre-declared experiments on validation and 2015–2018 before one holdout
 check. Its fixes are separate commits, evaluated with the golden runs
 `port-c1-neutral`, `port-c2-noclip` and `port-c4-lags` (Hyak jobs 42671541–43).
@@ -356,8 +356,9 @@ capped at 81 µg/g while its real 95th percentile was 145. Removing the clip rai
 R² by 0.102 [−0.031, +0.207] (validation) and 0.053 [−0.012, +0.115] (holdout), MAE
 7.19 → 6.55 and 7.60 → 7.39, with log-scale R² and every spike metric unchanged.
 Most of the holdout gain is Coos Bay (0.670 → 0.789); the other sites together
-moved 0.292 → 0.304. The Spark re-tune independently chose "no clip" at 7 of 10
-sites. The ensemble weights, chosen jointly with the clip, are unchanged.
+moved 0.292 → 0.304. The Spark re-tune chose no quantile clip at 7 of 10 sites,
+though 5 of those kept a hard ceiling, so only 2 chose no clip at all. The ensemble
+weights, chosen jointly with the clip, are unchanged.
 
 **`c099f20b`: forecast rows saw older information than training rows.** A training
 row for week T sees measurements up to the end of week T−1; the forecast row was the
@@ -462,8 +463,8 @@ feature set is at a flat optimum where new in-situ data, not more derived
 features, is the likely route to better skill.
 
 **Forecast-experiments audit (2026-10, after the leakage fixes).** Each was declared
-on validation and 2015–2018 before a single holdout check (branch
-`claude/forecast-experiments-b1c907`, `docs/FORECAST_EXPERIMENTS.md`). None was adopted.
+on validation and 2015–2018 before a single holdout check
+([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md)). None was adopted.
 
 | Experiment | Result |
 |---|---|
@@ -490,7 +491,8 @@ sbatch --export=ALL,STUDY=features scripts/eval/paper_sensitivity_study.sbatch
 # Per-site configuration off, both windows
 DATECT_USE_PER_SITE_MODELS=false python scripts/eval/chronological_eval.py --window 2022-01-01:2024-01-01 --out-dir results/chronological_no_per_site
 
-# Laptop, from the seed-123 cache copied to results/retro_seed123/
+# Laptop, after copying the golden run's results/retro_seed123/ (the seed-123 retrospective
+# parquets spike_detection_eval.py writes and reloads; not the dashboard's precomputed store)
 .venv/bin/python scripts/eval/spike_detection_eval.py --seed 123 --sample-fraction 0.40
 .venv/bin/python scripts/eval/spike_env_lead_analysis.py
 .venv/bin/python scripts/eval/autocorrelation_diagnostic.py

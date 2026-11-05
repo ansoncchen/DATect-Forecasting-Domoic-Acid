@@ -137,3 +137,15 @@ def test_five_date_check_requires_bitwise_equality(lake):
     assert lake.dates_match([exact, exact], channels)
     assert not lake.dates_match([exact, close], channels)
     assert not lake.dates_match([{**exact, "mask_equal": False}], channels)
+
+
+def test_fractions_frame_rebuilds_the_committed_parquet(lake):
+    # The gold table carries region_order and comes back from Spark unordered;
+    # export must lay it out exactly as data/processed/oad_cloud_fractions.parquet
+    committed = pd.read_parquet(os.path.join(lake.REPO_ROOT, "data", "processed",
+                                             "oad_cloud_fractions.parquet"))
+    order = {r.name: i for i, r in enumerate(lake.oad_regions())}
+    gold = committed.assign(region_order=committed["region"].map(order), n_valid=0)
+    gold = gold.sample(frac=1.0, random_state=0).reset_index(drop=True)
+    gold["date"] = gold["date"].astype("datetime64[us]")  # as Spark's toPandas may return it
+    pd.testing.assert_frame_equal(lake.fractions_frame(gold), committed, check_exact=True)

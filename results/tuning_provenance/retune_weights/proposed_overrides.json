@@ -1,0 +1,72 @@
+{
+  "Cannon Beach": {
+    "ensemble_weights": [
+      0.75,
+      0.25,
+      0.0
+    ]
+  },
+  "Clatsop Beach": {
+    "ensemble_weights": [
+      0.0,
+      1.0,
+      0.0
+    ]
+  },
+  "Coos Bay": {
+    "ensemble_weights": [
+      0.25,
+      0.75,
+      0.0
+    ]
+  },
+  "Copalis": {
+    "ensemble_weights": [
+      0.5,
+      0.5,
+      0.0
+    ]
+  },
+  "Gold Beach": {
+    "ensemble_weights": [
+      1.0,
+      0.0,
+      0.0
+    ]
+  },
+  "Kalaloch": {
+    "ensemble_weights": [
+      0.25,
+      0.75,
+      0.0
+    ]
+  },
+  "Long Beach": {
+    "ensemble_weights": [
+      0.5,
+      0.5,
+      0.0
+    ]
+  },
+  "Newport": {
+    "ensemble_weights": [
+      1.0,
+      0.0,
+      0.0
+    ]
+  },
+  "Quinault": {
+    "ensemble_weights": [
+      0.75,
+      0.25,
+      0.0
+    ]
+  },
+  "Twin Harbors": {
+    "ensemble_weights": [
+      0.25,
+      0.75,
+      0.0
+    ]
+  }
+}

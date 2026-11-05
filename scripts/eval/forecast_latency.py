@@ -12,7 +12,7 @@ before and after a change. Each response body is hashed without the serving fiel
 Usage:
     python scripts/eval/forecast_latency.py --repo /path/to/main-worktree \
         --out results/serving/latency_before.json
-    DATECT_FORECAST_TABLE=$LAKE/gold/forecasts \
+    DATECT_PRECOMPUTED_DIR=$LAKE/gold \
         python scripts/eval/forecast_latency.py --repo . --out results/serving/latency_after.json \
         --compare-to results/serving/latency_before.json
 """
@@ -139,7 +139,7 @@ def main() -> None:
         "cpus": os.cpu_count(),
         "slurm_cpus": os.environ.get("SLURM_CPUS_PER_TASK"),
         "python": platform.python_version(),
-        "forecast_table": os.environ.get("DATECT_FORECAST_TABLE"),
+        "precomputed_dir": os.environ.get("DATECT_PRECOMPUTED_DIR"),
         "model": args.model,
         "seed": args.seed,
         "n": len(rows),

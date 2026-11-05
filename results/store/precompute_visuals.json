@@ -1,0 +1,14 @@
+{
+  "step": "visuals",
+  "git_sha": "2401ecace71498c7f0f2c8186c7a5f252f0c9158",
+  "host": "n3361",
+  "cpus": "16",
+  "wall_seconds": 32.75333309173584,
+  "tables": {
+    "spectral": "/tmp/datect-42775261/lake/gold/spectral",
+    "correlation": "/tmp/datect-42775261/lake/gold/correlation"
+  },
+  "spectral_rows": 11,
+  "correlation_rows": 10,
+  "seconds": 4.102004051208496
+}

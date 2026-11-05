@@ -4,11 +4,10 @@ FastAPI backend providing forecasting, visualization, and analysis endpoints
 """
 
 import logging
-import math
 import os
 from pathlib import Path
 from datetime import datetime, date
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Literal, Optional
 from functools import lru_cache
 
 import numpy as np
@@ -21,55 +20,24 @@ from pydantic import BaseModel
 
 from forecasting import ForecastEngine, ModelFactory
 import config
+from backend import band
+from backend.band import forecast_band
+from forecasting.metrics import alert_parts
+from forecasting.raw_data_forecaster import load_raw_da_measurements
+from forecasting.tuned_config import get_eval_windows
 from backend.visualizations import (
     generate_correlation_heatmap,
     generate_sensitivity_analysis,
     generate_time_series_comparison,
     generate_waterfall_plot,
     generate_spectral_analysis,
-    generate_gradient_uncertainty_plot,
+    generate_band_plot,
 )
-from backend.cache_manager import cache_manager
-from backend import precomputed_forecasts
+from backend import precomputed, track_record
+from backend.records import clean_for_json, retrospective_records  # noqa: F401 (re-exported)
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-def clean_for_json(obj):
-    """
-    Clean values for JSON serialization - handles inf/nan, numpy types, and nested structures.
-    
-    Args:
-        obj: Value to clean (can be dict, list, numpy array, scalar, etc.)
-    
-    Returns:
-        JSON-serializable value
-    """
-    if obj is None:
-        return None
-    if isinstance(obj, dict):
-        return {k: clean_for_json(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [clean_for_json(item) for item in obj]
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    if isinstance(obj, pd.DataFrame):
-        return obj.head(10).to_dict('records') if not obj.empty else []
-    if isinstance(obj, (np.floating, np.integer)):
-        return obj.item()
-    if isinstance(obj, float):
-        if math.isinf(obj) or math.isnan(obj):
-            return None
-        return obj
-    # Check for pandas NA values
-    try:
-        if pd.isna(obj):
-            return None
-    except (TypeError, ValueError):
-        pass
-    return obj
-
-
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not os.path.isabs(config.FINAL_OUTPUT_PATH):
@@ -109,8 +77,8 @@ app.add_middleware(
 # Lazy singletons for Cloud Run optimization
 forecast_engine = None
 model_factory = None
-# Precomputed forecasts (Delta), loaded at startup when DATECT_FORECAST_TABLE is set
-precomputed_forecasts.load_from_env()
+# Precomputed store (Delta), loaded at startup when DATECT_PRECOMPUTED_DIR is set
+precomputed.load_from_env()
 
 @lru_cache(maxsize=1)
 def load_data_cached() -> pd.DataFrame:
@@ -129,10 +97,10 @@ def get_forecast_engine() -> ForecastEngine:
     return forecast_engine
 
 def _single_forecast(site: str, forecast_date, task: str, model_type: str):
-    """(generate_single_forecast output, model_version): from the precomputed Delta
-    table when it holds this request for the same code, config and data
-    (DATECT_FORECAST_TABLE), computed on demand otherwise (model_version None)."""
-    hit = precomputed_forecasts.lookup(site, forecast_date, task, model_type)
+    """(generate_single_forecast output, model_version): from the precomputed store
+    when it holds this request for the same code, config and data
+    (DATECT_PRECOMPUTED_DIR), computed on demand otherwise (model_version None)."""
+    hit = precomputed.forecast(site, forecast_date, task, model_type)
     if hit is not None:
         return hit.result, hit.model_version
     result = get_forecast_engine().generate_single_forecast(
@@ -214,7 +182,7 @@ def root():
 def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.now().isoformat(),
-            "precomputed_forecasts": precomputed_forecasts.status()}
+            "precomputed": precomputed.status()}
 
 @app.get("/api/sites", response_model=SiteInfo)
 def get_sites():
@@ -320,45 +288,23 @@ def get_historical_data(
     end_date: Optional[date] = None,
     limit: int = 1000
 ):
-    """Get historical DA measurements for a site."""
-    try:
-        # Load data
-        data = get_data_copy()
-        data['date'] = pd.to_datetime(data['date'])
-        actual_site = resolve_site(site)
-        
-        # Filter by site
-        site_data = data[data['site'] == actual_site].copy()
-        
-        if site_data.empty:
-            raise HTTPException(status_code=404, detail=f"Site '{site}' not found")
-        
-        # Apply date filters
-        if start_date:
-            site_data = site_data[site_data['date'] >= pd.to_datetime(start_date)]
-        if end_date:
-            site_data = site_data[site_data['date'] <= pd.to_datetime(end_date)]
-        
-        # Limit results and sort by date
-        site_data = site_data.sort_values('date').tail(limit)
-        
-        # Build canonical-only payload
-        canonical = pd.DataFrame()
-        canonical['date'] = site_data['date'].dt.strftime('%Y-%m-%d')
-        canonical['actual_da'] = site_data['da']
-        if 'da-category' in site_data.columns:
-            canonical['actual_category'] = site_data['da-category']
+    """Real DA measurements at a site, one per site-day at the max: not the
+    gap-filled weekly series the models train on."""
+    actual_site = _known_site(site)
+    m = _raw_measurements()
+    rows = m[m["site"] == actual_site]
+    if start_date:
+        rows = rows[rows["date"] >= pd.Timestamp(start_date)]
+    if end_date:
+        rows = rows[rows["date"] <= pd.Timestamp(end_date)]
+    rows = rows.sort_values("date").tail(limit)
+    return {
+        "site": actual_site,
+        "series": "raw measurements, one per site-day at the max",
+        "count": len(rows),
+        "rows": [{"date": d.date().isoformat(), "value": float(v)} for d, v in zip(rows["date"], rows["da_raw"])],
+    }
 
-        return {
-            "site": site,
-            "count": len(canonical),
-            "data": canonical.to_dict('records')
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load historical data: {str(e)}")
 
 @lru_cache(maxsize=1)
 def _load_metrics_summary() -> dict:
@@ -390,6 +336,14 @@ def _load_metrics_summary() -> dict:
         held = df[(df["date"] >= start) & (df["date"] < end)]
         seed_r2.append(float(r2_score(held["actual_da"], held["predicted_da"])))
 
+    reliability = {}
+    for name in ("holdout", "validation"):
+        sites = sorted(track_record.window_rows(name)["site"].unique())
+        reliability[name] = {
+            "summary": track_record.window_summary(name),
+            "per_site": {site: track_record.window_summary(name, site) for site in sites},
+        }
+
     return {
         "holdout_window": {"start": start, "end": end},
         "overall": chrono["overall"],
@@ -399,7 +353,45 @@ def _load_metrics_summary() -> dict:
             "r2_mean": float(np.mean(seed_r2)) if seed_r2 else None,
             "r2_std": float(np.std(seed_r2)) if seed_r2 else None,
         },
+        "reliability": reliability,
+        "source": {
+            "chronological": f"results/chronological/chronological_regression_ensemble_{tag}.json",
+            "band": track_record.BAND_PREDICTIONS_PATH,
+            "multi_seed": "results/multi_seed/*_predictions.parquet",
+        },
     }
+
+
+def _known_site(site: str) -> str:
+    """Canonical site name, or 404 for a site DATect does not forecast."""
+    resolved = resolve_site(site)
+    if resolved not in config.SITES:
+        raise HTTPException(status_code=404, detail=f"Unknown site: {site}")
+    return resolved
+
+
+@app.get("/api/track-record")
+def get_track_record(window: track_record.Window = "holdout", site: str | None = None):
+    """Chronological forecasts for a window with every summary computed here:
+    overall (or one site's), per site, and the rows behind them."""
+    site = _known_site(site) if site is not None else None
+    start, end = track_record.window_bounds(window)
+    rows = track_record.window_rows(window, site)
+    per_site = {s: track_record.window_summary(window, s) for s in sorted(rows["site"].unique())}
+    return clean_for_json({
+        "window": {"name": window, "start": start, "end": end},
+        "summary": track_record.window_summary(window, site),
+        "per_site": per_site,
+        "rows": track_record.records(rows),
+    })
+
+
+@app.get("/api/sites/{site}/history")
+def get_site_history(site: str, since: date = date(2019, 1, 1), until: date | None = None):
+    """Each real measurement at a site with the forecast made for it, its band and alert."""
+    site = _known_site(site)
+    rows = track_record.site_history(site, since.isoformat(), until.isoformat() if until else None)
+    return clean_for_json({"site": site, "rows": rows})
 
 
 @app.get("/api/metrics/summary")
@@ -421,7 +413,39 @@ def get_config():
         "forecast_horizon_weeks": config.FORECAST_HORIZON_WEEKS,
         "forecast_horizon_days": config.FORECAST_HORIZON_DAYS,
         "spike_threshold": config.SPIKE_THRESHOLD,
+        "regression_alert_threshold": config.SPIKE_REGRESSION_ALERT_THRESHOLD,
+        "classifier_alert_cutoff": config.SPIKE_ALERT_PROB_THRESHOLD,
+        "alert_levels": _alert_levels(),
+        "band_level": band.chosen_variant()["coverage"],
+        "category_bins": [0, *config.DA_CATEGORY_BINS[1:-1], None],
+        "category_labels": CATEGORY_LABELS,
+        "eval_windows": get_eval_windows(),
+        "sites_north_to_south": _sites_north_to_south(),
+        "newest_measurement_date": _raw_measurements()["date"].max().date().isoformat(),
+        "latest_forecast_week": _latest_forecast_week().date().isoformat(),
     }
+
+
+def _sites_north_to_south() -> list:
+    return sorted(config.SITES, key=lambda site: -config.SITES[site][0])
+
+
+def _latest_forecast_week() -> pd.Timestamp:
+    """The newest weekly row: the dashboard's default date, always precomputed."""
+    return pd.to_datetime(load_data_cached()["date"]).max()
+
+
+def _alert_levels() -> list:
+    """The dashboard's alert levels, each with its rule and cutoff."""
+    p, r, w = (config.SPIKE_ALERT_PROB_THRESHOLD, config.SPIKE_REGRESSION_ALERT_THRESHOLD,
+               config.ALERT_WARNING_PROB_CUTOFF)
+    return [
+        {"name": "Quiet", "rule": "no alert condition holds", "cutoff": None, "placeholder": False},
+        {"name": "Watch", "rule": f"classifier probability >= {p:g} or forecast >= {r:g} µg/g",
+         "cutoff": p, "placeholder": False},
+        {"name": "Warning", "rule": f"classifier probability >= {w:g}", "cutoff": w,
+         "placeholder": False},
+    ]
 
 # Visualization endpoints
 # NOTE: More specific routes must come before generic parameter routes
@@ -442,7 +466,7 @@ def get_correlation_heatmap_single(site: str):
         data = get_data_copy()
         actual_site = resolve_site(site)
 
-        cached_plot = cache_manager.get_correlation_heatmap(actual_site)
+        cached_plot = precomputed.correlation(actual_site)
         if cached_plot is not None:
             return {"success": True, "plot": cached_plot, "cached": True, "source": "precomputed"}
 
@@ -498,10 +522,9 @@ def get_waterfall_plot():
 
 @app.get("/api/visualizations/spectral/all")
 def get_spectral_analysis_all():
-    """Generate spectral analysis for all sites combined (uses pre-computed cache)."""
+    """Spectral analysis for all sites combined (from the precomputed store when it has it)."""
     try:
-        # First try pre-computed cache
-        plots = cache_manager.get_spectral_analysis(site=None)
+        plots = precomputed.spectral(None)
         
         if plots is not None:
             return {"success": True, "plots": plots, "cached": True, "source": "precomputed"}
@@ -509,30 +532,38 @@ def get_spectral_analysis_all():
         # Compute on server (expensive - only for local development)
         logging.warning("Computing spectral analysis on server - this is very expensive!")
         data = get_data_copy()
-        plots = generate_spectral_analysis(data, site=None)
+        plots = generate_spectral_analysis(data, site=None, **_spectral_model_results())
         return {"success": True, "plots": plots, "cached": False, "source": "computed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate spectral analysis: {str(e)}")
 
 @app.get("/api/visualizations/spectral/{site}")
 def get_spectral_analysis_single(site: str):
-    """Generate spectral analysis for a single site (uses pre-computed cache)."""
+    """Spectral analysis for a single site (from the precomputed store when it has it)."""
     try:
         data = get_data_copy()
         actual_site = resolve_site(site)
 
-        # First try pre-computed cache
-        plots = cache_manager.get_spectral_analysis(site=actual_site)
+        plots = precomputed.spectral(actual_site)
         
         if plots is not None:
             return {"success": True, "plots": plots, "cached": True, "source": "precomputed"}
 
         # Compute on server (expensive - only for local development)
         logging.warning(f"Computing spectral analysis for {actual_site} on server - this is very expensive!")
-        plots = generate_spectral_analysis(data, actual_site)
+        plots = generate_spectral_analysis(data, actual_site, **_spectral_model_results())
         return {"success": True, "plots": plots, "cached": False, "source": "computed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate spectral analysis: {str(e)}")
+
+def _spectral_model_results() -> dict:
+    """The XGBoost and Random Forest retrospective predictions the spectral analysis
+    compares with, from the precomputed store (None for a slice it lacks)."""
+    out = {}
+    for key, model in (("xgb_results", "xgboost"), ("rf_results", "rf")):
+        records = precomputed.retrospective("regression", model)
+        out[key] = pd.DataFrame(records) if records else None
+    return out
 
 def get_latest_da_from_raw_files():
     """Latest DA from raw CSVs; uses ``config.ORIGINAL_DA_FILES`` (same paths as the forecast pipeline)."""
@@ -698,109 +729,149 @@ def get_site_map():
 
 
 
+CATEGORY_LABELS = ['Low (<5)', 'Moderate (5–<20)', 'High (20–<40)', 'Extreme (≥40)']
+
+
+@lru_cache(maxsize=1)
+def _raw_measurements() -> pd.DataFrame:
+    """Real DA measurements, one row per site-day at the max (``load_raw_da_measurements``)."""
+    return load_raw_da_measurements()
+
+
+def _recent_measurements(site: str, anchor_date, n: int = 6) -> list:
+    """The last ``n`` real measurements at ``site`` dated on or before the anchor, oldest first."""
+    m = _raw_measurements()
+    seen = m[(m["site"] == site) & (m["date"] <= pd.Timestamp(anchor_date))].sort_values("date").tail(n)
+    return [{"date": d.date().isoformat(), "value": float(v)} for d, v in zip(seen["date"], seen["da_raw"])]
+
+
+def _no_forecast(site: str, forecast_date: pd.Timestamp, error: str, source: dict | None = None) -> dict:
+    """A forecast that could not be made, in the same shape as one that was, with the
+    measurements the forecast would have seen."""
+    anchor = forecast_date - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
+    recent = _recent_measurements(site, anchor)
+    return {
+        "success": False, "forecast_date": forecast_date.strftime('%Y-%m-%d'), "site": site,
+        "anchor_date": anchor.date().isoformat(), "error": error,
+        "band": None, "band_reason": None, "band_p_exceed": None, "category_probabilities": None,
+        "alert": None, "last_measurement": recent[-1] if recent else None,
+        "recent_measurements": recent, "graphs": {},
+        **(source or {"source": "computed", "model_version": None}),
+    }
+
+
+def _forecast_payload(site: str, forecast_date: pd.Timestamp, model_type: str) -> dict:
+    """One week's regression forecast with its conformal band, the alert's parts and
+    the measurements the forecast could see (dashboard design, section 6)."""
+    result, version = _single_forecast(site, forecast_date, "regression", model_type)
+    source = {"source": "precomputed" if version is not None else "computed", "model_version": version}
+    if result is None or "predicted_da" not in result:
+        anchor = forecast_date - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
+        why = ("too little training data" if _recent_measurements(site, anchor)
+               else "no measurement at this site")
+        return _no_forecast(site, forecast_date, f"No forecast: {why} before {anchor.date().isoformat()}",
+                            source)
+
+    predicted = float(result["predicted_da"])
+    anchor = pd.Timestamp(result["anchor_date"])
+    recent = _recent_measurements(site, anchor)
+    last = recent[-1] if recent else None
+    if model_type == "ensemble":
+        band_info = forecast_band(predicted, anchor)
+        band_reason = None if band_info is not None else "fewer than 30 earlier forecast errors"
+    else:
+        band_info, band_reason = None, "calibrated for the ensemble only"
+    alert = alert_parts(
+        result.get("spike_probability"), float(result.get("ensemble_prediction", predicted)),
+        last["value"] if last else None,
+        prob_cutoff=config.SPIKE_ALERT_PROB_THRESHOLD,
+        regression_cutoff=config.SPIKE_REGRESSION_ALERT_THRESHOLD,
+        warning_cutoff=config.ALERT_WARNING_PROB_CUTOFF, threshold=config.SPIKE_THRESHOLD,
+    )
+
+    graphs = {}
+    if band_info is not None:
+        xgb_pred, rf_pred = result.get("xgb_prediction"), result.get("rf_prediction")
+        graphs["level_range"] = {
+            "type": "gradient_uncertainty",
+            "gradient_plot": generate_band_plot(
+                band_info, predicted,
+                xgb_prediction=float(xgb_pred) if xgb_pred is not None else None,
+                rf_prediction=float(rf_pred) if rf_pred is not None else None,
+                threshold=config.SPIKE_THRESHOLD),
+            "band": band_info,
+        }
+        graphs["category_range"] = {
+            "type": "category_range", "source": "range",
+            "predicted_category": int(np.searchsorted(config.DA_CATEGORY_BINS[1:-1], predicted, side="right")),
+            "class_probabilities": band_info["category_probabilities"],
+            "category_labels": CATEGORY_LABELS,
+        }
+
+    ensemble = {k: result[k] for k in ("naive_prediction", "xgb_prediction", "rf_prediction",
+                                       "ensemble_prediction", "ensemble_weights") if k in result}
+    return {
+        "success": True,
+        "forecast_date": forecast_date.strftime('%Y-%m-%d'),
+        "site": site,
+        "anchor_date": anchor.date().isoformat(),
+        "regression": result,
+        "ensemble": ensemble,
+        "band": band_info,
+        "band_reason": band_reason,
+        "band_p_exceed": band_info["p_exceed"] if band_info else None,
+        "category_probabilities": band_info["category_probabilities"] if band_info else None,
+        "alert": alert,
+        "last_measurement": last,
+        "recent_measurements": recent,
+        "graphs": graphs,
+        **source,
+    }
+
+
 @app.post("/api/forecast/enhanced")
 def generate_enhanced_forecast(request: ForecastRequest):
-    """Generate enhanced forecast with both regression and classification for frontend."""
+    """The dashboard's forecast: regression only (categories come from the band)."""
     try:
-        actual_site = resolve_site(request.site)
-        
-        forecast_date = pd.to_datetime(request.date)
-        
-        # Generate regression and classification forecasts
+        site = resolve_site(request.site)
         model_type = getattr(request, 'model', None) or config.FORECAST_MODEL or "ensemble"
-        if model_type == "linear":
-            classification_model = "logistic"
-        else:
-            classification_model = model_type
-
-        regression_result, regression_version = _single_forecast(
-            actual_site, forecast_date, "regression", model_type
-        )
-        classification_result, classification_version = _single_forecast(
-            actual_site, forecast_date, "classification", classification_model
-        )
-        precomputed = regression_version is not None and classification_version is not None
-        
-        # Create response structure expected by frontend
-        response_data = {
-            "success": True,
-            "forecast_date": forecast_date.strftime('%Y-%m-%d'),
-            "site": actual_site,
-            "regression": clean_for_json(regression_result),
-            "classification": clean_for_json(classification_result),
-            "graphs": {},
-            "source": "precomputed" if precomputed else "computed",
-            "model_version": regression_version if precomputed else None,
-        }
-        
-        # Add level_range graph for regression (only when quantiles available)
-        if regression_result and 'predicted_da' in regression_result:
-            predicted_da = float(regression_result['predicted_da'])
-            xgb_pred = regression_result.get('xgb_prediction')
-            rf_pred = regression_result.get('rf_prediction')
-            bootstrap_quantiles = regression_result.get('bootstrap_quantiles') or {}
-            if all(k in bootstrap_quantiles for k in ('q05', 'q50', 'q95')):
-                quantiles = {
-                    "q05": bootstrap_quantiles['q05'],
-                    "q50": bootstrap_quantiles['q50'],
-                    "q95": bootstrap_quantiles['q95'],
-                }
-                gradient_plot_json = generate_gradient_uncertainty_plot(
-                    quantiles, predicted_da,
-                    xgb_prediction=float(xgb_pred) if xgb_pred is not None else None,
-                    rf_prediction=float(rf_pred) if rf_pred is not None else None,
-                )
-                response_data["graphs"]["level_range"] = {
-                    "gradient_quantiles": quantiles,
-                    "xgboost_prediction": predicted_da,
-                    "type": "gradient_uncertainty",
-                    "gradient_plot": gradient_plot_json,
-                }
-        
-        # Add category_range graph for classification
-        if classification_result and 'predicted_category' in classification_result:
-            class_probs = classification_result.get('class_probabilities', [0.25, 0.25, 0.25, 0.25])
-            if isinstance(class_probs, np.ndarray):
-                class_probs = class_probs.tolist()
-            
-            response_data["graphs"]["category_range"] = {
-                "predicted_category": int(classification_result['predicted_category']),
-                "class_probabilities": class_probs,
-                "category_labels": ['Low (<5)', 'Moderate (5–<20)', 'High (20–<40)', 'Extreme (≥40)'],
-                "type": "category_range"
-            }
-
-        # Add ensemble breakdown if available
-        if regression_result:
-            ensemble_data = {}
-            if 'naive_prediction' in regression_result:
-                ensemble_data['naive_prediction'] = clean_for_json(regression_result['naive_prediction'])
-            if 'xgb_prediction' in regression_result:
-                ensemble_data['xgb_prediction'] = clean_for_json(regression_result['xgb_prediction'])
-            if 'rf_prediction' in regression_result:
-                ensemble_data['rf_prediction'] = clean_for_json(regression_result['rf_prediction'])
-            if 'ensemble_prediction' in regression_result:
-                ensemble_data['ensemble_prediction'] = clean_for_json(regression_result['ensemble_prediction'])
-            if 'ensemble_weights' in regression_result:
-                ensemble_data['ensemble_weights'] = regression_result['ensemble_weights']
-            if ensemble_data:
-                response_data['ensemble'] = ensemble_data
-
-        return response_data
-        
+        return clean_for_json(_forecast_payload(site, pd.to_datetime(request.date), model_type))
     except Exception as e:
-        return {
-            "success": False,
-            "forecast_date": request.date,
-            "site": request.site,
-            "error": str(e)
-        }
+        return {"success": False, "forecast_date": str(request.date), "site": request.site, "error": str(e)}
 
+
+@app.get("/api/forecast/all")
+def get_all_sites_forecast(
+    date: date | None = None,
+    model: Literal["ensemble", "xgboost", "rf", "naive", "linear"] = "ensemble",
+):
+    """One week's forecast for every site, north to south (default: the latest week).
+    A site whose forecast fails is reported with its error; the others still show."""
+    day = pd.Timestamp(date) if date is not None else _latest_forecast_week()
+    sites = []
+    for site in _sites_north_to_south():
+        try:
+            payload = _forecast_payload(site, day, model)
+        except Exception as e:
+            logger.warning("Forecast for %s on %s failed: %s", site, day.date(), e)
+            payload = _no_forecast(site, day, f"Forecast failed: {e}")
+        ok = payload["success"]
+        sites.append({
+            "site": site,
+            "anchor_date": payload.get("anchor_date"),
+            "predicted_da": payload["regression"]["predicted_da"] if ok else None,
+            "band": payload.get("band"),
+            "alert": payload.get("alert"),
+            "last_measurement": payload.get("last_measurement"),
+            "source": payload["source"],
+            "error": payload.get("error"),
+        })
+    return clean_for_json({"date": day.date().isoformat(), "sites": sites})
 
 
 @app.post("/api/retrospective")
 def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequest()):
-    """Retrospective results for the requested task and model (pre-computed cache in production)."""
+    """Retrospective results for the requested task and model (precomputed store in production)."""
     if request.task not in ("regression", "classification"):
         raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
     task = request.task
@@ -811,10 +882,8 @@ def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequ
         else:
             actual_model = request.model  # "ensemble" or "naive" pass through
         
-        # Canonical on-disk path for this slice (response metadata); reads may come from Redis instead.
-        cache_file = Path(cache_manager.cache_dir) / "retrospective" / f"{task}_{actual_model}.json"
-        base_results = cache_manager.get_retrospective_forecast(task, actual_model)
-        cache_hit = base_results is not None
+        base_results = precomputed.retrospective(task, actual_model)
+        hit = base_results is not None
         
         if base_results is None:
             # Compute on server (expensive - only for local development)
@@ -830,29 +899,9 @@ def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequ
             if results_df is None or results_df.empty:
                 return {"success": False, "error": "No results generated from retrospective analysis"}
 
-            # Convert results to JSON format with proper float cleaning (canonical keys)
-            base_results = []
-            for _, row in results_df.iterrows():
-                record = {
-                    "date": row['date'].strftime('%Y-%m-%d') if pd.notnull(row['date']) else None,
-                    "site": row['site'],
-                    "actual_da": clean_for_json(row['actual_da']) if 'actual_da' in row and pd.notnull(row['actual_da']) else None,
-                    "predicted_da": clean_for_json(row['predicted_da']) if 'predicted_da' in row and pd.notnull(row['predicted_da']) else None,
-                    "actual_category": clean_for_json(row['actual_category']) if 'actual_category' in row and pd.notnull(row['actual_category']) else None,
-                    "predicted_category": clean_for_json(row['predicted_category']) if 'predicted_category' in row and pd.notnull(row['predicted_category']) else None
-                }
-                if 'anchor_date' in results_df.columns and pd.notnull(row.get('anchor_date', None)):
-                    record['anchor_date'] = row['anchor_date'].strftime('%Y-%m-%d')
-                if 'spike_probability' in results_df.columns and pd.notnull(row.get('spike_probability', None)):
-                    record['spike_probability'] = clean_for_json(row['spike_probability'])
-                    record['spike_alert'] = bool(row.get('spike_alert', False))
-                base_results.append(record)
-
-            # Results computed on-demand for local development
+            base_results = retrospective_records(results_df)
         else:
             logging.info(f"Serving pre-computed retrospective analysis: {task}+{actual_model}")
-
-        # Cached data now uses the same standardized format as fresh computation (actual_da, predicted_da, actual_category, predicted_category)
 
         # Filter by sites if specified
         filtered = [r for r in base_results if r['site'] in request.selected_sites] if request.selected_sites else base_results
@@ -865,14 +914,7 @@ def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequ
                 "forecast_task": task,
                 "forecast_model": request.model,
             },
-            "cache": {
-                "enabled": cache_manager.enabled,
-                "path": str(cache_manager.cache_dir),
-                "file": str(cache_file),
-                "file_exists": cache_file.exists(),
-                "hit": cache_hit,
-                "redis_active": cache_manager.use_redis,
-            },
+            "precomputed": {"hit": hit, **precomputed.table_info()},
             "summary": summary,
             "results": filtered
         }
@@ -882,6 +924,8 @@ def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequ
             "success": False,
             "error": str(e)
         }
+
+
 
 def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
     """Compute summary metrics for retrospective results using canonical keys only."""
@@ -959,14 +1003,11 @@ def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
         # Per-region rollup: WA vs OR. Aggregates over coastal physiography
         # since pooling all 10 sites mixes ~0.6 R² WA with ~-0.5 R² OR.
         try:
-            WA_SITES = {"Kalaloch","Quinault","Copalis","Twin Harbors","Long Beach","Clatsop Beach","Cannon Beach"}
-            OR_SITES = {"Newport","Coos Bay","Gold Beach"}
             region_groups = {"WA": [], "OR": []}
             for r in results_json:
-                if r.get("site") in WA_SITES:
-                    region_groups["WA"].append(r)
-                elif r.get("site") in OR_SITES:
-                    region_groups["OR"].append(r)
+                state = config.SITE_STATES.get(r.get("site"))
+                if state in region_groups:
+                    region_groups[state].append(r)
             region_metrics = {}
             for reg, rs in region_groups.items():
                 pairs = [(x.get("actual_da"), x.get("predicted_da")) for x in rs

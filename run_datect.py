@@ -184,7 +184,8 @@ class DATectLauncher:
 
     def start_backend(self) -> bool:
         env = os.environ.copy()
-        env.setdefault("CACHE_DIR", str(self.project_root / "cache"))
+        if (self.project_root / "store").is_dir():  # precomputed store synced from Hyak
+            env.setdefault("DATECT_PRECOMPUTED_DIR", str(self.project_root / "store"))
 
         if self.toolchain.asgi == "granian":
             print("Starting backend with Granian...")

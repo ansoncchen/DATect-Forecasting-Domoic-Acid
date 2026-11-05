@@ -14,6 +14,7 @@ cd frontend && npm run lint && npm run build  # frontend checks
 python scripts/data/rebuild_final_output.py --recompute measurements   # da, pn
 python scripts/data/rebuild_final_output.py --recompute oad            # oad_* features
 python scripts/data/export_oad_features.py ae_3d_l32_c4_t4_s42_mae070  # OAD input
+# oad_cloud_fractions.parquet comes from the MODIS Delta lake (Hyak): modis_lake.sbatch, step export
 
 # Hyak: every evaluation that backs a reported number, in a disposable worktree
 bash scripts/eval/golden_baseline.sh <git-ref> <label>
@@ -32,8 +33,8 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
    cache, so `dataset-creation.py` end-to-end would re-download everything. Treat the
    environmental columns in `data/processed/final_output.parquet` as frozen and use
    `scripts/data/rebuild_final_output.py` for anything derived from local files.
-2. **Heavy compute runs on Hyak** (`precompute_cache.py`, retrospective/multi-seed/ablation
-   evals). The laptop is for editing, tests and the dashboard.
+2. **Heavy compute runs on Hyak** (the precomputed store's Spark build, retrospective/multi-seed/
+   ablation evals). The laptop is for editing, tests and the dashboard.
 3. **Leak-free, past-only training is non-negotiable.** A weekly row is labelled with its
    Monday but aggregates Monday-Sunday, so training and the anchor row use only weeks that
    end by the anchor (`date + 6 days <= anchor_date`, `anchor = test_date - 7 days`;
@@ -71,9 +72,18 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
   changes ~23% of predictions without improving skill and costs 1-3 min per forecast; every
   reported number was produced with it off.
 - **Single forecasts use the evaluated models:** `generate_single_forecast` calls
-  `_run_single_raw_validation` (the retrospective core) and only adds intervals and
-  categories. Intervals use XGBoost `reg:quantileerror` (not `reg:quantile`, which does not
-  exist) plus the spread of the Random Forest's trees.
+  `_run_single_raw_validation` (the retrospective core). The dashboard's forecast
+  (`/api/forecast/enhanced`, `backend/api.py::_forecast_payload`) is one regression run plus
+  the 80% conformal band (`backend/band.py`, calibrated at request time from the committed
+  all-years run), category chances from that band, and the alert's parts and
+  Quiet/Watch/Warning level (`forecasting.metrics.alert_parts`; Watch is the hybrid alert,
+  Warning is the classifier at >= 0.35, chosen on validation). The engine still computes XGBoost `reg:quantileerror` + RF-tree intervals
+  (`bootstrap_quantiles`), which nothing shows any more.
+- **Track record and reliability** (`backend/track_record.py`): window summaries are computed
+  server-side from `results/chronological` joined with `results/conformal_band`; R²/MAE come
+  verbatim from the runs' JSON. The dashboard computes no metric in the browser.
+  `config.SITE_STATES` (from latitude) is the API's site -> state map; two analysis scripts
+  (`spike_detection_eval.py`, `spike_env_lead_analysis.py`) still list states by hand.
 - **The pooled spike classifier** is trained on a pooled imputer/MinMax encoding of all
   sites; test rows must be encoded with that same transformer (returned by
   `_build_pooled_spike_data`), not the per-site one.
@@ -92,13 +102,19 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
 - **API handlers are plain `def`** (FastAPI runs them in its thread pool). Model work inside
   `async def` blocks the event loop for every user. Settings such as task/model travel with
   each request; the server holds no per-user state (there is no `POST /api/config`).
-- **Precomputed forecasts** (`backend/precomputed_forecasts.py`): a row is served only if its
-  `config_hash` matches the running API's: a hash of `forecasting/*.py`, `config.py`, the tuned
-  JSON, `final_output.parquet`, the raw DA CSVs, the `DATECT_*` variables the engine reads, and the
-  numpy/pandas/sklearn/xgboost/scipy versions. Any change there makes the table stale (misses,
-  computed on demand) until `datect_spark/forecast_serving.py precompute` is re-run. Only the
-  `ensemble` model is precomputed; `linear`'s bootstrap interval uses the global NumPy RNG, so its
-  on-demand output is not reproducible.
+- **The precomputed store** (`backend/precomputed.py`, `DATECT_PRECOMPUTED_DIR`): four Delta tables
+  (forecasts, retrospective, spectral, correlation) built on Spark by `datect_spark/store.sbatch`.
+  A row is served only if its `config_hash` matches the running API's: a hash of
+  `forecasting/*.py`, `config.py`, `backend/visualizations.py`, `backend/records.py` (how stored
+  rows are written: change the row format there, never in `api.py`), the tuned JSON,
+  `final_output.parquet`, the raw DA CSVs, the `DATECT_*` variables the engine reads (except
+  `DATECT_PARALLEL_BACKEND` and `DATECT_TEMPORAL_HOLDOUT_CUTOFF`; plus the contents of `*_JSON`
+  override files), the numpy/pandas/sklearn/xgboost/scipy versions, the CPU architecture and the
+  Python version. Any change there makes the store stale (misses, computed on demand; `/health`
+  reports it) until it is rebuilt, and the image build refuses a stale store. The image pins
+  those libraries and Python 3.10 to the Hyak Spark env (`constraints.txt`,
+  `datect_spark/env-freeze.txt`); change them together. Only the `ensemble` model's forecasts are precomputed; `linear`'s bootstrap
+  interval uses the global NumPy RNG, so its on-demand output is not reproducible.
 - **Tests:** use the `fast_models` (class-scoped model shrinking, restored afterwards) and
   `fresh_import` (re-import config modules for one test, originals restored) fixtures in
   `tests/conftest.py`. Never mutate shared config dicts without restoring them; tests must
@@ -123,11 +139,10 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 | `DATECT_FEATURE_SUBSET_MODE` | `all` removes per-site subsets; `minimal` forces a 4-feature subset |
 | `DATECT_TEMPORAL_HOLDOUT_CUTOFF` | holdout start for `eval_paper_metrics --temporal-holdout` (default 2022-01-01) |
 | `DATECT_PARALLEL_BACKEND` | joblib backend (default `loky`) |
-| `DATECT_FORECAST_TABLE` | API only: path of `gold/forecasts` (Delta); hits are served from it, misses computed |
+| `DATECT_PRECOMPUTED_DIR` | API only: directory of the precomputed store's Delta tables; hits are served, misses computed |
 
-Backend/deploy variables (`ENABLE_PRECOMPUTED_CACHE`, `CACHE_DIR`, `REDIS_URL`,
-`ALLOWED_ORIGINS`, `PORT`, `WORKERS`, `DATECT_USE_GRANIAN`, `NODE_ENV`, `VITE_API_URL`) are
-documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
+Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `WORKERS`,
+`DATECT_USE_GRANIAN`, `VITE_API_URL`) are documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
 
 ## Evaluation protocol
 
@@ -139,9 +154,12 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
   (`multi_seed_baseline.py`, seeds 42-46 at 20%). Single-seed R² at N~1,000 is noise-dominated
   (std across seeds ~0.05 pooled, ~0.10 on the holdout rows); never report one seed alone.
 - **Never tune all dimensions at once.** A full Optuna search over 18 dims overfit badly
-  (validation +0.07 R², holdout -0.16). Tune only ensemble weights with constrained
-  chronological CV (`grid_search_weights_clip.py`; forecasts are no longer clipped), and verify on the holdout
-  (`validate_tuned_on_holdout.py`). Per-site fold CV with < 50 test points per fold is
+  (validation +0.07 R², holdout -0.16). Tune only ensemble weights, with the one
+  weight tuner `datect_spark/retune.py` (Spark; yearly folds 2015-2021, all before the holdout;
+  weights only, nothing is clipped), and verify on the holdout (its `holdout` step, then the
+  chronological eval).
+  The current weights predate it: they came from the removed `scripts/eval/grid_search_weights_clip.py` (75 weight × clip configurations per site, 3-fold chronological CV on 2019–2021, chosen jointly with the clip that #18 removed; winners promoted to the JSON in `cdc2a32c`, per-site outputs in `results/tuning_provenance/grid_search_results/`, script last changed in `9c435f59`). The folds differ, so a re-run can
+  propose different weights; adopting them is a separate decision. Per-site fold CV with < 50 test points per fold is
   unreliable.
 - **Results files:** `results/chronological` (headline), `results/multi_seed`,
   `results/paper_metrics`, `results/ablation`, `results/final_verification`,
@@ -150,7 +168,8 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
 - **Error band:** `forecasting/conformal.py` calibrates each forecast only on errors of
   forecasts measured by its anchor; `docs/ERROR_BAND.md` holds the declared protocol. Its
   input is the all-years run `chronological_eval.py --window 2003-01-01:2024-01-01`,
-  whose pooled metrics are not reported (pre-2019 rows overlap tuning).
+  whose pooled metrics are not reported (pre-2019 rows overlap tuning). The API serves the
+  band from that run, so regenerate it whenever the engine's predictions change.
 
 ## Hyak
 
@@ -187,9 +206,10 @@ documented in `docs/DEPLOYMENT_GUIDE.md`. Set `ALLOWED_ORIGINS` in production.
 | `backend/api.py` | FastAPI: forecasts, retrospective, visualizations, `/api/metrics/summary` |
 | `frontend/` | React + Vite dashboard (trimmed Plotly bundle in `src/utils/Plot.js`) |
 | `dataset-creation.py` | Full dataset build (downloads; see hard rule 1) |
-| `scripts/eval/`, `scripts/tune/`, `scripts/data/` | Evaluation, tuning, offline data tools |
-| `datect_spark/` | Spark 4 + Delta + MLflow on Hyak: re-tune, MODIS -> Delta lake, forecast precompute (`RESULTS.md`) |
-| `backend/precomputed_forecasts.py` | Loads `gold/forecasts` with deltalake (no JVM) for the forecast endpoints |
+| `scripts/eval/`, `scripts/data/` | Evaluation, offline data tools (tuning: `datect_spark/retune.py`) |
+| `datect_spark/` | Spark 4 + Delta + MLflow on Hyak: weight tuner, MODIS -> Delta lake (makes `oad_cloud_fractions.parquet`), the precomputed store (`RESULTS.md`) |
+| `backend/precomputed.py` | The precomputed store: loads its Delta tables with deltalake (no JVM) for the API |
+| `backend/band.py`, `backend/track_record.py` | Serve-time error band; track record and per-site reliability summaries |
 | `oad/` | Ocean Anomaly Detection subproject (MODIS autoencoder; see `oad/README.md`) |
 | `papers/` | `datect/`, `oad_mdpi/`, `oad_cvpr/`, `poster/` |
 
@@ -208,7 +228,8 @@ All current numbers, their protocol and history are in `docs/CORRECTED_NUMBERS.m
 Headline (2022–2023 holdout, every real measurement, commit `93518c7d`): R² 0.516
 [0.308, 0.654], MAE 7.44 ug/g, spike recall 0.845, F2 0.737, N = 409; the hybrid alert
 catches 19 of 27 onsets (last known value < 20, measurement ≥ 20).
-`tests/test_chronological_eval_smoke.py` pins it; change both together.
+`tests/test_chronological_eval_smoke.py` pins it, and `tests/test_track_record.py` pins the
+track-record counts served to the dashboard; change them together.
 
 ## Docs
 
@@ -216,6 +237,7 @@ catches 19 of 27 onsets (last known value < 20, measurement ≥ 20).
 `docs/QUICKSTART_FOR_REVIEWERS.md` (reproducing claims, script index) ·
 `docs/PIPELINE_DEEP_DIVE.md` · `docs/DATA_PIPELINE_DETAILED.md` ·
 `docs/OAD_INTEGRATION_RESULTS.md` · `docs/HYAK_SETUP.md` · `docs/DEPLOYMENT_GUIDE.md` ·
-`docs/VISUALIZATIONS_GUIDE.md` · `oad/README.md`, `oad/RESULTS.md`.
+`docs/VISUALIZATIONS_GUIDE.md` · `docs/ERROR_BAND.md` · `docs/DATA_ENGINEERING.md` ·
+`docs/FORECAST_EXPERIMENTS.md` · `oad/README.md`, `oad/RESULTS.md`.
 
 Before pasting a file path from memory or an old note into an instruction, check it exists.

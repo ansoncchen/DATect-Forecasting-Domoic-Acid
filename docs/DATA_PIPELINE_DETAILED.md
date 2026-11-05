@@ -39,7 +39,7 @@ The script imports `dataset-creation.py`'s own functions (`process_da`, `process
 .venv/bin/python scripts/data/rebuild_final_output.py --recompute oad
 ```
 
-The export checks the schema (`date, region, method, aggregation, score, checkpoint`), a single method with `aggregation == "mean"`, every region a DATect site maps to, and unique `(date, region)`. The cloud-fraction input does not depend on the checkpoint; it comes from `compute_region_valid_fractions` in `oad/scripts/07_cloud_confound.py`.
+The export checks the schema (`date, region, method, aggregation, score, checkpoint`), a single method with `aggregation == "mean"`, every region a DATect site maps to, and unique `(date, region)`. The cloud-fraction input does not depend on the checkpoint. The MODIS Delta lake produces it (`python -m datect_spark.modis_lake export` on Hyak, from the gold `oad_region_valid_frac` table; see `datect_spark/RESULTS.md`).
 
 Run the full `dataset-creation.py` only when environmental or satellite sources themselves change (new date range, new variable). Heavy runs belong on Hyak (see [`HYAK_SETUP.md`](HYAK_SETUP.md)).
 

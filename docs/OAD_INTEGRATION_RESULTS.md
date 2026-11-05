@@ -35,8 +35,8 @@ metrics are reported only in [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md).
 oad/outputs/scores/<checkpoint>.parquet           (Hyak; regional daily scores, not tracked)
    └─ scripts/data/export_oad_features.py <checkpoint>
         → data/processed/oad_scores.parquet         (tracked; schema-checked copy)
-data/processed/oad_cloud_fractions.parquet          (tracked; from compute_region_valid_fractions
-                                                     in oad/scripts/07_cloud_confound.py,
+data/processed/oad_cloud_fractions.parquet          (tracked; exported from the MODIS Delta lake,
+                                                     datect_spark/modis_lake.py export,
                                                      independent of the checkpoint)
    └─ forecasting/oad_features.py: add_oad_features()
         called by dataset-creation.py and scripts/data/rebuild_final_output.py --recompute oad
@@ -162,14 +162,15 @@ one-off and are not in the repo.
 
 - A full per-site Optuna search (18 hyperparameters, chronological validation
   window as the objective) improved validation and degraded the 2022–2023
-  holdout: `validate_tuned_on_holdout.py` returned OVERFITTING, and the configs
+  holdout: `validate_tuned_on_holdout.py` (since removed) returned OVERFITTING, and the configs
   were discarded.
 - A constrained grid over the three dimensions that matter (ensemble weights,
   clip quantile, clip maximum) with 3-fold chronological CV on pre-2022 data
   held up on the holdout. Its winners were promoted to
   `config/tuned_hyperparameters.json` (commit `cdc2a32c`) and are the current
-  per-site configuration (`scripts/eval/grid_search_weights_clip.py`;
-  per-site outputs in `results/tuning_provenance/grid_search_results/`).
+  per-site configuration (`scripts/eval/grid_search_weights_clip.py`, since
+  removed in favor of `datect_spark/retune.py`; per-site outputs in
+  `results/tuning_provenance/grid_search_results/`).
 - The earlier hand-tuned values had been chosen on a seed-42 sample spanning all
   years, so they had indirectly seen part of the validation window. The leak-free
   grid removes that dependence.

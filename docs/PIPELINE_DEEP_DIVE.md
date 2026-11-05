@@ -59,7 +59,7 @@ All fitted models are seeded with `config.MODEL_SEED` (42).
 
 ## 6. Ensemble weights
 
-`ensemble = w_xgb · XGB + w_rf · RF` with per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` is always 0). They are winners of the constrained grid search in `scripts/eval/grid_search_weights_clip.py`, which chose them jointly with the clip quantiles that were later removed. Current values:
+`ensemble = w_xgb · XGB + w_rf · RF` with per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` is always 0). They are winners of the constrained grid search in the since-removed `scripts/eval/grid_search_weights_clip.py` (promoted in `cdc2a32c`), which chose them jointly with the clip quantiles that were later removed. The weight tuner is now `datect_spark/retune.py` (weights only, yearly folds 2015–2021). Current values:
 
 | Site | w_xgb | w_rf |
 |---|---|---|
@@ -98,7 +98,7 @@ One convention everywhere (`forecasting/metrics.py`, `config.py`): **reaching a 
 - `ensemble` / `xgboost`: three XGBoost models with `objective="reg:quantileerror"` and `quantile_alpha` 0.05, 0.50, 0.95, each post-processed. For `ensemble`, each quantile is blended as `w_xgb · q_XGB + w_rf · q_RF`, where `q_RF` is the same quantile of the Random Forest's individual tree predictions (RF has no quantile objective), so RF-only sites (Kalaloch, Coos Bay, Cannon Beach) also get a real band.
 - `rf`, `linear`, `naive`, or if the quantile fit fails: bootstrap with `N_BOOTSTRAP_ITERATIONS` (100) resamples (`BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0`), percentiles `CONFIDENCE_PERCENTILES = [5, 50, 95]`. Naive intervals have zero width.
 
-Retrospective evaluation skips intervals; they do not affect reported metrics.
+Retrospective evaluation skips intervals; they do not affect reported metrics. The dashboard no longer shows these intervals: `/api/forecast/enhanced` draws the 80% conformal band instead (`backend/band.py`, `docs/ERROR_BAND.md`), for the `ensemble` only, and the engine cleanup will remove the quantile and bootstrap code.
 
 ## 10. Retrospective evaluation (`run_retrospective_evaluation(task, model_type, max_test_samples)`)
 
@@ -122,4 +122,4 @@ Retrospective evaluation skips intervals; they do not affect reported metrics.
 
 ## Caching and serving
 
-`precompute_cache.py` (run on Hyak) writes 8 task/model retrospectives (regression: ensemble, xgboost, rf, naive, linear; classification: ensemble, naive, logistic), spectral analyses and per-site correlation heatmaps under `cache/`. The API serves them when the cache is enabled and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).
+The precomputed store (Delta tables built on Spark on Hyak, `datect_spark/store.sbatch`) holds weekly forecasts, 8 task/model retrospectives (regression: ensemble, xgboost, rf, naive, linear; classification: ensemble, naive, logistic), spectral analyses and per-site correlation heatmaps. The API (`backend/precomputed.py`) serves rows whose config hash matches its own code, config, data and library versions, and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).

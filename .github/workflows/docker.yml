@@ -3,6 +3,9 @@ name: docker
 # Builds the production image and checks that the API starts and answers
 # /health. Catches missing COPY lines and import-time crashes that unit tests
 # cannot see (e.g. config/tuned_hyperparameters.json absent from the image).
+# Then serves a forecast from a small Delta store built inside the image, so the
+# precomputed path (deltalake, DATECT_PRECOMPUTED_DIR, config hash) is exercised
+# in the container that gets deployed.
 
 on:
   push:
@@ -18,12 +21,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Stub pre-computed cache
-        # cache/ is generated on Hyak and not tracked; the image only needs the directory.
-        run: mkdir -p cache && touch cache/.keep
+      - name: Stub precomputed store
+        # store/ is built on Hyak and not tracked; the image only needs the directory.
+        run: mkdir -p store && touch store/.keep
 
       - name: Build image
-        run: docker build -f Dockerfile.production -t datect:ci .
+        # The stub store is empty: skip the build's check that the store is current
+        run: docker build -f Dockerfile.production --build-arg REQUIRE_CURRENT_STORE=0 -t datect:ci .
 
       - name: Start container and check /health
         run: |
@@ -33,3 +37,40 @@ jobs:
             sleep 2
           done
           echo "API did not become healthy"; docker logs datect; exit 1
+
+      - name: Config hash of the image vs the Hyak Spark env
+        # A store built on Hyak is served only if its rows' config_hash equals the
+        # image's. results/store/hyak_config_hash.txt records the Hyak env's hash at
+        # the commit that wrote it; a later change to hashed inputs makes it stale.
+        run: |
+          image=$(docker run --rm datect:ci python -m backend.precomputed hash)
+          echo "image: $image"
+          [ -f results/store/hyak_config_hash.txt ] && cat results/store/hyak_config_hash.txt
+          if grep -q "$image" results/store/hyak_config_hash.txt 2>/dev/null; then
+            echo "MATCH: a store built on Hyak at that commit is served by this image"
+          else
+            echo "no match: a hashed input differs from the recorded Hyak hash (expected after code or data changes)"
+          fi
+
+      - name: Serve a precomputed forecast inside the container
+        run: |
+          trap 'docker logs served || true' ERR
+          mkdir -p /tmp/store && chmod 777 /tmp/store
+          docker run --rm -v /tmp/store:/tmp/store datect:ci \
+            python -m backend.precomputed sample /tmp/store --site Newport --date 2019-06-03
+          docker run -d --name served -p 8081:8080 -v /tmp/store:/srv/store:ro \
+            -e DATECT_PRECOMPUTED_DIR=/srv/store datect:ci
+          for i in $(seq 1 30); do curl -fsS http://localhost:8081/health > /dev/null && break; sleep 2; done
+          curl -fsS http://localhost:8081/health; echo
+          forecast() {
+            curl -fsS -o /tmp/body.json -w '%{time_total}' -X POST -H 'Content-Type: application/json' \
+              -d "{\"date\": \"$1\", \"site\": \"Newport\", \"task\": \"regression\", \"model\": \"ensemble\"}" \
+              http://localhost:8081/api/forecast/enhanced
+          }
+          for day in 2019-06-03 2019-06-10; do
+            seconds=$(forecast $day)
+            source=$(python3 -c 'import json; print(json.load(open("/tmp/body.json"))["source"])')
+            echo "$day: $source in ${seconds}s"
+            expected=$([ $day = 2019-06-03 ] && echo precomputed || echo computed)
+            [ "$source" = "$expected" ] || { docker logs served; exit 1; }
+          done

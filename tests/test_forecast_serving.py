@@ -28,8 +28,8 @@ def test_bootstrap_interval_is_not_stored(serving):
     assert serving.not_reproducible(None) is None
 
 
-def test_classification_model_matches_the_api(serving):
-    # api.py asks the engine for "logistic" when the dashboard's model is "linear"
-    assert serving.task_model("classification", "linear") == "logistic"
-    assert serving.task_model("regression", "linear") == "linear"
-    assert serving.task_model("classification", "ensemble") == "ensemble"
+def test_precompute_tasks_are_regression_only(serving):
+    # The dashboard's forecast is one regression run; categories come from the band
+    from backend import precomputed
+    assert precomputed.FORECAST_TASKS == ("regression",)
+    assert serving.TASKS is precomputed.FORECAST_TASKS

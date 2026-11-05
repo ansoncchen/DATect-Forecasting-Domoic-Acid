@@ -1,11 +1,11 @@
 """
 Precompute the dashboard's forecasts on Spark into Delta, registered in MLflow.
 
-A dashboard forecast (POST /api/forecast/enhanced) is two generate_single_forecast
-calls, regression and classification, each training the evaluated models on data up
-to the anchor. ``precompute`` runs those calls for every (site, date) on the grid
+A dashboard forecast (POST /api/forecast/enhanced) is one regression
+generate_single_forecast call, which trains the evaluated models on data up to the
+anchor (categories come from the error band, backend/band.py). ``precompute`` runs those calls for every (site, date) on the grid
 (one Spark task per pair, one thread each) and stores each output as-is
-(lossless JSON, backend/precomputed_forecasts.encode) in ``gold/forecasts`` with the
+(lossless JSON, backend/precomputed.encode) in ``gold/forecasts`` with the
 registered model version and the config hash. The API loads that table with
 deltalake (no JVM) and falls back to computing on demand on a miss.
 
@@ -35,6 +35,7 @@ import time
 import numpy as np
 import pandas as pd
 
+from backend.precomputed import FORECAST_TASKS
 from datect_spark.session import get_mlflow, get_spark, git_sha, lake_path
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -42,7 +43,7 @@ OUT_DIR = os.path.join(REPO_ROOT, "results", "serving")
 TABLE = ("gold", "forecasts")
 REGISTERED_MODEL = "datect-forecaster"
 EXPERIMENT = "datect-serving"
-TASKS = ("regression", "classification")
+TASKS = FORECAST_TASKS  # backend/precomputed.py: what the API reads
 MODELS = ("ensemble",)
 OUT_SCHEMA = (
     "site string, forecast_date date, task string, model_type string, "
@@ -97,11 +98,6 @@ def _summary(result: dict | None) -> dict:
             "training_samples": result.get("training_samples")}
 
 
-def task_model(task: str, model: str) -> str:
-    """The model the API asks the engine for: "linear" classifies with "logistic"."""
-    return "logistic" if model == "linear" and task == "classification" else model
-
-
 def not_reproducible(result: dict | None) -> str | None:
     """Why an output must not be stored, or None. An ensemble interval normally comes
     from quantile XGBoost; if that fails the engine falls back to a bootstrap drawn
@@ -112,7 +108,7 @@ def not_reproducible(result: dict | None) -> str | None:
 
 
 def _forecast_partition(batches):
-    from backend.precomputed_forecasts import encode
+    from backend.precomputed import encode
 
     engine, config = _engine()
     host = socket.gethostname()
@@ -122,7 +118,7 @@ def _forecast_partition(batches):
         for r in pdf.itertuples(index=False):
             for task in TASKS:
                 t0 = time.time()
-                model = task_model(task, r.model_type)
+                model = r.model_type
                 row = {"site": r.site, "forecast_date": pd.Timestamp(r.date).date(), "task": task,
                        "model_type": model, "host": host}
                 try:
@@ -157,7 +153,7 @@ def _forecaster_class():
         data up to the anchor (that is the model), so it runs inside a DATECT checkout."""
 
         def predict(self, context, model_input, params=None):
-            from backend.precomputed_forecasts import encode
+            from backend.precomputed import encode
 
             engine, config = _engine()
             return [encode(engine.generate_single_forecast(
@@ -199,7 +195,7 @@ def _git_sha() -> str:
 def precompute(grid: str, limit: int | None) -> dict:
     from pyspark.sql import functions as F
 
-    from backend.precomputed_forecasts import config_hash
+    from backend.precomputed import config_hash
 
     pairs = build_grid(grid)
     if limit:
@@ -249,7 +245,7 @@ def precompute(grid: str, limit: int | None) -> dict:
         out = {"grid": grid, "pairs": len(pairs), "models": list(MODELS), "entries": stats["entries"],
                "errors": stats["errors"], "entries_without_forecast": stats["no_forecast"], "wall_seconds": wall,
                "task_seconds_total": stats["task_seconds"], "task_seconds_per_pair": per_pair,
-               "cores": cores, "hosts": stats["hosts"], "speedup_vs_serial": stats["task_seconds"] / wall,
+               "cores": cores, "hosts": stats["hosts"], "task_seconds_over_wall": stats["task_seconds"] / wall,
                "daily_pairs": daily_pairs,
                "daily_estimate_node_hours": per_pair * daily_pairs * len(MODELS) / cores / 3600,
                "table": table, "delta_version": delta_version, "table_files": detail["numFiles"],
@@ -268,16 +264,16 @@ def precompute(grid: str, limit: int | None) -> dict:
 def parity(n: int) -> dict:
     """n random table entries vs generate_single_forecast run fresh, in a process with
     the API's threading (session.py pins one thread per Spark task; the API does not)."""
-    from backend.precomputed_forecasts import PrecomputedForecasts, decode, same
+    from backend.precomputed import Store, decode, same
 
-    store = PrecomputedForecasts(lake_path(*TABLE))
-    keys = sorted(store._index)
+    store = Store(lake_path("gold"))
+    keys = sorted(store._index["forecasts"])
     picks = [keys[i] for i in np.random.default_rng(0).choice(len(keys), size=min(n, len(keys)), replace=False)]
     child = (
         "import json, os, sys, pandas as pd\n"
         "import config\n"
         "from forecasting import ForecastEngine\n"
-        "from backend.precomputed_forecasts import encode\n"
+        "from backend.precomputed import encode\n"
         "engine = ForecastEngine(validate_on_init=False)\n"
         "for site, day, task, model in json.load(sys.stdin):\n"
         "    r = engine.generate_single_forecast(config.FINAL_OUTPUT_PATH, pd.Timestamp(day), site, task, model)\n"
@@ -294,23 +290,24 @@ def parity(n: int) -> dict:
     seconds = time.time() - t0
     checks = []
     for key, fresh in zip(picks, on_demand):
-        hit = store.get(*key)
+        hit = store.forecast(*key)
         checks.append({"key": list(key), "equal": same(hit.result, fresh), "has_forecast": fresh is not None})
+    table = store.tables["forecasts"]
     out = {"n": len(checks), "equal": sum(c["equal"] for c in checks),
            "with_forecast": sum(c["has_forecast"] for c in checks),
-           "on_demand_seconds": seconds, "table_version": store.table_version,
-           "table_entries": len(store), "stale_rows": store.stale_rows, "checks": checks}
+           "on_demand_seconds": seconds, "table_version": table["version"],
+           "table_entries": table["entries"], "stale_rows": table["stale_rows"], "checks": checks}
 
     # The registered model reproduces the table too
     mlflow = get_mlflow(EXPERIMENT)
     from mlflow import pyfunc
 
-    version = store.get(*picks[0]).model_version.split("/")[1]
+    version = store.forecast(*picks[0]).model_version.split("/")[1]
     model = pyfunc.load_model(f"models:/{REGISTERED_MODEL}/{version}")
     few = picks[:3]
     predicted = model.predict(pd.DataFrame(few, columns=["site", "date", "task", "model_type"]))
     out["registry_model"] = {"version": version, "n": len(few),
-                             "equal": sum(same(decode(p), store.get(*k).result)
+                             "equal": sum(same(decode(p), store.forecast(*k).result)
                                           for p, k in zip(predicted, few))}
     out["passed"] = out["equal"] == out["n"] and out["registry_model"]["equal"] == len(few)
     with mlflow.start_run(run_name="parity"):

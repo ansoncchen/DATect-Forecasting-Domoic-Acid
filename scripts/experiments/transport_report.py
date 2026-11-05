@@ -150,17 +150,67 @@ def coverage(start: str = "2015", end: str = "2022") -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def train_coverage() -> pd.DataFrame:
+    """Training rows carrying each §7 signal at the start of chosen years (rows without one
+    are median-imputed), for all rows and for spike rows."""
+    from forecasting.raw_data_forecaster import week_complete_by
+    from onset_study import context, weekly_table
+    context()
+    tab = weekly_table()
+    signals = {"wind": "wind_v_7d", "mooring": "nemo_sst_rise", "pn_drop": "pn_drop_frac", "sat_2_8w": "sat_max_2_8w"}
+    rows = []
+    for year in (2015, 2017, 2019, 2021):
+        t = tab[week_complete_by(tab["date"], pd.Timestamp(f"{year}-01-01"))]
+        spike = t["da_raw"].astype(float) >= 20
+        for name, col in signals.items():
+            ok = t[col].notna()
+            rows.append({"anchor": f"{year}-01-01", "signal": name, "train_rows": len(t), "rows_with": int(ok.sum()),
+                         "spike_rows": int(spike.sum()), "spike_rows_with": int((ok & spike).sum())})
+    return pd.DataFrame(rows)
+
+
+def budget_curve(models: dict, mask) -> pd.DataFrame:
+    """Post hoc: 2015-2021 onsets caught at other quiet-week budgets, each model at its own
+    threshold (why an AUC gain need not move the 10% count)."""
+    rows = []
+    for scope, m in (("all sites", None), ("WA", mask)):
+        for name, df in models.items():
+            w = df[(df["date"] >= SELECTION[0]) & (df["date"] < SELECTION[1])]
+            if m is not None:
+                w = w[m.loc[w.index]]
+            cand, onset = candidates(w)
+            oc, sc = onset[cand], w["score"].to_numpy()[cand]
+            rows.append({"scope": scope, "variant": name, "n_onset": int(oc.sum()),
+                         **{f"caught_at_{int(b * 100)}pct": caught_at(oc, sc, threshold_for(oc, sc, b))
+                            for b in (0.05, 0.10, 0.20, 0.30)}})
+    return pd.DataFrame(rows)
+
+
+def controls(raw: Path) -> pd.DataFrame:
+    """§7.2 plumbing checks on 2015-2021: the leaking column against baseline seed 42, the
+    random columns against the same five seeds as every variant."""
+    rows = []
+    for name, seeds in (("control_oracle", (42,)), ("control_noise", SEEDS)):
+        r = compare(mean_score(raw, "baseline", seeds), mean_score(raw, name, seeds), SELECTION)
+        rows.append({"variant": name, "seeds": ",".join(map(str, seeds)), **r})
+    return pd.DataFrame(rows)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw-dir", default=None)
     ap.add_argument("--holdout", default=None, help="comma-separated variants that passed (scored once)")
     ap.add_argument("--coverage-only", action="store_true")
+    ap.add_argument("--controls", action="store_true", help="also score the §7.2 plumbing checks")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     if args.coverage_only:
         cov = coverage()
         cov.to_csv(OUT / "transport_coverage.csv", index=False)
         print(cov.to_string(index=False))
+        tc = train_coverage()
+        tc.to_csv(OUT / "transport_train_coverage.csv", index=False)
+        print(tc.to_string(index=False))
         return 0
     raw = Path(args.raw_dir)
     base = mean_score(raw, "baseline", SEEDS)
@@ -193,6 +243,14 @@ def main() -> int:
             "per_seed_d_caught", "floor", "passes"]
     print(tab[cols].round(3).to_string(index=False))
     print(dep.round(3).to_string(index=False))
+    bc = budget_curve({"baseline": base, **models}, wa_mask)
+    bc.to_csv(OUT / "transport_budgets.csv", index=False)
+    print(bc.to_string(index=False))
+    if args.controls:
+        ct = controls(raw)
+        ct.to_csv(OUT / "transport_controls.csv", index=False, float_format="%.4f")
+        print(ct[["variant", "seeds", "n_onset", "caught_base", "caught", "d_caught", "d_caught_lo", "d_caught_hi",
+                  "auc_base", "auc", "d_auc"]].round(3).to_string(index=False))
     if args.holdout:
         hold = []
         for scope, mask in (("all sites", None), ("WA", wa_mask)):

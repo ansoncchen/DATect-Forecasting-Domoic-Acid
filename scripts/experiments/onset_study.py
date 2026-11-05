@@ -21,6 +21,7 @@ import os
 import sys
 import time
 import warnings
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -54,6 +55,8 @@ PN_COLS = ["pn_last_log", "pn_max14_log", "pn_age_days", "pn_nb_max14_log", "pn_
 TREND_COLS = ["da_slope_3", "weeks_since_obs", "weeks_since_detect", "weeks_since_ge5"]
 REGION_COLS = [f"region_{r}" for r in REGIONS]
 DETECT, ELEVATED = 1.0, 5.0  # "above the detection limit" and the [5, 20) category
+# §7.2 plumbing checks for the null result, never candidates (see control_columns)
+CONTROL_NOISE_COLS = [f"ctl_noise{i}" for i in range(7)]
 
 # Each variant changes one thing relative to the engine's classifier (§6 hypotheses).
 VARIANTS: dict[str, dict] = {
@@ -78,6 +81,8 @@ VARIANTS: dict[str, dict] = {
     "pn_crash": {"extra": T.PN_CRASH_COLS},                                # T5 (§7.1)
     "sat_lag": {"extra": T.SAT_COLS},                                      # T6 (§7.1)
     "sat_lag+wind": {"extra": T.WIND_COLS + T.SAT_COLS + ["sat_x_reversal"]},  # T7 (§7.1)
+    "control_oracle": {"extra": ["ctl_oracle"]},
+    "control_noise": {"extra": CONTROL_NOISE_COLS},
 }
 
 
@@ -267,6 +272,16 @@ def transport_columns(site: str, cutoff) -> dict:
     return f
 
 
+def control_columns(site: str, day, measured: float) -> dict:
+    """§7.2 plumbing checks. ``ctl_oracle`` deliberately leaks the row's own spike label
+    (flipped on 20% of rows), so an extra column that reaches the model must show a large
+    gain; ``ctl_noise*`` are random. Seeded per site-day so every worker agrees."""
+    u = np.random.default_rng(zlib.crc32(f"{site}|{pd.Timestamp(day).date()}".encode())).random(8)
+    spike = float(measured >= THR)
+    return {**{c: float(x) for c, x in zip(CONTROL_NOISE_COLS, u)},
+            "ctl_oracle": 1.0 - spike if u[7] < 0.2 else spike}
+
+
 def lead_cutoff(site: str, week) -> pd.Timestamp:
     """Training rows' §7 cutoff: the sample date of the week's maximum minus 7 days (the
     lead a forecast row has); the earliest such date when several days tie."""
@@ -295,6 +310,7 @@ def weekly_table() -> pd.DataFrame:
             f = extra_columns(site, w - pd.Timedelta(days=1), weeks[:i], vals[:i], w)
             f["_da_next_week"] = nxt.get(w + pd.Timedelta(days=7), np.nan)
             f.update(transport_columns(site, lead_cutoff(site, w)))
+            f.update(control_columns(site, w, vals[i]))
             extras[idx] = f
     ext = pd.DataFrame.from_dict(extras, orient="index").loc[real.index]
     tab = pd.concat([real, ext], axis=1)
@@ -350,7 +366,8 @@ def test_rows(points: list[dict], A: pd.Timestamp) -> list[tuple[dict, pd.DataFr
         row = add_temporal_features(row)
         od, ov = ctx["obs"][site]
         weeks, vals = weekly_maxima(od, ov, A, monday(D))
-        for k, val in {**extra_columns(site, A, weeks, vals, monday(D)), **transport_columns(site, A)}.items():
+        for k, val in {**extra_columns(site, A, weeks, vals, monday(D)), **transport_columns(site, A),
+                       **control_columns(site, D, p["actual_da"])}.items():
             row[k] = val
         out.append((p, row))
     return out

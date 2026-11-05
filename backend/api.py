@@ -444,7 +444,7 @@ def _alert_levels() -> list:
         {"name": "Watch", "rule": f"classifier probability >= {p:g} or forecast >= {r:g} µg/g",
          "cutoff": p, "placeholder": False},
         {"name": "Warning", "rule": f"classifier probability >= {w:g}", "cutoff": w,
-         "placeholder": True},
+         "placeholder": False},
     ]
 
 # Visualization endpoints

@@ -129,7 +129,7 @@ def test_config_exposes_protocol_constants():
     assert c["band_level"] == 0.8
     levels = {lv["name"]: lv for lv in c["alert_levels"]}
     assert list(levels) == ["Quiet", "Watch", "Warning"]
-    assert levels["Warning"]["placeholder"] is True and levels["Warning"]["cutoff"] == 0.4
+    assert levels["Warning"]["placeholder"] is False and levels["Warning"]["cutoff"] == 0.35
     assert levels["Watch"]["placeholder"] is False
     assert c["category_bins"] == [0, 5, 20, 40, None] and len(c["category_labels"]) == 4
     assert c["eval_windows"]["holdout_start"] == "2022-01-01"

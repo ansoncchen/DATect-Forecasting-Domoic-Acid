@@ -106,6 +106,6 @@ def test_alert_parts_levels_and_boundaries():
     assert blind["by_classifier"] is False and blind["classifier_probability"] is None
 
 
-def test_warning_cutoff_is_the_tuned_placeholder():
+def test_warning_cutoff_is_the_one_chosen_on_validation():
     import config
-    assert config.ALERT_WARNING_PROB_CUTOFF == 0.4
+    assert config.ALERT_WARNING_PROB_CUTOFF == 0.35

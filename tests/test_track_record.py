@@ -24,13 +24,16 @@ def test_holdout_summary_matches_the_reported_numbers():
     assert (s["band"]["inside"], s["band"]["n_banded"], s["band"]["onsets_inside"]) == (328, 409, 10)
     assert s["band"]["median_width"] == pytest.approx(15.08, abs=0.01)
     assert s["levels"] == {"Quiet": {"weeks": 213, "followed_by_jump": 8},
-                           "Watch": {"weeks": 73, "followed_by_jump": 9},
-                           "Warning": {"weeks": 33, "followed_by_jump": 10}}
+                           "Watch": {"weeks": 68, "followed_by_jump": 9},
+                           "Warning": {"weeks": 38, "followed_by_jump": 10}}
 
 
 def test_validation_and_per_site_reliability():
     v = tr.window_summary("validation")
     assert v["onsets"]["caught"] == 27 and v["band"]["coverage"] == pytest.approx(0.819, abs=5e-4)
+    assert v["levels"] == {"Quiet": {"weeks": 420, "followed_by_jump": 7},
+                           "Watch": {"weeks": 63, "followed_by_jump": 13},
+                           "Warning": {"weeks": 37, "followed_by_jump": 14}}
     assert (v["alarms"]["false_below_5"], v["alarms"]["false_5_to_10"], v["alarms"]["false_near_miss"]) == (23, 13, 37)
     g = tr.window_summary("holdout", "Gold Beach")
     assert g["n"] == 40 and g["band"]["coverage"] == pytest.approx(0.375)

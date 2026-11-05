@@ -258,7 +258,7 @@ SPIKE_ALERT_PROB_THRESHOLD = float(_tuned["spike_alert_prob_threshold"])  # clas
 SPIKE_CLASSIFIER_ENABLED = True
 SPIKE_REGRESSION_ALERT_THRESHOLD = float(_tuned["spike_regression_alert_threshold"])
 # Dashboard alert levels: Quiet / Watch (the hybrid alert) / Warning (classifier >= this).
-# A placeholder until the onset experiments choose tiers on validation.
+# Chosen on validation by the onset experiments; see the tuned JSON's provenance.
 ALERT_WARNING_PROB_CUTOFF = float(_tuned["alert_warning_prob_cutoff"])
 
 SPIKE_CLASSIFIER_PARAMS = dict(_tuned["spike_classifier_params"])

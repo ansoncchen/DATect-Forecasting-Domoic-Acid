@@ -76,8 +76,8 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
   (`/api/forecast/enhanced`, `backend/api.py::_forecast_payload`) is one regression run plus
   the 80% conformal band (`backend/band.py`, calibrated at request time from the committed
   all-years run), category chances from that band, and the alert's parts and
-  Quiet/Watch/Warning level (`forecasting.metrics.alert_parts`; Warning's 0.40 cutoff is a
-  placeholder). The engine still computes XGBoost `reg:quantileerror` + RF-tree intervals
+  Quiet/Watch/Warning level (`forecasting.metrics.alert_parts`; Watch is the hybrid alert,
+  Warning is the classifier at >= 0.35, chosen on validation). The engine still computes XGBoost `reg:quantileerror` + RF-tree intervals
   (`bootstrap_quantiles`), which nothing shows any more.
 - **Track record and reliability** (`backend/track_record.py`): window summaries are computed
   server-side from `results/chronological` joined with `results/conformal_band`; R²/MAE come

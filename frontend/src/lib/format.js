@@ -76,3 +76,15 @@ export function ratioWords(k, n) {
   if (k / n >= 0.3) return `about ${Math.round((10 * k) / n)} in 10`
   return `about 1 in ${Math.round(n / k)}`
 }
+
+/**
+ * A summary statistic with its interval where the API gives one: '0.52 [0.31, 0.65]'.
+ * @param {{ value: number, ci: [number, number] | null } | null} stat
+ * @param {number} digits
+ * @returns {string} '—' for a missing stat
+ */
+export function formatStat(stat, digits) {
+  if (!stat) return '—'
+  const v = stat.value.toFixed(digits)
+  return stat.ci ? `${v} [${stat.ci[0].toFixed(digits)}, ${stat.ci[1].toFixed(digits)}]` : v
+}

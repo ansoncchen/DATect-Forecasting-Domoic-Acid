@@ -249,7 +249,7 @@ def precompute(grid: str, limit: int | None) -> dict:
         out = {"grid": grid, "pairs": len(pairs), "models": list(MODELS), "entries": stats["entries"],
                "errors": stats["errors"], "entries_without_forecast": stats["no_forecast"], "wall_seconds": wall,
                "task_seconds_total": stats["task_seconds"], "task_seconds_per_pair": per_pair,
-               "cores": cores, "hosts": stats["hosts"], "speedup_vs_serial": stats["task_seconds"] / wall,
+               "cores": cores, "hosts": stats["hosts"], "task_seconds_over_wall": stats["task_seconds"] / wall,
                "daily_pairs": daily_pairs,
                "daily_estimate_node_hours": per_pair * daily_pairs * len(MODELS) / cores / 3600,
                "table": table, "delta_version": delta_version, "table_files": detail["numFiles"],

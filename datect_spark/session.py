@@ -1,8 +1,8 @@
 """SparkSession with Delta Lake, configured for Hyak.
 
 Paths come from environment variables so the same code runs on a laptop and on
-Hyak, where the lake and Spark's scratch belong on /gscratch/scrubbed (the stf
-group allocation is nearly full):
+Hyak, where jobs keep the lake and Spark's scratch on the node's local disk
+(hyak_stage.sh; both scratch filesystems are nearly full):
 
     DATECT_LAKE          Delta tables root     (default ./lake)
     SPARK_LOCAL_DIRS     shuffle/spill scratch (Spark reads this itself)

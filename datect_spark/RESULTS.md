@@ -9,7 +9,7 @@ the caveats.
 
 | | |
 |---|---|
-| Nodes | Hyak `ckpt` partition, 1 node per job, 16 cores and 32 GB requested (Slurm) |
+| Nodes | Hyak `ckpt` partition, 1 node per job, 16 cores and 32 GB requested (Slurm); 64 GB for the first re-tune, job 42629914 |
 | Spark | PySpark 4.0.1, local mode `local[16]`, Java 17 (`coenv/jdk/17.0.8`) |
 | Delta Lake | delta-spark 4.0.0 (writes), deltalake 1.6.6 / delta-rs (API reads, no JVM) |
 | MLflow | 3.17.2, sqlite tracking and model registry on `/gscratch/stf` |
@@ -17,7 +17,7 @@ the caveats.
 | Python stack | Python 3.10, numpy 2.2.6, pandas 2.3.3, scikit-learn 1.7.2, xgboost 3.1.3, pyarrow 23.0.0 |
 | Storage | MODIS read in place from `/gscratch/stf`; lake, Spark scratch and API runs on the node's local disk (`/tmp`, see the environment notes); MLflow on `/gscratch/stf` |
 
-## 1. Distributed re-tune with MLflow tracking (commit e76647bd)
+## 1. Parallel re-tune with MLflow tracking (ran at 20d3262f, recorded in e76647bd)
 
 Each of the ensemble's per-site weight and clip settings is post-processing, so one
 XGBoost + Random Forest pair per test point serves every configuration. `retune.py
@@ -30,11 +30,13 @@ pre-anchor data) and `score` applies the 100 weight × clip settings in Spark SQ
 | Wall time, 16 cores | 883 s (675 s + 208 s) |
 | Task time | 7,710 s (5,676 s + 2,034 s): 8.7× the wall time (summed task time ÷ wall, not a separate serial run) |
 | MLflow runs | 2,990: 1,990 forecast runs + 1,000 (site, setting) scoring runs |
-| Parity | The current configuration rebuilt from the Spark predictions equals the committed chronological predictions exactly (max abs diff 0.0 on 635 + 409 rows) |
+| Parity | The current configuration rebuilt from the Spark predictions equals the committed chronological predictions exactly (max abs diff 0.0 on 635 + 409 rows). The other 946 points, from 2015–2018, have no committed reference |
 
 Hyak job 42629914. The per-site picks it produced tie a single shared rule on the
 holdout, so they were not adopted (`docs/CORRECTED_NUMBERS.md`). The clip has since
 been removed (#18), and `retune.py` now tunes weights only; that run is in section 4.
+These timings and run counts are in the MLflow database and the `e76647bd` commit
+message, with no committed result JSON. Section 4's run has one.
 
 ## 2. MODIS imagery into Delta Lake (bronze / silver / gold)
 
@@ -93,8 +95,10 @@ about 22 GB (21 GiB) before VACUUM.
 On one node the Spark pipeline is about 2× slower than the xarray reference.
 The two jobs also do different work: Spark hashes every input byte and writes three
 queryable layers, about 2 billion rows in all, while the reference writes one dense
-array. Spark's gain here is the lake (SQL over pixels, data skipping, time travel,
-lineage from file hash to gold row), not speed. Multi-node runs were not measured.
+array. Spark's gain here is the lake (SQL over pixels, data skipping), not speed. Time
+travel and tracing a gold row back to its file hash were never exercised: the job runs
+`vacuum(0)`, gold has no file column, and the lake is deleted at job end. Multi-node
+runs were not measured.
 
 **OPTIMIZE / Z-ORDER** (target file size 64 MB, 440 s in all):
 
@@ -102,17 +106,18 @@ lineage from file hash to gold row), not speed. Multi-node runs were not measure
 |---|---:|---:|
 | bronze pixels: compaction (263 s) | 2,584 files, 5.85 GB | 130 files, 7.92 GB |
 | silver cube: `ZORDER BY (lon_idx, lat_idx)` (141 s) | 407 files, 4.06 GB | 59 files, 4.38 GB |
-| silver: files and bytes a region-box query must read, Overall box | 407 files, 4.06 GB | 42 files, 3.16 GB |
+| silver: files and bytes a region-box filter cannot skip (log statistics), Overall box | 407 files, 4.06 GB | 42 files, 3.16 GB |
 | silver: same, SW Washington / Long Beach box | 407 files, 4.06 GB | 19 files, 1.35 GB |
 | silver: same, other three boxes | 407 files, 4.06 GB | 36–41 files, 2.74–3.07 GB |
 | gold region query, wall (cold, warm) | 9.0 s, 6.1 s | 6.5 s, 6.6 s |
 
 Before Z-ordering, every silver file spans the whole grid because it holds a run of
 dates, so no file can be skipped. Z-ordering clusters files spatially, and Delta's
-min/max statistics let a region filter skip files. Against the 4.06 GB a query
-had to read before, a region box now reads 1.35–3.16 GB (22–67% less). These figures
-are counted from the transaction log's per-file statistics, not from measured reads. The gold query is still no faster on this
-node. It scans all 22 years of the 300 M valid rows, and where its time goes was not
+min/max statistics let a region filter skip files. Of the 4.06 GB, a filter on one
+region box now leaves 1.35–3.16 GB to read (22–67% less). These figures are counted
+from the transaction log's per-file statistics, not from measured reads. The gold
+query is still no faster on this node. It filters on the envelope of all five boxes
+and scans all 22 years of the 300 M valid rows, and where its time goes was not
 profiled. Compaction cut bronze's file count 20× but made it 35% larger. The
 rewritten files compress worse than the originals, each of which held one NetCDF's
 rows in time and grid order; the encoding difference was not investigated further.
@@ -147,7 +152,9 @@ returns it. The Delta table holds 21,900 rows in 4 files, 16.9 MB.
 | Daily grid instead (76,590 site-days), estimated | 11.4 node-hours at a perfect 16×; about 15.3 at the measured 11.9× |
 
 A daily grid would cost far more than the roughly 2-node-hour budget, so the table
-is weekly. The weekly run itself took 2.19 hours on one node.
+is weekly. The weekly run itself took 2.19 hours on one node. `precompute.json` names
+the 11.9× ratio `speedup_vs_serial`, but there was no serial run; the job now writes it
+as `task_seconds_over_wall`.
 
 **MLflow Model Registry.** `datect-forecaster` version 1 is a pyfunc wrapping the
 forecast procedure. The model is retrained per request on data up to the anchor, so
@@ -233,9 +240,9 @@ weights (nothing is clipped since #18), scored on yearly folds 2015–2021 (job
 | | |
 |---|---|
 | Forecasts trained | 1,990 (1,581 tuning + 409 holdout points), each an XGBoost + RF pair |
-| Wall time, 16 cores | 816 s (624 s + 192 s), against 7,362 s of task time |
+| Wall time, 16 cores | 815 s, against 7,362 s of task time (9.0×) |
 | MLflow runs | 1,990 forecast runs + 50 (site, weight) scoring runs |
-| Parity | The current weights applied to its raw predictions equal the committed chronological predictions exactly (max abs diff 0.0 on 635 + 409 rows) |
+| Parity | The current weights applied to its raw predictions equal the committed chronological predictions exactly (max abs diff 0.0 on 635 + 409 rows; the other 946 points have no committed reference) |
 | Holdout 2022–2023 | Current weights R² 0.516 (the headline), MAE 7.44; proposed R² 0.507, MAE 7.39 |
 
 Nothing was adopted: the proposal (`results/tuning_provenance/retune_weights/`)
@@ -331,17 +338,29 @@ parity, latency before/after), `results/tuning_provenance/retune_weights/` (tune
 
 ## Resume bullets (numbers from the runs above)
 
-- Built a PySpark + Delta Lake pipeline (bronze/silver/gold) over 13.9 GB of MODIS
-  satellite imagery (2,563 NetCDF files, 2003–2024, 1.96 billion pixel rows). Its
-  cloud-cover features match the existing pipeline exactly, and OPTIMIZE / Z-ORDER
-  cuts the bytes a regional query must read by 22–67%.
-- Trained 1,990 leak-free XGBoost + Random Forest forecasting model pairs in parallel
-  on Spark (8.7× task-time-to-wall-time on 16 cores), tracking 2,990 runs in MLflow,
-  with predictions matching the existing evaluation exactly.
-- Cut forecast API latency on precomputed (weekly) dates from 3.3 s to 0.12 s at the
-  median (10.6 s to 0.13 s at p95) by precomputing 21,900 forecasts on Spark (11.9×
-  task-time-to-wall-time) into Delta Lake, served through delta-rs with an
-  MLflow-registered model version and responses identical to on-demand output.
+- Built a PySpark + Delta Lake medallion pipeline (bronze/silver/gold) ingesting
+  13.9 GB of MODIS NetCDF (2,563 files) into 1.96 billion pixel rows; the gold table
+  matches the legacy xarray output on all 23,460 rows and now writes that file
+  byte-identically.
+- Applied Delta OPTIMIZE, Z-ORDER and VACUUM: bronze went from 2,584 to 130 files, and
+  Delta file statistics show regional filters can skip 22–67% of silver's bytes.
+- Trained 1,990 leak-free XGBoost + Random Forest model pairs on Spark, one task per
+  forecast (7,362 s of task time in 815 s wall on 16 cores), tracking 2,040 runs in
+  MLflow; predictions exactly match the reference evaluation on all 1,044 rows that
+  have one.
+- Built a Spark batch-inference job precomputing 10,950 site-weeks (21,900 entries)
+  into a Delta table tagged with an MLflow-registered model version; FastAPI loads it
+  through delta-rs, cutting benchmarked latency on precomputed dates from 3.28 s to
+  0.12 s at p50 and 10.6 s to 0.13 s at p95, with all 20 timed responses and 50 of 50
+  sampled entries matching on-demand output.
+- Added a config hash over code, data and library versions so the API never serves
+  stale rows and the image build refuses a stale store; moving the dashboard cache to
+  Delta left 29 of 29 endpoint responses unchanged.
 
-All three ran on open-source Spark on a university HPC cluster (UW Hyak), one node
-per job, not on Databricks.
+All of this ran on open-source Spark on a university HPC cluster (UW Hyak), one
+16-core node per job, not on Databricks.
+
+These runs do not support: "distributed" or multi-node; "speedup" for the 8.7×, 9.0×
+or 11.9× ratios (summed task time ÷ wall, with no serial run); Spark being faster than
+xarray; Z-ORDER making a timed query faster; latency gains beyond precomputed weekly
+dates; time travel, lineage or production serving; a re-tune improving the model.

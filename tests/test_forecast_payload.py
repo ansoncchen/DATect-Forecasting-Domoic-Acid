@@ -179,3 +179,23 @@ def test_no_forecast_keeps_the_measurements_and_the_shape(client):
     assert body["success"] is False and body["anchor_date"] == "2019-05-27"
     assert body["last_measurement"] == body["recent_measurements"][-1]
     assert body["band"] is None and body["category_probabilities"] is None and body["alert"] is None
+
+
+def test_dates_outside_the_supported_range_are_rejected(client):
+    """Pandas cannot represent these dates; they are a bad request, not a server error."""
+    client.use(_Engine())
+    assert client.get("/api/forecast/all", params={"date": "0002-12-23"}).status_code == 422
+    r = client.post("/api/forecast/enhanced", json={"date": "0002-12-23", "site": "Newport", "model": "ensemble"})
+    assert r.status_code == 422
+    assert client.get("/api/sites/Newport/history", params={"since": "0002-12-23"}).status_code == 422
+    assert client.get("/api/sites/Newport/history", params={"until": "0002-12-23"}).status_code == 422
+    assert client.get("/api/historical/newport", params={"start_date": "0002-12-23"}).status_code == 422
+
+
+def test_a_future_date_says_it_is_past_the_data(client):
+    client.use(_Engine(result=False))
+    latest = client.get("/api/config").json()["latest_forecast_week"]
+    body = _post(client, "Kalaloch", "2030-01-07")
+    assert body["success"] is False
+    assert "past the newest data" in body["error"] and latest in body["error"]
+    assert "training data" not in body["error"]

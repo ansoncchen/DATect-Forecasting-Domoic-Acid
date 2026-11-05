@@ -33,6 +33,7 @@ HISTORY_COLUMNS = ["date", "anchor_date", "site", "actual_da", "predicted_da", "
                    "spike_probability", "spike_alert", "band_lo", "band_hi", "p_exceed"]
 LEVELS = ("Quiet", "Watch", "Warning")
 MODELS = {"ensemble": "predicted_da", "naive": "naive_prediction", "linear": "predicted_da_linear"}
+MIN_ROWS_FOR_FIT = 3
 
 
 def window_bounds(window: Window) -> tuple[str, str]:
@@ -138,15 +139,16 @@ def window_summary(window: Window, site: str | None = None) -> dict:
     out = summarize(rows)
     run = _window_json(window)
     fit = run["overall"] if site is None else run["per_site"].get(site)
-    out["r2"] = fit["r2"] if fit else None
-    out["mae"] = fit["mae"] if fit else None
-    out["log_r2"] = fit.get("r2_log1p") if fit else None
     y = rows["actual_da"].to_numpy(dtype=float)
+    # R2 means nothing without variance to explain: sklearn returns 0 or 1 on a constant target
+    fit_defined = fit is not None and len(y) >= MIN_ROWS_FOR_FIT and np.ptp(y) > 0
+    out["r2"] = fit["r2"] if fit_defined else None
+    out["mae"] = fit["mae"] if fit else None
+    out["log_r2"] = fit.get("r2_log1p") if fit_defined else None
     out["models"] = {
-        name: ({"r2": float(r2_score(y, rows[col])), "mae": float(mean_absolute_error(y, rows[col]))}
-               if len(rows) >= 2 else None)
+        name: {"r2": float(r2_score(y, rows[col])), "mae": float(mean_absolute_error(y, rows[col]))}
         for name, col in MODELS.items()
-    }
+    } if fit_defined else None
     return out
 
 

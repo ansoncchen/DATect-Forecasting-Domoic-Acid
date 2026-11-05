@@ -90,3 +90,14 @@ def test_history_with_since_after_until_is_empty(client):
 def test_history_rejects_malformed_dates(client):
     assert client.get("/api/sites/Newport/history", params={"since": "garbage"}).status_code == 422
     assert client.get("/api/sites/Newport/history", params={"until": "2022-13-45"}).status_code == 422
+
+
+def test_r2_is_undefined_on_a_constant_or_tiny_target():
+    """Cannon Beach's 11 validation measurements are all zero: R2 means nothing there."""
+    cannon = tr.window_rows("validation", "Cannon Beach")
+    assert len(cannon) == 11 and cannon["actual_da"].nunique() == 1
+    s = tr.window_summary("validation", "Cannon Beach")
+    assert s["r2"] is None and s["log_r2"] is None and s["models"] is None
+    assert s["mae"] is not None and s["n"] == 11
+    assert tr.window_summary("holdout", "Cannon Beach")["models"] is None   # 2 rows
+    assert tr.window_summary("holdout", "Gold Beach")["models"]["naive"]["r2"] is not None

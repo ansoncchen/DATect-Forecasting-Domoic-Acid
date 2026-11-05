@@ -6,9 +6,18 @@ import ForecastCard from '../components/forecast/ForecastCard'
 import SpikeRiskCard from '../components/forecast/SpikeRiskCard'
 import LatestMeasurementCard from '../components/forecast/LatestMeasurementCard'
 import GroundDataChart from '../components/forecast/GroundDataChart'
+import MetricsPanel from '../components/forecast/MetricsPanel'
 import Caution from '../components/ui/Caution'
 
 const SLOW_MS = 3000
+
+function safeStorage() {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
 
 function storedSite(sites) {
   try {
@@ -36,6 +45,7 @@ function ForecastPage({ config }) {
   const [slow, setSlow] = useState(false)
   const [error, setError] = useState(null)
   const latest = useRef(0)
+  const [storage] = useState(safeStorage)
 
   useEffect(() => {
     let cancelled = false
@@ -94,6 +104,7 @@ function ForecastPage({ config }) {
         </div>
       )}
       <GroundDataChart site={site} week={week} forecast={forecast} config={config} loading={loading} />
+      <MetricsPanel site={site} forecast={forecast} summary={summary} config={config} storage={storage} />
     </div>
   )
 }

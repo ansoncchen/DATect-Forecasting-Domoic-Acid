@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 600000, // Increased to 10 minutes for large retrospective analysis (500+ anchors)
+  timeout: 600000, // 10 minutes: slow on-demand forecasts (an unprecomputed week, the all-sites call)
   headers: {
     'Content-Type': 'application/json',
   },

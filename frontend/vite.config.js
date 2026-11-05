@@ -17,6 +17,7 @@ export default defineConfig({
       }
     }
   },
+  test: { environment: 'node', include: ['src/**/*.test.js'] },
   build: {
     outDir: 'dist',
     // No production source maps: they were 20 MB and shipped to every deploy

@@ -1,3 +1,4 @@
+import { format } from 'date-fns'
 
 export const plotConfig = {
   responsive: true,
@@ -12,6 +13,5 @@ export const plotConfig = {
 }
 
 export const getPlotFilename = (prefix = 'datect') => {
-  const date = new Date().toISOString().split('T')[0]
-  return `${prefix}_${date}`
+  return `${prefix}_${format(new Date(), 'yyyy-MM-dd')}`
 }

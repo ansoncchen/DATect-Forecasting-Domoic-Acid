@@ -1,0 +1,65 @@
+{
+ "forecast_mode": "retrospective",
+ "forecast_task": "regression",
+ "forecast_model": "ensemble",
+ "forecast_horizon_weeks": 1,
+ "forecast_horizon_days": 7,
+ "spike_threshold": 20.0,
+ "regression_alert_threshold": 12.0,
+ "classifier_alert_cutoff": 0.1,
+ "alert_levels": [
+  {
+   "name": "Quiet",
+   "rule": "no alert condition holds",
+   "cutoff": null,
+   "placeholder": false
+  },
+  {
+   "name": "Watch",
+   "rule": "classifier probability >= 0.1 or forecast >= 12 \u00b5g/g",
+   "cutoff": 0.1,
+   "placeholder": false
+  },
+  {
+   "name": "Warning",
+   "rule": "classifier probability >= 0.35",
+   "cutoff": 0.35,
+   "placeholder": false
+  }
+ ],
+ "band_level": 0.8,
+ "category_bins": [
+  0,
+  5,
+  20,
+  40,
+  null
+ ],
+ "category_labels": [
+  "Low (<5)",
+  "Moderate (5\u2013<20)",
+  "High (20\u2013<40)",
+  "Extreme (\u226540)"
+ ],
+ "eval_windows": {
+  "validation_start": "2019-01-01",
+  "validation_end": "2022-01-01",
+  "holdout_start": "2022-01-01",
+  "holdout_end": "2024-01-01",
+  "description": "Chronological train/val/test split for tuning. Training window is engine-enforced (anchor_date >= date). All tuning objectives evaluated on [validation_start, validation_end). Holdout [holdout_start, holdout_end) is the final unbiased report and never inspected during selection."
+ },
+ "sites_north_to_south": [
+  "Kalaloch",
+  "Quinault",
+  "Copalis",
+  "Twin Harbors",
+  "Long Beach",
+  "Clatsop Beach",
+  "Cannon Beach",
+  "Newport",
+  "Coos Bay",
+  "Gold Beach"
+ ],
+ "newest_measurement_date": "2023-11-30",
+ "latest_forecast_week": "2023-12-25"
+}

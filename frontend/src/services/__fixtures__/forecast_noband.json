@@ -1,0 +1,105 @@
+{
+ "success": true,
+ "forecast_date": "2005-11-07",
+ "site": "Newport",
+ "anchor_date": "2005-10-31",
+ "regression": {
+  "forecast_date": "2005-11-07T00:00:00",
+  "anchor_date": "2005-10-31T00:00:00",
+  "site": "Newport",
+  "task": "regression",
+  "model_type": "ensemble",
+  "training_samples": 147,
+  "predicted_da": 17.353008270263672,
+  "feature_importance": {
+   "pdo": 0.09103056788444519,
+   "modis-sst": 0.13836286962032318,
+   "oad_score": 0.03752070665359497,
+   "oad_score_lag1week": 0.01973332092165947,
+   "oad_score_lag2week": 0.1015140488743782,
+   "oad_score_30day_mean": 0.0,
+   "oad_score_30day_max": 0.059052594006061554,
+   "oad_score_30day_trend": 0.00986033957451582,
+   "oad_score_zscore_doy": 0.07279232144355774,
+   "oad_overall_score": 0.0,
+   "oad_overall_score_lag1week": 0.029694732278585434,
+   "oad_overall_score_lag2week": 0.07599008828401566,
+   "oad_overall_score_30day_mean": 0.08475039899349213,
+   "oad_overall_score_30day_max": 0.10753458738327026,
+   "oad_overall_score_30day_trend": 0.09845633804798126,
+   "oad_overall_score_zscore_doy": 0.07370707392692566
+  },
+  "naive_prediction": 45.0,
+  "xgb_prediction": 17.353008270263672,
+  "rf_prediction": 20.008030488658093,
+  "ensemble_prediction": 17.353008270263672,
+  "ensemble_weights": [
+   1.0,
+   0.0,
+   0.0
+  ],
+  "bootstrap_quantiles": {
+   "q05": 0.3765645921230316,
+   "q50": 16.391342163085938,
+   "q95": 146.59808349609375
+  },
+  "predicted_category": 1,
+  "spike_probability": 0.9359480738639832,
+  "spike_alert": true
+ },
+ "ensemble": {
+  "naive_prediction": 45.0,
+  "xgb_prediction": 17.353008270263672,
+  "rf_prediction": 20.008030488658093,
+  "ensemble_prediction": 17.353008270263672,
+  "ensemble_weights": [
+   1.0,
+   0.0,
+   0.0
+  ]
+ },
+ "band": null,
+ "band_reason": "fewer than 30 earlier forecast errors",
+ "band_p_exceed": null,
+ "category_probabilities": null,
+ "alert": {
+  "classifier_probability": 0.9359480738639832,
+  "by_classifier": true,
+  "by_regression": true,
+  "alert": true,
+  "level": null,
+  "level_reason": "already_at_or_above_threshold"
+ },
+ "last_measurement": {
+  "date": "2005-09-15",
+  "value": 45.0
+ },
+ "recent_measurements": [
+  {
+   "date": "2005-05-23",
+   "value": 213.0
+  },
+  {
+   "date": "2005-06-21",
+   "value": 130.0
+  },
+  {
+   "date": "2005-07-19",
+   "value": 86.0
+  },
+  {
+   "date": "2005-08-16",
+   "value": 36.0
+  },
+  {
+   "date": "2005-08-31",
+   "value": 54.0
+  },
+  {
+   "date": "2005-09-15",
+   "value": 45.0
+  }
+ ],
+ "source": "computed",
+ "model_version": null
+}

@@ -52,7 +52,12 @@ function ForecastPage({ config }) {
     const timer = setTimeout(() => latest.current === id && setSlow(true), SLOW_MS)
     getForecast(site, week)
       .then((f) => latest.current === id && (setForecast(f), setLoading(false)))
-      .catch((e) => latest.current === id && (setError(e?.message || String(e)), setLoading(false)))
+      .catch(
+        (e) =>
+          latest.current === id &&
+          (setForecast(null), setError(e?.message || String(e)), setLoading(false)),
+      )
+      .finally(() => clearTimeout(timer))
     return () => clearTimeout(timer)
   }, [site, week])
 

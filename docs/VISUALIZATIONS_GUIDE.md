@@ -31,7 +31,7 @@ These describe linear association in the weekly table, not the forecasting model
 
 **Spectral analysis** (`generate_spectral_analysis`) — power spectral density (Welch), periodogram, spectrogram, coherence, and a summary panel for the weekly DA series. When `cache/retrospective/regression_xgboost.*` and `regression_rf.parquet` exist, XGBoost and Random Forest retrospective predictions are overlaid and coherence measures how well each tracks the actual series by frequency. Served from `cache/spectral/` when available; computing it on the server is slow.
 
-**Site map** (`get_site_map` in `backend/api.py`) — OpenStreetMap scatter of the 10 sites from `config.SITES`, colored by the DA category of the last reading in each raw DA file (gray below 5, then amber, orange and red), with its value and date on hover. It reports a measurement that can be months old, so it gives no risk verdict and no reassuring green.
+**Site map** (`get_site_map` in `backend/api.py`) — OpenStreetMap scatter of the 10 sites from `config.SITES`, colored by the DA category of the last reading in each raw DA file (gray below 5, then amber, orange and red), with its value and date on hover. It reports a measurement that can be months old, so it gives no risk verdict and no reassuring green. Sites with no data are pale gray. Below-detection readings are shown as LOD/2.
 
 ## Dashboard: single forecast
 

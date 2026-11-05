@@ -22,9 +22,10 @@ const TILES = {
  * Selectable metric tiles in ranked order; the selection is remembered in `storage`.
  * @param {{ site: string, forecast: import('../../services/contract').Forecast | null,
  *   summary: import('../../services/contract').Summary | null,
- *   config: import('../../services/contract').Config, storage: Storage | null }} props
+ *   config: import('../../services/contract').Config, storage: Storage | null,
+ *   loading: boolean }} props
  */
-export default function MetricsPanel({ site, forecast, summary, config, storage }) {
+export default function MetricsPanel({ site, forecast, summary, config, storage, loading }) {
   const [shown, setShown] = useState(() => loadMetricSelection(storage))
   const current = forecast && forecast.site === site ? forecast : null
 
@@ -35,7 +36,7 @@ export default function MetricsPanel({ site, forecast, summary, config, storage 
   }
 
   return (
-    <Panel className="p-5">
+    <Panel className={`p-5 ${loading ? 'opacity-60' : ''}`}>
       <h2 className="text-base font-semibold">Metrics, {site}</h2>
       <p className="text-xs text-gray-500 mt-0.5">
         Listed by how much each should move a harvest decision. The selection is remembered on this device.

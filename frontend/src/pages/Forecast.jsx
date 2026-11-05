@@ -104,7 +104,7 @@ function ForecastPage({ config }) {
         </div>
       )}
       <GroundDataChart site={site} week={week} forecast={forecast} config={config} loading={loading} />
-      <MetricsPanel site={site} forecast={forecast} summary={summary} config={config} storage={storage} />
+      <MetricsPanel site={site} forecast={forecast} summary={summary} config={config} storage={storage} loading={loading} />
     </div>
   )
 }

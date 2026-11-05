@@ -1,7 +1,7 @@
 import React from 'react'
 import LevelTag from '../ui/LevelTag'
 import { formatDate, formatPct, formatValue } from '../../lib/format'
-import { bandVsAlertText } from '../../lib/copy'
+import { bandVsAlertText, siteRecordText, trackRecordText } from '../../lib/copy'
 import { siteReliability } from '../../lib/risk'
 import { featureLabel } from '../../lib/featureNames'
 
@@ -55,8 +55,8 @@ export function AlertTile({ site, summary, config }) {
   if (!summary) return null
   const holdout = summary.reliability.holdout
   const validation = summary.reliability.validation
-  const onsets = holdout.perSite[site]?.onsets
-  const alarms = onsets ? onsets.caught + onsets.quietAlarmed : 0
+  const row = holdout.perSite[site]
+  const onsets = row?.onsets
   const record = (r, name) => {
     const l = r?.overall.levels[name]
     return l ? `${l.followed} / ${l.weeks}` : '—'
@@ -65,15 +65,23 @@ export function AlertTile({ site, summary, config }) {
     <Tile
       title="Alert track record"
       help={`A jump: the last value known when the forecast was made was below ${config.spikeThreshold} and the measurement reached ${config.spikeThreshold}. Weeks already at or above ${config.spikeThreshold} are left out.`}
-      foot="Weeks at each level followed by a jump, all sites. Per-site counts are small; read them as counts, not rates."
+      foot={
+        <>
+          {trackRecordText(holdout.overall, config.windows.holdout.label)} Weeks at each level followed by a jump, all
+          sites. Per-site counts are small; read them as counts, not rates.
+        </>
+      }
     >
-      <Big>{onsets?.n ? `${onsets.caught} of ${onsets.n}` : '—'}</Big>
-      <div className="text-sm text-gray-600">
-        jumps to ≥ {config.spikeThreshold} caught at {site}, {config.windows.holdout.label}
-      </div>
-      <div className="text-sm text-gray-600">
-        {alarms ? `${onsets.caught} of ${alarms} alarms followed by a jump` : 'no alarms here'}
-      </div>
+      {row ? (
+        <>
+          {onsets.n > 0 && <Big>{`${onsets.caught} of ${onsets.n}`}</Big>}
+          <div className="text-sm text-gray-600">
+            {config.windows.holdout.label}. {siteRecordText(site, onsets)}
+          </div>
+        </>
+      ) : (
+        <Few label={config.windows.holdout.label} n={0} />
+      )}
       <table className="mt-2 text-xs tabular-nums">
         <thead className="text-gray-500">
           <tr>

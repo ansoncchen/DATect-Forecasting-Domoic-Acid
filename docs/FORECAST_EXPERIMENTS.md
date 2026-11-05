@@ -18,6 +18,10 @@ Nothing else was adopted. The experiment code (`scripts/experiments/`) and the
 per-experiment tables (`results/experiments/`) are not on `main`; they are on the branch
 above, at commit `779d419d`.
 
+**Transport-trigger round (2026-11-04, this branch, §7).** Wind reversals, the NEMO mooring,
+the PN crash and the offshore satellite lag: no variant passes the declared rule (§7.2).
+Nothing is ported, and no variant was scored on the holdout.
+
 ## Summary
 
 **Objective.** The user made onset detection primary: forecasting the week DA first
@@ -857,3 +861,136 @@ decision rule):
 
 There are now seven variants, so the multiplicity caveat is stronger: one false pass
 among seven at 95% is plausible. Rules 2 and 3 still limit it.
+
+### 7.2 Results (2026-11-04): no variant passes
+
+**Result.** None of the seven variants passes the declared rule, on all sites or on
+Washington alone. No variant is scored on the holdout, because the protocol scores only
+passing variants. 45 runs on Hyak from `0caa17de`, all completed;
+baseline seed 42 reproduces the committed probabilities exactly (max difference 0). The
+selection result was committed in `24554f9f`.
+
+**All sites, 2015–2021 (108 onsets).** Onsets caught at ≤ 10% quiet-week alarms; the
+baseline over seeds 42–46 catches 52.
+The floor is 4: a second baseline seed set alone moves the count that much.
+
+| Variant | Caught | Δ (95% CI) | Δ 2015–18 / 2019–21 | ΔAUC (95% CI) | Per-seed Δ | Rules failed |
+|---|---:|---:|---:|---:|---|---|
+| baseline, seeds 47–51 (floor) | 56 | +4 (−3 to +8) | +4 / 0 | 0.000 (−0.004 to +0.004) |  | n/a |
+| `wind` | 56 | +4 (−7 to +7) | +6 / −2 | +0.011 (−0.009 to +0.029) | −6, −2, +1, −3, −3 | 1, 2 |
+| `mooring` | 55 | +3 (−3 to +6) | +2 / +1 | −0.002 (−0.012 to +0.006) | −2, +1, +6, +1, −2 | 1, 3 |
+| `wind+mooring` | 52 | 0 (−8 to +7) | +2 / −2 | +0.007 (−0.013 to +0.026) | −1, −1, 0, −4, −6 | 1, 2 |
+| `wind+interactions` | 55 | +3 (−6 to +7) | +4 / −1 | +0.018 (−0.001 to +0.036) | +2, −2, −2, −4, −2 | 1, 2 |
+| `pn_crash` | 52 | 0 (−7 to +4) | +1 / −1 | +0.005 (−0.006 to +0.014) | +2, −2, −1, −3, −4 | 1, 2 |
+| `sat_lag` | 57 | +5 (−3 to +8) | +2 / +3 | −0.002 (−0.012 to +0.007) | +4, +2, +4, −3, +5 | 1, 3 |
+| `sat_lag+wind` | 55 | +3 (−7 to +7) | +3 / 0 | +0.007 (−0.010 to +0.024) | −3, +2, 0, 0, −3 | 1 |
+
+**Washington, 2015–2021 (38 onsets; secondary).** Thresholds are chosen on WA rows; the
+baseline catches 21 and the floor is 2.
+
+| Variant | Caught | Δ (95% CI) | Δ 2015–18 / 2019–21 | ΔAUC (95% CI) | Per-seed Δ | Rules failed |
+|---|---:|---:|---:|---:|---|---|
+| baseline, seeds 47–51 (floor) | 22 | +1 (−2 to +3) | +1 / 0 | +0.001 (−0.011 to +0.011) |  | n/a |
+| `wind` | 20 | −1 (−5 to +3) | 0 / −1 | +0.028 (−0.026 to +0.082) | −2, −1, −2, +1, +1 | 1, 2 |
+| `mooring` | 20 | −1 (−3 to +3) | −1 / 0 | +0.005 (−0.027 to +0.027) | −2, −1, −2, 0, +2 | 1, 2 |
+| `wind+mooring` | 20 | −1 (−4 to +3) | −1 / 0 | +0.025 (−0.035 to +0.080) | −2, +1, −2, −1, +1 | 1, 2 |
+| `wind+interactions` | 22 | +1 (−4 to +4) | +1 / 0 | +0.045 (−0.002 to +0.099) | +1, −2, −1, −1, +4 | 1 |
+| `pn_crash` | 20 | −1 (−3 to +3) | −1 / 0 | +0.028 (−0.005 to +0.054) | −2, −1, −1, −2, +3 | 1, 2 |
+| `sat_lag` | 21 | 0 (−3 to +2) | 0 / 0 | +0.004 (−0.017 to +0.026) | −2, 0, −1, −2, +2 | 1 |
+| `sat_lag+wind` | 20 | −1 (−7 to +2) | −1 / 0 | +0.024 (−0.030 to +0.081) | −2, −3, −4, −4, +1 | 1, 2 |
+
+**What each alert would have cost (all sites, 2015–2021).** False alarms are split by
+measured DA. Every threshold keeps 2015–2021 near 10%, but the alarm rate is about twice
+as high in 2015–2018 as in 2019–2021.
+
+| Model | Caught | False alarms | Per catch | < 5 | 5–10 | 10–20 | Alarm rate 2015–18 | Alarm rate 2019–21 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| baseline | 52 | 106 | 2.04 | 35 | 15 | 56 | 12.7% | 6.6% |
+| `wind` | 56 | 106 | 1.89 | 34 | 16 | 56 | 12.7% | 6.6% |
+| `mooring` | 55 | 106 | 1.93 | 37 | 15 | 54 | 12.3% | 7.0% |
+| `wind+mooring` | 52 | 106 | 2.04 | 35 | 16 | 55 | 12.2% | 7.2% |
+| `wind+interactions` | 55 | 106 | 1.93 | 36 | 15 | 55 | 12.2% | 7.2% |
+| `pn_crash` | 52 | 106 | 2.04 | 35 | 16 | 55 | 12.7% | 6.6% |
+| `sat_lag` | 57 | 106 | 1.86 | 35 | 13 | 58 | 12.5% | 6.8% |
+| `sat_lag+wind` | 55 | 106 | 1.93 | 34 | 12 | 60 | 12.7% | 6.6% |
+
+**Coverage.** Rows without a signal are median-imputed, so a thin signal is a weak test.
+
+| Signal | Onsets with it, all sites (of 108) | WA (of 38) | Spike training rows with it, 2015 anchor | 2021 anchor |
+|---|---:|---:|---:|---:|
+| Wind | 108 | 38 | 209 of 214 | 520 of 534 |
+| Mooring | 48 | 11 | 5 of 214 | 185 of 534 |
+| PN drop | 50 | 25 | 113 of 214 | 266 of 534 |
+| Satellite 2–8 weeks back | 108 | 38 | 194 of 214 | 512 of 534 |
+
+**Post hoc: other budgets.** Not part of the decision rule. Onsets caught on 2015–2021,
+each model at its own threshold.
+
+| Model | All sites: 5% | 10% | 20% | 30% | WA: 5% | 10% | 20% | 30% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| baseline | 41 | 52 | 75 | 84 | 15 | 21 | 24 | 26 |
+| `wind` | 42 | 56 | 77 | 86 | 15 | 20 | 24 | 27 |
+| `mooring` | 42 | 55 | 73 | 85 | 15 | 20 | 24 | 26 |
+| `wind+mooring` | 42 | 52 | 76 | 86 | 14 | 20 | 24 | 27 |
+| `wind+interactions` | 43 | 55 | 77 | 86 | 14 | 22 | 26 | 27 |
+| `pn_crash` | 42 | 52 | 74 | 82 | 15 | 20 | 26 | 27 |
+| `sat_lag` | 42 | 57 | 74 | 84 | 14 | 21 | 24 | 25 |
+| `sat_lag+wind` | 42 | 55 | 77 | 85 | 14 | 20 | 24 | 27 |
+
+**Plumbing controls.** Added after the selection result (`725f6e03`) to check that this
+null is not a pipeline failure; they are not candidates and do not change the rule.
+- *`control_oracle`* (seed 42 only) adds one column that deliberately leaks the row's
+  spike label, flipped on 20% of rows. Catches rise from 57 to 73 (+16; +5 to +30), and
+  AUC rises from 0.796 to 0.894. So an informative extra column does reach the model at both training
+  and forecast time, and the scorer responds.
+- *`control_noise`* adds seven random columns. It changes catches by 0 (−8 to +4)
+  and AUC by −0.005. It is a single placebo draw, not a distribution.
+- The job also re-ran baseline seed 42 after the harness change: still identical.
+- These controls show the columns are used, not that each feature was computed as
+  intended. That rests on the sign and coverage checks in §7 and §7.1.
+
+**ESP case study** (descriptive; counts only; a row is covered when an ESP sample is dated
+within 14 days before the anchor).
+
+| Period | WA onsets | Onsets covered | With detectable pDA | Quiet weeks covered | With detectable pDA | Onset rate if detectable / not | Fisher p |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 2016–2018 (design) | 18 | 4 | 3 | 79 | 55 | 5.2% / 4.0% | 1.00 |
+| 2021 (check) | 5 | 0 | 0 | 22 | 15 | n/a | n/a |
+| 2022–2023 (check, holdout years) | 11 | 5 | 3 | 95 | 63 | 4.5% / 5.9% | 1.00 |
+
+Detectable pDA precedes most covered onsets, but it precedes most covered quiet weeks too,
+probably because deployments run in bloom season. These are too few onsets to judge, and
+nothing here suggests detectable pDA separates onsets from quiet weeks. The 2022–2023 row was checked
+once, as declared; it uses no model.
+
+**Reading.**
+- **Wind reversals (the main hypothesis): no gain in catches, and coverage is no excuse.**
+  Wind reaches every onset and nearly every spike training row. The +4 for `wind` equals
+  the floor, loses 2 onsets in 2019–2021, and is negative in four of five single-seed
+  comparisons.
+- **`wind+interactions` is the one weak ranking hint.** ΔAUC is the largest (all sites
+  +0.018, WA +0.045), and both CIs only just include 0. It adds at most 3 catches at any
+  budget, so it does not become more catches at a false-alarm rate users would accept.
+  With seven variants tested, one result this close is plausible by chance.
+- **`sat_lag` comes closest and still fails.** It is the only variant above the floor, with
+  gains in both sub-windows and four of five seeds positive. But the CI includes 0 and
+  AUC falls slightly. Its gain appears only at the 10% budget (+1, +5, −1 and 0 at 5, 10,
+  20 and 30%), which looks like threshold noise rather than better ranking. The low prior
+  in §7.1 stands.
+- **`pn_crash` and `mooring` are weak tests, not evidence of no effect.** A PN drop can be
+  computed for 50 of 108 onsets, and the mooring covers 48 (11 of 38 in WA). Mooring reaches
+  few spike training rows at early anchors. `pn_crash` gains at most 2 onsets at any budget.
+- **A hand-built rule was not tested.** Every variant adds columns to the same pooled
+  classifier with fixed hyperparameters and median imputation. One buoy off Washington
+  stands in for the whole coast, so the WA table is the fairer wind test. The CIs leave room
+  for gains of up to about 8 of 108 onsets.
+
+**Holdout.** Not used for any variant. Predictions for 2022–2023 exist from the same jobs
+but were not scored. One disclosure: a test of the scorer on fabricated scores (`0caa17de`)
+printed roughly the baseline's holdout result at its 10% threshold, about 11 of 27 onsets at
+a 13.0% alarm rate (WA about 6 of 11 at 22.3%). The fabricated baseline was the committed
+probabilities, with small noise on all but seed 42. No variant was involved, so this cannot
+affect which variants pass.
+
+**Not committed.** Raw NEMO and ESP files, per-row predictions and per-timestamp features
+stay outside the repo. Tables: `results/experiments/transport_*.csv`, `esp_case_study.csv`.

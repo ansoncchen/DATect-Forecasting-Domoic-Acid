@@ -26,6 +26,7 @@
     "max_calibration_rows": "MAGIC NUMBER, untested",
     "spike_alert_prob_threshold": "PROJECT DEFAULT (post-hoc 20-cell sweep showed flat plateau)",
     "spike_regression_alert_threshold": "PROJECT DEFAULT (post-hoc sweep showed flat plateau)",
+    "alert_warning_prob_cutoff": "Chosen on validation 2019-2021 by the onset experiments (docs/FORECAST_EXPERIMENTS.md section 6.2, branch claude/onset-experiments): 14 of 34 validation onsets, 10 of 27 on the 2022-2023 holdout. Replaced the dashboard design's 0.40 placeholder, which performed about the same.",
     "zero_importance_features": "PER-FEATURE ABLATION (Appendix Y of paper); individual \u0394R\u00b2 of removing each feature is < 0.005, removing all simultaneously costs \u0394R\u00b2 = -0.004",
     "eval_windows": "CANONICAL SPLIT \u2014 fixed by project policy. Chosen so validation overlaps no per-site config selection event (most recent was early 2019) and holdout is downstream of all tuning experiments."
   },
@@ -83,6 +84,7 @@
     "min_tuning_samples": 10,
     "spike_alert_prob_threshold": 0.1,
     "spike_regression_alert_threshold": 12.0,
+    "alert_warning_prob_cutoff": 0.35,
     "spike_threshold_actual": 20.0,
     "linear_regression_alpha": 1.0,
     "prediction_clip_q_default": null,

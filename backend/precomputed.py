@@ -40,6 +40,9 @@ logger = logging.getLogger(__name__)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORE_ENV = "DATECT_PRECOMPUTED_DIR"
+# The forecasts the API reads: the dashboard's forecast is one regression run
+# (categories come from the error band), so classification is not precomputed.
+FORECAST_TASKS = ("regression",)
 COLUMNS = {
     "forecasts": ["site", "forecast_date", "task", "model_type", "result_json", "model_version", "config_hash"],
     "retrospective": ["task", "model_type", "records_json", "config_hash"],
@@ -273,8 +276,8 @@ def table_info() -> dict:
 # ── A small forecasts table without Spark (local checks, CI) ────────────────
 
 def write_sample(root: str, pairs: list[tuple[str, str]], model_type: str = "ensemble") -> int:
-    """Compute regression + classification forecasts for (site, YYYY-MM-DD) pairs with
-    the engine and write them as the store's forecasts table."""
+    """Compute the forecasts the API reads (FORECAST_TASKS) for (site, YYYY-MM-DD)
+    pairs with the engine and write them as the store's forecasts table."""
     import datetime
 
     from deltalake import write_deltalake
@@ -286,11 +289,10 @@ def write_sample(root: str, pairs: list[tuple[str, str]], model_type: str = "ens
     chash = config_hash()
     rows = []
     for site, day in pairs:
-        for task in ("regression", "classification"):
-            model = "logistic" if model_type == "linear" and task == "classification" else model_type
-            result = engine.generate_single_forecast(config.FINAL_OUTPUT_PATH, pd.Timestamp(day), site, task, model)
+        for task in FORECAST_TASKS:
+            result = engine.generate_single_forecast(config.FINAL_OUTPUT_PATH, pd.Timestamp(day), site, task, model_type)
             rows.append({"site": site, "forecast_date": datetime.date.fromisoformat(day), "task": task,
-                         "model_type": model, "result_json": encode(result),
+                         "model_type": model_type, "result_json": encode(result),
                          "model_version": "sample", "config_hash": chash})
     write_deltalake(os.path.join(root, "forecasts"), pd.DataFrame(rows), mode="overwrite")
     return len(rows)

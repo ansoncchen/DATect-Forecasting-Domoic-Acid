@@ -8,7 +8,13 @@ import numpy as np
 import pytest
 from sklearn.metrics import f1_score, fbeta_score, precision_score, recall_score
 
-from forecasting.metrics import bootstrap_samples, detection_scores, exceeds, onset_scores
+from forecasting.metrics import (
+    alert_parts,
+    bootstrap_samples,
+    detection_scores,
+    exceeds,
+    onset_scores,
+)
 
 
 def _sklearn_scores(actual, predicted):
@@ -84,3 +90,22 @@ def test_onset_scores_counts_only_rows_below_threshold_at_the_anchor():
     assert out["onsets_caught"] == 1 and out["onset_recall"] == 0.5
     assert out["quiet_alarm_rate"] == 0.5
     assert out["onset_auc"] == 1.0  # both onsets outrank both quiet weeks
+
+
+def test_alert_parts_levels_and_boundaries():
+    kw = dict(prob_cutoff=0.10, regression_cutoff=12.0, warning_cutoff=0.40)
+    assert alert_parts(0.05, 3.0, 2.0, **kw)["level"] == "Quiet"
+    assert alert_parts(0.10, 3.0, 2.0, **kw)["level"] == "Watch"      # at the cutoff counts
+    assert alert_parts(0.05, 12.0, 2.0, **kw)["level"] == "Watch"     # regression rule alone
+    assert alert_parts(0.40, 3.0, 2.0, **kw)["level"] == "Warning"
+    done = alert_parts(0.90, 30.0, 20.0, **kw)
+    assert done["level"] is None and done["level_reason"] == "already_at_or_above_threshold"
+    assert done["alert"] is True and done["by_classifier"] and done["by_regression"]
+    blind = alert_parts(None, 3.0, 2.0, **kw)                          # classifier unavailable
+    assert blind["level"] == "Quiet" and blind["level_reason"] == "no_classifier"
+    assert blind["by_classifier"] is False and blind["classifier_probability"] is None
+
+
+def test_warning_cutoff_is_the_one_chosen_on_validation():
+    import config
+    assert config.ALERT_WARNING_PROB_CUTOFF == 0.35

@@ -152,3 +152,21 @@ the band is not clearly worse, and the holdout's 27 onsets cannot give it. As
 expected, the band's P(DA >= 20) ranks onsets almost exactly as the forecast
 itself does (holdout AUC 0.747 vs 0.744), because without Mondrian it rises
 with the forecast against a slowly changing error set.
+
+## Serving
+
+The dashboard shows this band with every forecast (`backend/band.py`):
+
+- **Error history:** `results/chronological/chronological_regression_ensemble_20030101_20240101.parquet`,
+  the all-years run above. A forecast anchored at *t* is calibrated by the rows of that
+  run measured on or before *t*, exactly as `past_residual_bands` selects them;
+  `tests/test_band_service.py` checks 50 sampled forecasts against
+  `band_predictions.parquet`: the same errors and P(DA >= 20), and edges equal to within
+  1e-12 (`expm1`/`log1p` differ in the last bits across platforms).
+- **Variant:** read from `band_eval.json` (`selection.chosen`): the most recent 500 errors,
+  no Mondrian, 80%. A forecast with fewer than 30 earlier errors (before about 2006) gets no band.
+- **Category chances** (`forecasting.conformal.category_probabilities`) spread the same
+  errors over [0,5) [5,20) [20,40) [40,inf); they are the line's, not the alert's.
+- **Keep it current:** the history holds the engine's own forecasts, so it must be
+  regenerated (one Hyak run of the command under Inputs) whenever the engine's
+  predictions change, as for the golden baseline.

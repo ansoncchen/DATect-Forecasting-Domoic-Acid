@@ -98,7 +98,7 @@ One convention everywhere (`forecasting/metrics.py`, `config.py`): **reaching a 
 - `ensemble` / `xgboost`: three XGBoost models with `objective="reg:quantileerror"` and `quantile_alpha` 0.05, 0.50, 0.95, each post-processed. For `ensemble`, each quantile is blended as `w_xgb · q_XGB + w_rf · q_RF`, where `q_RF` is the same quantile of the Random Forest's individual tree predictions (RF has no quantile objective), so RF-only sites (Kalaloch, Coos Bay, Cannon Beach) also get a real band.
 - `rf`, `linear`, `naive`, or if the quantile fit fails: bootstrap with `N_BOOTSTRAP_ITERATIONS` (100) resamples (`BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0`), percentiles `CONFIDENCE_PERCENTILES = [5, 50, 95]`. Naive intervals have zero width.
 
-Retrospective evaluation skips intervals; they do not affect reported metrics.
+Retrospective evaluation skips intervals; they do not affect reported metrics. The dashboard no longer shows these intervals: `/api/forecast/enhanced` draws the 80% conformal band instead (`backend/band.py`, `docs/ERROR_BAND.md`), for the `ensemble` only, and the engine cleanup will remove the quantile and bootstrap code.
 
 ## 10. Retrospective evaluation (`run_retrospective_evaluation(task, model_type, max_test_samples)`)
 

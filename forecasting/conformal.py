@@ -104,6 +104,47 @@ def past_residual_bands(frame: pd.DataFrame, coverage: float = 0.8, window: int 
                         columns=["band_lo", "band_hi", "p_exceed", "n_calibration"])
 
 
+def category_probabilities(pred: float, residuals, edges=(5.0, 20.0, 40.0)) -> list[float]:
+    """Share of past errors that would carry this forecast into each left-closed
+    category bin. Compared on the log1p scale, like ``exceedance_probability``,
+    so a value exactly on an edge counts in the upper bin."""
+    resid = np.asarray(residuals, dtype=float)
+    needed = np.log1p(np.asarray(edges, dtype=float)) - np.log1p(max(pred, 0.0))
+    bins = (resid[:, None] >= needed[None, :]).sum(axis=1)
+    counts = np.bincount(bins, minlength=len(edges) + 1)
+    return (counts / counts.sum()).tolist()
+
+
+class ErrorHistory:
+    """Past forecast errors, for calibrating one forecast's band at serve time.
+
+    Selects errors exactly as ``past_residual_bands`` does: rows sorted by date
+    (stable), those dated on or before the anchor, the most recent ``window``.
+    """
+
+    def __init__(self, frame: pd.DataFrame):
+        dates = pd.to_datetime(frame["date"]).to_numpy()
+        order = np.argsort(dates, kind="stable")
+        self._dates = dates[order]
+        self._resid = log_residuals(frame["actual_da"], frame["predicted_da"])[order]
+
+    def known_by(self, anchor_date, window: int | None = None) -> np.ndarray:
+        k = np.searchsorted(self._dates, pd.Timestamp(anchor_date).to_datetime64(), side="right")
+        resid = self._resid[:k]
+        return resid if window is None else resid[-window:]
+
+    def band(self, pred: float, anchor_date, coverage: float = 0.8, window: int | None = None,
+             threshold: float = 20.0, min_calibration: int = 30) -> dict | None:
+        if pred is None or not np.isfinite(pred):
+            return None
+        resid = self.known_by(anchor_date, window)
+        if len(resid) < min_calibration:
+            return None
+        lo, hi = band_from_residuals(pred, resid, coverage)
+        return {"lo": lo, "hi": hi, "level": coverage, "n_calibration": len(resid),
+                "p_exceed": exceedance_probability(pred, resid, threshold)}
+
+
 def interval_score(actual, lo, hi, coverage: float) -> np.ndarray:
     """Winkler interval score on the log1p scale (lower is better): the band's
     width plus 2/alpha times how far the measurement falls outside it."""

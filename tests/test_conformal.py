@@ -5,7 +5,9 @@ import pandas as pd
 import pytest
 
 from forecasting.conformal import (
+    ErrorHistory,
     band_from_residuals,
+    category_probabilities,
     exceedance_probability,
     interval_score,
     log_residuals,
@@ -72,3 +74,16 @@ def test_interval_score_is_the_width_when_the_measurement_is_inside():
     # outside by d on the log scale adds 2/alpha * d
     assert interval_score([0.0], [2.0], [9.0], 0.8)[0] == pytest.approx(
         np.log1p(9) - np.log1p(2) + 10 * np.log1p(2))
+
+
+def test_category_probabilities_put_zero_errors_in_the_forecasts_bin():
+    assert category_probabilities(20.0, np.zeros(10)) == [0.0, 0.0, 1.0, 0.0]  # 20 is in [20, 40)
+    assert category_probabilities(4.99, np.zeros(10)) == [1.0, 0.0, 0.0, 0.0]
+
+
+def test_known_by_matches_past_residual_bands():
+    frame = _frame()
+    bands = past_residual_bands(frame, window=100)
+    history = ErrorHistory(frame)
+    for i in (40, 150, 399):
+        assert len(history.known_by(frame.loc[i, "anchor_date"], 100)) == bands.loc[i, "n_calibration"]

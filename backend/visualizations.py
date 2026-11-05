@@ -15,143 +15,48 @@ import plotly.io as pio
 warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
 
+# Subtitle for charts drawn from final_output.parquet's weekly series, whose gaps
+# between measurements are filled by decay (not measurements).
+GAP_FILLED_NOTE = "Weekly maximum; gaps filled by decay"
 
-def generate_gradient_uncertainty_plot(gradient_quantiles, ensemble_prediction,
-                                       actual_da=None, xgb_prediction=None,
-                                       rf_prediction=None):
-    """Create gradient visualization with quantile uncertainty bands and model markers."""
-    q05 = float(gradient_quantiles['q05'])
-    q50 = float(gradient_quantiles['q50'])
-    q95 = float(gradient_quantiles['q95'])
 
+def generate_band_plot(band, forecast, xgb_prediction=None, rf_prediction=None, threshold=20.0):
+    """Forecast with its conformal error band (docs/ERROR_BAND.md) and the spike line.
+
+    ``band`` is ``backend.band.forecast_band``'s dict: the range [lo, hi] that held
+    ``level`` of past forecasts' measurements.
+    """
+    lo, hi = float(band["lo"]), float(band["hi"])
+    level = float(band.get("level", 0.8))
     fig = go.Figure()
-
-    n_segments = 30
-    raw_width = q95 - q05
-    has_spread = abs(raw_width) > 1e-9
-
-    # If quantiles collapse, display a minimal band around q50
-    display_q05 = q05 if has_spread else (q50 - 1.0)
-    display_q95 = q95 if has_spread else (q50 + 1.0)
-    display_width = display_q95 - display_q05
-    max_distance = max(q50 - display_q05, display_q95 - q50) or 1.0
-
-    base_color = (70, 130, 180)
-
-    for i in range(n_segments):
-        x0 = display_q05 + (i / n_segments) * display_width
-        x1 = display_q05 + ((i + 1) / n_segments) * display_width
-        midpoint = (x0 + x1) / 2
-
-        opacity = 1 - (abs(midpoint - q50) / max_distance) ** 0.5 if max_distance > 1e-9 else 0.8
-        opacity = max(0.1, min(0.9, opacity))
-
-        fig.add_shape(
-            type="rect",
-            x0=x0, x1=x1,
-            y0=0.35, y1=0.65,
-            line=dict(width=0),
-            fillcolor=f'rgba({base_color[0]}, {base_color[1]}, {base_color[2]}, {opacity})',
-            layer='below'
-        )
-
     fig.add_trace(go.Scatter(
-        x=[q50, q50], y=[0.35, 0.65],
-        mode='lines',
-        line=dict(color='rgb(30, 60, 90)', width=3),
-        name='Ensemble Median (Q50)',
-        hovertemplate='Ensemble Median: %{x:.2f}<extra></extra>'
+        x=[lo, hi], y=[0, 0], mode="lines", line=dict(color="rgba(70, 130, 180, 0.45)", width=26),
+        name=f"{level:.0%} range (past errors)",
+        hovertemplate=f"{level:.0%} range: %{{x:.1f}} µg/g<extra></extra>",
     ))
-
     fig.add_trace(go.Scatter(
-        x=[q05, q95], y=[0.5, 0.5],
-        mode='markers',
-        marker=dict(size=12, color='rgba(70, 130, 180, 0.4)', symbol='line-ns-open'),
-        name='Confidence Range (Q05-Q95)',
-        hovertemplate='Range: %{x:.2f}<extra></extra>'
+        x=[float(forecast)], y=[0], mode="markers", name="Forecast",
+        marker=dict(color="#1f3b57", size=16, symbol="diamond-tall"),
+        hovertemplate="Forecast: %{x:.1f} µg/g<extra></extra>",
     ))
-
-    # Ensemble prediction (primary)
-    fig.add_trace(go.Scatter(
-        x=[ensemble_prediction], y=[0.5],
-        mode='markers',
-        marker=dict(
-            size=16,
-            color='rgb(30, 60, 90)',
-            symbol='diamond-tall',
-            line=dict(width=2, color='black')
-        ),
-        name='Ensemble Prediction',
-        hovertemplate='Ensemble: %{x:.2f}<extra></extra>'
-    ))
-
-    # XGBoost component
-    if xgb_prediction is not None:
-        fig.add_trace(go.Scatter(
-            x=[xgb_prediction], y=[0.55],
-            mode='markers',
-            marker=dict(
-                size=12,
-                color='darkorange',
-                symbol='diamond',
-                line=dict(width=1.5, color='black')
-            ),
-            name='XGBoost',
-            hovertemplate='XGBoost: %{x:.2f}<extra></extra>'
-        ))
-
-    # Random Forest component
-    if rf_prediction is not None:
-        fig.add_trace(go.Scatter(
-            x=[rf_prediction], y=[0.45],
-            mode='markers',
-            marker=dict(
-                size=12,
-                color='forestgreen',
-                symbol='diamond',
-                line=dict(width=1.5, color='black')
-            ),
-            name='Random Forest',
-            hovertemplate='RF: %{x:.2f}<extra></extra>'
-        ))
-
-    if actual_da is not None:
-        fig.add_trace(go.Scatter(
-            x=[actual_da], y=[0.5],
-            mode='markers',
-            marker=dict(size=16, color='red', symbol='x-thin', line=dict(width=3)),
-            name='Actual Value',
-            hovertemplate='Actual: %{x:.2f}<extra></extra>'
-        ))
-
-    # Compute x-axis range with padding to avoid degenerate axis
-    x_candidates = [display_q05, display_q95, q50, ensemble_prediction]
-    for val in (xgb_prediction, rf_prediction, actual_da):
-        if val is not None:
-            try:
-                x_candidates.append(float(val))
-            except Exception:
-                pass
-    x_min = min(x_candidates)
-    x_max = max(x_candidates)
-    if not np.isfinite(x_min) or not np.isfinite(x_max) or abs(x_max - x_min) < 1e-9:
-        base = q50 if np.isfinite(q50) else 0.0
-        x_min, x_max = base - 1.5, base + 1.5
-    else:
-        pad = 0.05 * (x_max - x_min)
-        x_min -= pad
-        x_max += pad
-
+    for value, name, color in ((xgb_prediction, "XGBoost", "#ff7f0e"), (rf_prediction, "Random Forest", "#2ca02c")):
+        if value is not None:
+            fig.add_trace(go.Scatter(
+                x=[float(value)], y=[0], mode="markers", name=name,
+                marker=dict(color=color, size=10, symbol="line-ns-open", line=dict(width=2)),
+                hovertemplate=f"{name}: %{{x:.1f}} µg/g<extra></extra>",
+            ))
+    fig.add_shape(type="line", x0=threshold, x1=threshold, y0=-0.5, y1=0.5,
+                  line=dict(color="#c0392b", width=2, dash="dash"))
+    fig.add_annotation(x=threshold, y=0.5, text=f"{threshold:g} µg/g spike", showarrow=False,
+                       yanchor="bottom", font=dict(color="#c0392b", size=11))
     fig.update_layout(
-        title="DA Level Forecasts with Confidence Intervals",
-        xaxis=dict(title="DA Level (\u03bcg/L)", range=[x_min, x_max]),
-        yaxis=dict(visible=False, range=[0, 1]),
-        showlegend=True,
-        height=350,
-        plot_bgcolor='white',
-        hovermode='closest'
+        title=f"Forecast and {level:.0%} range from past errors",
+        xaxis=dict(title=dict(text="DA (µg/g)"), rangemode="tozero"),
+        yaxis=dict(visible=False, range=[-0.6, 0.8]),
+        height=260, showlegend=True, plot_bgcolor="white",
+        margin=dict(l=20, r=20, t=50, b=40),
     )
-
     return pio.to_json(fig)
 
 
@@ -472,7 +377,7 @@ def generate_time_series_comparison(data, site=None):
     plot_data = {
         "data": traces,
         "layout": {
-            "title": title,
+            "title": {"text": f"{title}<br><sub>{GAP_FILLED_NOTE}</sub>"},
             "xaxis": {"title": "Date"},
             "yaxis": {
                 "title": "Normalized Value (0-1)",
@@ -563,7 +468,7 @@ def generate_waterfall_plot(data):
         "data": traces,
         "layout": {
             "title": {
-                "text": "Absolute DA Levels Variation by Site/Latitude Over Time<br><sub>Reference bars show DA=20, 50, 100 μg/g</sub>",
+                "text": f"Absolute DA Levels Variation by Site/Latitude Over Time<br><sub>Reference bars show DA=20, 50, 100 µg/g. {GAP_FILLED_NOTE}</sub>",
                 "font": {"size": 18}
             },
             "xaxis": {"title": "Date"},

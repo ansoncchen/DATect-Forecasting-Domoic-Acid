@@ -196,12 +196,12 @@ def test_enhanced_endpoint_serves_hits_and_computes_misses(store, monkeypatch):
 
         monkeypatch.delenv(pf.STORE_ENV)
         computed = client.post("/api/forecast/enhanced", json=body).json()
-        assert len(engine.calls) == 2 and computed["source"] == "computed"
+        assert len(engine.calls) == 1 and computed["source"] == "computed"
         assert computed["model_version"] is None
 
         monkeypatch.setenv(pf.STORE_ENV, store)
         missed = client.post("/api/forecast/enhanced", json={**body, "model": "naive"}).json()
-        assert missed["source"] == "computed" and len(engine.calls) == 4
+        assert missed["source"] == "computed" and len(engine.calls) == 2
 
     # Same forecast either way: the responses differ only in where they came from
     strip = ("source", "model_version")
@@ -353,3 +353,20 @@ def test_status_says_when_the_directory_is_missing(tmp_path, monkeypatch):
     monkeypatch.setenv(pf.STORE_ENV, str(tmp_path / "typo"))
     _reset(monkeypatch)
     assert pf.status()["exists"] is False
+
+
+def test_write_sample_stores_regression_forecasts_only(tmp_path, monkeypatch):
+    deltalake = pytest.importorskip("deltalake")
+    import forecasting
+
+    class _Stub:
+        def __init__(self, **kw):
+            pass
+
+        def generate_single_forecast(self, data_path, forecast_date, site, task, model_type):
+            return _result(site, pd.Timestamp(forecast_date).date().isoformat(), task)
+
+    monkeypatch.setattr(forecasting, "ForecastEngine", _Stub)
+    assert pf.write_sample(str(tmp_path), [("Newport", "2019-06-03"), ("Kalaloch", "2019-06-03")]) == 2
+    tasks = deltalake.DeltaTable(str(tmp_path / "forecasts")).to_pandas()["task"]
+    assert set(tasks) == {"regression"}

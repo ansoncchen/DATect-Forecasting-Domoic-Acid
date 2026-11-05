@@ -114,3 +114,68 @@ def test_metrics_summary_reads_committed_results():
         assert data["overall"]["n"] > 0
         assert data["per_site"]
         assert data["multi_seed"]["n_seeds"] == 5
+
+
+def test_config_exposes_protocol_constants():
+    """Thresholds, alert levels, categories, windows and site order come from the API."""
+    import config
+    from forecasting.raw_data_forecaster import load_raw_da_measurements
+    with TestClient(app) as client:
+        c = client.get("/api/config").json()
+        sites = client.get("/api/sites").json()
+    assert c["spike_threshold"] == config.SPIKE_THRESHOLD
+    assert c["regression_alert_threshold"] == config.SPIKE_REGRESSION_ALERT_THRESHOLD
+    assert c["classifier_alert_cutoff"] == config.SPIKE_ALERT_PROB_THRESHOLD
+    assert c["band_level"] == 0.8
+    levels = {lv["name"]: lv for lv in c["alert_levels"]}
+    assert list(levels) == ["Quiet", "Watch", "Warning"]
+    assert levels["Warning"]["placeholder"] is False and levels["Warning"]["cutoff"] == 0.35
+    assert levels["Watch"]["placeholder"] is False
+    assert c["category_bins"] == [0, 5, 20, 40, None] and len(c["category_labels"]) == 4
+    assert c["eval_windows"]["holdout_start"] == "2022-01-01"
+    assert c["sites_north_to_south"][0] == "Kalaloch" and c["sites_north_to_south"][-1] == "Gold Beach"
+    assert len(c["sites_north_to_south"]) == 10
+    newest = load_raw_da_measurements()["date"].max().date().isoformat()
+    assert c["newest_measurement_date"] == newest
+    assert c["latest_forecast_week"] == sites["date_range"]["max"]
+    assert c["forecast_model"] == config.FORECAST_MODEL   # existing keys stay
+
+
+def test_summary_reliability_per_site():
+    """/api/metrics/summary adds per-site band coverage and alert counts beside its existing blocks."""
+    with TestClient(app) as client:
+        data = client.get("/api/metrics/summary").json()
+    rel = data["reliability"]
+    assert rel["holdout"]["per_site"]["Gold Beach"]["band"]["coverage"] == pytest.approx(0.375)
+    assert rel["holdout"]["per_site"]["Newport"]["band"]["coverage"] == pytest.approx(0.479, abs=5e-4)
+    assert rel["holdout"]["summary"]["onsets"]["caught"] == 19
+    assert rel["validation"]["summary"]["onsets"]["caught"] == 27
+    assert data["source"] and data["per_site"]["Gold Beach"]["spike_recall"] is not None
+
+
+def test_region_rollup_puts_clatsop_and_cannon_in_oregon():
+    import config
+    from backend.api import _compute_summary
+    assert config.SITE_STATES["Clatsop Beach"] == "OR" and config.SITE_STATES["Cannon Beach"] == "OR"
+    rows = [{"site": s, "actual_da": float(i), "predicted_da": float(i) + 0.5}
+            for s in ("Clatsop Beach", "Cannon Beach") for i in range(5)]
+    regions = _compute_summary(rows, task="regression")["per_region"]
+    assert regions["OR"]["n_sites"] == 2 and "WA" not in regions
+
+
+def test_historical_returns_raw_measurements():
+    """/api/historical serves the real measurements (one per site-day at the max), not the gap-filled weekly series."""
+    from forecasting.raw_data_forecaster import load_raw_da_measurements
+    m = load_raw_da_measurements()
+    expected = m[m["site"] == "Newport"].sort_values("date")
+    with TestClient(app) as client:
+        body = client.get("/api/historical/newport", params={"limit": 100000}).json()
+        assert client.get("/api/historical/atlantis").status_code == 404
+    assert body["site"] == "Newport" and "raw measurements" in body["series"]
+    assert body["rows"] == [{"date": d.date().isoformat(), "value": float(v)}
+                            for d, v in zip(expected["date"], expected["da_raw"])]
+
+
+def test_metrics_summary_is_computed_once_per_process():
+    from backend import api
+    assert hasattr(api._load_metrics_summary, "cache_info")

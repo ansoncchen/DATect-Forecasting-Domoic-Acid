@@ -33,29 +33,30 @@ These describe linear association in the weekly table, not the forecasting model
 
 **Site map** (`get_site_map` in `backend/api.py`) — OpenStreetMap scatter of the 10 sites from `config.SITES`, colored by the last reading in each raw DA file (green Low, yellow Moderate, orange High, red Extreme, grey no data). Below-detection readings are shown as LOD/2.
 
-## Dashboard: single forecast
+## Forecast page (`frontend/src/pages/Forecast.jsx`)
 
-Built from `POST /api/forecast/enhanced`, which runs one regression forecast for the chosen site, date and model and adds its error band, alert level and the last six measurements.
+One screen: pick a site and a forecast week, and the page shows that week's forecast. Thresholds, alert levels, category bins and the range level come from `GET /api/config`; the page computes no metric itself.
 
-- **Summary cards** — predicted DA and (when the spike classifier ran) spike probability with the hybrid spike alert.
-- **Ensemble model breakdown** — XGBoost and Random Forest predictions with their site weights, the blended ensemble prediction, and naive persistence as a baseline.
-- **Forecast range** (`generate_band_plot`) — the 80% conformal range from past errors (the range that held 80% of earlier forecasts' measurements; see [`ERROR_BAND.md`](ERROR_BAND.md)), the forecast, the XGBoost and Random Forest parts, and the 20 µg/g spike line. The range is calibrated over all sites: on 2022–2023 it held 80% overall but 38% at Gold Beach and 48% at Newport.
-- **Category chances** — the same past errors spread over the four categories (`source: "range"`); the forecast's own category is highlighted. These describe the line, not the spike alert.
-- **Top feature importance** — `feature_importances_` of the fitted XGBoost model. At sites whose ensemble weight on XGBoost is 0 this does not describe the model that produced the forecast.
+- **Forecast card** — the predicted DA and its range, from `POST /api/forecast/enhanced` (the `ensemble` regression forecast, with the conformal error band; see [`ERROR_BAND.md`](ERROR_BAND.md)). A forecast with no band shows its value and why there is no range; a failed one shows its error.
+- **Spike risk card** — the hybrid spike alert level, mapped from the API's alert field. If the last measurement before the forecast was already at or above 20 µg/g, it says so instead of Watch or Warning.
+- **Latest measurement card** — the newest measurement before the forecast and its age; a stale or missing one is flagged.
+- **Measurements and forecasts** — a chart of the site's measurements (`GET /api/sites/{site}/history`) with the forecast and its range at the chosen week and the 20 µg/g line; for a past week it shows what happened. Measurements outside the range are hollow.
+- **Metrics tiles** — selectable tiles ranked by use (alert track record, range reliability, typical error, category chances from the range, fit, model parts, top drivers, range width, data and model). Reliability and track-record figures come from `GET /api/metrics/summary`, which reads `results/chronological` and `results/multi_seed`. Top drivers are the fitted XGBoost's feature importances; where the XGBoost weight is 0 they do not describe the forecast.
+- **All sites** — the same week's forecast for every site from `GET /api/forecast/all`, north to south; a row selects its site. A week that is not precomputed is computed on demand and the page says so while it waits.
 
-## Dashboard: retrospective results
+## Track record page (`frontend/src/pages/TrackRecord.jsx`)
 
-Built from `POST /api/retrospective` (pre-computed cache in production) plus headline numbers from `GET /api/metrics/summary`, which reads `results/chronological` and `results/multi_seed`.
+Built from `GET /api/track-record` for the chosen window (holdout 2022–2023, validation 2019–2021) and optionally one site. Every panel scores real measurements only, each forecast made a week ahead from data up to its anchor.
 
-- **Performance summary** — R², MAE and spike recall / precision / F2 for the filtered results (regression), or accuracy and per-class recall / precision / F1 (classification); headline holdout metrics and per-site quality tiers from `/api/metrics/summary`.
-- **Actual vs predicted time series** — per site over time, with the 20 µg/g regulatory line and markers for raised spike alerts. In classification mode, actual and predicted categories over time.
-- **Scatter plot** — predicted vs actual, colored by time window (pre-2019 context, 2019–2021 validation, 2022–2023 holdout), with spike-threshold lines splitting caught spikes, missed spikes and false alarms. In classification mode, actual vs predicted category.
-- **Per-site small multiples** — one predicted-vs-actual scatter per site (All Sites view).
+- **Summary** — N, R², log R², MAE, how often the range held, onsets caught and alarms followed by a jump, for all sites or the selected one. "too few" replaces a figure the API does not report for lack of rows.
+- **Forecast against measurement** — for all sites, a predicted-versus-actual scatter with each point's range and the 20 µg/g lines; for one site, its measurements and week-ahead forecasts over time (`GET /api/sites/{site}/history`, cut to the window).
+- **Against simpler models** — the ensemble beside naive persistence and the linear model on the same measurements.
+- **By site** — one row per site for the window; a row selects the site. Per-site figures rest on few measurements at some sites; read them as indicative.
 
-Filtered results can be exported as CSV; charts can be saved as PNG from the Plotly toolbar. For current headline values see [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md).
+The filtered rows can be downloaded as CSV; Plotly charts can be saved as PNG from their toolbar. For current headline values see [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md).
 
 ## Reading the charts
 
 - Check the interval width before trusting a point forecast; a zero-width band means the interval method does not apply, not that the forecast is certain.
 - Correlation, Sobol and permutation panels are exploratory statistics on gap-filled weekly data, not evidence of causation or of what the forecasting models rely on.
-- Per-site retrospective metrics rest on few holdout measurements at some sites; read them as indicative.
+- Per-site metrics rest on few holdout measurements at some sites; read them as indicative.

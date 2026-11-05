@@ -79,7 +79,7 @@ It uses the fastest tools it finds: `uv` or `pip` for Python, `bun` or `npm` for
 
 ### Precomputed store (optional)
 
-Forecasts, retrospective views and spectral analyses are slow to compute on a laptop. The precomputed store (Delta tables) is built on Hyak with Spark, never locally, and the deployed image serves it; `run_datect.py` points the API at `./store` when it exists (see [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)). A store's rows are served only where the config hash matches: the same code, data, model-library versions (`constraints.txt`), Python version (3.10) and CPU architecture (x86_64) as the Hyak env that built it. On a laptop (arm64, other versions) every row shows as stale on `/health` and requests are computed; check a store against the image instead (`docker build --platform linux/amd64 ...`, whose build fails unless the store is complete and current).
+Forecasts and spectral analyses are slow to compute on a laptop. The precomputed store (Delta tables) is built on Hyak with Spark, never locally, and the deployed image serves it; `run_datect.py` points the API at `./store` when it exists (see [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)). A store's rows are served only where the config hash matches: the same code, data, model-library versions (`constraints.txt`), Python version (3.10) and CPU architecture (x86_64) as the Hyak env that built it. On a laptop (arm64, other versions) every row shows as stale on `/health` and requests are computed; check a store against the image instead (`docker build --platform linux/amd64 ...`, whose build fails unless the store is complete and current).
 
 ```bash
 # On Hyak, at the commit you run (rows from other code, config or data are not served):
@@ -167,7 +167,7 @@ DATect-Forecasting-Domoic-Acid/
 ## Using the Dashboard
 
 1. Forecast: pick a site and a forecast date. The page shows the predicted DA with its error range, the spike alert level, the latest measurement before the forecast, and, for a past week, what happened.
-2. Track record: how the forecasts performed on the 2022-2023 holdout and the 2019-2021 validation windows.
+2. Track record: how the forecasts performed on the 2022–2023 holdout and the 2019–2021 validation windows.
 3. Data explorer and About: charts of the underlying data, and the method and its limits.
 
 **Risk categories** (left-closed bins; a value on a boundary belongs to the higher category):
@@ -268,7 +268,7 @@ The script enables the required APIs, builds with Cloud Build (`deploy/cloudbuil
 | `python: command not found` | Use `python3` |
 | Port 8000 or 3000 in use | The launcher frees them on macOS/Linux; otherwise `lsof -ti:8000,3000 \| xargs kill` |
 | Node.js missing or older than 18 | Install a current version from [nodejs.org](https://nodejs.org/) or `brew upgrade node` |
-| Forecasts or retrospective runs are slow | Use the Hyak-built store in `./store`; `/health` shows whether its rows match this code (stale rows are computed on demand) |
+| Forecasts are slow | Use the Hyak-built store in `./store`; `/health` shows whether its rows match this code (stale rows are computed on demand) |
 | Deploy fails on authentication | `gcloud auth list`, `gcloud auth application-default login`, check `PROJECT_ID` |
 
 ## License

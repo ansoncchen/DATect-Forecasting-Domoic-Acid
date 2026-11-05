@@ -71,7 +71,7 @@ What a harvest decision-maker runs into:
 
 ## 3. Proposed Forecast page
 
-One screen, no configuration step. The numbered callouts match the mockup.
+One screen, no configuration step. The numbered callouts match the screenshot below.
 
 ![Mockup, Newport](dashboard-mockup/screenshots/mockup-newport.jpg)
 

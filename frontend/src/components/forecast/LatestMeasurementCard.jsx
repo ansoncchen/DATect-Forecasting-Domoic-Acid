@@ -3,7 +3,7 @@ import Panel from '../ui/Panel'
 import Caution from '../ui/Caution'
 import { RED } from '../../lib/colors'
 import { daysBetween, formatAge, formatDate, formatValue } from '../../lib/format'
-import { isStale } from '../../lib/risk'
+import { isStale, noMeasurementText } from '../../lib/risk'
 
 /**
  * The last real lab measurements and how old they are.
@@ -18,13 +18,13 @@ export default function LatestMeasurementCard({ forecast, config }) {
     return (
       <Panel className="p-5">
         <div className="text-xs text-gray-500">Latest measurement</div>
-        <p className="mt-1 text-sm text-gray-700">No measurement before this forecast</p>
+        <p className="mt-1 text-sm text-gray-700">{noMeasurementText(forecast)}</p>
       </Panel>
     )
   }
 
-  const age = daysBetween(lastMeasurement.date, anchorDate)
-  const ageText = age === 0 ? 'the day the forecast was made' : `${formatAge(age)} before the forecast was made`
+  const age = anchorDate ? daysBetween(lastMeasurement.date, anchorDate) : null
+  const ageText = age === null ? null : age === 0 ? 'the day the forecast was made' : `${formatAge(age)} before the forecast was made`
   const rows = [...(recentMeasurements ?? [])].reverse()
   const max = Math.max(...rows.map((r) => r.value), threshold)
 
@@ -36,9 +36,10 @@ export default function LatestMeasurementCard({ forecast, config }) {
         <span className="text-gray-500">µg/g</span>
       </div>
       <div className="text-sm text-gray-700">
-        {formatDate(lastMeasurement.date)}, {ageText}
+        {formatDate(lastMeasurement.date)}
+        {ageText && `, ${ageText}`}
       </div>
-      {isStale(lastMeasurement.date, anchorDate) && (
+      {anchorDate && isStale(lastMeasurement.date, anchorDate) && (
         <Caution>
           <span className="font-medium">No recent sample.</span> Without one the forecast leans on ocean conditions and
           this site&apos;s history; give it less weight.

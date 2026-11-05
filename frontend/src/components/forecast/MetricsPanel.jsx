@@ -21,11 +21,11 @@ const TILES = {
 /**
  * Selectable metric tiles in ranked order; the selection is remembered in `storage`.
  * @param {{ site: string, forecast: import('../../services/contract').Forecast | null,
- *   summary: import('../../services/contract').Summary | null,
+ *   summary: import('../../services/contract').Summary | null, summaryError: string | null,
  *   config: import('../../services/contract').Config, storage: Storage | null,
  *   loading: boolean }} props
  */
-export default function MetricsPanel({ site, forecast, summary, config, storage, loading }) {
+export default function MetricsPanel({ site, forecast, summary, summaryError, config, storage, loading }) {
   const [shown, setShown] = useState(() => loadMetricSelection(storage))
   const current = forecast && forecast.site === site ? forecast : null
 
@@ -49,6 +49,11 @@ export default function MetricsPanel({ site, forecast, summary, config, storage,
           </label>
         ))}
       </div>
+      {!summary && (
+        <p className="text-xs text-gray-500 mt-3">
+          {summaryError ? 'Tiles that need the track record are hidden.' : 'Loading the track record.'}
+        </p>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
         {shown.length === 0 && <p className="text-sm text-gray-500">No metrics selected.</p>}
         {METRICS.filter(([k]) => shown.includes(k)).map(([key]) => {

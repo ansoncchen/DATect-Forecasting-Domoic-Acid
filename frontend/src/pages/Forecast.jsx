@@ -42,6 +42,7 @@ function ForecastPage({ config }) {
   const [week, setWeek] = useState(config.latestWeek)
   const [forecast, setForecast] = useState(null)
   const [summary, setSummary] = useState(null)
+  const [summaryError, setSummaryError] = useState(null)
   const [loading, setLoading] = useState(true)
   const [slow, setSlow] = useState(false)
   const [error, setError] = useState(null)
@@ -53,7 +54,7 @@ function ForecastPage({ config }) {
     let cancelled = false
     getSummary()
       .then((s) => !cancelled && setSummary(s))
-      .catch(() => {}) // the reliability line is simply omitted
+      .catch((e) => !cancelled && setSummaryError(e?.message || String(e)))
     return () => {
       cancelled = true
     }
@@ -92,12 +93,13 @@ function ForecastPage({ config }) {
         summary={summary}
         site={site}
         week={week}
-        anchorDate={forecast?.anchorDate ?? null}
+        anchorDate={loading ? null : forecast?.anchorDate ?? null}
         onSite={chooseSite}
         onWeek={setWeek}
       />
       {loading && slow && <p className="text-xs text-gray-500">Computing forecast; this week is not precomputed</p>}
       {error && <Caution>{error}</Caution>}
+      {summaryError && <Caution>The track record could not be loaded: {summaryError}</Caution>}
       {forecast && (
         <div className={`grid grid-cols-1 md:grid-cols-3 gap-5 ${loading ? 'opacity-60' : ''}`}>
           <ForecastCard forecast={forecast} summary={summary} config={config} />
@@ -106,7 +108,7 @@ function ForecastPage({ config }) {
         </div>
       )}
       <GroundDataChart site={site} week={week} forecast={forecast} config={config} loading={loading} />
-      <MetricsPanel site={site} forecast={forecast} summary={summary} config={config} storage={storage} loading={loading} />
+      <MetricsPanel site={site} forecast={forecast} summary={summary} summaryError={summaryError} config={config} storage={storage} loading={loading} />
       <AllSitesTable week={week} site={site} ready={settled} config={config} summary={summary} onSelectSite={chooseSite} />
     </div>
   )

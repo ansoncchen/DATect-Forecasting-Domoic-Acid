@@ -46,6 +46,16 @@ export function isStale(lastDate, anchorDate) {
 }
 
 /**
+ * What to say with no latest measurement. A failed forecast may not have got as far as
+ * reading the measurements, so it does not claim there are none.
+ * @param {{ error: string | null }} forecast
+ * @returns {string}
+ */
+export function noMeasurementText({ error }) {
+  return error ? 'Measurements unavailable for this forecast' : 'No measurement before this forecast'
+}
+
+/**
  * @param {import('../services/contract').Reliability | undefined} reliability a site's holdout reliability
  * @returns {'weak' | 'ok' | 'too-few'}
  */

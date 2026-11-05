@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  categoryOf, reachesThreshold, levelKey, isStale, siteReliability, dataCurrencyNotice,
+  categoryOf, reachesThreshold, levelKey, isStale, siteReliability, dataCurrencyNotice, noMeasurementText,
 } from './risk'
 import { cats } from './testCategories'
 
@@ -43,6 +43,15 @@ describe('isStale', () => {
     expect(isStale('2023-10-30', '2023-11-20')).toBe(false)
     expect(isStale('2023-10-29', '2023-11-20')).toBe(true)
     expect(isStale(null, '2023-11-20')).toBe(true)
+  })
+})
+
+describe('noMeasurementText', () => {
+  it('says there is none when the forecast worked', () => {
+    expect(noMeasurementText({ error: null })).toBe('No measurement before this forecast')
+  })
+  it('does not claim there is none when the forecast failed', () => {
+    expect(noMeasurementText({ error: 'boom' })).toBe('Measurements unavailable for this forecast')
   })
 })
 

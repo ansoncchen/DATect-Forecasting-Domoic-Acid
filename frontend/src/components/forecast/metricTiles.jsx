@@ -339,7 +339,7 @@ export function ProvTile({ forecast, summary }) {
   return (
     <Tile title="Data and model" foot="From the forecast response and the results files behind the track-record numbers.">
       <div className="text-xs space-y-0.5 text-gray-700 tabular-nums">
-        <div>Data through {formatDate(forecast.anchorDate)}</div>
+        <div>Forecast made as of {forecast.anchorDate ? formatDate(forecast.anchorDate) : 'not reported'}</div>
         <div>{source ? (SOURCE_WORDS[source] ?? source) : 'Source not reported'}</div>
         <div>Model version {modelVersion ?? 'not reported'}</div>
         <div>Training samples {trainingSamples ?? 'not reported'}</div>

@@ -20,7 +20,7 @@ import { windowLabel } from '../lib/format'
  * }} Alert
  *
  * @typedef {{
- *   site: string, date: string, anchorDate: string, error: string | null,
+ *   site: string, date: string, anchorDate: string | null, error: string | null,
  *   value: number | null,
  *   band: { lo: number, hi: number, nCalibration: number } | null,
  *   bandReason: string | null,
@@ -158,7 +158,7 @@ export function toForecast(raw) {
   return {
     site: raw.site,
     date: raw.forecast_date,
-    anchorDate: raw.anchor_date,
+    anchorDate: orNull(raw.anchor_date),
     error,
     value: error ? null : (regression?.predicted_da ?? null),
     band: toBand(raw.band),
@@ -183,7 +183,7 @@ export function toAllSites(raw) {
   return raw.sites.map((s) => ({
     site: s.site,
     date: raw.date,
-    anchorDate: s.anchor_date,
+    anchorDate: orNull(s.anchor_date),
     error: s.error ?? null,
     value: s.error ? null : orNull(s.predicted_da),
     band: toBand(s.band),

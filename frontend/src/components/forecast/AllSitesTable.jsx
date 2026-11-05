@@ -3,7 +3,7 @@ import Panel from '../ui/Panel'
 import Caution from '../ui/Caution'
 import LevelTag from '../ui/LevelTag'
 import { getAllSites } from '../../services/datect'
-import { daysBetween, formatAge, formatPct, formatScore, formatValue } from '../../lib/format'
+import { daysBetween, formatAge, formatDate, formatPct, formatScore, formatValue } from '../../lib/format'
 import { MIN_ROWS, STALE_DAYS, WEAK_COVERAGE, isStale, levelKey, siteReliability } from '../../lib/risk'
 
 const muted = 'text-gray-500'
@@ -11,6 +11,7 @@ const muted = 'text-gray-500'
 function LastCell({ forecast }) {
   const last = forecast?.lastMeasurement
   if (!last) return <span className={muted}>none</span>
+  if (!forecast.anchorDate) return formatValue(last.value)
   const age = daysBetween(last.date, forecast.anchorDate)
   return (
     <>
@@ -42,7 +43,10 @@ function ForecastCells({ forecast, config }) {
   )
 }
 
-function HeldCell({ reliability }) {
+/** `summary` is null until it arrives, or for good if it failed: that says nothing about the site. */
+function HeldCell({ summary, site }) {
+  if (!summary) return <span className={muted}>—</span>
+  const reliability = summary.reliability.holdout.perSite[site]
   const status = siteReliability(reliability)
   if (status === 'too-few') return <span className={muted}>too few</span>
   return <>{formatPct(reliability.band.coverage)}{status === 'weak' ? ' †' : ''}</>
@@ -55,7 +59,7 @@ function HeldCell({ reliability }) {
  *   summary: import('../../services/contract').Summary | null, onSelectSite: (s: string) => void }} props
  */
 export default function AllSitesTable({ week, site, ready, config, summary, onSelectSite }) {
-  const [rows, setRows] = useState(null)
+  const [shown, setShown] = useState(null) // { week, rows }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const latest = useRef(0)
@@ -66,28 +70,27 @@ export default function AllSitesTable({ week, site, ready, config, summary, onSe
     setLoading(true)
     setError(null)
     getAllSites(week)
-      .then((r) => latest.current === id && (setRows(r), setLoading(false)))
-      .catch((e) => latest.current === id && (setError(e?.message || String(e)), setLoading(false)))
+      .then((r) => latest.current === id && (setShown({ week, rows: r }), setLoading(false)))
+      .catch((e) => latest.current === id && (setShown(null), setError(e?.message || String(e)), setLoading(false)))
     return () => {
       latest.current++
     }
   }, [week, ready])
 
-  const bySite = new Map((rows ?? []).map((f) => [f.site, f]))
-  const perSite = summary?.reliability?.holdout?.perSite ?? {}
+  const bySite = new Map((shown?.rows ?? []).map((f) => [f.site, f]))
   const heldLabel = config.windows.holdout.label
 
   return (
     <Panel className="p-5">
-      <h2 className="text-base font-semibold">All sites, north to south</h2>
-      <p className="text-xs text-gray-500 mt-0.5">Select a row to switch site.</p>
-      {(loading || (!ready && !rows)) && (
+      <h2 className="text-base font-semibold">All sites{shown && `, week of ${formatDate(shown.week)}`}</h2>
+      <p className="text-xs text-gray-500 mt-0.5">North to south. Select a row to switch site.</p>
+      {(loading || (!ready && !shown)) && (
         <p className="text-xs text-gray-500 mt-2">
-          Loading all sites; this can take a minute when forecasts are not precomputed
+          Loading all sites for the week of {formatDate(week)}; this can take a minute when forecasts are not precomputed
         </p>
       )}
-      {error && <Caution>{error}</Caution>}
-      {rows && (
+      {error && <Caution>Could not load all sites: {error}</Caution>}
+      {shown && (
         <div className={`overflow-x-auto mt-3 ${loading ? 'opacity-60' : ''}`}>
           <table className="w-full text-sm tabular-nums">
             <thead className="text-left text-xs text-gray-500 border-b border-gray-200">
@@ -124,7 +127,7 @@ export default function AllSitesTable({ week, site, ready, config, summary, onSe
                     </td>
                     <td className="pr-3 whitespace-nowrap"><LastCell forecast={f} /></td>
                     <ForecastCells forecast={f} config={config} />
-                    <td className="whitespace-nowrap"><HeldCell reliability={perSite[name]} /></td>
+                    <td className="whitespace-nowrap"><HeldCell summary={summary} site={name} /></td>
                   </tr>
                 )
               })}
@@ -132,10 +135,12 @@ export default function AllSitesTable({ week, site, ready, config, summary, onSe
           </table>
         </div>
       )}
-      <p className="text-xs text-gray-500 mt-2">
-        * Last sample more than {STALE_DAYS / 7} weeks before the forecast. † Range held below{' '}
-        {formatPct(WEAK_COVERAGE)} of at least {MIN_ROWS} measurements.
-      </p>
+      {shown && (
+        <p className="text-xs text-gray-500 mt-2">
+          * Last sample more than {STALE_DAYS / 7} weeks before the forecast. † Range held below{' '}
+          {formatPct(WEAK_COVERAGE)} of at least {MIN_ROWS} measurements.
+        </p>
+      )}
     </Panel>
   )
 }

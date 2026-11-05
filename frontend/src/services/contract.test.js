@@ -52,6 +52,14 @@ describe('contract adapters', () => {
     expect(f.lastMeasurement).toBeTruthy(); expect(f.recentMeasurements).toHaveLength(6)
   })
 
+  it('maps the API\'s bare failure, which has no anchor or measurements, to nulls', () => {
+    const f = toForecast({ success: false, forecast_date: '2023-12-25', site: 'Newport', error: 'boom' })
+    expect(f.anchorDate).toBeNull()
+    expect(f.error).toBe('boom')
+    expect(f.value).toBeNull(); expect(f.band).toBeNull(); expect(f.alert).toBeNull()
+    expect(f.lastMeasurement).toBeNull(); expect(f.recentMeasurements).toEqual([])
+  })
+
   it('keeps a missing classifier as null beside the regression-driven level', () => {
     const noClassifier = {
       ...forecastFixture,
@@ -108,6 +116,11 @@ describe('contract adapters', () => {
     expect(rows[0]).toMatchObject({ site: 'Kalaloch', date: '2023-12-25', error: null, parts: null, categoryChances: expect.any(Array) })
     expect(rows[0].recentMeasurements).toEqual([])
     expect(rows[0].drivers).toEqual([])
+  })
+
+  it('maps an all-sites row with no anchor to null', () => {
+    const [row] = toAllSites({ date: '2023-12-25', sites: [{ site: 'Newport', error: 'boom' }] })
+    expect(row.anchorDate).toBeNull()
   })
 
   it('maps history rows', () => {

@@ -172,7 +172,7 @@ export function CatsTile({ forecast, config }) {
     <Tile
       title="Category chances (from the range)"
       help="Share of past forecast errors that would put next week in each category."
-      foot={ready && bandVsAlertText(forecast)}
+      foot={ready && bandVsAlertText(forecast, config.spikeThreshold)}
     >
       {ready ? (
         <>

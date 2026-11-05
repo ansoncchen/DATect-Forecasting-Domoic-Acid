@@ -52,6 +52,16 @@ describe('contract adapters', () => {
     expect(f.lastMeasurement).toBeTruthy(); expect(f.recentMeasurements).toHaveLength(6)
   })
 
+  it('keeps a missing classifier as null beside the regression-driven level', () => {
+    const noClassifier = {
+      ...forecastFixture,
+      alert: { classifier_probability: null, by_classifier: false, by_regression: true, alert: true, level: 'Watch', level_reason: 'no_classifier' },
+    }
+    const f = toForecast(noClassifier)
+    expect(f.alert).toMatchObject({ probability: null, level: 'Watch', reason: 'no_classifier', byRegression: true })
+    expect(toForecast({ ...noClassifier, alert: { level: 'Quiet' } }).alert.probability).toBeNull()
+  })
+
   it('builds config thresholds, levels, categories and site order', () => {
     const c = toConfig(configFixture, sitesFixture)
     expect(c.spikeThreshold).toBe(20); expect(c.regressionAlert).toBe(12); expect(c.classifierCutoff).toBe(0.1)

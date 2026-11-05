@@ -71,7 +71,8 @@ What a harvest decision-maker runs into:
 
 ## 3. Proposed Forecast page
 
-One screen, no configuration step. The numbered callouts match the screenshot below.
+One screen, no configuration step. The numbered callouts match the screenshot below. The embedded
+mockup screenshots predate the score wording: they print the classifier's number as a percentage chance.
 
 ![Mockup, Newport](dashboard-mockup/screenshots/mockup-newport.jpg)
 
@@ -85,8 +86,9 @@ One screen, no configuration step. The numbered callouts match the screenshot be
    reliability in counts ("held 23 of 48 measurements at Newport (48%), against 80% across all
    sites"), marked with an amber rule when the site is below 70% with at least 10 holdout rows.
 3. **Spike risk.** Graded, not a single alarm (see "Spike risk, graded" below): the classifier's
-   probability of a jump to ≥ 20 µg/g on a Quiet / Watch / Warning bar; which conditions hold
-   (classifier ≥ 10%, forecast ≥ 12); what weeks at this level were followed by in 2022–2023
+   score for a jump to ≥ 20 µg/g on a Quiet / Watch / Warning bar, printed to two decimals and
+   never as a chance, because it is not calibrated (`docs/CORRECTED_NUMBERS.md`); which conditions
+   hold (classifier score ≥ 0.10, forecast ≥ 12); what weeks at this level were followed by in 2022–2023
    ("a jump followed 9 of 68 Watch weeks"); the last five measurements as a trend line; and the
    track record in plain words, overall and at the site.
 4. **Latest measurement.** Value, date, and age relative to the forecast's anchor; the last six
@@ -98,7 +100,7 @@ One screen, no configuration step. The numbered callouts match the screenshot be
    the 20 µg/g line. Range buttons 6 mo / 1 yr / 2 yr (default) / since 2019.
    Line and range break across gaps of more than three weeks, so they never imply forecasts that
    were not made. Hover gives date, measured, forecast and range, inside/outside, classifier
-   probability.
+   score.
 6. **Metrics for <site>.** A row of checkboxes chooses which tiles show, in rank order (below);
    the first four are on by default and the choice is remembered in the browser.
 7. **All sites, north to south.** Last measurement and its age, forecast and range, spike-risk
@@ -129,8 +131,8 @@ useless. The hybrid alert's 2022–2023 record on weeks whose last known value w
 So the card shows a level instead of a red light:
 
 - **Quiet** (gray, never green): no alert condition holds.
-- **Watch** (amber): today's hybrid alert, unchanged (classifier ≥ 10% or forecast ≥ 12).
-- **Warning** (red): the classifier at or above 35%. The onset experiments chose that cutoff on
+- **Watch** (amber): today's hybrid alert, unchanged (classifier score ≥ 0.10 or forecast ≥ 12).
+- **Warning** (red): the classifier score at or above 0.35. The onset experiments chose that cutoff on
   validation, never on the holdout (`docs/FORECAST_EXPERIMENTS.md` section 6.2).
 
 Next to the level, the card says what that level has meant. Weeks followed by a jump were:
@@ -139,7 +141,7 @@ Next to the level, the card says what that level has meant. Weeks followed by a 
 |---|---:|---:|
 | Quiet | 8 of 213 | 7 of 420 |
 | Watch | 9 of 68 | 13 of 63 |
-| Warning (≥ 35%) | 10 of 38 | 14 of 37 |
+| Warning (score ≥ 0.35) | 10 of 38 | 14 of 37 |
 
 The card also states the track record in plain words ("catches about 7 in 10 jumps (19 of 27);
 fewer than 1 in 5 alarms was followed by one (19 of 106); 48 of the 87 false alarms were near
@@ -151,14 +153,17 @@ from below 20, and the forecast and measurements carry that week.
 Tiers, cutoffs and their labels come from `/api/config`, and the per-level counts from the API,
 so new tiers from the experiments need no frontend change.
 
-### Two P(DA ≥ 20) numbers
+### Two numbers about reaching 20
 
-The pooled spike classifier's probability drives the alert, and it is the only probability on the
-spike-risk card. The band also implies a chance of ≥ 20 (the share of past errors that would carry this
-forecast to 20). It appears only in the "Category chances (from the range)" tile, labelled
-**Not the alert**, next to the classifier's number and the reason: the classifier ranked holdout
-onsets better (AUC 0.773 vs 0.747), and the declared one-model test kept it (`docs/ERROR_BAND.md`).
-Newport in the mockup is the case to design for: classifier 22% (alert), band 6%.
+The pooled spike classifier's score drives the alert, and it is the only such number on the
+spike-risk card. It is printed as a score, never as a chance: it is not calibrated (holdout
+scores of 0.35–0.60 were followed by a jump 15% of the time, `docs/CORRECTED_NUMBERS.md`). The
+band also implies a chance of ≥ 20 (the share of past errors that would carry this forecast to
+20). It appears only in the "Category chances (from the range)" tile, labelled **Not the alert**,
+next to the classifier's score and the reason: the declared one-model test kept the classifier
+because the band was not shown to catch jumps as well (`docs/ERROR_BAND.md`; the difference in
+onset AUC, 0.747 vs 0.773, is not significant). Newport in the mockup is the case to design for:
+classifier score 0.22 (alert), band 6%.
 
 ### Metrics, ranked
 
@@ -293,7 +298,7 @@ paper, not a product page.
   after a retune. The Data and model tile shows the forecast's model version and the
   evaluation's source; the API has no per-summary version stamp, so there is no automatic
   mismatch flag.
-- Watch is today's hybrid alert unchanged; Warning is the classifier at or above 35%. Quiet is
+- Watch is today's hybrid alert unchanged; Warning is the classifier score at or above 0.35. Quiet is
   gray, never green.
 - Colours follow the budget in section 7.
 

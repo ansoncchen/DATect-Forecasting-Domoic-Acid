@@ -32,6 +32,10 @@ describe('levelKey', () => {
     expect(levelKey({ level: null, reason: null })).toBe('unavailable')
     expect(levelKey(null)).toBe('unavailable')
   })
+  it('keeps the regression-driven level when the classifier is missing', () => {
+    expect(levelKey({ level: 'Watch', reason: 'no_classifier', probability: null })).toBe('watch')
+    expect(levelKey({ level: 'Quiet', reason: 'no_classifier', probability: null })).toBe('quiet')
+  })
 })
 
 describe('isStale', () => {

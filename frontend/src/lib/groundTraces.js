@@ -1,6 +1,6 @@
 import { parseISO, subMonths, subYears, addDays, format as fmtDate } from 'date-fns'
 import { BLUE, INK, LEVEL_COLORS, RED } from './colors'
-import { daysBetween, formatDate, formatPct, formatValue } from './format'
+import { daysBetween, formatDate, formatPct, formatScore, formatValue } from './format'
 
 const GAP_DAYS = 21
 const END_PAD_DAYS = 12
@@ -55,7 +55,7 @@ function tip(r) {
     lines.push(`Forecast ${formatValue(r.predicted)}${hasRange(r) ? ` [${formatValue(r.lo)}–${formatValue(r.hi)}]` : ''}`)
   }
   if (r.actual != null && hasRange(r)) lines.push(`${isInside(r) ? 'Inside' : 'Outside'} the range`)
-  if (r.probability != null) lines.push(`Classifier ${formatPct(r.probability)}`)
+  if (r.probability != null) lines.push(`Classifier score ${formatScore(r.probability)}`)
   return lines.join('<br>')
 }
 

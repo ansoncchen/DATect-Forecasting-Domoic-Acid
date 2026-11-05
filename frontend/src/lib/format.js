@@ -33,6 +33,15 @@ export function formatPct(p) {
 }
 
 /**
+ * A classifier score to two decimals. It is not a calibrated chance, so never a percentage.
+ * @param {number | null | undefined} score
+ * @returns {string} '—' for a missing score
+ */
+export function formatScore(score) {
+  return score == null ? '—' : score.toFixed(2)
+}
+
+/**
  * 'D Mon YYYY' from an ISO date, independent of locale and time zone.
  * @param {string} iso
  * @returns {string}

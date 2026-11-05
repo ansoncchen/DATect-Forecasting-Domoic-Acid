@@ -1,5 +1,5 @@
-import { formatPct, ratioWords } from './format'
-import { siteReliability } from './risk'
+import { formatPct, formatScore, ratioWords } from './format'
+import { levelKey, siteReliability } from './risk'
 
 /**
  * Sentence on how often the range held at a site.
@@ -60,10 +60,55 @@ export function siteRecordText(site, onsets) {
 }
 
 /**
- * Why the range's chance of 20 or more differs from the alert's probability.
- * @param {{ bandPExceed: number, alert: { probability: number } }} forecast
+ * What the score beside the big number is.
+ * @param {number} threshold
+ * @param {boolean} hasRecord whether the card shows the line on what weeks at this level did
  * @returns {string}
  */
-export function bandVsAlertText(forecast) {
-  return `Not the alert. The range puts ≥ 20 at ${formatPct(forecast.bandPExceed)}; the alert's classifier says ${formatPct(forecast.alert.probability)}. The classifier is trained to catch jumps and ranked them better in 2022–2023 (AUC 0.77 vs 0.75), so the alert uses it.`
+export function scoreCaption(threshold, hasRecord) {
+  const pointer = hasRecord ? '; the line below says what weeks at this level did' : ''
+  return `classifier score for a jump to ≥ ${threshold} µg/g next week. Not a calibrated chance${pointer}.`
+}
+
+/**
+ * The classifier score each level starts from, for the levels that have a cutoff.
+ * @param {{ name: string, cutoff: number | null }[]} levels
+ * @returns {string}
+ */
+export function levelCutoffsText(levels) {
+  return levels
+    .filter((l) => l.cutoff != null)
+    .map((l) => `${l.name} from ${formatScore(l.cutoff)}`)
+    .join(', ')
+}
+
+/**
+ * The classifier's alert condition. Whether it holds is the API's call; when two decimals
+ * read equal the wording keeps that call instead of printing "0.10 < 0.10".
+ * @param {number | null} score
+ * @param {number} cutoff
+ * @param {boolean} holds
+ * @returns {string}
+ */
+export function classifierConditionText(score, cutoff, holds) {
+  if (score == null) return 'Classifier score unavailable'
+  const [s, c] = [formatScore(score), formatScore(cutoff)]
+  if (holds) return `Classifier score ${s} ≥ ${c}`
+  return s === c ? `Classifier score just under ${c}` : `Classifier score ${s} < ${c}`
+}
+
+/**
+ * Why the range's chance of the threshold or more differs from the alert's classifier score.
+ * @param {{ bandPExceed: number, alert: { probability: number | null, reason: string | null } }} forecast
+ * @param {number} threshold
+ * @returns {string}
+ */
+export function bandVsAlertText(forecast, threshold) {
+  const { bandPExceed, alert } = forecast
+  const range = `Not the alert. The range puts ≥ ${threshold} at ${formatPct(bandPExceed)}`
+  if (levelKey(alert) === 'already') {
+    return `${range}; the alert does not apply, because the last measurement is already at or above ${threshold}.`
+  }
+  if (alert.probability == null) return `${range}; the alert's classifier score is unavailable for this week.`
+  return `${range}; the alert's classifier score is ${formatScore(alert.probability)}, which is not a calibrated chance. The alert keeps the classifier because the range was not shown to catch jumps as well.`
 }

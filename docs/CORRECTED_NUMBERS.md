@@ -57,6 +57,24 @@ raises, catches 14 of the 27 holdout onsets and 20 of the 34 validation onsets.
 The classifier's lead over that rule (5 and 7 onsets) is what the model adds for
 early warning; the regression alert alone (≥ 12) catches about half the onsets.
 
+**The classifier's score is not a calibrated chance.** It ranks weeks, but its
+value does not say how often a jump follows: on the holdout, scores of 0.35–0.60
+were followed by a jump 15% of the time and scores of 0.60 or more 39%. The
+dashboard therefore prints it as a score to two decimals, never as a percentage,
+beside what weeks at that level were followed by. Weeks whose last known value
+was below 20, followed by a jump to ≥ 20:
+
+| Score | Holdout 2022–2023 | Validation 2019–2021 |
+|---|---:|---:|
+| Below 0.10 | 10 of 224 | 8 of 432 |
+| 0.10–0.35 | 7 of 57 | 12 of 51 |
+| 0.35–0.60 | 3 of 20 | 7 of 20 |
+| 0.60 or more | 7 of 18 | 7 of 17 |
+
+Bins are left-closed. The rows sum to the onsets and quiet weeks above (27 of 319,
+34 of 520). Source: `results/conformal_band/band_predictions.parquet`
+(`spike_probability`, `naive_prediction` < 20, `actual_da` ≥ 20).
+
 ### Per-site holdout (2022–2023)
 
 | Site | State | N | Spikes | R² [95% CI] | MAE | log R² |

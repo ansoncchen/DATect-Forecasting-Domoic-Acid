@@ -15,7 +15,7 @@ import { windowLabel } from '../lib/format'
  * }} Config
  *
  * @typedef {{
- *   probability: number, byClassifier: boolean, byRegression: boolean, fired: boolean,
+ *   probability: number | null, byClassifier: boolean, byRegression: boolean, fired: boolean,
  *   level: 'Quiet' | 'Watch' | 'Warning' | null, reason: string | null
  * }} Alert
  *
@@ -120,7 +120,7 @@ export function toConfig(raw, rawSites) {
 function toAlert(raw) {
   if (!raw) return null
   return {
-    probability: raw.classifier_probability,
+    probability: orNull(raw.classifier_probability),
     byClassifier: raw.by_classifier,
     byRegression: raw.by_regression,
     fired: raw.alert,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { windowLabel, formatValue, formatPct, formatDate, daysBetween, formatAge, ratioWords } from './format'
+import { windowLabel, formatValue, formatPct, formatScore, formatDate, daysBetween, formatAge, ratioWords } from './format'
 
 describe('windowLabel', () => {
   it('uses an en dash and the inclusive end year', () => {
@@ -16,6 +16,16 @@ describe('formatters', () => {
   })
   it('prints whole-number percentages', () => {
     expect(formatPct(0.802)).toBe('80%')
+  })
+  it('prints a classifier score to two decimals, never as a percentage', () => {
+    expect(formatScore(0.6123)).toBe('0.61')
+    expect(formatScore(0.1)).toBe('0.10')
+    expect(formatScore(0)).toBe('0.00')
+    expect(formatScore(1)).toBe('1.00')
+  })
+  it('prints a missing classifier score as a dash', () => {
+    expect(formatScore(null)).toBe('—')
+    expect(formatScore(undefined)).toBe('—')
   })
   it('does not shift dates in US time zones', () => {
     expect(formatDate('2023-11-28')).toBe('28 Nov 2023')

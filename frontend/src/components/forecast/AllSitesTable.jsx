@@ -3,7 +3,7 @@ import Panel from '../ui/Panel'
 import Caution from '../ui/Caution'
 import LevelTag from '../ui/LevelTag'
 import { getAllSites } from '../../services/datect'
-import { daysBetween, formatAge, formatPct, formatValue } from '../../lib/format'
+import { daysBetween, formatAge, formatPct, formatScore, formatValue } from '../../lib/format'
 import { MIN_ROWS, STALE_DAYS, WEAK_COVERAGE, isStale, levelKey, siteReliability } from '../../lib/risk'
 
 const muted = 'text-gray-500'
@@ -27,7 +27,7 @@ function ForecastCells({ forecast, config }) {
   if (forecast.error) return <td colSpan={2} className={`pr-3 ${muted}`}>{forecast.error}</td>
   const { band, alert } = forecast
   const level = levelKey(alert)
-  const probability = alert?.probability
+  const score = level === 'already' ? null : alert?.probability
   return (
     <>
       <td className="pr-3">
@@ -36,7 +36,7 @@ function ForecastCells({ forecast, config }) {
       </td>
       <td className="pr-3">
         <LevelTag level={level} config={config} />{' '}
-        {probability != null && <span className={muted}>{formatPct(probability)}</span>}
+        {score != null && <span className={muted}>{formatScore(score)}</span>}
       </td>
     </>
   )
@@ -95,7 +95,7 @@ export default function AllSitesTable({ week, site, ready, config, summary, onSe
                 <th className="py-2 pr-3 font-normal">Site</th>
                 <th className="pr-3 font-normal">Last measured (µg/g)</th>
                 <th className="pr-3 font-normal">Forecast [{formatPct(config.bandLevel)} range]</th>
-                <th className="pr-3 font-normal">Spike risk</th>
+                <th className="pr-3 font-normal">Spike risk, classifier score</th>
                 <th className="font-normal">Range held, {heldLabel}</th>
               </tr>
             </thead>

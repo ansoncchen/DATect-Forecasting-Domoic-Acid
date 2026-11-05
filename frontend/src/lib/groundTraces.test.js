@@ -93,6 +93,12 @@ describe('buildGroundTraces', () => {
     expect(layout.shapes.some((s) => s.xref === 'x')).toBe(false)
   })
 
+  it('calls the classifier number a score in the hover', () => {
+    const { traces } = buildGroundTraces([row({ probability: 0.613 })], fc, cfg, { range: 'all' })
+    expect(named(traces, 'Measurement').text[0]).toContain('Classifier score 0.61')
+    expect(named(traces, 'Measurement').text[0]).not.toContain('%')
+  })
+
   it('draws measurements outside the range hollow', () => {
     const { traces } = buildGroundTraces([row({ actual: 30, lo: 1, hi: 10 }), row({ actual: 5, lo: 1, hi: 10 })], fc, cfg, { range: 'all' })
     expect(named(traces, 'Measurement outside the range').x).toHaveLength(1)

@@ -21,7 +21,7 @@ requests>=2.31.0      # run_datect.py health checks, Docker HEALTHCHECK, data do
 deltalake>=1.1.0      # The precomputed store's Delta tables (read when DATECT_PRECOMPUTED_DIR is set)
 
 # Visualization and analysis endpoints
-plotly>=5.18.0
+plotly>=5.18.0,<7  # 7 removed Scattermapbox and layout.mapbox, used by the site map and the frontend bundle
 scipy>=1.12.0         # Spectral analysis
 SALib>=1.4.7          # Sobol sensitivity analysis
 tqdm>=4.66.0

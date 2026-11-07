@@ -1,0 +1,325 @@
+{
+ "date": "2023-12-25",
+ "sites": [
+  {
+   "site": "Kalaloch",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 0.5963730668487746,
+   "band": {
+    "lo": 0.0,
+    "hi": 2.483339915720132,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.006,
+    "category_probabilities": [
+     0.96,
+     0.034,
+     0.006,
+     0.0
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.009874329902231693,
+    "by_classifier": false,
+    "by_regression": false,
+    "alert": false,
+    "level": "Quiet",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-28",
+    "value": 0.5
+   },
+   "source": "computed",
+   "error": null
+  },
+  {
+   "site": "Quinault",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 3.2870686054229736,
+   "band": {
+    "lo": 0.0,
+    "hi": 8.354528402423323,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.034,
+    "category_probabilities": [
+     0.77,
+     0.196,
+     0.026,
+     0.008
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.008281927555799484,
+    "by_classifier": false,
+    "by_regression": false,
+    "alert": false,
+    "level": "Quiet",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-30",
+    "value": 4.0
+   },
+   "source": "computed",
+   "error": null
+  },
+  {
+   "site": "Copalis",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 5.424407958984375,
+   "band": {
+    "lo": 0.25467489547604216,
+    "hi": 13.01827501548565,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.05,
+    "category_probabilities": [
+     0.484,
+     0.466,
+     0.036,
+     0.014
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.0068040830083191395,
+    "by_classifier": false,
+    "by_regression": false,
+    "alert": false,
+    "level": "Quiet",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-30",
+    "value": 6.0
+   },
+   "source": "computed",
+   "error": null
+  },
+  {
+   "site": "Twin Harbors",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 1.7100754561998737,
+   "band": {
+    "lo": 0.0,
+    "hi": 4.91347612111069,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.012,
+    "category_probabilities": [
+     0.912,
+     0.076,
+     0.006,
+     0.006
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.006177309434860945,
+    "by_classifier": false,
+    "by_regression": false,
+    "alert": false,
+    "level": "Quiet",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-30",
+    "value": 1.0
+   },
+   "source": "computed",
+   "error": null
+  },
+  {
+   "site": "Long Beach",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 2.2430009841918945,
+   "band": {
+    "lo": 0.0,
+    "hi": 6.07633761151736,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.014,
+    "category_probabilities": [
+     0.882,
+     0.104,
+     0.008,
+     0.006
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.00503807095810771,
+    "by_classifier": false,
+    "by_regression": false,
+    "alert": false,
+    "level": "Quiet",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-30",
+    "value": 3.0
+   },
+   "source": "computed",
+   "error": null
+  },
+  {
+   "site": "Clatsop Beach",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 11.172019958496094,
+   "band": {
+    "lo": 1.377172802016873,
+    "hi": 25.559758402882192,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.136,
+    "category_probabilities": [
+     0.194,
+     0.67,
+     0.088,
+     0.048
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.054220717400312424,
+    "by_classifier": false,
+    "by_regression": false,
+    "alert": false,
+    "level": "Quiet",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-26",
+    "value": 15.0
+   },
+   "source": "computed",
+   "error": null
+  },
+  {
+   "site": "Cannon Beach",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 0.03066479165027383,
+   "band": {
+    "lo": 0.0,
+    "hi": 1.248945364362546,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.0,
+    "category_probabilities": [
+     0.982,
+     0.018,
+     0.0,
+     0.0
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.022802084684371948,
+    "by_classifier": false,
+    "by_regression": false,
+    "alert": false,
+    "level": "Quiet",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-01",
+    "value": 0.0
+   },
+   "source": "computed",
+   "error": null
+  },
+  {
+   "site": "Newport",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 5.040693283081055,
+   "band": {
+    "lo": 0.17973613474426997,
+    "hi": 12.180996640788369,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.046,
+    "category_probabilities": [
+     0.55,
+     0.404,
+     0.032,
+     0.014
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.04719996824860573,
+    "by_classifier": false,
+    "by_regression": false,
+    "alert": false,
+    "level": "Quiet",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-28",
+    "value": 6.3
+   },
+   "source": "computed",
+   "error": null
+  },
+  {
+   "site": "Coos Bay",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 0.8841436717398027,
+   "band": {
+    "lo": 0.0,
+    "hi": 3.1112650889796507,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.008,
+    "category_probabilities": [
+     0.95,
+     0.042,
+     0.008,
+     0.0
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.021699614822864532,
+    "by_classifier": false,
+    "by_regression": false,
+    "alert": false,
+    "level": "Quiet",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-27",
+    "value": 0.0
+   },
+   "source": "computed",
+   "error": null
+  },
+  {
+   "site": "Gold Beach",
+   "anchor_date": "2023-12-18",
+   "predicted_da": 5.667512893676758,
+   "band": {
+    "lo": 0.3021528359294212,
+    "hi": 13.54873818873006,
+    "level": 0.8,
+    "n_calibration": 500,
+    "p_exceed": 0.054,
+    "category_probabilities": [
+     0.452,
+     0.494,
+     0.036,
+     0.018
+    ]
+   },
+   "alert": {
+    "classifier_probability": 0.6143579483032227,
+    "by_classifier": true,
+    "by_regression": false,
+    "alert": true,
+    "level": "Warning",
+    "level_reason": null
+   },
+   "last_measurement": {
+    "date": "2023-11-28",
+    "value": 0.0
+   },
+   "source": "computed",
+   "error": null
+  }
+ ]
+}

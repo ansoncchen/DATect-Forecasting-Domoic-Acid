@@ -1,0 +1,44 @@
+{
+ "success": false,
+ "forecast_date": "2003-01-06",
+ "site": "Newport",
+ "anchor_date": "2002-12-30",
+ "error": "No forecast: too little training data before 2002-12-30",
+ "band": null,
+ "band_reason": null,
+ "band_p_exceed": null,
+ "category_probabilities": null,
+ "alert": null,
+ "last_measurement": {
+  "date": "2002-11-03",
+  "value": 61.2
+ },
+ "recent_measurements": [
+  {
+   "date": "2002-08-14",
+   "value": 0.0
+  },
+  {
+   "date": "2002-08-20",
+   "value": 3.6
+  },
+  {
+   "date": "2002-08-21",
+   "value": 0.0
+  },
+  {
+   "date": "2002-10-07",
+   "value": 0.0
+  },
+  {
+   "date": "2002-10-08",
+   "value": 7.6
+  },
+  {
+   "date": "2002-11-03",
+   "value": 61.2
+  }
+ ],
+ "source": "computed",
+ "model_version": null
+}

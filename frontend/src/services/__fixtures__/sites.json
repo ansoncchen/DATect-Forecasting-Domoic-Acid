@@ -1,0 +1,30 @@
+{
+ "sites": [
+  "Cannon Beach",
+  "Clatsop Beach",
+  "Coos Bay",
+  "Copalis",
+  "Gold Beach",
+  "Kalaloch",
+  "Long Beach",
+  "Newport",
+  "Quinault",
+  "Twin Harbors"
+ ],
+ "date_range": {
+  "min": "2003-01-06",
+  "max": "2023-12-25"
+ },
+ "site_mapping": {
+  "cannon-beach": "Cannon Beach",
+  "clatsop-beach": "Clatsop Beach",
+  "coos-bay": "Coos Bay",
+  "copalis": "Copalis",
+  "gold-beach": "Gold Beach",
+  "kalaloch": "Kalaloch",
+  "long-beach": "Long Beach",
+  "newport": "Newport",
+  "quinault": "Quinault",
+  "twin-harbors": "Twin Harbors"
+ }
+}

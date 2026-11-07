@@ -294,9 +294,9 @@ def get_historical_data(
     m = _raw_measurements()
     rows = m[m["site"] == actual_site]
     if start_date:
-        rows = rows[rows["date"] >= pd.Timestamp(start_date)]
+        rows = rows[rows["date"] >= _request_date(start_date)]
     if end_date:
-        rows = rows[rows["date"] <= pd.Timestamp(end_date)]
+        rows = rows[rows["date"] <= _request_date(end_date)]
     rows = rows.sort_values("date").tail(limit)
     return {
         "site": actual_site,
@@ -362,6 +362,21 @@ def _load_metrics_summary() -> dict:
     }
 
 
+EARLIEST_DATE, LATEST_DATE = pd.Timestamp("1900-01-01"), pd.Timestamp("2200-01-01")
+
+
+def _request_date(day) -> pd.Timestamp:
+    """A request's date as a Timestamp, or 422 outside the supported range. Pandas
+    cannot represent dates far from the present, and nothing here is near them."""
+    try:
+        when = pd.Timestamp(day)
+    except (ValueError, OverflowError) as e:
+        raise HTTPException(status_code=422, detail=f"Date out of range: {day}") from e
+    if not EARLIEST_DATE <= when <= LATEST_DATE:
+        raise HTTPException(status_code=422, detail=f"Date out of range: {day}")
+    return when
+
+
 def _known_site(site: str) -> str:
     """Canonical site name, or 404 for a site DATect does not forecast."""
     resolved = resolve_site(site)
@@ -390,6 +405,9 @@ def get_track_record(window: track_record.Window = "holdout", site: str | None =
 def get_site_history(site: str, since: date = date(2019, 1, 1), until: date | None = None):
     """Each real measurement at a site with the forecast made for it, its band and alert."""
     site = _known_site(site)
+    _request_date(since)
+    if until:
+        _request_date(until)
     rows = track_record.site_history(site, since.isoformat(), until.isoformat() if until else None)
     return clean_for_json({"site": site, "rows": rows})
 
@@ -625,9 +643,13 @@ def get_latest_da_from_raw_files():
 
     return latest_da_data
 
+MAP_CATEGORY_COLORS = ("#9aa5b1", "#e0a100", "#e4670f", "#c0392b")  # by category: gray, never green
+
+
 @app.get("/api/visualizations/map")
 def get_site_map():
-    """Generate map visualization of all 10 monitoring sites with risk level colors using latest raw data."""
+    """Map of the monitoring sites coloured by the last measured DA category. It reports
+    a reading that may be months old, so it gives no risk verdict and no reassuring green."""
     try:
         # Import here to avoid issues if plotly is not available during startup
         import plotly.graph_objs as go
@@ -650,34 +672,21 @@ def get_site_map():
                 recent_da = site_info['da']
                 recent_date = site_info['date']
                 
-                # Determine risk level
-                if recent_da < 5:
-                    risk_level = "Low"
-                    color = "green"
-                elif recent_da < 20:
-                    risk_level = "Moderate"
-                    color = "yellow"
-                elif recent_da < 40:
-                    risk_level = "High"
-                    color = "orange"
-                else:
-                    risk_level = "Extreme"
-                    color = "red"
+                category = int(np.searchsorted(config.DA_CATEGORY_BINS[1:-1], recent_da, side="right"))
+                color = MAP_CATEGORY_COLORS[category]
                 
                 hover_text = f'<b>{site_name}</b><br>' + \
                             f'Latitude: {lat:.4f}<br>' + \
                             f'Longitude: {lon:.4f}<br>' + \
-                            f'Recent DA Level: {recent_da:.2f} μg/g<br>' + \
-                            f'Risk Level: {risk_level}<br>' + \
-                            f'Date: {recent_date.strftime("%Y-%m-%d") if hasattr(recent_date, "strftime") else str(recent_date)}<extra></extra>'
+                            f'Last measured DA: {recent_da:.2f} µg/g ({CATEGORY_LABELS[category]})<br>' + \
+                            f'Measured: {recent_date.strftime("%Y-%m-%d") if hasattr(recent_date, "strftime") else str(recent_date)}<extra></extra>'
             else:
                 # No data available - use default color
-                color = "gray"
-                risk_level = "No Data"
+                color = "#d0d5db"
                 hover_text = f'<b>{site_name}</b><br>' + \
                             f'Latitude: {lat:.4f}<br>' + \
                             f'Longitude: {lon:.4f}<br>' + \
-                            f'Risk Level: {risk_level}<extra></extra>'
+                            'Last measured DA: no data<extra></extra>'
             
             site_names.append(site_name)
             latitudes.append(lat)
@@ -707,7 +716,7 @@ def get_site_map():
         
         # Create layout
         layout = go.Layout(
-            title='DATect Monitoring Sites - Pacific Coast (Risk Levels)',
+            title='DATect Monitoring Sites - Last Measured DA',
             mapbox=dict(
                 style='open-street-map',
                 center=dict(lat=center_lat, lon=center_lon),
@@ -767,10 +776,14 @@ def _forecast_payload(site: str, forecast_date: pd.Timestamp, model_type: str) -
     source = {"source": "precomputed" if version is not None else "computed", "model_version": version}
     if result is None or "predicted_da" not in result:
         anchor = forecast_date - pd.Timedelta(days=config.FORECAST_HORIZON_DAYS)
-        why = ("too little training data" if _recent_measurements(site, anchor)
-               else "no measurement at this site")
-        return _no_forecast(site, forecast_date, f"No forecast: {why} before {anchor.date().isoformat()}",
-                            source)
+        latest = _latest_forecast_week()
+        if forecast_date > latest:
+            error = f"No forecast: {forecast_date.date().isoformat()} is past the newest data ({latest.date().isoformat()})"
+        else:
+            why = ("too little training data" if _recent_measurements(site, anchor)
+                   else "no measurement at this site")
+            error = f"No forecast: {why} before {anchor.date().isoformat()}"
+        return _no_forecast(site, forecast_date, error, source)
 
     predicted = float(result["predicted_da"])
     anchor = pd.Timestamp(result["anchor_date"])
@@ -835,7 +848,9 @@ def generate_enhanced_forecast(request: ForecastRequest):
     try:
         site = resolve_site(request.site)
         model_type = getattr(request, 'model', None) or config.FORECAST_MODEL or "ensemble"
-        return clean_for_json(_forecast_payload(site, pd.to_datetime(request.date), model_type))
+        return clean_for_json(_forecast_payload(site, _request_date(request.date), model_type))
+    except HTTPException:
+        raise
     except Exception as e:
         return {"success": False, "forecast_date": str(request.date), "site": request.site, "error": str(e)}
 
@@ -847,7 +862,7 @@ def get_all_sites_forecast(
 ):
     """One week's forecast for every site, north to south (default: the latest week).
     A site whose forecast fails is reported with its error; the others still show."""
-    day = pd.Timestamp(date) if date is not None else _latest_forecast_week()
+    day = _request_date(date) if date is not None else _latest_forecast_week()
     sites = []
     for site in _sites_north_to_south():
         try:

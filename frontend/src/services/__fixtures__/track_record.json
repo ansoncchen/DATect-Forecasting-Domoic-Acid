@@ -1,0 +1,806 @@
+{
+ "window": {
+  "name": "holdout",
+  "start": "2022-01-01",
+  "end": "2024-01-01"
+ },
+ "summary": {
+  "n": 409,
+  "band": {
+   "coverage": 0.8019559902200489,
+   "inside": 328,
+   "n_banded": 409,
+   "coverage_at_onsets": 0.37037037037037035,
+   "onsets_inside": 10,
+   "median_width": 15.07707221862492
+  },
+  "onsets": {
+   "n": 27,
+   "caught": 19,
+   "quiet": 292,
+   "quiet_alarmed": 87
+  },
+  "alarms": {
+   "n": 106,
+   "followed_by_jump": 19,
+   "false_below_5": 21,
+   "false_5_to_10": 18,
+   "false_near_miss": 48
+  },
+  "levels": {
+   "Quiet": {
+    "weeks": 213,
+    "followed_by_jump": 8
+   },
+   "Watch": {
+    "weeks": 68,
+    "followed_by_jump": 9
+   },
+   "Warning": {
+    "weeks": 38,
+    "followed_by_jump": 10
+   }
+  },
+  "r2": [
+   0.5162134365928195,
+   0.30807084727778483,
+   0.6537853539737596
+  ],
+  "mae": [
+   7.440738355370298,
+   6.199938881712039,
+   8.867474503916798
+  ],
+  "log_r2": [
+   0.3702705748341232,
+   0.23402208442980404,
+   0.4936054393554021
+  ],
+  "models": {
+   "ensemble": {
+    "r2": 0.5162134365928195,
+    "mae": 7.440738355370298
+   },
+   "naive": {
+    "r2": 0.22521839196474225,
+    "mae": 7.8904645476772615
+   },
+   "linear": {
+    "r2": 0.39561461971327383,
+    "mae": 7.902796651569445
+   }
+  }
+ },
+ "per_site": {
+  "Cannon Beach": {
+   "n": 2,
+   "band": {
+    "coverage": 1.0,
+    "inside": 2,
+    "n_banded": 2,
+    "coverage_at_onsets": null,
+    "onsets_inside": 0,
+    "median_width": 1.1777822130743396
+   },
+   "onsets": {
+    "n": 0,
+    "caught": 0,
+    "quiet": 2,
+    "quiet_alarmed": 0
+   },
+   "alarms": {
+    "n": 0,
+    "followed_by_jump": 0,
+    "false_below_5": 0,
+    "false_5_to_10": 0,
+    "false_near_miss": 0
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 2,
+     "followed_by_jump": 0
+    },
+    "Watch": {
+     "weeks": 0,
+     "followed_by_jump": 0
+    },
+    "Warning": {
+     "weeks": 0,
+     "followed_by_jump": 0
+    }
+   },
+   "r2": null,
+   "mae": null,
+   "log_r2": null,
+   "models": {
+    "ensemble": {
+     "r2": 0.0,
+     "mae": 0.06259680911890368
+    },
+    "naive": {
+     "r2": 1.0,
+     "mae": 0.0
+    },
+    "linear": {
+     "r2": 1.0,
+     "mae": 0.0
+    }
+   }
+  },
+  "Clatsop Beach": {
+   "n": 48,
+   "band": {
+    "coverage": 0.8541666666666666,
+    "inside": 41,
+    "n_banded": 48,
+    "coverage_at_onsets": 0.8,
+    "onsets_inside": 4,
+    "median_width": 27.87258443981004
+   },
+   "onsets": {
+    "n": 5,
+    "caught": 4,
+    "quiet": 28,
+    "quiet_alarmed": 8
+   },
+   "alarms": {
+    "n": 12,
+    "followed_by_jump": 4,
+    "false_below_5": 0,
+    "false_5_to_10": 4,
+    "false_near_miss": 4
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 21,
+     "followed_by_jump": 1
+    },
+    "Watch": {
+     "weeks": 9,
+     "followed_by_jump": 3
+    },
+    "Warning": {
+     "weeks": 3,
+     "followed_by_jump": 1
+    }
+   },
+   "r2": [
+    0.5379277876944909,
+    0.3514571981507649,
+    0.6515507872542039
+   ],
+   "mae": [
+    6.1744451651349666,
+    4.6533802604349335,
+    7.794778004977852
+   ],
+   "log_r2": [
+    0.6778981472660387,
+    0.4270436369029166,
+    0.8433796168797306
+   ],
+   "models": {
+    "ensemble": {
+     "r2": 0.5379277876944909,
+     "mae": 6.1744451651349666
+    },
+    "naive": {
+     "r2": 0.5029714445355709,
+     "mae": 6.033333333333334
+    },
+    "linear": {
+     "r2": 0.5039753959934585,
+     "mae": 5.825253277742767
+    }
+   }
+  },
+  "Coos Bay": {
+   "n": 35,
+   "band": {
+    "coverage": 0.8857142857142857,
+    "inside": 31,
+    "n_banded": 35,
+    "coverage_at_onsets": 0.0,
+    "onsets_inside": 0,
+    "median_width": 23.314103253262928
+   },
+   "onsets": {
+    "n": 1,
+    "caught": 1,
+    "quiet": 20,
+    "quiet_alarmed": 7
+   },
+   "alarms": {
+    "n": 8,
+    "followed_by_jump": 1,
+    "false_below_5": 2,
+    "false_5_to_10": 1,
+    "false_near_miss": 4
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 13,
+     "followed_by_jump": 0
+    },
+    "Watch": {
+     "weeks": 7,
+     "followed_by_jump": 1
+    },
+    "Warning": {
+     "weeks": 1,
+     "followed_by_jump": 0
+    }
+   },
+   "r2": [
+    0.7979300828735426,
+    0.6393804928783312,
+    0.9380298115808363
+   ],
+   "mae": [
+    10.854250392551249,
+    5.460758971056369,
+    17.668001911155443
+   ],
+   "log_r2": [
+    0.867986888557378,
+    0.7239245039062013,
+    0.9510443551980894
+   ],
+   "models": {
+    "ensemble": {
+     "r2": 0.7979300828735426,
+     "mae": 10.854250392551249
+    },
+    "naive": {
+     "r2": 0.7081962462802092,
+     "mae": 13.01142857142857
+    },
+    "linear": {
+     "r2": 0.6137049849806266,
+     "mae": 14.03339837095568
+    }
+   }
+  },
+  "Copalis": {
+   "n": 60,
+   "band": {
+    "coverage": 0.9333333333333333,
+    "inside": 56,
+    "n_banded": 60,
+    "coverage_at_onsets": 0.0,
+    "onsets_inside": 0,
+    "median_width": 15.627709897810798
+   },
+   "onsets": {
+    "n": 2,
+    "caught": 0,
+    "quiet": 51,
+    "quiet_alarmed": 18
+   },
+   "alarms": {
+    "n": 18,
+    "followed_by_jump": 0,
+    "false_below_5": 0,
+    "false_5_to_10": 1,
+    "false_near_miss": 17
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 35,
+     "followed_by_jump": 2
+    },
+    "Watch": {
+     "weeks": 13,
+     "followed_by_jump": 0
+    },
+    "Warning": {
+     "weeks": 5,
+     "followed_by_jump": 0
+    }
+   },
+   "r2": [
+    0.587421512717798,
+    0.3341217087807836,
+    0.758997934348148
+   ],
+   "mae": [
+    3.4097172101338704,
+    2.6182077061136564,
+    4.258138405730326
+   ],
+   "log_r2": [
+    0.6968499425984005,
+    0.4842478422790609,
+    0.820978799385399
+   ],
+   "models": {
+    "ensemble": {
+     "r2": 0.587421512717798,
+     "mae": 3.4097172101338704
+    },
+    "naive": {
+     "r2": 0.6145367709577076,
+     "mae": 3.183333333333333
+    },
+    "linear": {
+     "r2": 0.5969307984114401,
+     "mae": 3.3877677890126128
+    }
+   }
+  },
+  "Gold Beach": {
+   "n": 40,
+   "band": {
+    "coverage": 0.375,
+    "inside": 15,
+    "n_banded": 40,
+    "coverage_at_onsets": 0.0,
+    "onsets_inside": 0,
+    "median_width": 10.349922207009513
+   },
+   "onsets": {
+    "n": 4,
+    "caught": 2,
+    "quiet": 30,
+    "quiet_alarmed": 15
+   },
+   "alarms": {
+    "n": 17,
+    "followed_by_jump": 2,
+    "false_below_5": 12,
+    "false_5_to_10": 1,
+    "false_near_miss": 2
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 17,
+     "followed_by_jump": 2
+    },
+    "Watch": {
+     "weeks": 10,
+     "followed_by_jump": 1
+    },
+    "Warning": {
+     "weeks": 7,
+     "followed_by_jump": 1
+    }
+   },
+   "r2": [
+    -0.2082173947938406,
+    -2.8147597367826886,
+    0.20197908017304797
+   ],
+   "mae": [
+    13.14994500756264,
+    8.454116940140725,
+    18.617822019338607
+   ],
+   "log_r2": [
+    -0.7006555501583982,
+    -2.2278829039732964,
+    -0.1160696276672597
+   ],
+   "models": {
+    "ensemble": {
+     "r2": -0.2082173947938406,
+     "mae": 13.14994500756264
+    },
+    "naive": {
+     "r2": -0.9328271502109515,
+     "mae": 13.309999999999999
+    },
+    "linear": {
+     "r2": -0.21773169443133944,
+     "mae": 11.89901373158206
+    }
+   }
+  },
+  "Kalaloch": {
+   "n": 35,
+   "band": {
+    "coverage": 0.9142857142857143,
+    "inside": 32,
+    "n_banded": 35,
+    "coverage_at_onsets": 1.0,
+    "onsets_inside": 1,
+    "median_width": 8.842749326407134
+   },
+   "onsets": {
+    "n": 1,
+    "caught": 0,
+    "quiet": 34,
+    "quiet_alarmed": 7
+   },
+   "alarms": {
+    "n": 7,
+    "followed_by_jump": 0,
+    "false_below_5": 1,
+    "false_5_to_10": 4,
+    "false_near_miss": 2
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 28,
+     "followed_by_jump": 1
+    },
+    "Watch": {
+     "weeks": 6,
+     "followed_by_jump": 0
+    },
+    "Warning": {
+     "weeks": 1,
+     "followed_by_jump": 0
+    }
+   },
+   "r2": [
+    0.6669468051749834,
+    0.4130700588330058,
+    0.8082415821205992
+   ],
+   "mae": [
+    1.874628983665584,
+    1.279956166999725,
+    2.5466071892044457
+   ],
+   "log_r2": [
+    0.6512372934550538,
+    0.3490219699722984,
+    0.8083701539884549
+   ],
+   "models": {
+    "ensemble": {
+     "r2": 0.6669468051749834,
+     "mae": 1.874628983665584
+    },
+    "naive": {
+     "r2": 0.6418698281939961,
+     "mae": 1.7857142857142858
+    },
+    "linear": {
+     "r2": 0.2947513371908027,
+     "mae": 3.139075546923599
+    }
+   }
+  },
+  "Long Beach": {
+   "n": 44,
+   "band": {
+    "coverage": 0.8636363636363636,
+    "inside": 38,
+    "n_banded": 44,
+    "coverage_at_onsets": 0.0,
+    "onsets_inside": 0,
+    "median_width": 12.780290205309594
+   },
+   "onsets": {
+    "n": 2,
+    "caught": 2,
+    "quiet": 33,
+    "quiet_alarmed": 5
+   },
+   "alarms": {
+    "n": 7,
+    "followed_by_jump": 2,
+    "false_below_5": 0,
+    "false_5_to_10": 2,
+    "false_near_miss": 3
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 28,
+     "followed_by_jump": 0
+    },
+    "Watch": {
+     "weeks": 5,
+     "followed_by_jump": 1
+    },
+    "Warning": {
+     "weeks": 2,
+     "followed_by_jump": 1
+    }
+   },
+   "r2": [
+    0.5030196774778948,
+    0.13143989664978079,
+    0.8355586187530957
+   ],
+   "mae": [
+    4.087408396330747,
+    2.6007599666037344,
+    5.955566146427934
+   ],
+   "log_r2": [
+    0.5847455647507727,
+    0.29523143744559627,
+    0.7658259763534077
+   ],
+   "models": {
+    "ensemble": {
+     "r2": 0.5030196774778948,
+     "mae": 4.087408396330747
+    },
+    "naive": {
+     "r2": 0.5020115417201746,
+     "mae": 3.590909090909091
+    },
+    "linear": {
+     "r2": 0.5241706557242201,
+     "mae": 4.1652309942258
+    }
+   }
+  },
+  "Newport": {
+   "n": 48,
+   "band": {
+    "coverage": 0.4791666666666667,
+    "inside": 23,
+    "n_banded": 48,
+    "coverage_at_onsets": 0.0,
+    "onsets_inside": 0,
+    "median_width": 19.921536299985547
+   },
+   "onsets": {
+    "n": 6,
+    "caught": 5,
+    "quiet": 24,
+    "quiet_alarmed": 8
+   },
+   "alarms": {
+    "n": 13,
+    "followed_by_jump": 5,
+    "false_below_5": 6,
+    "false_5_to_10": 1,
+    "false_near_miss": 1
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 17,
+     "followed_by_jump": 1
+    },
+    "Watch": {
+     "weeks": 4,
+     "followed_by_jump": 1
+    },
+    "Warning": {
+     "weeks": 9,
+     "followed_by_jump": 4
+    }
+   },
+   "r2": [
+    0.1287320134465253,
+    -0.34806252090504974,
+    0.4100549881977648
+   ],
+   "mae": [
+    22.116001028815905,
+    15.055208934247494,
+    29.794353763610125
+   ],
+   "log_r2": [
+    -0.1321970642543433,
+    -0.8898004689489682,
+    0.2549667128047141
+   ],
+   "models": {
+    "ensemble": {
+     "r2": 0.1287320134465253,
+     "mae": 22.116001028815905
+    },
+    "naive": {
+     "r2": -0.5228275731168555,
+     "mae": 25.235416666666666
+    },
+    "linear": {
+     "r2": -0.006478164625834504,
+     "mae": 23.27562468321906
+    }
+   }
+  },
+  "Quinault": {
+   "n": 55,
+   "band": {
+    "coverage": 0.9272727272727272,
+    "inside": 51,
+    "n_banded": 55,
+    "coverage_at_onsets": 1.0,
+    "onsets_inside": 5,
+    "median_width": 16.239293825893835
+   },
+   "onsets": {
+    "n": 5,
+    "caught": 5,
+    "quiet": 38,
+    "quiet_alarmed": 10
+   },
+   "alarms": {
+    "n": 15,
+    "followed_by_jump": 5,
+    "false_below_5": 0,
+    "false_5_to_10": 1,
+    "false_near_miss": 9
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 28,
+     "followed_by_jump": 0
+    },
+    "Watch": {
+     "weeks": 6,
+     "followed_by_jump": 2
+    },
+    "Warning": {
+     "weeks": 9,
+     "followed_by_jump": 3
+    }
+   },
+   "r2": [
+    0.6418665584469431,
+    0.3553188378520574,
+    0.8240477270621828
+   ],
+   "mae": [
+    3.0835523757067596,
+    2.2495398984713986,
+    4.007361420609735
+   ],
+   "log_r2": [
+    0.5922720542039807,
+    0.13019565833435448,
+    0.8614582366638905
+   ],
+   "models": {
+    "ensemble": {
+     "r2": 0.6418665584469431,
+     "mae": 3.0835523757067596
+    },
+    "naive": {
+     "r2": 0.6257500399260797,
+     "mae": 3.2545454545454544
+    },
+    "linear": {
+     "r2": 0.5814879763437903,
+     "mae": 3.4505385707679994
+    }
+   }
+  },
+  "Twin Harbors": {
+   "n": 42,
+   "band": {
+    "coverage": 0.9285714285714286,
+    "inside": 39,
+    "n_banded": 42,
+    "coverage_at_onsets": 0.0,
+    "onsets_inside": 0,
+    "median_width": 19.671205260831485
+   },
+   "onsets": {
+    "n": 1,
+    "caught": 0,
+    "quiet": 32,
+    "quiet_alarmed": 9
+   },
+   "alarms": {
+    "n": 9,
+    "followed_by_jump": 0,
+    "false_below_5": 0,
+    "false_5_to_10": 3,
+    "false_near_miss": 6
+   },
+   "levels": {
+    "Quiet": {
+     "weeks": 24,
+     "followed_by_jump": 1
+    },
+    "Watch": {
+     "weeks": 8,
+     "followed_by_jump": 0
+    },
+    "Warning": {
+     "weeks": 1,
+     "followed_by_jump": 0
+    }
+   },
+   "r2": [
+    0.6299138586403217,
+    0.3320440368802577,
+    0.7930731781644549
+   ],
+   "mae": [
+    3.8014860770957313,
+    2.7882316635883124,
+    4.924034162585545
+   ],
+   "log_r2": [
+    0.5092407218350244,
+    0.08075460614804174,
+    0.7399454126077929
+   ],
+   "models": {
+    "ensemble": {
+     "r2": 0.6299138586403217,
+     "mae": 3.8014860770957313
+    },
+    "naive": {
+     "r2": 0.6674189846018749,
+     "mae": 3.5238095238095237
+    },
+    "linear": {
+     "r2": 0.5057393732265947,
+     "mae": 4.3354452261368195
+    }
+   }
+  }
+ },
+ "rows": [
+  {
+   "date": "2022-01-03",
+   "anchor_date": "2021-12-27",
+   "site": "Long Beach",
+   "actual_da": 1.0,
+   "predicted_da": 2.4827544689178467,
+   "naive_prediction": 1.0,
+   "predicted_da_linear": 1.843466671663645,
+   "spike_probability": 0.012943493202328682,
+   "spike_alert": false,
+   "band_lo": 0.0,
+   "band_hi": 6.31806657409035,
+   "p_exceed": 0.026
+  },
+  {
+   "date": "2022-01-04",
+   "anchor_date": "2021-12-28",
+   "site": "Copalis",
+   "actual_da": 3.0,
+   "predicted_da": 2.19376277923584,
+   "naive_prediction": 2.0,
+   "predicted_da_linear": 2.1464835247102094,
+   "spike_probability": 0.0027112450916320086,
+   "spike_alert": false,
+   "band_lo": 0.0,
+   "band_hi": 5.7108286986311265,
+   "p_exceed": 0.022
+  },
+  {
+   "date": "2022-01-04",
+   "anchor_date": "2021-12-28",
+   "site": "Twin Harbors",
+   "actual_da": 3.0,
+   "predicted_da": 1.9683631569851396,
+   "naive_prediction": 2.0,
+   "predicted_da_linear": 5.4258741400395945,
+   "spike_probability": 0.004538246430456638,
+   "spike_alert": false,
+   "band_lo": 0.0,
+   "band_hi": 5.237212353830926,
+   "p_exceed": 0.02
+  },
+  {
+   "date": "2022-01-18",
+   "anchor_date": "2022-01-11",
+   "site": "Twin Harbors",
+   "actual_da": 5.0,
+   "predicted_da": 2.657573024452005,
+   "naive_prediction": 3.0,
+   "predicted_da_linear": 5.012693748983804,
+   "spike_probability": 0.006138685625046492,
+   "spike_alert": false,
+   "band_lo": 0.0,
+   "band_hi": 6.685400487291183,
+   "p_exceed": 0.028
+  },
+  {
+   "date": "2022-01-19",
+   "anchor_date": "2022-01-12",
+   "site": "Clatsop Beach",
+   "actual_da": 8.2,
+   "predicted_da": 3.7890379428863525,
+   "naive_prediction": 6.4,
+   "predicted_da_linear": 5.358903276763957,
+   "spike_probability": 0.006266341544687748,
+   "spike_alert": false,
+   "band_lo": 0.0,
+   "band_hi": 9.062867998494475,
+   "p_exceed": 0.042
+  }
+ ]
+}

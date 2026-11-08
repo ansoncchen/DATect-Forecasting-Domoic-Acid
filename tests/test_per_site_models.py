@@ -40,3 +40,16 @@ def test_equal_weights_when_per_site_models_are_off(monkeypatch, fresh_import):
     from forecasting.per_site_models import get_site_ensemble_weights
 
     assert get_site_ensemble_weights("Newport") == (0.5, 0.5, 0.0)
+
+
+def test_per_site_off_retrospective_blend_unchanged():
+    """The old per-site-off branch was vectorized over Series; blend must equal it."""
+    import pandas as pd
+
+    from forecasting.per_site_models import blend
+
+    rng = np.random.default_rng(2)
+    xgb, rf, naive = (pd.Series(rng.uniform(-5, 80, 500)) for _ in range(3))
+    w_xgb, w_rf, w_naive = 0.50, 0.50, 0.00
+    old = w_xgb * xgb + w_rf * rf + w_naive * naive
+    assert (blend(xgb, rf, naive, (w_xgb, w_rf, w_naive)) == old).all()

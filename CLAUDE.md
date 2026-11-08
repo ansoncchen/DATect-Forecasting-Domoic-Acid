@@ -206,7 +206,7 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
 | `forecasting/metrics.py`, `measurements.py` | Shared spike/bootstrap metrics; raw measurement parsing |
 | `forecasting/oad_features.py` | 16 OAD features (leak-safe R-5 day lag; cloud fractions) |
 | `forecasting/raw_model_factory.py`, `classification_adapter.py` | XGB/RF/Ridge builders; threshold categories and the binary spike classifier |
-| `backend/api.py` | FastAPI: forecasts, retrospective, visualizations, `/api/metrics/summary` |
+| `backend/api.py` | FastAPI: forecasts, track record, history, visualizations, `/api/metrics/summary` |
 | `frontend/` | React + Vite dashboard (trimmed Plotly bundle in `src/utils/Plot.js`) |
 | `dataset-creation.py` | Full dataset build (downloads; see hard rule 1) |
 | `scripts/eval/`, `scripts/data/` | Evaluation, offline data tools (tuning: `datect_spark/retune.py`) |

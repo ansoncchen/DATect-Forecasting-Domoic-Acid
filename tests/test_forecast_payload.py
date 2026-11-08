@@ -178,6 +178,17 @@ def test_every_model_still_forecasts_without_a_band(client):
     assert [c[3] for c in engine.calls] == ["linear", "rf", "naive", "xgboost"]
 
 
+def test_api_models_are_the_engines_without_the_xgb_alias():
+    """/api/forecast/* accept every model the engine supports except the eval scripts'
+    ``xgb`` alias."""
+    import typing
+
+    from backend import api
+    from forecasting.raw_forecast_engine import SUPPORTED_MODELS
+
+    assert set(typing.get_args(api.ForecastModel)) == set(SUPPORTED_MODELS) - {"xgb"}
+
+
 def test_all_sites_rejects_unknown_models(client):
     client.use(_Engine())
     assert client.get("/api/forecast/all", params={"model": "bogus"}).status_code == 422

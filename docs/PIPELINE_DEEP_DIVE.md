@@ -119,4 +119,4 @@ The engine computes no prediction interval. `/api/forecast/enhanced` draws the 8
 
 ## Caching and serving
 
-The precomputed store (Delta tables built on Spark on Hyak, `datect_spark/store.sbatch`) holds weekly forecasts, 5 retrospectives (regression: ensemble, xgboost, rf, naive, linear), spectral analyses and per-site correlation heatmaps. The API (`backend/precomputed.py`) serves rows whose config hash matches its own code, config, data and library versions, and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).
+The precomputed store (Delta tables built on Spark on Hyak, `datect_spark/store.sbatch`) holds weekly forecasts, 2 retrospectives (regression: xgboost and rf, the model traces the spectral analysis reads), spectral analyses and per-site correlation heatmaps. The API (`backend/precomputed.py`) serves rows whose config hash matches its own code, config, data and library versions, and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).

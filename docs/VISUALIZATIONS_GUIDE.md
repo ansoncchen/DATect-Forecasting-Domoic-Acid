@@ -17,7 +17,7 @@ Risk categories used by every chart: Low `[0, 5)`, Moderate `[5, 20)`, High `[20
 
 All except the site map read the weekly processed dataset, so their `da` and `pn` are the **gap-filled** weekly series, not raw measurements.
 
-**Correlation heatmap** (`generate_correlation_heatmap`) — Pearson correlations among all numeric columns except `lat`/`lon`, after median-imputing missing feature values. Blue is positive, red negative, white near zero. Per-site heatmaps are served from `cache/visualizations/` when the pre-computed cache is enabled.
+**Correlation heatmap** (`generate_correlation_heatmap`) — Pearson correlations among all numeric columns except `lat`/`lon`, after median-imputing missing feature values. Blue is positive, red negative, white near zero. Per-site heatmaps are served from the precomputed store's correlation table when it has a current row (`DATECT_PRECOMPUTED_DIR`), and computed otherwise; the all-sites heatmap is always computed.
 
 **Sensitivity analysis** (`generate_sensitivity_analysis`) — up to three bar charts against `da`:
 1. absolute Pearson correlation of each variable with `da`;
@@ -29,9 +29,9 @@ These describe linear association in the weekly table, not the forecasting model
 
 **Waterfall plot** (`generate_waterfall_plot`) — one line per site, stacked by latitude (north at top). Each baseline is DA = 0; height above it is proportional to DA. Grey reference bars mark 20, 50 and 100 µg/g. Shows how blooms line up along the coast in time.
 
-**Spectral analysis** (`generate_spectral_analysis`) — power spectral density (Welch), periodogram, spectrogram, coherence, and a summary panel for the weekly DA series. When `cache/retrospective/regression_xgboost.*` and `regression_rf.parquet` exist, XGBoost and Random Forest retrospective predictions are overlaid and coherence measures how well each tracks the actual series by frequency. Served from `cache/spectral/` when available; computing it on the server is slow.
+**Spectral analysis** (`generate_spectral_analysis`) — power spectral density (Welch), periodogram, spectrogram, coherence, and a summary panel for the weekly DA series. When the precomputed store holds the regression/xgboost and regression/rf retrospective slices, XGBoost and Random Forest retrospective predictions are overlaid and coherence measures how well each tracks the actual series by frequency. Served from the store's spectral table when it has a current row (`DATECT_PRECOMPUTED_DIR`); otherwise the API computes it, which is slow, with the store's slices as model traces when it has them and none otherwise.
 
-**Site map** (`get_site_map` in `backend/api.py`) — OpenStreetMap scatter of the 10 sites from `config.SITES`, with the last reading in each raw DA file, its category and date on hover. The API's figure is titled "Last Measured DA" and colours each site by that reading's category (gray below 5, then amber, orange and red; pale gray for no data): it reports a measurement that can be months old, so it gives no risk verdict and no reassuring green. The dashboard (`DataExplorer.jsx`) draws every site in one colour under its own title, per its colour rules, and keeps the hover text. Below-detection readings are shown as LOD/2.
+**Site map** (`get_site_map` in `backend/api.py`) — OpenStreetMap scatter of the 10 sites from `config.SITES`, with each site's latest measurement from the canonical loader (`load_raw_da_measurements`: one row per site-day, same-day samples at their max), its category and date on hover. The API's figure is titled "Last Measured DA" and colours each site by that reading's category (gray below 5, then amber, orange and red; pale gray for no data): it reports a measurement that can be months old, so it gives no risk verdict and no reassuring green. The dashboard (`DataExplorer.jsx`) draws every site in one colour under its own title, per its colour rules, and keeps the hover text. Below-detection readings are shown as LOD/2.
 
 ## Forecast page (`frontend/src/pages/Forecast.jsx`)
 

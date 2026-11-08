@@ -27,7 +27,8 @@ def _result(site="Newport", day="2019-06-03", task="regression"):
 
 
 def _records(model="xgboost"):
-    """/api/retrospective records (as retrospective_records builds them)."""
+    """Retrospective records as retrospective_records builds them (the rows the store's
+    retrospective table holds for a slice)."""
     days = pd.date_range("2019-01-07", periods=30, freq="7D")
     return [{"date": d.strftime("%Y-%m-%d"), "site": "Newport", "actual_da": float(i % 7),
              "predicted_da": float(i % 5) + (0.5 if model == "rf" else 0.0),
@@ -174,12 +175,6 @@ class _Engine:
     def generate_single_forecast(self, data_path, forecast_date, site, task, model_type):
         self.calls.append((site, pd.Timestamp(forecast_date).date().isoformat(), task, model_type))
         return _result(site, pd.Timestamp(forecast_date).date().isoformat(), task)
-
-    def run_retrospective_evaluation(self, task, model_type):
-        self.calls.append(("retrospective", task, model_type))
-        return pd.DataFrame({"date": pd.to_datetime(["2019-01-07"]), "site": ["Newport"],
-                             "actual_da": [3.0], "predicted_da": [2.5], "actual_category": [0],
-                             "predicted_category": [0]})
 
 
 def test_enhanced_endpoint_serves_hits_and_computes_misses(store, monkeypatch):

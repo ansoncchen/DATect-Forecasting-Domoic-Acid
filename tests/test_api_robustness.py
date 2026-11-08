@@ -195,12 +195,13 @@ def test_map_uses_the_canonical_measurements(monkeypatch):
     for k, site in enumerate(config.SITES):
         latest = pd.Timestamp("2023-06-01") + pd.Timedelta(days=7 * k)
         value = 1.25 + k
-        # out of date order; the older row of the first site has the larger value
+        # each site's newest row comes first and an older row has the larger value,
+        # so only sorting by date finds the latest reading
         rows += [(site, latest, value),
                  (site, latest - pd.Timedelta(days=30), value + 50.0),
                  (site, latest - pd.Timedelta(days=60), 0.5)]
         expected[site] = (value, latest.strftime("%Y-%m-%d"))
-    frame = pd.DataFrame(rows[::-1], columns=["site", "date", "da_raw"])
+    frame = pd.DataFrame(rows, columns=["site", "date", "da_raw"])
     monkeypatch.setattr(api, "_raw_measurements", lambda: frame)
     hovers = _map_hovers()
     assert set(hovers) == set(expected)

@@ -6,6 +6,7 @@ from raw and processed datasets, handle OAD features cleanly without leakage,
 and generate regression predictions and their risk categories correctly.
 """
 
+import inspect
 from pathlib import Path
 import pandas as pd
 import pytest
@@ -124,9 +125,11 @@ class TestForecastingPipeline:
 
         calls = []
         original = RawForecastEngine._point_forecast
+        signature = inspect.signature(original)
 
         def spy(engine, *args, **kwargs):
-            calls.append(args[0])
+            # bind, so the measurement is found however it is passed
+            calls.append(signature.bind(engine, *args, **kwargs).arguments["raw_measurement"])
             return original(engine, *args, **kwargs)
 
         monkeypatch.setattr(RawForecastEngine, "_point_forecast", spy)
@@ -159,13 +162,19 @@ class TestForecastingPipeline:
             with pytest.raises(ValueError, match=message):
                 self.engine.run_retrospective_evaluation(task=task, model_type=model_type)
 
-    def test_retrospective_has_no_logistic_column(self):
-        """The always-empty logistic category column is gone; the Ridge competitor stays."""
+    def test_retrospective_columns_are_pinned(self):
+        """The regression retrospective's columns, in order: the always-empty logistic
+        category column is gone, the Ridge competitor stays."""
         eval_df = self.engine.run_retrospective_evaluation(
             task="regression", model_type="ensemble", max_test_samples=3,
         )
-        assert "predicted_category_logistic" not in eval_df.columns
-        assert "predicted_da_linear" in eval_df.columns
+        assert list(eval_df.columns) == [
+            "date", "anchor_date", "processed_test_date", "site", "actual_da",
+            "predicted_da", "predicted_da_rf", "naive_prediction", "predicted_da_linear",
+            "training_samples", "days_ahead", "date_diff_to_processed", "feature_importance",
+            "spike_probability", "spike_alert", "ensemble_prediction", "actual_category",
+            "predicted_category",
+        ]
 
     def test_spike_classifier_probability(self):
         """Verify that the dedicated spike binary classifier evaluates probability and triggers alerts."""
@@ -209,12 +218,13 @@ def test_interval_knobs_are_gone():
         assert not hasattr(config, name), name
 
 
-def test_engine_accepts_exactly_the_models_callers_pass():
-    """The API, the store builder and the eval scripts pass these (``xgb`` is the eval
-    scripts' alias for XGBoost); anything else, ``logistic`` included, is a ValueError."""
-    from forecasting.raw_forecast_engine import _require_regression
+def test_supported_models_are_pinned():
+    """The engine admits exactly these models (``xgb`` is the eval scripts' alias for
+    XGBoost); anything else, ``logistic`` included, is a ValueError."""
+    from forecasting.raw_forecast_engine import SUPPORTED_MODELS, _require_regression
 
-    for model_type in ("ensemble", "xgboost", "xgb", "rf", "naive", "linear"):
+    assert SUPPORTED_MODELS == ("ensemble", "xgboost", "xgb", "rf", "naive", "linear")
+    for model_type in SUPPORTED_MODELS:
         _require_regression("regression", model_type)
     with pytest.raises(ValueError, match="'logistic' was removed.*'linear'"):
         _require_regression("regression", "logistic")

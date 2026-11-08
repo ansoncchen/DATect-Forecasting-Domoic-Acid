@@ -12,7 +12,7 @@ Each site can override:
   - prediction_clip_max: Hard ceiling on predictions in ug/g (None = no hard ceiling)
 """
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import config
 from forecasting.logging_config import get_logger
@@ -119,7 +119,7 @@ def apply_site_rf_params(base_params: dict, site: str) -> dict:
 EQUAL_WEIGHTS: tuple[float, float, float] = (0.5, 0.5, 0.0)
 
 
-def get_site_ensemble_weights(site: str) -> Tuple[float, float, float]:
+def get_site_ensemble_weights(site: str) -> tuple[float, float, float]:
     """Return (xgb_weight, rf_weight, naive_weight) for this site.
 
     Equal XGB/RF weights, no naive term, when per-site models are off or the
@@ -131,7 +131,8 @@ def get_site_ensemble_weights(site: str) -> Tuple[float, float, float]:
     return weights if weights is not None else EQUAL_WEIGHTS
 
 
-def blend(xgb, rf, naive, weights):
+def blend(xgb: float, rf: float | None, naive: float,
+          weights: tuple[float, float, float]) -> float:
     """w_xgb*xgb + w_rf*rf + w_naive*naive, evaluated left to right.
 
     rf=None means no RF prediction: the XGB prediction stands in for it.
@@ -143,7 +144,7 @@ def blend(xgb, rf, naive, weights):
     return w_xgb * xgb + w_rf * rf + w_naive * naive
 
 
-def get_site_clip_params(site: str) -> Tuple[Optional[float], Optional[float]]:
+def get_site_clip_params(site: str) -> tuple[Optional[float], Optional[float]]:
     """Return (clip_quantile, clip_max) for prediction clipping."""
     cfg = get_site_config(site)
     return cfg['prediction_clip_q'], cfg['prediction_clip_max']

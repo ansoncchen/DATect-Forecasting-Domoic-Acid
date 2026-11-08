@@ -28,8 +28,7 @@ def test_forecasts_table_keeps_task_and_stores_no_interval(serving):
     summary = serving._summary({"predicted_da": 5.3, "predicted_category": 1,
                                 "spike_probability": 0.02, "spike_alert": False,
                                 "training_samples": 600})
-    assert set(summary) <= set(columns) and "q50" not in summary
-    assert not hasattr(serving, "not_reproducible")
+    assert set(summary) <= set(columns)
 
 
 def test_precompute_tasks_are_regression_only(serving):

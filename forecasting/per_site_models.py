@@ -115,16 +115,31 @@ def apply_site_rf_params(base_params: dict, site: str) -> dict:
     return {**base_params, **site_cfg['rf_params']}
 
 
+EQUAL_WEIGHTS: tuple[float, float, float] = (0.5, 0.5, 0.0)
+
+
 def get_site_ensemble_weights(site: str) -> Tuple[float, float, float]:
     """Return (xgb_weight, rf_weight, naive_weight) for this site.
 
-    Default: (0.56, 0.44, 0.00).  naive_weight is always 0.0; naive
-    persistence is evaluated as an external standalone baseline only.
+    Equal XGB/RF weights, no naive term, when per-site models are off or the
+    site has no tuned weights.  Naive persistence is an external baseline.
     """
+    if not config.USE_PER_SITE_MODELS:
+        return EQUAL_WEIGHTS
     weights = get_site_config(site)['ensemble_weights']
-    if weights is not None:
-        return weights
-    return (0.56, 0.44, 0.00)
+    return weights if weights is not None else EQUAL_WEIGHTS
+
+
+def blend(xgb, rf, naive, weights):
+    """w_xgb*xgb + w_rf*rf + w_naive*naive, evaluated left to right.
+
+    rf=None means no RF prediction: the XGB prediction stands in for it.
+    Works on floats and on arrays/Series alike.
+    """
+    w_xgb, w_rf, w_naive = weights
+    if rf is None:
+        rf = xgb
+    return w_xgb * xgb + w_rf * rf + w_naive * naive
 
 
 def get_site_clip_params(site: str) -> Tuple[Optional[float], Optional[float]]:

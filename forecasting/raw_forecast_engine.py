@@ -50,6 +50,7 @@ from .raw_model_factory import (
 from .per_site_models import (
     apply_site_xgb_params,
     apply_site_rf_params,
+    blend,
     get_site_ensemble_weights,
     get_site_clip_params,
     compute_site_drop_cols,
@@ -283,10 +284,8 @@ class RawForecastEngine:
 
         # --- Ensemble blend ---
         w_xgb, w_rf, w_naive = self._ensemble_weights(site)
-        ensemble_prediction = (
-            w_xgb * xgb_prediction
-            + w_rf * rf_prediction
-            + w_naive * naive_prediction
+        ensemble_prediction = blend(
+            xgb_prediction, rf_prediction, naive_prediction, (w_xgb, w_rf, w_naive)
         )
 
         # Choose which prediction to expose as primary
@@ -715,34 +714,21 @@ class RawForecastEngine:
         results_df = pd.DataFrame(results)
 
         # --- Ensemble prediction ---
-        use_per_site = config.USE_PER_SITE_MODELS
         if (
             not results_df.empty
             and "predicted_da" in results_df.columns
             and "naive_prediction" in results_df.columns
         ):
-            if use_per_site:
-                ens = []
-                for _, row in results_df.iterrows():
-                    w_xgb, w_rf, w_naive = get_site_ensemble_weights(row["site"])
-                    rf_pred = row.get("predicted_da_rf", row["predicted_da"])
-                    ens.append(
-                        w_xgb * row["predicted_da"]
-                        + w_rf * rf_pred
-                        + w_naive * row["naive_prediction"]
+            ens = []
+            for _, row in results_df.iterrows():
+                rf_pred = row.get("predicted_da_rf", row["predicted_da"])
+                ens.append(
+                    blend(
+                        row["predicted_da"], rf_pred, row["naive_prediction"],
+                        get_site_ensemble_weights(row["site"]),
                     )
-                results_df["ensemble_prediction"] = ens
-            else:
-                # Fallback: equal XGB/RF split, no naive blending (naive is external baseline)
-                w_xgb, w_rf, w_naive = 0.50, 0.50, 0.00
-                rf_preds = results_df.get(
-                    "predicted_da_rf", results_df["predicted_da"]
                 )
-                results_df["ensemble_prediction"] = (
-                    w_xgb * results_df["predicted_da"]
-                    + w_rf * rf_preds
-                    + w_naive * results_df["naive_prediction"]
-                )
+            results_df["ensemble_prediction"] = ens
 
         # --- Canonical keys for API ---
         # Map raw column names to what the API expects
@@ -1024,8 +1010,9 @@ class RawForecastEngine:
                         )
                         classifier_fires = spike_prob >= config.SPIKE_ALERT_PROB_THRESHOLD
                         w_xgb, w_rf, _ = self._ensemble_weights(site)
-                        rf_val = rf_prediction if rf_prediction is not None else prediction
-                        ensemble_pred = w_xgb * prediction + w_rf * rf_val
+                        ensemble_pred = blend(
+                            prediction, rf_prediction, 0.0, (w_xgb, w_rf, 0.0)
+                        )
                         regression_fires = ensemble_pred >= config.SPIKE_REGRESSION_ALERT_THRESHOLD
                         spike_alert = classifier_fires or regression_fires
             except Exception as exc:
@@ -1034,8 +1021,7 @@ class RawForecastEngine:
         # Regression-only fallback when classifier is unavailable
         if spike_alert is None:
             w_xgb, w_rf, _ = self._ensemble_weights(site)
-            rf_val = rf_prediction if rf_prediction is not None else prediction
-            ensemble_pred = w_xgb * prediction + w_rf * rf_val
+            ensemble_pred = blend(prediction, rf_prediction, 0.0, (w_xgb, w_rf, 0.0))
             if ensemble_pred >= config.SPIKE_REGRESSION_ALERT_THRESHOLD:
                 spike_alert = True
 
@@ -1077,9 +1063,7 @@ class RawForecastEngine:
     def _ensemble_weights(site: str) -> tuple[float, float, float]:
         """(w_xgb, w_rf, w_naive): per-site weights, or an equal XGB/RF split when
         USE_PER_SITE_MODELS is off (naive persistence is an external baseline)."""
-        if config.USE_PER_SITE_MODELS:
-            return get_site_ensemble_weights(site)
-        return 0.5, 0.5, 0.0
+        return get_site_ensemble_weights(site)
 
     # ------------------------------------------------------------------
     # Metrics display (backward compat)

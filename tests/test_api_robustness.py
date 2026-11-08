@@ -82,25 +82,11 @@ def test_api_sites_endpoint():
         assert "max" in data["date_range"]
 
 
-def test_api_models_endpoint():
-    """Verify get_models endpoint returns available models and descriptions."""
-    with TestClient(app) as client:
-        response = client.get("/api/models")
-        assert response.status_code == 200
-        data = response.json()
-        assert "available_models" in data
-        assert "ensemble" in data["available_models"]["regression"]
-        assert "descriptions" in data
-
-
 def test_settings_travel_with_each_request():
-    """The server holds no per-user settings: no config mutation endpoint, and
-    /api/retrospective validates the task it is given."""
+    """The server holds no per-user settings: no config mutation endpoint."""
     with TestClient(app) as client:
         assert client.post("/api/config", json={"forecast_model": "naive"}).status_code == 405
         assert client.get("/api/config").status_code == 200
-        response = client.post("/api/retrospective", json={"task": "bogus", "model": "ensemble"})
-        assert response.status_code == 400
 
 
 def test_metrics_summary_reads_committed_results():
@@ -153,14 +139,10 @@ def test_summary_reliability_per_site():
     assert data["source"] and data["per_site"]["Gold Beach"]["spike_recall"] is not None
 
 
-def test_region_rollup_puts_clatsop_and_cannon_in_oregon():
+def test_site_states_follow_the_columbia_border():
     import config
-    from backend.api import _compute_summary
     assert config.SITE_STATES["Clatsop Beach"] == "OR" and config.SITE_STATES["Cannon Beach"] == "OR"
-    rows = [{"site": s, "actual_da": float(i), "predicted_da": float(i) + 0.5}
-            for s in ("Clatsop Beach", "Cannon Beach") for i in range(5)]
-    regions = _compute_summary(rows, task="regression")["per_region"]
-    assert regions["OR"]["n_sites"] == 2 and "WA" not in regions
+    assert config.SITE_STATES["Copalis"] == "WA" and config.SITE_STATES["Newport"] == "OR"
 
 
 def test_historical_returns_raw_measurements():

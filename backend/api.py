@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path
 from datetime import datetime, date
-from typing import Any, Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 from functools import lru_cache
 
 import numpy as np
@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 
-from forecasting import ForecastEngine, ModelFactory
+from forecasting import ForecastEngine
 import config
 from backend import band
 from backend.band import forecast_band
@@ -76,7 +76,6 @@ app.add_middleware(
 
 # Lazy singletons for Cloud Run optimization
 forecast_engine = None
-model_factory = None
 # Precomputed store (Delta), loaded at startup when DATECT_PRECOMPUTED_DIR is set
 precomputed.load_from_env()
 
@@ -108,12 +107,6 @@ def _single_forecast(site: str, forecast_date, task: str, model_type: str):
     )
     return result, None
 
-def get_model_factory() -> ModelFactory:
-    global model_factory
-    if model_factory is None:
-        model_factory = ModelFactory()
-    return model_factory
-
 @lru_cache(maxsize=1)
 def get_site_mapping() -> dict:
     """Get cached site name mapping for flexible API access"""
@@ -133,41 +126,10 @@ class ForecastRequest(BaseModel):
     task: str = "regression"  # "regression" or "classification"
     model: str = "ensemble"
 
-class ForecastResponse(BaseModel):
-    success: bool
-    forecast_date: date
-    site: str
-    task: str
-    model: str
-    prediction: Optional[float] = None
-    predicted_category: Optional[int] = None
-    training_samples: Optional[int] = None
-    feature_importance: Optional[List[Dict[str, Any]]] = None
-    naive_prediction: Optional[float] = None
-    xgb_prediction: Optional[float] = None
-    rf_prediction: Optional[float] = None
-    ensemble_weights: Optional[List[float]] = None
-    spike_probability: Optional[float] = None
-    spike_alert: Optional[bool] = None
-    source: str = "computed"  # or "precomputed" (served from the Delta table)
-    model_version: Optional[str] = None
-    error: Optional[str] = None
-
 class SiteInfo(BaseModel):
     sites: List[str]
     date_range: Dict[str, date]
     site_mapping: Dict[str, str]
-
-class ModelInfo(BaseModel):
-    available_models: Dict[str, List[str]]
-    descriptions: Dict[str, str]
-
-
-class RetrospectiveRequest(BaseModel):
-    selected_sites: List[str] = []  # Empty list means all sites
-    task: str = config.FORECAST_TASK  # "regression" or "classification"
-    model: str = config.FORECAST_MODEL  # "ensemble", "naive", or "linear"
-
 
 @app.get("/api")
 def root():
@@ -204,82 +166,6 @@ def get_sites():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load site information: {str(e)}")
-
-@app.get("/api/models", response_model=ModelInfo)
-def get_models():
-    """Get available models and their descriptions."""
-    try:
-        mf = get_model_factory()
-        available_models = {
-            "regression": mf.get_supported_models('regression')['regression'],
-            "classification": mf.get_supported_models('classification')['classification']
-        }
-        
-        # Get descriptions for all models
-        descriptions = {}
-        all_models = set(available_models["regression"] + available_models["classification"])
-        for model in all_models:
-            descriptions[model] = mf.get_model_description(model)
-        
-        return ModelInfo(available_models=available_models, descriptions=descriptions)
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load model information: {str(e)}")
-
-@app.post("/api/forecast", response_model=ForecastResponse)
-def generate_forecast(request: ForecastRequest):
-    """Generate a forecast for the specified parameters."""
-    if request.task not in ["regression", "classification"]:
-        raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
-
-    try:
-        actual_site = resolve_site(request.site)
-        forecast_date = pd.to_datetime(request.date)
-
-        model_type = request.model or config.FORECAST_MODEL or "ensemble"
-        if model_type == "linear" and request.task == "classification":
-            model_type = "logistic"
-
-        result, model_version = _single_forecast(actual_site, forecast_date, request.task, model_type)
-
-        if result is None:
-            raise HTTPException(
-                status_code=422,
-                detail="Insufficient data for forecast",
-            )
-
-        response_data = {
-            "success": True,
-            "forecast_date": forecast_date.date(),
-            "site": request.site,
-            "task": request.task,
-            "model": request.model,
-            "training_samples": result.get('training_samples'),
-            "source": "precomputed" if model_version else "computed",
-            "model_version": model_version,
-        }
-
-        if request.task == "regression":
-            response_data["prediction"] = result.get("predicted_da")
-        elif request.task == "classification":
-            response_data["predicted_category"] = result.get("predicted_category")
-
-        if "feature_importance" in result and result["feature_importance"] is not None:
-            importance_df = result["feature_importance"]
-            if hasattr(importance_df, "to_dict"):
-                response_data["feature_importance"] = importance_df.head(10).to_dict("records")
-
-        if result.get("spike_probability") is not None:
-            response_data["spike_probability"] = result["spike_probability"]
-            response_data["spike_alert"] = result.get("spike_alert", False)
-
-        return ForecastResponse(**response_data)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
 
 @app.get("/api/historical/{site}")
 def get_historical_data(
@@ -883,197 +769,6 @@ def get_all_sites_forecast(
         })
     return clean_for_json({"date": day.date().isoformat(), "sites": sites})
 
-
-@app.post("/api/retrospective")
-def run_retrospective_analysis(request: RetrospectiveRequest = RetrospectiveRequest()):
-    """Retrospective results for the requested task and model (precomputed store in production)."""
-    if request.task not in ("regression", "classification"):
-        raise HTTPException(status_code=400, detail="Task must be 'regression' or 'classification'")
-    task = request.task
-    try:
-        # Map model names for API compatibility
-        if request.model == "linear":
-            actual_model = "linear" if task == "regression" else "logistic"
-        else:
-            actual_model = request.model  # "ensemble" or "naive" pass through
-        
-        base_results = precomputed.retrospective(task, actual_model)
-        hit = base_results is not None
-        
-        if base_results is None:
-            # Compute on server (expensive - only for local development)
-            logging.warning("Computing retrospective analysis on server - this is expensive!")
-            engine = get_forecast_engine()
-            engine.data_file = config.FINAL_OUTPUT_PATH
-            
-            results_df = engine.run_retrospective_evaluation(
-                task=task,
-                model_type=actual_model,
-            )
-
-            if results_df is None or results_df.empty:
-                return {"success": False, "error": "No results generated from retrospective analysis"}
-
-            base_results = retrospective_records(results_df)
-        else:
-            logging.info(f"Serving pre-computed retrospective analysis: {task}+{actual_model}")
-
-        # Filter by sites if specified
-        filtered = [r for r in base_results if r['site'] in request.selected_sites] if request.selected_sites else base_results
-        
-        summary = _compute_summary(filtered, task)
-        return {
-            "success": True,
-            "config": {
-                "forecast_mode": "retrospective",
-                "forecast_task": task,
-                "forecast_model": request.model,
-            },
-            "precomputed": {"hit": hit, **precomputed.table_info()},
-            "summary": summary,
-            "results": filtered
-        }
-        
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-
-
-def _compute_summary(results_json: list, task: Optional[str] = None) -> dict:
-    """Compute summary metrics for retrospective results using canonical keys only."""
-    summary = {"total_forecasts": len(results_json)}
-
-    # Extract valid pairs strictly from canonical keys
-    valid_regression = []
-    valid_classification = []
-    for r in results_json:
-        a = r.get('actual_da')
-        p = r.get('predicted_da')
-        if a is not None and p is not None:
-            valid_regression.append((a, p))
-
-        ac = r.get('actual_category')
-        pc = r.get('predicted_category')
-        if ac is not None and pc is not None:
-            valid_classification.append((ac, pc))
-
-    summary["regression_forecasts"] = len(valid_regression)
-    summary["classification_forecasts"] = len(valid_classification)
-
-    # Regression metrics
-    if task != "classification" and valid_regression:
-        from sklearn.metrics import mean_absolute_error, r2_score
-
-        from forecasting.metrics import detection_scores, exceeds
-        actual_vals = [r[0] for r in valid_regression]
-        pred_vals = [r[1] for r in valid_regression]
-        try:
-            summary["r2_score"] = float(r2_score(actual_vals, pred_vals))
-            summary["mae"] = float(mean_absolute_error(actual_vals, pred_vals))
-
-            # Spike detection: actual DA >= SPIKE_THRESHOLD vs predicted DA >=
-            # SPIKE_REGRESSION_ALERT_THRESHOLD. Use config constants so the
-            # webapp stays coordinated with the spike-alert system.
-            spike_threshold = config.SPIKE_THRESHOLD
-            pred_alert_threshold = config.SPIKE_REGRESSION_ALERT_THRESHOLD
-            actual_binary = exceeds(actual_vals, spike_threshold)
-            pred_binary = exceeds(pred_vals, pred_alert_threshold)
-            n_spike_events = int(actual_binary.sum())
-            n_alerts = int(pred_binary.sum())
-            det = detection_scores(actual_binary, pred_binary)
-            summary["f1_score"] = det["f1"]
-            summary["spike_recall"] = det["recall"]
-            summary["spike_precision"] = det["precision"]
-            # F2 weights recall 4x precision — operational metric for public-health
-            # alerting where missing a spike is worse than a false alarm.
-            summary["spike_f2"] = det["f2"]
-            summary["n_spike_events"] = n_spike_events
-            summary["n_alerts_fired"] = n_alerts
-            summary["spike_threshold_actual"] = spike_threshold
-            summary["spike_threshold_predicted"] = pred_alert_threshold
-
-            # MAE stratified by whether the actual was a spike. Separates
-            # "typical-day accuracy" from "extreme-event accuracy" — pooled MAE
-            # mashes them together, but they're operationally different.
-            non_spike_pairs = [(a, p) for a, p in zip(actual_vals, pred_vals) if a < spike_threshold]
-            spike_pairs     = [(a, p) for a, p in zip(actual_vals, pred_vals) if a >= spike_threshold]
-            if non_spike_pairs:
-                summary["mae_nonspike"] = float(
-                    mean_absolute_error([a for a, _ in non_spike_pairs],
-                                        [p for _, p in non_spike_pairs])
-                )
-                summary["n_nonspike"] = len(non_spike_pairs)
-            if spike_pairs:
-                summary["mae_spike"] = float(
-                    mean_absolute_error([a for a, _ in spike_pairs],
-                                        [p for _, p in spike_pairs])
-                )
-                summary["n_spike"] = len(spike_pairs)
-        except Exception:
-            pass
-
-        # Per-region rollup: WA vs OR. Aggregates over coastal physiography
-        # since pooling all 10 sites mixes ~0.6 R² WA with ~-0.5 R² OR.
-        try:
-            region_groups = {"WA": [], "OR": []}
-            for r in results_json:
-                state = config.SITE_STATES.get(r.get("site"))
-                if state in region_groups:
-                    region_groups[state].append(r)
-            region_metrics = {}
-            for reg, rs in region_groups.items():
-                pairs = [(x.get("actual_da"), x.get("predicted_da")) for x in rs
-                         if x.get("actual_da") is not None and x.get("predicted_da") is not None]
-                if len(pairs) < 5:
-                    continue
-                av = [a for a, _ in pairs]; pv = [p for _, p in pairs]
-                from sklearn.metrics import r2_score as _r2, mean_absolute_error as _mae
-                region_metrics[reg] = {
-                    "r2": float(_r2(av, pv)),
-                    "mae": float(_mae(av, pv)),
-                    "n": len(pairs),
-                    "n_sites": len({x["site"] for x in rs}),
-                }
-            if region_metrics:
-                summary["per_region"] = region_metrics
-        except Exception:
-            pass
-
-    # Classification metrics
-    if task == "classification" and valid_classification:
-        from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_recall_fscore_support
-        actual_cats = [r[0] for r in valid_classification]
-        pred_cats = [r[1] for r in valid_classification]
-        try:
-            summary["accuracy"] = float(accuracy_score(actual_cats, pred_cats))
-            summary["balanced_accuracy"] = float(balanced_accuracy_score(actual_cats, pred_cats))
-            
-            # Per-class metrics
-            classes = [0, 1, 2, 3]
-            class_names = ['Low', 'Moderate', 'High', 'Extreme']
-            per_class_metrics = {}
-            
-            precision, recall, f1, support = precision_recall_fscore_support(
-                actual_cats, pred_cats, labels=classes, zero_division=0
-            )
-            
-            for i, class_name in enumerate(class_names):
-                per_class_metrics[class_name] = {
-                    'precision': float(precision[i]),
-                    'recall': float(recall[i]),
-                    'f1': float(f1[i]),
-                    'support': int(support[i])
-                }
-            
-            summary["per_class_metrics"] = per_class_metrics
-            
-        except Exception as e:
-            logging.error(f"Error calculating classification metrics: {e}")
-
-    return summary
 
 # Serve built frontend if present (single-origin deploy)
 try:

@@ -9,7 +9,7 @@ next to gold/forecasts (datect_spark/forecast_serving.py):
                     runs the engine's own per-point forecasts: the engine fans them out
                     through joblib, and here joblib's backend is Spark (joblibspark,
                     DATECT_PARALLEL_BACKEND=spark), so sampling and assembly are the
-                    engine's, unchanged. Rows hold /api/retrospective's records.
+                    engine's, unchanged. Rows hold the retrospective records (backend/records.py).
     spectral        generate_spectral_analysis per site and for all sites, with the
                     regression/xgboost and regression/rf slices as model traces
     correlation     generate_correlation_heatmap per site

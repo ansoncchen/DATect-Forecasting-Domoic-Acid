@@ -51,8 +51,8 @@ def clean_for_json(obj):
 
 
 def retrospective_records(results_df: pd.DataFrame) -> list:
-    """run_retrospective_evaluation's rows as the JSON records /api/retrospective
-    returns (canonical keys, floats cleaned); the precompute stores these too."""
+    """run_retrospective_evaluation's rows as JSON records
+    (canonical keys, floats cleaned); the precompute stores these too."""
     records = []
     for _, row in results_df.iterrows():
         record = {

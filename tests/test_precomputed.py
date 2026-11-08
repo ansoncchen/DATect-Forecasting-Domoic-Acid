@@ -209,33 +209,6 @@ def test_enhanced_endpoint_serves_hits_and_computes_misses(store, monkeypatch):
         {k: v for k, v in computed.items() if k not in strip}
 
 
-def test_forecast_endpoint_reports_its_source(store, monkeypatch):
-    from backend import api
-
-    engine = _Engine()
-    monkeypatch.setattr(api, "get_forecast_engine", lambda: engine)
-    with TestClient(api.app) as client:
-        r = client.post("/api/forecast", json={"date": "2019-06-03", "site": "Newport",
-                                               "task": "regression", "model": "ensemble"}).json()
-    assert r["source"] == "precomputed" and r["prediction"] == 5.32426643371582 and engine.calls == []
-
-
-def test_retrospective_endpoint_serves_the_store_and_computes_misses(store, monkeypatch):
-    from backend import api
-
-    engine = _Engine()
-    monkeypatch.setattr(api, "get_forecast_engine", lambda: engine)
-    with TestClient(api.app) as client:
-        hit = client.post("/api/retrospective", json={"task": "regression", "model": "xgboost"}).json()
-        assert hit["results"] == _records("xgboost") and engine.calls == []
-        assert hit["precomputed"] == {"hit": True, "dir": store, "table_version": 0}
-        miss = client.post("/api/retrospective", json={"task": "classification", "model": "ensemble"}).json()
-    assert engine.calls == [("retrospective", "classification", "ensemble")]
-    assert miss["precomputed"]["hit"] is False
-    assert miss["results"] == [{"date": "2019-01-07", "site": "Newport", "actual_da": 3.0, "predicted_da": 2.5,
-                                "actual_category": 0, "predicted_category": 0}]
-
-
 def test_visualizations_serve_the_store(store, monkeypatch):
     from backend import api
 

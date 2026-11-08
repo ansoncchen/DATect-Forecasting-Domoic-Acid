@@ -15,7 +15,7 @@ The store is a directory of four Delta tables that the API reads with `deltalake
 | Table | Contents | Built by |
 |---|---|---|
 | `forecasts` | `generate_single_forecast` output for every (site, week) in `final_output.parquet`, model `ensemble`, regression only (10,950 entries; the measured 2026-11 run stored both tasks, 21,900) | `datect_spark/forecast_serving.py precompute` |
-| `retrospective` | `/api/retrospective` records for 8 task/model slices: regression × {ensemble, xgboost, rf, naive, linear}, classification × {ensemble, naive, logistic} | `datect_spark/precompute_store.py retrospective` |
+| `retrospective` | retrospective records (the model traces of the spectral plots) for 8 task/model slices: regression × {ensemble, xgboost, rf, naive, linear}, classification × {ensemble, naive, logistic} | `datect_spark/precompute_store.py retrospective` |
 | `spectral` | spectral analysis per site and for all sites | `datect_spark/precompute_store.py visuals` |
 | `correlation` | correlation heatmap per site | `datect_spark/precompute_store.py visuals` |
 
@@ -101,7 +101,7 @@ Read by the server code (`backend/`), `run_datect.py` and the image:
 
 The engine's `DATECT_*` overrides (see `config.py`) apply to the API process too, and are part of the config hash; the deployed service uses none.
 
-There is no runtime configuration endpoint: `POST /api/config` was removed, and task and model now travel with each request (`/api/retrospective` takes them in the body). `GET /api/config` remains read-only.
+There is no runtime configuration endpoint: `POST /api/config` was removed, and task and model now travel with each request. `GET /api/config` remains read-only.
 
 ## Verify and operate
 

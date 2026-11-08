@@ -3,7 +3,7 @@
 Loads ``config/tuned_hyperparameters.json`` at import time. Both ``config.py``
 and ``forecasting/per_site_models.py`` import from here instead of holding
 hardcoded values, so the entire model configuration can be refreshed by
-re-running ``scripts/tune/tune_all.py`` (TBD) and committing the new JSON.
+committing a new JSON.
 
 Env-var overlays (``DATECT_HPARAM_OVERRIDE_JSON``, ``DATECT_SPIKE_CLASSIFIER_JSON``)
 are still applied on top of the JSON values by the respective consumers.
@@ -26,7 +26,7 @@ def load_tuned(path: str | Path | None = None) -> Dict[str, Any]:
     if not p.exists():
         raise FileNotFoundError(
             f"Tuned hyperparameters JSON not found at {p}. "
-            "Run scripts/tune/tune_all.py to generate it, or restore from git."
+            "Restore it from git."
         )
     with open(p) as f:
         data = json.load(f)

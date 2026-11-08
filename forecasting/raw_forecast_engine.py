@@ -113,7 +113,6 @@ class RawForecastEngine:
         logger.info("Initializing RawForecastEngine")
         self.data_file = data_file or config.FINAL_OUTPUT_PATH
         self.results_df = None
-        self._data_cache: dict = {}
         self._feature_frame_cache: Optional[pd.DataFrame] = None
         self._raw_data_cache: Optional[pd.DataFrame] = None
 
@@ -274,7 +273,6 @@ class RawForecastEngine:
             {"date": forecast_date, "site": site, "da_raw": np.nan},
             feature_frame,
             xgb_params,
-            skip_quantiles=True,
             return_internals=True,
         )
         if core is None:
@@ -899,10 +897,8 @@ class RawForecastEngine:
             best_params = {**effective_params, **effective_grid[0]}
 
         # --- Run the actual prediction ---
-        # skip_quantiles=True: retrospective evaluation does not use quantile
-        # intervals, so avoid the 3 extra XGB quantile model trainings per point.
         return self._run_single_raw_validation(
-            raw_measurement, feature_frame, best_params, skip_quantiles=True,
+            raw_measurement, feature_frame, best_params,
             return_internals=return_internals,
         )
 
@@ -911,7 +907,6 @@ class RawForecastEngine:
         raw_measurement: dict,
         feature_frame: pd.DataFrame,
         model_params: dict,
-        skip_quantiles: bool = False,
         skip_rf: bool = False,
         return_internals: bool = False,
     ) -> Optional[dict]:
@@ -1056,26 +1051,6 @@ class RawForecastEngine:
             except Exception:
                 predicted_category_logistic = None
 
-        # Quantile intervals
-        quantile_predictions = {}
-        enable_qi = config.ENABLE_QUANTILE_INTERVALS
-        if enable_qi and not skip_quantiles:
-            try:
-                for q in (0.1, 0.5, 0.9):
-                    q_params = {
-                        **model_params,
-                        "objective": "reg:quantileerror",
-                        "quantile_alpha": q,
-                    }
-                    q_model = build_xgb_regressor(q_params)
-                    q_model.fit(X_train_processed, y_train)
-                    q_pred = float(q_model.predict(X_test_processed)[0])
-                    quantile_predictions[f"predicted_p{int(q * 100)}"] = _postprocess(
-                        q_pred
-                    )
-            except Exception:
-                quantile_predictions = {}
-
         # Feature importance
         feature_importance = {}
         if hasattr(xgb_model, "feature_importances_"):
@@ -1165,7 +1140,7 @@ class RawForecastEngine:
                 "xgb_params": xgb_params_final,
                 "rf_params": rf_base,
             }
-        return {**result, **quantile_predictions}
+        return result
 
     @staticmethod
     def _ensemble_weights(site: str) -> tuple[float, float, float]:
@@ -1190,7 +1165,7 @@ class RawForecastEngine:
             params = {**base_params, **override}
             results = [
                 self._run_single_raw_validation(
-                    row, feature_frame, params, skip_quantiles=True, skip_rf=True
+                    row, feature_frame, params, skip_rf=True
                 )
                 for row in calib_rows
             ]

@@ -87,8 +87,6 @@ def _engine():
         import config
         from forecasting.raw_forecast_engine import RawForecastEngine
 
-        if config.CLIP_Q_OVERRIDE != "none":
-            raise RuntimeError("workers must run with DATECT_CLIP_Q_OVERRIDE=none")
         engine = RawForecastEngine(validate_on_init=False)
         base = dict(config.XGB_REGRESSION_PARAMS)
         base["n_jobs"] = 1
@@ -130,8 +128,7 @@ def predict(window: str, limit: int | None = None) -> None:
         tasks = tasks.head(limit)  # smoke runs
 
     # Workers inherit this environment (local mode) or get it via executorEnv
-    env = {"DATECT_CLIP_Q_OVERRIDE": "none",
-           "PYTHONPATH": REPO_ROOT + os.pathsep + os.environ.get("PYTHONPATH", "")}
+    env = {"PYTHONPATH": REPO_ROOT + os.pathsep + os.environ.get("PYTHONPATH", "")}
     os.environ.update(env)
     spark = get_spark(f"datect-retune-predict-{window}",
                       conf={f"spark.executorEnv.{k}": v for k, v in env.items()})

@@ -28,7 +28,7 @@ _WARNED_MISSING_FEATURES: set = set()
 # --------------------------------------------------------------------------
 
 # SITE_SPECIFIC_CONFIGS is now loaded from config/tuned_hyperparameters.json.
-# To change values: edit that JSON (or regenerate via scripts/tune/tune_all.py),
+# To change values: edit that JSON,
 # do NOT add hardcoded literals back here. Env-var overlays below still apply.
 from forecasting.tuned_config import get_per_site as _get_per_site
 SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {

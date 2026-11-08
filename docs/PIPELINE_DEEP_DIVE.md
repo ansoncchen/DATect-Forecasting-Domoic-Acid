@@ -91,14 +91,14 @@ One convention everywhere (`forecasting/metrics.py`, `config.py`): **reaching a 
 - **Hybrid spike alert** (`spike_alert` in each result): pooled spike-classifier probability `>= SPIKE_ALERT_PROB_THRESHOLD` (0.1) **or** the regression alert. The classifier (`ClassificationAdapter.train_spike_binary_classifier`) is an XGBoost model trained per prediction on real measurements from all sites up to the anchor (at least 30 rows), on every row, including weeks already above 20 (the lag and rolling DA features stay), without `last_observed_da_raw` / `weeks_since_last_spike`, with balanced class weights and `SPIKE_CLASSIFIER_PARAMS`. If it cannot be trained, the regression rule alone decides.
 - **Risk categories**: `DA_CATEGORY_BINS` with `pd.cut(..., right=False)`: Low `[0, 5)`, Moderate `[5, 20)`, High `[20, 40)`, Extreme `>= 40`. A value on a boundary belongs to the higher category. `ClassificationAdapter.threshold_classify` bins the regression prediction into `predicted_category`. Classification-task single forecasts also train a dedicated balanced XGBoost 4-class classifier (`predicted_category_ml` plus class probabilities); with `model_type="logistic"` a logistic regression supplies the category instead.
 
-## 9. Single forecasts (dashboard and `/api/forecast*`)
+## 9. Single forecasts (dashboard and `/api/forecast/*`)
 
 `generate_single_forecast(data_path, forecast_date, site, task, model_type)` calls `_run_single_raw_validation(..., return_internals=True)` — the same core every evaluation scores — so the dashboard shows the evaluated models. It then adds the selected model's prediction, the ensemble breakdown, categories, the spike alert and prediction intervals:
 
 - `ensemble` / `xgboost`: three XGBoost models with `objective="reg:quantileerror"` and `quantile_alpha` 0.05, 0.50, 0.95, each post-processed. For `ensemble`, each quantile is blended as `w_xgb · q_XGB + w_rf · q_RF`, where `q_RF` is the same quantile of the Random Forest's individual tree predictions (RF has no quantile objective), so RF-only sites (Kalaloch, Coos Bay, Cannon Beach) also get a real band.
 - `rf`, `linear`, `naive`, or if the quantile fit fails: bootstrap with `N_BOOTSTRAP_ITERATIONS` (100) resamples (`BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0`), percentiles `CONFIDENCE_PERCENTILES = [5, 50, 95]`. Naive intervals have zero width.
 
-Retrospective evaluation skips intervals; they do not affect reported metrics. The dashboard no longer shows these intervals: `/api/forecast/enhanced` draws the 80% conformal band instead (`backend/band.py`, `docs/ERROR_BAND.md`), for the `ensemble` only, and the engine cleanup will remove the quantile and bootstrap code.
+Retrospective evaluation skips intervals; they do not affect reported metrics. The dashboard no longer shows these intervals: `/api/forecast/enhanced` draws the 80% conformal band instead (`backend/band.py`, `docs/ERROR_BAND.md`), for the `ensemble` only, and the engine's quantile and bootstrap code no longer runs for it.
 
 ## 10. Retrospective evaluation (`run_retrospective_evaluation(task, model_type, max_test_samples)`)
 

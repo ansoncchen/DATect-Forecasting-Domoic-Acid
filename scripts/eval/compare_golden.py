@@ -100,11 +100,25 @@ def _chronological_summary(path: Path) -> dict:
     return {k: (v[0] if isinstance(v, list) else v) for k, v in overall.items()}
 
 
-def compare(base: Path, cand: Path) -> int:
+def compare(
+    base: Path,
+    cand: Path,
+    allow_dropped_columns: frozenset[str] = frozenset(),
+    allow_missing: frozenset[str] = frozenset(),
+) -> int:
+    """Return 0 when every file is identical or differs only by a declared allowance.
+
+    ``allow_dropped_columns`` names columns the candidate may lack (they are removed
+    from the baseline frame before the exact comparison); ``allow_missing`` names
+    relative paths that may exist on only one side. Everything else still fails.
+    """
     base_files, cand_files = _collect(base), _collect(cand)
     failures = identical = rounding = 0
 
     for missing in sorted(base_files.keys() ^ cand_files.keys()):
+        if missing in allow_missing:
+            print(f"MISSING (allowed): {missing}")
+            continue
         side = "candidate" if missing in base_files else "baseline"
         print(f"MISSING in {side}: {missing}")
         failures += 1
@@ -117,6 +131,9 @@ def compare(base: Path, cand: Path) -> int:
             reason = None if _json_close(ja, jb) else "JSON content differs"
         else:
             fa, fb = _read(a), _read(b)
+            for col in sorted(allow_dropped_columns & set(fa.columns) - set(fb.columns)):
+                print(f"DROPPED (allowed): {rel}: {col}")
+                fa = fa.drop(columns=col)
             reason = _frame_diff(fa, fb, exact=True)
             exact = reason is None
             if not exact and not rel.endswith(".parquet"):  # predictions get no tolerance
@@ -146,8 +163,17 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("baseline", type=Path)
     p.add_argument("candidate", type=Path)
+    p.add_argument("--allow-dropped-columns", default="", metavar="COL[,COL]",
+                   help="columns the candidate may have dropped (printed as DROPPED (allowed))")
+    p.add_argument("--allow-missing", default="", metavar="RELPATH[,RELPATH]",
+                   help="files that may exist on only one side (printed as MISSING (allowed))")
     args = p.parse_args()
-    return compare(args.baseline, args.candidate)
+
+    def _names(raw: str) -> frozenset[str]:
+        return frozenset(x.strip() for x in raw.split(",") if x.strip())
+
+    return compare(args.baseline, args.candidate,
+                   _names(args.allow_dropped_columns), _names(args.allow_missing))
 
 
 if __name__ == "__main__":

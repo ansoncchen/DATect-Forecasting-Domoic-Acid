@@ -19,13 +19,17 @@ def serving():
     return forecast_serving
 
 
-def test_bootstrap_interval_is_not_stored(serving):
-    # The bootstrap fallback draws from the global NumPy RNG: not reproducible on demand
-    fell_back = {"bootstrap_quantiles": {"q05": 1.0, "q50": 2.0, "q95": 3.0,
-                                         "bootstrap_predictions": [1.0, 2.0]}}
-    assert "bootstrap" in serving.not_reproducible(fell_back)
-    assert serving.not_reproducible({"bootstrap_quantiles": {"q05": 1.0, "q50": 2.0, "q95": 3.0}}) is None
-    assert serving.not_reproducible(None) is None
+def test_forecasts_table_keeps_task_and_stores_no_interval(serving):
+    # The engine computes no interval any more; the table keeps its task column
+    columns = [c.split()[0] for c in serving.OUT_SCHEMA.split(", ")]
+    assert columns == ["site", "forecast_date", "task", "model_type", "predicted_da",
+                       "predicted_category", "spike_probability", "spike_alert",
+                       "training_samples", "result_json", "error", "task_seconds", "host"]
+    summary = serving._summary({"predicted_da": 5.3, "predicted_category": 1,
+                                "spike_probability": 0.02, "spike_alert": False,
+                                "training_samples": 600})
+    assert set(summary) <= set(columns) and "q50" not in summary
+    assert not hasattr(serving, "not_reproducible")
 
 
 def test_precompute_tasks_are_regression_only(serving):

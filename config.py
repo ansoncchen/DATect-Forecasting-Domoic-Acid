@@ -217,10 +217,6 @@ RANDOM_SEED = 42
 # config, so a RANDOM_SEED patched in the parent never reached them anyway).
 MODEL_SEED = 42
 
-# Bootstrap confidence intervals
-ENABLE_BOOTSTRAP_INTERVALS = True  # Disable to skip bootstrap uncertainty
-N_BOOTSTRAP_ITERATIONS = 100  # Number of bootstrap iterations for confidence intervals
-
 # Lag Feature Configuration
 
 # Time series lags for raw observation-order lag features (env override: comma-separated or "none")
@@ -261,9 +257,6 @@ if _spike_path and os.path.exists(_spike_path):
         SPIKE_ALERT_PROB_THRESHOLD = float(_alert_over)
 
 
-# Bootstrap subsample fraction for uncertainty estimation
-BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
-
 # Scientific Methodology Configuration
 
 # Ridge (linear competitor) regularization
@@ -273,9 +266,6 @@ LINEAR_REGRESSION_ALPHA = float(_tuned["linear_regression_alpha"])
 
 # Persistence baseline configuration
 PERSISTENCE_MAX_DAYS = None  # Set to an int (e.g., 28) to cap lookback
-
-# Confidence interval percentiles for bootstrap predictions
-CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 
 # Data Quality Configuration
 
@@ -346,9 +336,6 @@ elif CLIP_Q_OVERRIDE is not None:
 # Parallelization
 ENABLE_PARALLEL = True
 N_JOBS = -1                      # Use all cores (-1)
-
-# Quantile prediction intervals
-ENABLE_QUANTILE_INTERVALS = True
 
 # Fraction of per-site raw measurements sampled as test points for retrospective
 TEST_SAMPLE_FRACTION = 0.20

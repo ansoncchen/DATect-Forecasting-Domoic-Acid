@@ -4,9 +4,10 @@ Raw-Data Forecast Engine
 
 Drop-in replacement for the original ``ForecastEngine`` that uses the
 raw-data ensemble pipeline (XGBoost + Random Forest two-model ML ensemble, with naïve persistence as an external standalone baseline)
-with per-site hyperparameter tuning, observation-order lag features,
-leak-free anchor-date environmental features, and quantile prediction
-intervals.
+with per-site hyperparameter tuning, observation-order lag features and
+leak-free anchor-date environmental features. It computes no prediction
+interval: the dashboard's uncertainty is the conformal error band
+(``backend/band.py``).
 
 Provides the **exact same method signatures** as the old engine so the
 FastAPI backend (``api.py``) works without interface changes.
@@ -54,7 +55,6 @@ from .per_site_models import (
     compute_site_drop_cols,
 )
 from .feature_utils import add_temporal_features, create_transformer
-from .ensemble_model_factory import EnsembleModelFactory
 from .classification_adapter import ClassificationAdapter
 from .validation import validate_system_startup
 from .logging_config import get_logger
@@ -81,15 +81,25 @@ def _quiet_warnings(fn):
 # Helpers: supported requests; leakage verification (ported from source config.py)
 # ---------------------------------------------------------------------------
 
+# The model_type values callers pass: the API and the store builder (ensemble,
+# xgboost, rf, naive, linear) and the eval scripts ("xgb", an alias for xgboost).
+SUPPORTED_MODELS = ("ensemble", "xgboost", "xgb", "rf", "naive", "linear")
+
+
 def _require_regression(task: str, model_type: str) -> None:
-    """The engine forecasts DA levels only. The 4-category classifier and the
-    logistic model were removed (categories come from the predicted level, and on
-    the dashboard from the error band), so asking for them fails here instead of
-    falling through to another model."""
+    """The engine forecasts DA levels only, with one of ``SUPPORTED_MODELS``. The
+    4-category classifier and the logistic model were removed (categories come from
+    the predicted level, and on the dashboard from the error band), so asking for
+    them, or for any other model, fails here instead of falling through to another
+    model."""
     if task != "regression":
         raise ValueError(f"Unknown task '{task}': the engine supports 'regression' only")
     if model_type == "logistic":
-        raise ValueError("model_type 'logistic' was removed with the 4-category classifier")
+        raise ValueError("model_type 'logistic' was removed with the 4-category classifier; "
+                         "the linear competitor is 'linear' (Ridge)")
+    if model_type not in SUPPORTED_MODELS:
+        raise ValueError(f"Unknown model_type '{model_type}': the engine supports "
+                         + ", ".join(f"'{m}'" for m in SUPPORTED_MODELS) + " only")
 
 
 def _verify_no_data_leakage(train_data, test_date, anchor_date):
@@ -113,9 +123,8 @@ class RawForecastEngine:
     Leak-free domoic acid forecasting engine using the raw-data ensemble
     pipeline.
 
-    Replaces the original ``ForecastEngine`` while preserving the same
-    public API (``generate_single_forecast``, ``run_retrospective_evaluation``,
-    ``generate_bootstrap_confidence_intervals``).
+    Replaces the original ``ForecastEngine``; its public API is
+    ``generate_single_forecast`` and ``run_retrospective_evaluation``.
     """
 
     def __init__(self, data_file=None, validate_on_init=True):
@@ -128,7 +137,6 @@ class RawForecastEngine:
         if validate_on_init:
             validate_system_startup()
 
-        self.model_factory = EnsembleModelFactory()
         self.classification_adapter = ClassificationAdapter()
 
         self.min_training_samples = max(
@@ -136,6 +144,9 @@ class RawForecastEngine:
         )
         self.random_seed = config.RANDOM_SEED
 
+        # No engine code draws from the global RNGs (every model takes
+        # config.MODEL_SEED; sampling uses its own RandomState). They stay seeded
+        # so an implicit consumer a grep cannot see would still be deterministic.
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
 
@@ -252,7 +263,8 @@ class RawForecastEngine:
         Point predictions come from ``_point_forecast``, the same per-point
         function the retrospective evaluation scores, so the dashboard shows the
         evaluated system. This method adds what only the UI needs: the selected
-        model's prediction, prediction intervals and risk categories.
+        model's prediction, the ensemble breakdown, the risk category and the
+        spike alert. It computes no interval (the API adds the conformal band).
 
         Parameters
         ----------
@@ -265,8 +277,9 @@ class RawForecastEngine:
         task : str
             ``"regression"``, the only task; anything else raises ``ValueError``.
         model_type : str
-            ``"ensemble"``, ``"xgboost"``, ``"rf"``, ``"naive"`` or ``"linear"``
-            (``"logistic"`` raises ``ValueError``).
+            One of ``SUPPORTED_MODELS``: ``"ensemble"``, ``"xgboost"`` (alias
+            ``"xgb"``), ``"rf"``, ``"naive"`` or ``"linear"``; anything else
+            raises ``ValueError``.
 
         Returns
         -------
@@ -281,12 +294,10 @@ class RawForecastEngine:
             {"date": forecast_date, "site": site, "da_raw": np.nan},
             feature_frame,
             dict(config.XGB_REGRESSION_PARAMS),
-            return_internals=True,
         )
         if core is None:
             logger.warning("Insufficient data for a %s forecast on %s", site, forecast_date.date())
             return None
-        fitted = core["_internals"]
 
         xgb_prediction = core["predicted_da"]
         rf_prediction = core["predicted_da_rf"]
@@ -299,8 +310,9 @@ class RawForecastEngine:
             xgb_prediction, rf_prediction, naive_prediction, (w_xgb, w_rf, w_naive)
         )
 
-        # Choose which prediction to expose as primary
-        if model_type in ("ensemble", "threshold"):
+        # Choose which prediction to expose as primary (_require_regression admits
+        # only SUPPORTED_MODELS)
+        if model_type == "ensemble":
             primary_prediction = ensemble_prediction
         elif model_type in ("xgboost", "xgb"):
             primary_prediction = xgb_prediction
@@ -308,14 +320,12 @@ class RawForecastEngine:
             primary_prediction = rf_prediction
         elif model_type == "naive":
             primary_prediction = naive_prediction
-        elif model_type == "linear":
+        else:  # "linear"
             primary_prediction = (
                 linear_prediction
                 if linear_prediction is not None
                 else ensemble_prediction
             )
-        else:
-            primary_prediction = ensemble_prediction
 
         # Build result dict matching the API contract
         result = {
@@ -335,13 +345,6 @@ class RawForecastEngine:
             "ensemble_weights": [float(w_xgb), float(w_rf), float(w_naive)],
         }
 
-        # --- Quantile / bootstrap confidence intervals ---
-        result["bootstrap_quantiles"] = self._compute_confidence_intervals(
-            fitted["X_train_processed"], fitted["y_train"], fitted["X_test_processed"],
-            fitted["xgb_params"], fitted["postprocess"], model_type, site,
-            naive_prediction, fitted["rf_params"], (w_xgb, w_rf, w_naive),
-        )
-
         # Risk category of the selected prediction (left-closed bins)
         result["predicted_category"] = (
             self.classification_adapter.threshold_classify(primary_prediction)
@@ -355,178 +358,6 @@ class RawForecastEngine:
             result["spike_alert"] = True
 
         return result
-
-    # ------------------------------------------------------------------
-    # Confidence intervals
-    # ------------------------------------------------------------------
-
-    def _compute_confidence_intervals(
-        self,
-        X_train_processed,
-        y_train,
-        X_test_processed,
-        xgb_params: dict,
-        postprocess_fn,
-        model_type: str,
-        site: str,
-        naive_prediction: float,
-        rf_params: dict,
-        ensemble_weights: tuple[float, float, float],
-    ) -> dict:
-        """
-        Compute prediction intervals via XGBoost quantile objectives
-        (preferred) with bootstrap fallback.
-        """
-        quantiles = {}
-        enable_quantile = config.ENABLE_QUANTILE_INTERVALS
-        enable_bootstrap = config.ENABLE_BOOTSTRAP_INTERVALS
-
-        if enable_quantile and model_type in ("xgboost", "xgb", "ensemble", "threshold"):
-            try:
-                # RF has no quantile objective: use the spread of its trees' predictions
-                # (one fit serves every quantile). A single RF point would give RF-only
-                # sites a zero-width interval.
-                rf_tree_preds = None
-                for q in (0.05, 0.50, 0.95):
-                    # XGBoost quantile regression for the XGB component
-                    q_params = {
-                        **xgb_params,
-                        "objective": "reg:quantileerror",
-                        "quantile_alpha": q,
-                    }
-                    q_model = build_xgb_regressor(q_params)
-                    q_model.fit(X_train_processed, y_train)
-                    xgb_q_pred = postprocess_fn(float(q_model.predict(X_test_processed)[0]))
-
-                    key = f"q{int(q * 100):02d}"
-                    if model_type in ("ensemble", "threshold"):
-                        # Blend XGB quantile with RF + naive for ensemble CI
-                        if rf_tree_preds is None:
-                            rf_model = build_rf_regressor(rf_params)
-                            rf_model.fit(X_train_processed, y_train)
-                            x_test = np.asarray(X_test_processed)
-                            rf_tree_preds = np.array(
-                                [tree.predict(x_test)[0] for tree in rf_model.estimators_]
-                            )
-                        rf_q_pred = postprocess_fn(float(np.quantile(rf_tree_preds, q)))
-                        w_xgb, w_rf, w_naive = ensemble_weights
-                        quantiles[key] = (
-                            w_xgb * xgb_q_pred
-                            + w_rf * rf_q_pred
-                            + w_naive * float(naive_prediction)
-                        )
-                    else:
-                        quantiles[key] = xgb_q_pred
-                return quantiles
-            except Exception:
-                logger.debug("Quantile objectives unavailable, falling back to bootstrap")
-
-        if not enable_bootstrap:
-            return {}
-
-        # Bootstrap fallback
-        return self.generate_bootstrap_confidence_intervals(
-            X_train_processed, y_train, X_test_processed, model_type,
-            postprocess_fn=postprocess_fn,
-            naive_prediction=naive_prediction,
-            rf_params=rf_params,
-            ensemble_weights=ensemble_weights,
-        )
-
-    def generate_bootstrap_confidence_intervals(
-        self,
-        X_train_processed,
-        y_train,
-        X_forecast,
-        model_type: str,
-        n_bootstrap: Optional[int] = None,
-        postprocess_fn=None,
-        naive_prediction: Optional[float] = None,
-        rf_params: Optional[dict] = None,
-        ensemble_weights: Optional[tuple[float, float, float]] = None,
-    ) -> dict:
-        """
-        Generate bootstrap confidence intervals using resampling.
-
-        Preserved for backward compatibility with the old engine's interface.
-        """
-        if n_bootstrap is None:
-            n_bootstrap = config.N_BOOTSTRAP_ITERATIONS
-
-        predictions = []
-        subsample_frac = config.BOOTSTRAP_SUBSAMPLE_FRACTION
-        if postprocess_fn is None:
-            postprocess_fn = lambda val: max(0.0, float(val))
-
-        rf_params = rf_params or dict(config.RF_REGRESSION_PARAMS)
-        if ensemble_weights is None:
-            # naive_weight must always be 0.0 — naive persistence is an external baseline,
-            # never blended into the ensemble. Default splits evenly between XGB and RF.
-            ensemble_weights = (0.50, 0.50, 0.00)
-        w_xgb, w_rf, w_naive = ensemble_weights
-        if naive_prediction is None:
-            naive_prediction = 0.0
-
-        for _ in range(n_bootstrap):
-            n_samples = len(X_train_processed)
-            subsample_size = int(subsample_frac * n_samples)
-            idx = np.random.choice(n_samples, subsample_size, replace=True)
-
-            if hasattr(X_train_processed, "iloc"):
-                X_bs = X_train_processed.iloc[idx]
-                y_bs = y_train.iloc[idx]
-            else:
-                X_bs = X_train_processed[idx]
-                y_bs = y_train[idx]
-
-            if model_type in ("naive",):
-                predictions.append(float(naive_prediction))
-                continue
-
-            if model_type in ("rf",):
-                rf_model = build_rf_regressor(rf_params)
-                rf_model.fit(X_bs, y_bs)
-                rf_raw = float(rf_model.predict(X_forecast)[0])
-                predictions.append(postprocess_fn(rf_raw))
-                continue
-
-            # Default to XGBoost-based bootstrap
-            bs_model = self.model_factory.get_model(
-                "regression", "xgboost", params_override=None,
-            )
-            if bs_model is None:
-                bs_model = build_xgb_regressor()
-            bs_model.fit(X_bs, y_bs)
-            xgb_raw = float(bs_model.predict(X_forecast)[0])
-            xgb_pred = postprocess_fn(xgb_raw)
-
-            if model_type in ("ensemble", "threshold"):
-                rf_model = build_rf_regressor(rf_params)
-                rf_model.fit(X_bs, y_bs)
-                rf_raw = float(rf_model.predict(X_forecast)[0])
-                rf_pred = postprocess_fn(rf_raw)
-                pred = (
-                    w_xgb * xgb_pred
-                    + w_rf * rf_pred
-                    + w_naive * float(naive_prediction)
-                )
-                predictions.append(float(pred))
-            elif model_type in ("linear",):
-                linear_model = build_linear_regressor()
-                linear_model.fit(X_bs, y_bs)
-                linear_raw = float(linear_model.predict(X_forecast)[0])
-                predictions.append(postprocess_fn(linear_raw))
-            else:
-                predictions.append(float(xgb_pred))
-
-        predictions = np.array(predictions)
-        percentiles = config.CONFIDENCE_PERCENTILES
-        return {
-            "q05": float(np.percentile(predictions, percentiles[0])),
-            "q50": float(np.percentile(predictions, percentiles[1])),
-            "q95": float(np.percentile(predictions, percentiles[2])),
-            "bootstrap_predictions": predictions.tolist(),
-        }
 
     # ------------------------------------------------------------------
     # Retrospective evaluation
@@ -549,8 +380,9 @@ class RawForecastEngine:
         If *max_test_samples* is set, the per-site draw is subsampled to at
         most that many rows (after concatenation), for quick smoke tests.
 
-        Only ``task="regression"`` exists; another task or
-        ``model_type="logistic"`` raises ``ValueError``.
+        Only ``task="regression"`` exists; another task, or a ``model_type``
+        outside ``SUPPORTED_MODELS`` (``"logistic"`` included), raises
+        ``ValueError``.
         """
         _require_regression(task, model_type)
         logger.info("Running LEAK-FREE %s evaluation with %s", task, model_type)
@@ -788,9 +620,8 @@ class RawForecastEngine:
         Core single-point forecast: the models every reported number is scored on.
 
         Called only through ``_point_forecast``, which hands it the final XGBoost
-        params (``return_internals=True`` adds the fitted inputs under
-        ``"_internals"`` so intervals and categories can be built on exactly the
-        same data).
+        params (``return_internals=True`` adds the training frame under
+        ``"_internals"``; the Spark tuner reads it).
         """
         test_date = raw_measurement["date"]
         site = raw_measurement["site"]
@@ -985,16 +816,7 @@ class RawForecastEngine:
         }
 
         if return_internals:
-            result["_internals"] = {
-                "train_data": train_data,
-                "X_train": X_train,
-                "X_train_processed": X_train_processed,
-                "X_test_processed": X_test_processed,
-                "y_train": y_train,
-                "postprocess": _postprocess,
-                "xgb_params": xgb_params_final,
-                "rf_params": rf_base,
-            }
+            result["_internals"] = {"train_data": train_data}
         return result
 
     @staticmethod

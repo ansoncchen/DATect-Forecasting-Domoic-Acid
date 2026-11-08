@@ -22,7 +22,6 @@ def _result(site="Newport", day="2019-06-03", task="regression"):
         "naive_prediction": 9.4, "xgb_prediction": 5.32426643371582,
         "rf_prediction": 7.277734477520231, "ensemble_prediction": 5.32426643371582,
         "ensemble_weights": [1.0, 0.0, 0.0],
-        "bootstrap_quantiles": {"q05": 0.1, "q50": 4.0, "q95": 31.7},
         "predicted_category": 1, "spike_probability": 0.023508291691541672, "spike_alert": False,
     }
 

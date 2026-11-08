@@ -119,12 +119,17 @@ def resolve_site(site: str) -> str:
     return mapping.get(site.lower(), site)
 
 
+# The models a forecast request may name (the engine's SUPPORTED_MODELS minus its
+# "xgb" alias); anything else is a 422 before the engine runs.
+ForecastModel = Literal["ensemble", "xgboost", "rf", "naive", "linear"]
+
+
 # Pydantic models
 class ForecastRequest(BaseModel):
     date: date
     site: str
     task: Literal["regression"] = "regression"  # the only task; others are a 422
-    model: str = "ensemble"
+    model: ForecastModel = "ensemble"
 
 class SiteInfo(BaseModel):
     sites: List[str]
@@ -733,8 +738,7 @@ def generate_enhanced_forecast(request: ForecastRequest):
     """The dashboard's forecast: regression only (categories come from the band)."""
     try:
         site = resolve_site(request.site)
-        model_type = getattr(request, 'model', None) or config.FORECAST_MODEL or "ensemble"
-        return clean_for_json(_forecast_payload(site, _request_date(request.date), model_type))
+        return clean_for_json(_forecast_payload(site, _request_date(request.date), request.model))
     except HTTPException:
         raise
     except Exception as e:
@@ -744,7 +748,7 @@ def generate_enhanced_forecast(request: ForecastRequest):
 @app.get("/api/forecast/all")
 def get_all_sites_forecast(
     date: date | None = None,
-    model: Literal["ensemble", "xgboost", "rf", "naive", "linear"] = "ensemble",
+    model: ForecastModel = "ensemble",
 ):
     """One week's forecast for every site, north to south (default: the latest week).
     A site whose forecast fails is reported with its error; the others still show."""

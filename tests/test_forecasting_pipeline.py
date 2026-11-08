@@ -75,12 +75,32 @@ class TestForecastingPipeline:
         assert "rf_prediction" in result
         assert "naive_prediction" in result
         assert "ensemble_prediction" in result
-        
-        # Verify bootstrap quantiles are computed
-        assert "bootstrap_quantiles" in result
-        assert "q05" in result["bootstrap_quantiles"]
-        assert "q50" in result["bootstrap_quantiles"]
-        assert "q95" in result["bootstrap_quantiles"]
+
+    def test_single_forecast_carries_no_interval(self):
+        """The engine computes no interval: the dashboard shows the conformal band."""
+        result = self.engine.generate_single_forecast(
+            data_path=str(self.parquet_path),
+            forecast_date="2018-06-11",
+            site="Newport",
+            task="regression",
+            model_type="ensemble",
+        )
+        assert result is not None
+        assert "bootstrap_quantiles" not in result
+
+    def test_unknown_model_is_rejected(self):
+        """A model_type no caller passes fails loudly instead of falling back to the ensemble."""
+        for model_type in ("bogus", "threshold"):
+            with pytest.raises(ValueError, match=f"Unknown model_type '{model_type}'"):
+                self.engine.generate_single_forecast(
+                    data_path=str(self.parquet_path),
+                    forecast_date="2018-06-11",
+                    site="Newport",
+                    task="regression",
+                    model_type=model_type,
+                )
+            with pytest.raises(ValueError, match=f"Unknown model_type '{model_type}'"):
+                self.engine.run_retrospective_evaluation(task="regression", model_type=model_type)
 
     def test_single_forecast_goes_through_the_point_function(self, monkeypatch):
         """The dashboard's forecast runs the per-point function the retrospective scores."""
@@ -163,3 +183,25 @@ class TestForecastingPipeline:
         required_cols = ["date", "site", "anchor_date", "actual_da", "predicted_da"]
         for col in required_cols:
             assert col in eval_df.columns
+
+
+def test_interval_knobs_are_gone():
+    """The quantile and bootstrap intervals were removed with their settings."""
+    for name in ("ENABLE_BOOTSTRAP_INTERVALS", "N_BOOTSTRAP_ITERATIONS",
+                 "BOOTSTRAP_SUBSAMPLE_FRACTION", "CONFIDENCE_PERCENTILES",
+                 "ENABLE_QUANTILE_INTERVALS"):
+        assert not hasattr(config, name), name
+
+
+def test_engine_accepts_exactly_the_models_callers_pass():
+    """The API, the store builder and the eval scripts pass these (``xgb`` is the eval
+    scripts' alias for XGBoost); anything else, ``logistic`` included, is a ValueError."""
+    from forecasting.raw_forecast_engine import _require_regression
+
+    for model_type in ("ensemble", "xgboost", "xgb", "rf", "naive", "linear"):
+        _require_regression("regression", model_type)
+    with pytest.raises(ValueError, match="'logistic' was removed.*'linear'"):
+        _require_regression("regression", "logistic")
+    for model_type in ("threshold", "bogus", ""):
+        with pytest.raises(ValueError, match="Unknown model_type"):
+            _require_regression("regression", model_type)

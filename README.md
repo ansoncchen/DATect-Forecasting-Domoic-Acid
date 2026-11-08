@@ -134,7 +134,6 @@ DATect-Forecasting-Domoic-Acid/
 │   ├── oad_features.py             # OAD ocean-anomaly features (16 per row, leak-safe)
 │   ├── classification_adapter.py   # Risk categories and the spike classifier
 │   ├── raw_model_factory.py        # Model builders (XGBoost, RF, classifier)
-│   ├── ensemble_model_factory.py   # Model factory used by the engine
 │   ├── feature_utils.py            # Temporal features + transformers
 │   ├── logging_config.py
 │   └── validation.py               # Startup checks

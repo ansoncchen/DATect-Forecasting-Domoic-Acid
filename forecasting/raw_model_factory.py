@@ -2,7 +2,7 @@
 Model factory for DATect raw forecasting.
 
 Standalone functions for building the XGBoost, Random Forest and Ridge regressors.
-These are used by the RawForecastEngine and EnsembleModelFactory.
+The RawForecastEngine uses them.
 """
 
 from __future__ import annotations

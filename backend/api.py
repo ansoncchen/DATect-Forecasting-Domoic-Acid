@@ -44,13 +44,6 @@ if not os.path.isabs(config.FINAL_OUTPUT_PATH):
     config.FINAL_OUTPUT_PATH = os.path.join(project_root, config.FINAL_OUTPUT_PATH)
 
 
-def _resolve_repo_relative_path(rel_path: str) -> str:
-    p = (rel_path or "").strip()
-    if os.path.isabs(p):
-        return p
-    return os.path.join(project_root, p.lstrip("./"))
-
-
 app = FastAPI(
     title="DATect API",
     description="Domoic Acid Forecasting System REST API",
@@ -469,9 +462,10 @@ def _spectral_model_results() -> dict:
     """The XGBoost and Random Forest retrospective predictions the spectral analysis
     compares with, from the precomputed store (None for a slice it lacks)."""
     out = {}
-    for key, model in (("xgb_results", "xgboost"), ("rf_results", "rf")):
-        records = precomputed.retrospective("regression", model)
-        out[key] = pd.DataFrame(records) if records else None
+    for task, model in precomputed.SPECTRAL_SLICES:
+        records = precomputed.retrospective(task, model)
+        trace = precomputed.SPECTRAL_TRACE[model]
+        out[f"{trace}_results"] = pd.DataFrame(records) if records else None
     return out
 
 MAP_CATEGORY_COLORS = ("#9aa5b1", "#e0a100", "#e4670f", "#c0392b")  # by category: gray, never green
@@ -489,7 +483,8 @@ def get_site_map():
         sites = config.SITES
         try:
             measurements = _raw_measurements()
-        except ValueError:  # no raw DA file loaded: draw every site as "no data"
+        except ValueError as e:  # no raw DA file loaded: draw every site as "no data"
+            logger.warning("Site map: no raw DA measurements (%s); every site shows no data", e)
             measurements = pd.DataFrame({"site": [], "date": [], "da_raw": []})
         latest = measurements.sort_values("date").groupby("site").tail(1)
         latest_da_data = {r.site: {"da": float(r.da_raw), "date": r.date} for r in latest.itertuples()}

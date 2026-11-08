@@ -320,12 +320,15 @@ class RawForecastEngine:
             primary_prediction = rf_prediction
         elif model_type == "naive":
             primary_prediction = naive_prediction
-        else:  # "linear"
+        elif model_type == "linear":
             primary_prediction = (
                 linear_prediction
                 if linear_prediction is not None
                 else ensemble_prediction
             )
+        else:
+            raise ValueError(f"Unknown model_type '{model_type}': the engine supports "
+                             + ", ".join(f"'{m}'" for m in SUPPORTED_MODELS) + " only")
 
         # Build result dict matching the API contract
         result = {
@@ -511,10 +514,9 @@ class RawForecastEngine:
         ):
             ens = []
             for _, row in results_df.iterrows():
-                rf_pred = row.get("predicted_da_rf", row["predicted_da"])
                 ens.append(
                     blend(
-                        row["predicted_da"], rf_pred, row["naive_prediction"],
+                        row["predicted_da"], row["predicted_da_rf"], row["naive_prediction"],
                         get_site_ensemble_weights(row["site"]),
                     )
                 )
@@ -699,8 +701,7 @@ class RawForecastEngine:
         xgb_raw = float(xgb_model.predict(X_test_processed)[0])
         prediction = _postprocess(xgb_raw)
 
-        # Random Forest
-        rf_prediction = None
+        # Random Forest (on failure the XGBoost prediction stands in, so it is never None)
         rf_base = dict(config.RF_REGRESSION_PARAMS)
         if use_per_site:
             rf_base = apply_site_rf_params(rf_base, site)
@@ -797,7 +798,7 @@ class RawForecastEngine:
             "site": site,
             "actual_da_raw": actual_da,
             "predicted_da": prediction,
-            "predicted_da_rf": rf_prediction if rf_prediction is not None else prediction,
+            "predicted_da_rf": rf_prediction,
             "naive_prediction": naive_prediction,
             "predicted_da_linear": linear_prediction,
             "training_samples": len(train_data),

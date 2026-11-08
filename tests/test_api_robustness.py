@@ -209,16 +209,20 @@ def test_map_uses_the_canonical_measurements(monkeypatch):
 
 
 @_NO_MAPBOX_WARNING
-def test_map_degrades_to_no_data_when_no_raw_file_loads(monkeypatch):
+def test_map_degrades_to_no_data_when_no_raw_file_loads(monkeypatch, caplog):
     from backend import api
 
     def boom():
         raise ValueError("No raw DA measurements could be loaded.")
     monkeypatch.setattr(api, "_raw_measurements", boom)
-    hovers = _map_hovers()
+    with caplog.at_level("WARNING", logger=api.__name__):
+        hovers = _map_hovers()
     assert len(hovers) == 10
     for hover, color in hovers.values():
         assert "no data" in hover and color == "#d0d5db"
+    # The fallback says why, with the loader's message
+    assert any(r.levelname == "WARNING" and "No raw DA measurements could be loaded." in r.getMessage()
+               for r in caplog.records)
 
 
 @_NO_MAPBOX_WARNING

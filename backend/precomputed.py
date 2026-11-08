@@ -51,6 +51,11 @@ COLUMNS = {
     "correlation": ["site", "plot_json", "config_hash"],
 }
 ALL_SITES = "all_sites"
+# The retrospective slices the store holds: the spectral analysis's XGBoost and Random
+# Forest model traces, and nothing else reads them. SPECTRAL_TRACE names each slice's
+# trace (generate_spectral_analysis takes xgb_results and rf_results).
+SPECTRAL_SLICES = (("regression", "xgboost"), ("regression", "rf"))
+SPECTRAL_TRACE = {"xgboost": "xgb", "rf": "rf"}
 
 
 # ── What a stored row depends on ─────────────────────────────────────────────

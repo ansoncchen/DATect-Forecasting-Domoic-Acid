@@ -31,13 +31,14 @@ import time
 
 import pandas as pd
 
+from backend.precomputed import SPECTRAL_SLICES, SPECTRAL_TRACE
 from datect_spark.session import get_mlflow, get_spark, git_sha, lake_path
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(REPO_ROOT, "results", "store")
 EXPERIMENT = "datect-serving"
 # Only the spectral analysis reads retrospective records (the XGBoost and RF model traces)
-SLICES = (("regression", "xgboost"), ("regression", "rf"))
+SLICES = SPECTRAL_SLICES
 
 
 def _spark(name: str):
@@ -127,11 +128,11 @@ def visuals() -> dict:
     chash, sha = config_hash(), git_sha(REPO_ROOT)
     store = Store(lake_path("gold"), expected_hash=chash)
     traces = {}
-    for key, model in (("xgb", "xgboost"), ("rf", "rf")):
-        records = store.retrospective("regression", model)
+    for task, model in SPECTRAL_SLICES:
+        records = store.retrospective(task, model)
         if records is None:
-            raise SystemExit(f"run the retrospective step first: regression/{model} is missing")
-        traces[key] = pd.DataFrame(records)
+            raise SystemExit(f"run the retrospective step first: {task}/{model} is missing")
+        traces[SPECTRAL_TRACE[model]] = pd.DataFrame(records)
     xgb, rf = traces["xgb"], traces["rf"]
 
     spark = _spark("datect-store-visuals")

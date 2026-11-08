@@ -102,6 +102,22 @@ class TestForecastingPipeline:
             with pytest.raises(ValueError, match=f"Unknown model_type '{model_type}'"):
                 self.engine.run_retrospective_evaluation(task="regression", model_type=model_type)
 
+    def test_model_selection_has_no_catch_all(self, monkeypatch):
+        """A model admitted by the whitelist but not handled by the selection chain
+        raises instead of being served as the linear model."""
+        from forecasting import raw_forecast_engine
+
+        monkeypatch.setattr(raw_forecast_engine, "SUPPORTED_MODELS",
+                            raw_forecast_engine.SUPPORTED_MODELS + ("unhandled",))
+        with pytest.raises(ValueError, match="Unknown model_type 'unhandled'"):
+            self.engine.generate_single_forecast(
+                data_path=str(self.parquet_path),
+                forecast_date="2018-06-11",
+                site="Newport",
+                task="regression",
+                model_type="unhandled",
+            )
+
     def test_single_forecast_goes_through_the_point_function(self, monkeypatch):
         """The dashboard's forecast runs the per-point function the retrospective scores."""
         from forecasting.raw_forecast_engine import RawForecastEngine

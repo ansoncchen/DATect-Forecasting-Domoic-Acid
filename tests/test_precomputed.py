@@ -345,10 +345,16 @@ def test_write_sample_stores_regression_forecasts_only(tmp_path, monkeypatch):
 
 
 def test_store_builds_only_the_slices_spectral_reads():
-    # Read the assignment from source: importing datect_spark may need Spark
+    # One list, in backend/precomputed.py; the store builder takes it as SLICES. Read the
+    # builder's assignment from source: importing datect_spark may need Spark
     import ast
 
-    tree = ast.parse(open(f"{pf.REPO_ROOT}/datect_spark/precompute_store.py").read())
+    assert pf.SPECTRAL_SLICES == (("regression", "xgboost"), ("regression", "rf"))
+    assert set(pf.SPECTRAL_TRACE) == {model for _, model in pf.SPECTRAL_SLICES}
+    with open(f"{pf.REPO_ROOT}/datect_spark/precompute_store.py") as f:
+        tree = ast.parse(f.read())
     value = next(n.value for n in tree.body if isinstance(n, ast.Assign)
                  and any(getattr(t, "id", None) == "SLICES" for t in n.targets))
-    assert ast.literal_eval(value) == (("regression", "xgboost"), ("regression", "rf"))
+    assert isinstance(value, ast.Name) and value.id == "SPECTRAL_SLICES"
+    assert any(isinstance(n, ast.ImportFrom) and n.module == "backend.precomputed"
+               and "SPECTRAL_SLICES" in {a.name for a in n.names} for n in tree.body)

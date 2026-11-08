@@ -114,8 +114,9 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
   Python version. Any change there makes the store stale (misses, computed on demand; `/health`
   reports it) until it is rebuilt, and the image build refuses a stale store. The image pins
   those libraries and Python 3.10 to the Hyak Spark env (`constraints.txt`,
-  `datect_spark/env-freeze.txt`); change them together. Only the `ensemble` model's forecasts are precomputed; `linear`'s bootstrap
-  interval uses the global NumPy RNG, so its on-demand output is not reproducible.
+  `datect_spark/env-freeze.txt`); change them together. Only the `ensemble` model's forecasts are precomputed. The
+  retrospective table holds only the `regression/xgboost` and `regression/rf` slices, the
+  spectral plots' model traces.
 - **Tests:** use the `fast_models` (class-scoped model shrinking, restored afterwards) and
   `fresh_import` (re-import config modules for one test, originals restored) fixtures in
   `tests/conftest.py`. Never mutate shared config dicts without restoring them; tests must

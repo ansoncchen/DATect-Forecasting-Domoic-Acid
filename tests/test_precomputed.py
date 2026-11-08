@@ -106,7 +106,7 @@ def store(tmp_path, monkeypatch):
     deltalake.write_deltalake(str(root / "forecasts"), df)
     deltalake.write_deltalake(str(root / "retrospective"), pd.DataFrame(
         [{"task": "regression", "model_type": m, "records_json": json.dumps(_records(m)),
-          "config_hash": current} for m in ("ensemble", "xgboost", "rf")]))
+          "config_hash": current} for m in ("xgboost", "rf")]))
     deltalake.write_deltalake(str(root / "spectral"), pd.DataFrame(
         [{"site": "Newport", "plots_json": json.dumps([{"data": [], "layout": {"title": "n"}}]),
           "config_hash": current},
@@ -245,7 +245,7 @@ def test_health_reports_the_store(store):
     with TestClient(api.app) as client:
         health = client.get("/health").json()
     assert health["precomputed"]["tables"]["forecasts"]["entries"] == 3
-    assert health["precomputed"]["tables"]["retrospective"]["entries"] == 3
+    assert health["precomputed"]["tables"]["retrospective"]["entries"] == 2
 
 
 def test_health_without_a_store(monkeypatch):
@@ -342,3 +342,13 @@ def test_write_sample_stores_regression_forecasts_only(tmp_path, monkeypatch):
     assert pf.write_sample(str(tmp_path), [("Newport", "2019-06-03"), ("Kalaloch", "2019-06-03")]) == 2
     tasks = deltalake.DeltaTable(str(tmp_path / "forecasts")).to_pandas()["task"]
     assert set(tasks) == {"regression"}
+
+
+def test_store_builds_only_the_slices_spectral_reads():
+    # Read the assignment from source: importing datect_spark may need Spark
+    import ast
+
+    tree = ast.parse(open(f"{pf.REPO_ROOT}/datect_spark/precompute_store.py").read())
+    value = next(n.value for n in tree.body if isinstance(n, ast.Assign)
+                 and any(getattr(t, "id", None) == "SLICES" for t in n.targets))
+    assert ast.literal_eval(value) == (("regression", "xgboost"), ("regression", "rf"))

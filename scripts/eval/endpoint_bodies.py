@@ -1,10 +1,9 @@
 """
 Response bodies of the API's precomputed endpoints, hashed for a before/after gate.
 
-Starts the API from ``--repo`` (as forecast_latency.py does), requests every
-retrospective (task, model) slice, the spectral analysis of each site and of all
-sites, and each site's correlation heatmap, and records the sha256 of each body
-without the fields that only say where it was served from. Two runs, e.g. the old
+Starts the API from ``--repo`` (as forecast_latency.py does), requests the spectral
+analysis of each site and of all sites, and each site's correlation heatmap, and
+records the sha256 of each body without the fields that only say where it was served from. Two runs, e.g. the old
 file cache and the Delta store, pass the gate when every hash matches
 (``--compare-to``). Bodies are also written gzipped for inspecting a mismatch.
 
@@ -32,9 +31,6 @@ from forecast_latency import HTTP, _free_port, _git_sha, _wait_healthy  # noqa: 
 
 # Where a body says it was served from: excluded from the hash
 SERVING_FIELDS = {"cache", "cached", "source", "precomputed"}
-RETROSPECTIVE = [(task, model) for task in ("regression", "classification")
-                 for model in ("ensemble", "naive", "linear")] + [("regression", "xgboost"),
-                                                                   ("regression", "rf")]
 
 
 def body_sha256(body: dict) -> str:
@@ -46,9 +42,7 @@ def requests_for(repo: str) -> list[tuple[str, str, str, dict | None]]:
     """(name, method, path, json body) for every precomputed endpoint."""
     sites = sorted(pd.read_parquet(os.path.join(repo, "data", "processed", "final_output.parquet"),
                                    columns=["site"])["site"].unique())
-    out = [(f"retrospective/{task}/{model}", "POST", "/api/retrospective",
-            {"task": task, "model": model, "selected_sites": []}) for task, model in RETROSPECTIVE]
-    out += [("spectral/all", "GET", "/api/visualizations/spectral/all", None)]
+    out = [("spectral/all", "GET", "/api/visualizations/spectral/all", None)]
     out += [(f"spectral/{s}", "GET", f"/api/visualizations/spectral/{s}", None) for s in sites]
     out += [(f"correlation/{s}", "GET", f"/api/visualizations/correlation/{s}", None) for s in sites]
     return out

@@ -5,7 +5,8 @@ One directory (``DATECT_PRECOMPUTED_DIR``, the lake's ``gold/``) holds four tabl
 
     forecasts      generate_single_forecast output per (site, date, task, model), as
                    lossless JSON (:func:`encode`); datect_spark/forecast_serving.py
-    retrospective  retrospective records per (task, model)
+    retrospective  regression/xgboost and regression/rf retrospective records, the
+                   model traces of the spectral plots
     spectral       /api/visualizations/spectral plots per site ("all_sites" for all)
     correlation    /api/visualizations/correlation heatmap per site
                    (the last three: datect_spark/precompute_store.py)

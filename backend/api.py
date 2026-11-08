@@ -34,7 +34,7 @@ from backend.visualizations import (
     generate_band_plot,
 )
 from backend import precomputed, track_record
-from backend.records import clean_for_json, retrospective_records  # noqa: F401 (re-exported)
+from backend.records import clean_for_json  # noqa: F401 (re-exported)
 
 # Configure logging
 logger = logging.getLogger(__name__)

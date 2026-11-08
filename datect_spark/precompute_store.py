@@ -5,7 +5,8 @@ These endpoints used to be served from a file cache (precompute_cache.py, remove
 They now come from three Delta tables of the precomputed store (backend/precomputed.py),
 next to gold/forecasts (datect_spark/forecast_serving.py):
 
-    retrospective   run_retrospective_evaluation for five (task, model) slices. Spark
+    retrospective   run_retrospective_evaluation for the two slices the spectral
+                    analysis reads (regression/xgboost and regression/rf). Spark
                     runs the engine's own per-point forecasts: the engine fans them out
                     through joblib, and here joblib's backend is Spark (joblibspark,
                     DATECT_PARALLEL_BACKEND=spark), so sampling and assembly are the
@@ -35,11 +36,8 @@ from datect_spark.session import get_mlflow, get_spark, git_sha, lake_path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(REPO_ROOT, "results", "store")
 EXPERIMENT = "datect-serving"
-# The slices the dashboard can request, plus XGBoost and RF for the spectral traces
-SLICES = [
-    ("regression", "ensemble"), ("regression", "xgboost"), ("regression", "rf"),
-    ("regression", "naive"), ("regression", "linear"),
-]
+# Only the spectral analysis reads retrospective records (the XGBoost and RF model traces)
+SLICES = (("regression", "xgboost"), ("regression", "rf"))
 
 
 def _spark(name: str):

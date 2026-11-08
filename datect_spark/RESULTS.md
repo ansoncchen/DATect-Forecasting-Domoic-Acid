@@ -124,8 +124,9 @@ rows in time and grid order; the encoding difference was not investigated furthe
 
 ## 3. Serving precomputed forecasts from Delta Lake
 
-A dashboard forecast (`POST /api/forecast/enhanced`) makes two
-`generate_single_forecast` calls, regression and classification. Each retrains the
+A dashboard forecast (`POST /api/forecast/enhanced`) makes one
+`generate_single_forecast` call (these runs measured two, regression and classification;
+the classification task has since been removed). It retrains the
 evaluated models on data up to the anchor date, which takes seconds.
 `forecast_serving.py precompute` runs those calls on Spark (one task per site and
 date, one thread each) and stores each output unchanged, as lossless JSON, in
@@ -176,8 +177,8 @@ re-tune's 2,990 runs.
 - an ad hoc laptop check (not committed) found Spark workers' single-threaded
   XGBoost identical to the API's multithreaded XGBoost on 8 forecasts. The 50-entry
   check above covers this on Hyak;
-- none of the 21,900 stored entries carries a bootstrap-fallback interval. That
-  fallback uses the global RNG, and the precompute now refuses to store it.
+- none of the 21,900 stored entries carried a bootstrap-fallback interval (measured then;
+  the bootstrap and the quantile columns have since been removed from the engine).
 
 **Latency of `POST /api/forecast/enhanced`.** The same 20 (site, date) requests
 (seed 0, drawn from the weekly rows), one at a time, after one untimed warm-up
@@ -203,9 +204,9 @@ measurement of this change.
   demand at the old latency. The dashboard's default date (dataset end minus 30 days,
   2023-11-25, a Saturday) is a miss, so a uniformly random calendar date hits about
   one time in seven.
-- `linear` cannot be precomputed with exact parity: its regression interval is a
-  bootstrap (100 XGBoost + Ridge fits) drawn from the process-global NumPy RNG, so
-  its on-demand output itself changes from call to call.
+- `linear` was not precomputed: when measured, its regression interval was a bootstrap
+  drawn from the process-global NumPy RNG, so its on-demand output changed from call to
+  call. The bootstrap has since been removed; `linear` is still computed on demand.
 - Any change to `forecasting/`, `config.py`, the tuned JSON, the data bytes or the
   library versions changes the config hash. The table then goes stale and serves
   nothing until `precompute` is re-run; the conformal error band in progress will do
@@ -260,7 +261,7 @@ Delta tables, `DATECT_PRECOMPUTED_DIR`, read with deltalake (`backend/precompute
 | Table | Rows | Built by |
 |---|---:|---|
 | `forecasts` | 21,900 (section 3) | `forecast_serving.py precompute` |
-| `retrospective` | 8 slices × 1,054 records | `precompute_store.py retrospective`: `run_retrospective_evaluation` unchanged, with joblib's backend set to Spark (joblibspark), so Spark executes the engine's own per-point forecasts |
+| `retrospective` | 8 slices × 1,054 records when measured; now 2 (regression/xgboost and regression/rf, the only slices the spectral analysis reads) | `precompute_store.py retrospective`: `run_retrospective_evaluation` unchanged, with joblib's backend set to Spark (joblibspark), so Spark executes the engine's own per-point forecasts |
 | `spectral` | 11 (10 sites + all) | `precompute_store.py visuals`, one Spark task per chart |
 | `correlation` | 10 | same |
 

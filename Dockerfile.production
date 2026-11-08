@@ -71,8 +71,8 @@ COPY store ./store
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 
 # Verify setup. A deployed store must be complete and current for this image (same
-# code, config, data and library versions), or every retrospective would be recomputed
-# on Cloud Run, which takes minutes; REQUIRE_CURRENT_STORE=0 only for CI's stub store.
+# code, config, data and library versions), or the spectral retrospective slices would be
+# recomputed on Cloud Run, which takes minutes; REQUIRE_CURRENT_STORE=0 only for CI's stub store.
 ARG REQUIRE_CURRENT_STORE=1
 RUN ls -la ./store/ && \
     ls -la ./frontend/dist/ && \

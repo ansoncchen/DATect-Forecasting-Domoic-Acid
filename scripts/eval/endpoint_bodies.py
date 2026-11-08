@@ -3,9 +3,9 @@ Response bodies of the API's precomputed endpoints, hashed for a before/after ga
 
 Starts the API from ``--repo`` (as forecast_latency.py does), requests the spectral
 analysis of each site and of all sites, and each site's correlation heatmap, and
-records the sha256 of each body without the fields that only say where it was served from. Two runs, e.g. the old
-file cache and the Delta store, pass the gate when every hash matches
-(``--compare-to``). Bodies are also written gzipped for inspecting a mismatch.
+records the sha256 of each body without the fields that only say where it was served
+from. Two runs, e.g. the old file cache and the Delta store, pass the gate when every hash
+matches (``--compare-to``). Bodies are also written gzipped for inspecting a mismatch.
 
 Usage:
     ENABLE_PRECOMPUTED_CACHE=true python scripts/eval/endpoint_bodies.py \

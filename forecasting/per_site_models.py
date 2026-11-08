@@ -5,7 +5,8 @@ Each site can override:
   - xgb_params: XGBoost hyperparameter overrides (merged onto base_params)
   - rf_params: Random Forest hyperparameter overrides (merged onto RF base_params)
   - feature_subset: Explicit list of features to keep (None = use all default features)
-  - ensemble_weights: (xgb_weight, rf_weight, naive_weight) tuple (None = use global)
+  - ensemble_weights: (xgb_weight, rf_weight, naive_weight) tuple
+    (None = equal XGB/RF weights, (0.5, 0.5, 0.0))
     naive_weight is always 0.0; naive persistence is reported as an external baseline only
   - prediction_clip_q: Custom quantile for prediction clipping (None = use global)
   - prediction_clip_max: Hard ceiling on predictions in ug/g (None = no hard ceiling)

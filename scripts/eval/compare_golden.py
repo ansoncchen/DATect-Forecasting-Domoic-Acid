@@ -12,7 +12,8 @@ derived numbers, and algebraically identical formulas (e.g. F2 from counts vs
 from precision and recall) can differ in the last bit.
 
 Usage:
-    python scripts/eval/compare_golden.py <baseline_dir> <candidate_dir>
+    python scripts/eval/compare_golden.py <baseline_dir> <candidate_dir> \
+        [--allow-dropped-columns] [--allow-missing]
 
 Exit code 0 means every file is identical (or, for metric tables, equal within rounding).
 """

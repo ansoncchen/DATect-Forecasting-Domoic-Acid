@@ -247,7 +247,7 @@ hash stability, hits, misses, stale rows, an unreadable table, both endpoints).
   sampled test points, so the choice of points and the models' randomness never
   interact, whether the forecasts run serially, on joblib or on Spark.
 - **Nondeterminism found and documented:**
-  - the `linear` model's bootstrap RNG;
+  - the `linear` model's bootstrap RNG (found then; the bootstrap is since removed and `linear` is deterministic);
   - `np.polyfit`'s last bits differ across machines, so rebuilds recompute only what
     changed;
   - test points used to depend on sort order (section 6).

@@ -343,18 +343,6 @@ MONOTONIC_FEATURE_CONSTRAINTS: dict = {
     "raw_obs_roll_mean_4": 1,        # Higher 4-week mean → higher or equal forecast
 }
 
-# Per-anchor XGB tuning (grid search on calibration rows before every forecast).
-# Off by default: every reported number was produced without it, and it changes
-# predictions without improving skill (see provenance in the tuned JSON).
-PER_ANCHOR_TUNING = os.environ.get(
-    "DATECT_PER_ANCHOR_TUNING", str(_tuned["per_anchor_tuning"])
-).lower() == "true"
-# Minimum training rows before per-anchor tuning is attempted (only when enabled).
-MIN_TRAINING_FOR_TUNING = int(os.environ.get(
-    "DATECT_MIN_TRAINING_FOR_TUNING",
-    str(_tuned["min_training_for_tuning"]),
-))
-
 # Prediction clipping — default applies when a site has no prediction_clip_q.
 # Per-site overrides live in SITE_SPECIFIC_CONFIGS via per_site_models.py.
 # Null everywhere in the tuned JSON: forecasts are not clipped (only floored at 0).
@@ -374,16 +362,6 @@ elif CLIP_Q_OVERRIDE is not None:
 # Parallelization
 ENABLE_PARALLEL = True
 N_JOBS = -1                      # Use all cores (-1)
-
-# Per-anchor tuning / calibration — loaded from tuned_hyperparameters.json
-CALIBRATION_FRACTION = float(_tuned["calibration_fraction"])
-MAX_CALIBRATION_ROWS = int(_tuned["max_calibration_rows"])
-MIN_TUNING_SAMPLES = int(_tuned["min_tuning_samples"])
-
-# Default XGB search grid (used when site has no custom param_grid).
-# Verified inert via pgrid-sweep (2026-05-23): site-level grids override at
-# all 10 sites in current config, so this fallback rarely fires.
-PARAM_GRID = list(_tuned["param_grid"])
 
 # Quantile prediction intervals
 ENABLE_QUANTILE_INTERVALS = True

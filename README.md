@@ -111,7 +111,6 @@ python run_datect.py
 |----------|---------|---------|
 | `ALLOWED_ORIGINS` | unset | Comma-separated CORS origins; unset allows only localhost dev servers, so set it in production |
 | `DATECT_PRECOMPUTED_DIR` | unset (`run_datect.py` sets `./store` if it exists) | Directory of the precomputed store's Delta tables (forecasts, retrospective, spectral, correlation; built on Spark). Rows whose config hash matches are served; everything else is computed on demand |
-| `DATECT_PER_ANCHOR_TUNING` | `false` | `true` runs a per-forecast XGBoost grid search (1–3 min per forecast). Off by default, which matches how every reported number was produced |
 
 Further `DATECT_*` variables for experiments (feature drops, per-site overrides, ablations) are documented in [CLAUDE.md](CLAUDE.md).
 

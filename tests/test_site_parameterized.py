@@ -22,7 +22,6 @@ from forecasting.per_site_models import (
     get_site_clip_params,
     apply_site_xgb_params,
     apply_site_rf_params,
-    get_site_param_grid,
 )
 from forecasting.oad_features import SITE_TO_REGION
 from backend.api import app
@@ -60,13 +59,13 @@ class TestSiteParameterized:
 
         cls.engine = ForecastEngine(data_file=str(cls.parquet_path), validate_on_init=True)
 
-    # 1. Config tests (10 sites × 7 properties = 70 assertions in 10 tests)
+    # 1. Config tests (10 sites × 6 properties = 60 assertions in 10 tests)
     @pytest.mark.parametrize("site", SITES)
     def test_site_config_schema(self, site):
         """Verify that every site config has a standard dictionary structure."""
         cfg = get_site_config(site)
         assert isinstance(cfg, dict)
-        for key in ("xgb_params", "rf_params", "param_grid", "feature_subset",
+        for key in ("xgb_params", "rf_params", "feature_subset",
                     "ensemble_weights", "prediction_clip_q", "prediction_clip_max"):
             assert key in cfg
 
@@ -100,12 +99,6 @@ class TestSiteParameterized:
         merged = apply_site_rf_params(base, site)
         assert isinstance(merged, dict)
         assert "max_depth" in merged
-
-    @pytest.mark.parametrize("site", SITES)
-    def test_site_param_grid(self, site):
-        """Verify site custom param grid has a valid structure."""
-        grid = get_site_param_grid(site)
-        assert grid is None or isinstance(grid, list)
 
     @pytest.mark.parametrize("site", SITES)
     def test_site_oad_region_mapping(self, site):

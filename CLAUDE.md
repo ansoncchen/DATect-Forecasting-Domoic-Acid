@@ -68,11 +68,12 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
 - **Seeds:** `config.RANDOM_SEED` only chooses retrospective test points;
   `config.MODEL_SEED` (42) seeds every model. Joblib/Spark workers re-import `config`, so
   patching `config` in the parent never reaches them; vary behavior through env vars.
-- **Per-anchor XGB tuning is off by default** (`DATECT_PER_ANCHOR_TUNING=true` to enable). It
-  changes ~23% of predictions without improving skill and costs 1-3 min per forecast; every
-  reported number was produced with it off.
-- **Single forecasts use the evaluated models:** `generate_single_forecast` calls
-  `_run_single_raw_validation` (the retrospective core). The dashboard's forecast
+- **Per-anchor XGB tuning was removed.** It was off by default, changed ~23% of predictions
+  without improving skill and cost 1-3 min per forecast; every reported number ran without it.
+- **One per-point forecast function:** the retrospective, `datect_spark/retune.py` and
+  `generate_single_forecast` all call `RawForecastEngine._point_forecast` (site XGB params, then
+  the core `_run_single_raw_validation`); XGBoost threads travel in the params the caller passes
+  (`n_jobs=1` in the retrospective and the tuner). The dashboard's forecast
   (`/api/forecast/enhanced`, `backend/api.py::_forecast_payload`) is one regression run plus
   the 80% conformal band (`backend/band.py`, calibrated at request time from the committed
   all-years run), category chances from that band, and the alert's parts and
@@ -127,7 +128,6 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 
 | Variable | Effect |
 |---|---|
-| `DATECT_PER_ANCHOR_TUNING` | `true` enables per-anchor XGB grid tuning (default off) |
 | `DATECT_USE_PER_SITE_MODELS` | `false` disables per-site configs (equal XGB/RF weights) |
 | `DATECT_USE_INTERPOLATED_TRAINING` | `false` trains on real DA rows only |
 | `DATECT_USE_MONOTONIC_CONSTRAINTS` | `false` drops XGBoost monotone constraints |

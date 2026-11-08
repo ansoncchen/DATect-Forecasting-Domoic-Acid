@@ -58,7 +58,6 @@ sbatch scripts/eval/multi_seed_baseline.sbatch
 ```
 
 - **Partition:** `--partition=ckpt --account=stf-ckpt --requeue` (already set in the files). `ckpt` is preemptible but free; the `compute` partition often fails with `QOSGrpMemLimit` even for modest memory requests. A requeued job restarts from the beginning, so long jobs should write resumable outputs.
-- **Per-anchor tuning** is off by default (`DATECT_PER_ANCHOR_TUNING`), so outer loops no longer need `DATECT_MIN_TRAINING_FOR_TUNING=99999`.
 - **Parallel tasks must not write shared files** (e.g. `data/processed/final_output.parquet`); give each task its own output or serialize with `--array=0-N%1`.
 - **Progress:** `print()` output is buffered into `.out`; tqdm writes to `.err`. Check with `tail -1 logs/*.err | tr "\r" "\n" | tail -3`.
 

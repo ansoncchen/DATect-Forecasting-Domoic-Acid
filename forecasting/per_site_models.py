@@ -4,7 +4,6 @@ Per-site model configurations for DATect raw-data DA forecasting.
 Each site can override:
   - xgb_params: XGBoost hyperparameter overrides (merged onto base_params)
   - rf_params: Random Forest hyperparameter overrides (merged onto RF base_params)
-  - param_grid: Custom PARAM_GRID for per-anchor XGB tuning (replaces global grid)
   - feature_subset: Explicit list of features to keep (None = use all default features)
   - ensemble_weights: (xgb_weight, rf_weight, naive_weight) tuple (None = use global)
     naive_weight is always 0.0; naive persistence is reported as an external baseline only
@@ -12,7 +11,7 @@ Each site can override:
   - prediction_clip_max: Hard ceiling on predictions in ug/g (None = no hard ceiling)
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import config
 from forecasting.logging_config import get_logger
@@ -43,7 +42,6 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
 DEFAULT_SITE_CONFIG: Dict[str, Any] = {
     'xgb_params': None,
     'rf_params': None,
-    'param_grid': None,
     'feature_subset': None,
     'ensemble_weights': None,
     'prediction_clip_q': None,
@@ -115,11 +113,6 @@ def apply_site_rf_params(base_params: dict, site: str) -> dict:
     if site_cfg['rf_params'] is None:
         return dict(base_params)
     return {**base_params, **site_cfg['rf_params']}
-
-
-def get_site_param_grid(site: str) -> Optional[List[dict]]:
-    """Return site-specific PARAM_GRID, or None to use global grid."""
-    return get_site_config(site)['param_grid']
 
 
 def get_site_ensemble_weights(site: str) -> Tuple[float, float, float]:

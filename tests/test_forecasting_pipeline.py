@@ -82,6 +82,31 @@ class TestForecastingPipeline:
         assert "q50" in result["bootstrap_quantiles"]
         assert "q95" in result["bootstrap_quantiles"]
 
+    def test_single_forecast_goes_through_the_point_function(self, monkeypatch):
+        """The dashboard's forecast runs the per-point function the retrospective scores."""
+        from forecasting.raw_forecast_engine import RawForecastEngine
+
+        calls = []
+        original = RawForecastEngine._point_forecast
+
+        def spy(engine, *args, **kwargs):
+            calls.append(args[0])
+            return original(engine, *args, **kwargs)
+
+        monkeypatch.setattr(RawForecastEngine, "_point_forecast", spy)
+        result = self.engine.generate_single_forecast(
+            data_path=str(self.parquet_path),
+            forecast_date="2018-06-11",
+            site="Newport",
+            task="regression",
+            model_type="ensemble",
+        )
+
+        assert result is not None
+        assert len(calls) == 1
+        assert calls[0]["site"] == "Newport"
+        assert calls[0]["date"] == pd.Timestamp("2018-06-11")
+
     def test_classification_forecast(self):
         """Test end-to-end classification forecasting producing risk categories."""
         forecast_date = "2018-06-11"

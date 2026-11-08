@@ -8,7 +8,7 @@ whole retrospective for every weight, this:
 
 1. ``predict --window tuning|holdout``: one Spark task per real DA measurement in
    the window. Each task trains that point's models exactly as the retrospective
-   evaluation does (RawForecastEngine._run_single_retrospective) and returns the
+   evaluation does (RawForecastEngine._point_forecast) and returns the
    raw XGBoost and Random Forest predictions. Rows go to Delta.
 2. ``score``: applies the weight grid (w_xgb in 0, 0.25, 0.5, 0.75, 1) to the
    tuning rows in Spark SQL and scores each (site, weight) on yearly folds
@@ -101,7 +101,7 @@ def _predict_partition(batches):
         rows = []
         for r in pdf.itertuples(index=False):
             t0 = time.time()
-            out = engine._run_single_retrospective(
+            out = engine._point_forecast(
                 {"date": pd.Timestamp(r.date), "site": r.site, "da_raw": r.actual_da},
                 feature_frame, base, return_internals=True,
             )

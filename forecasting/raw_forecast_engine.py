@@ -50,7 +50,6 @@ from .raw_model_factory import (
 from .per_site_models import (
     apply_site_xgb_params,
     apply_site_rf_params,
-    get_site_param_grid,
     get_site_ensemble_weights,
     get_site_clip_params,
     compute_site_drop_cols,
@@ -240,8 +239,8 @@ class RawForecastEngine:
         """
         Generate a single forecast for a specific date and site.
 
-        Point predictions come from ``_run_single_raw_validation``, the same
-        models the retrospective evaluation scores, so the dashboard shows the
+        Point predictions come from ``_point_forecast``, the same per-point
+        function the retrospective evaluation scores, so the dashboard shows the
         evaluated system. This method adds what only the UI needs: the selected
         model's prediction, prediction intervals and risk categories.
 
@@ -265,14 +264,11 @@ class RawForecastEngine:
         forecast_date = pd.Timestamp(forecast_date)
         feature_frame = self._load_feature_frame()
 
-        xgb_params = dict(config.XGB_REGRESSION_PARAMS)
-        if config.USE_PER_SITE_MODELS:
-            xgb_params = apply_site_xgb_params(xgb_params, site)
-
-        core = self._run_single_raw_validation(
+        # No n_jobs here: single forecasts keep XGBoost's default threads.
+        core = self._point_forecast(
             {"date": forecast_date, "site": site, "da_raw": np.nan},
             feature_frame,
-            xgb_params,
+            dict(config.XGB_REGRESSION_PARAMS),
             return_internals=True,
         )
         if core is None:
@@ -690,14 +686,14 @@ class RawForecastEngine:
         parallel_backend = config.PARALLEL_BACKEND
         if enable_parallel:
             results = Parallel(n_jobs=n_jobs, backend=parallel_backend)(
-                delayed(self._run_single_retrospective)(
+                delayed(self._point_forecast)(
                     row, feature_frame, base_params
                 )
                 for row in tqdm(sample_rows, desc="Retrospective", unit="sample")
             )
         else:
             results = [
-                self._run_single_retrospective(row, feature_frame, base_params)
+                self._point_forecast(row, feature_frame, base_params)
                 for row in tqdm(sample_rows, desc="Retrospective", unit="sample")
             ]
 
@@ -812,7 +808,7 @@ class RawForecastEngine:
         return results_df
 
     @_quiet_warnings
-    def _run_single_retrospective(
+    def _point_forecast(
         self,
         raw_measurement: dict,
         feature_frame: pd.DataFrame,
@@ -820,85 +816,22 @@ class RawForecastEngine:
         return_internals: bool = False,
     ) -> Optional[dict]:
         """
-        Run a single retrospective validation point with per-anchor tuning.
+        One leak-free forecast for one site and date: the function every caller uses.
 
-        Mirrors ``run_single_raw_validation_with_tuning()`` from the source.
-        ``return_internals`` is passed through to ``_run_single_raw_validation``.
+        The retrospective evaluation, the Spark weight tuner (``datect_spark/retune.py``)
+        and the dashboard's single forecast all come here, so the dashboard shows the
+        models the reported numbers score. It merges the site's XGBoost overrides onto
+        ``base_params`` when ``config.USE_PER_SITE_MODELS`` and runs
+        ``_run_single_raw_validation``. XGBoost threads travel in ``base_params``: the
+        retrospective and the tuner set ``n_jobs=1``, single forecasts leave the default.
         """
-        test_date = raw_measurement["date"]
-        site = raw_measurement["site"]
-        forecast_horizon = config.FORECAST_HORIZON_DAYS
-        anchor_date = test_date - pd.Timedelta(days=forecast_horizon)
-
-        use_per_site = config.USE_PER_SITE_MODELS
-        calibration_frac = config.CALIBRATION_FRACTION
-        max_calib = config.MAX_CALIBRATION_ROWS
-        min_tuning = config.MIN_TUNING_SAMPLES
-        param_grid = config.PARAM_GRID
-
-        # Per-site XGB param overrides
-        effective_params = (
-            apply_site_xgb_params(base_params, site) if use_per_site else base_params
+        params = (
+            apply_site_xgb_params(base_params, raw_measurement["site"])
+            if config.USE_PER_SITE_MODELS
+            else base_params
         )
-
-        train_data = get_site_training_frame(
-            feature_frame, site, anchor_date, self.min_training_samples
-        )
-        if train_data is None or train_data.empty:
-            return None
-
-        # --- Per-anchor tuning ---
-        calib_candidates = train_data[["date", "site", "da_raw"]].dropna().copy()
-
-        # Site-specific param grid
-        if use_per_site:
-            site_grid = get_site_param_grid(site)
-            if site_grid is not None:
-                effective_grid = list(site_grid) + [
-                    g for g in param_grid if g not in site_grid
-                ]
-            else:
-                effective_grid = param_grid
-        else:
-            effective_grid = param_grid
-
-        best_params = effective_params
-
-        # Skip tuning when the full training set is too small — every row matters
-        # more than marginal param selection between near-identical grid entries.
-        min_train_for_tuning = config.MIN_TRAINING_FOR_TUNING
-
-        if (
-            config.PER_ANCHOR_TUNING
-            and not calib_candidates.empty
-            and len(calib_candidates) >= min_tuning
-            and len(effective_grid) > 1
-            and len(train_data) >= min_train_for_tuning
-        ):
-            # Sample calibration rows
-            rng_seed = self.random_seed + int(test_date.value % 1_000_000)
-            rng = np.random.RandomState(rng_seed)
-            n_cand = len(calib_candidates)
-            target_n = min(max(1, int(np.ceil(calibration_frac * n_cand))), max_calib)
-            if target_n < n_cand:
-                idx = rng.choice(n_cand, size=target_n, replace=False)
-                calib_candidates = calib_candidates.iloc[idx]
-
-            calib_rows = [
-                {"date": row["date"], "site": row["site"], "da_raw": row["da_raw"]}
-                for _, row in calib_candidates.iterrows()
-            ]
-
-            if len(calib_rows) >= min_tuning:
-                best_params, _ = self._tune_xgb_params(
-                    calib_rows, feature_frame, effective_params, effective_grid
-                )
-        elif len(effective_grid) == 1:
-            best_params = {**effective_params, **effective_grid[0]}
-
-        # --- Run the actual prediction ---
         return self._run_single_raw_validation(
-            raw_measurement, feature_frame, best_params,
+            raw_measurement, feature_frame, params,
             return_internals=return_internals,
         )
 
@@ -907,16 +840,15 @@ class RawForecastEngine:
         raw_measurement: dict,
         feature_frame: pd.DataFrame,
         model_params: dict,
-        skip_rf: bool = False,
         return_internals: bool = False,
     ) -> Optional[dict]:
         """
         Core single-point forecast: the models every reported number is scored on.
 
-        The retrospective evaluation calls this per test point and the dashboard's
-        single forecasts call it too (``return_internals=True`` adds the fitted
-        inputs under ``"_internals"`` so intervals and categories can be built on
-        exactly the same data).
+        Called only through ``_point_forecast``, which hands it the final XGBoost
+        params (``return_internals=True`` adds the fitted inputs under
+        ``"_internals"`` so intervals and categories can be built on exactly the
+        same data).
         """
         test_date = raw_measurement["date"]
         site = raw_measurement["site"]
@@ -1004,15 +936,14 @@ class RawForecastEngine:
         rf_base = dict(config.RF_REGRESSION_PARAMS)
         if use_per_site:
             rf_base = apply_site_rf_params(rf_base, site)
-        if not skip_rf:
-            try:
-                rf_model = build_rf_regressor(rf_base)
-                rf_model.fit(X_train_processed, y_train)
-                rf_raw = float(rf_model.predict(X_test_processed)[0])
-                rf_prediction = _postprocess(rf_raw)
-            except Exception as e:
-                logger.warning("RF training failed for %s on %s: %s — using XGB prediction only", site, test_date, e)
-                rf_prediction = prediction
+        try:
+            rf_model = build_rf_regressor(rf_base)
+            rf_model.fit(X_train_processed, y_train)
+            rf_raw = float(rf_model.predict(X_test_processed)[0])
+            rf_prediction = _postprocess(rf_raw)
+        except Exception as e:
+            logger.warning("RF training failed for %s on %s: %s — using XGB prediction only", site, test_date, e)
+            rf_prediction = prediction
 
         # Naive (always use real observations only)
         naive_prediction = get_last_known_raw_da(
@@ -1149,39 +1080,6 @@ class RawForecastEngine:
         if config.USE_PER_SITE_MODELS:
             return get_site_ensemble_weights(site)
         return 0.5, 0.5, 0.0
-
-    def _tune_xgb_params(
-        self,
-        calib_rows: list[dict],
-        feature_frame: pd.DataFrame,
-        base_params: dict,
-        grid: list[dict],
-    ) -> tuple[dict, float]:
-        """Tune XGB hyperparameters on calibration rows."""
-        best_params = base_params
-        best_r2 = float("-inf")
-
-        for override in grid:
-            params = {**base_params, **override}
-            results = [
-                self._run_single_raw_validation(
-                    row, feature_frame, params, skip_rf=True
-                )
-                for row in calib_rows
-            ]
-            results = [r for r in results if r is not None]
-            if not results:
-                continue
-            df = pd.DataFrame(results)
-            try:
-                r2 = r2_score(df["actual_da_raw"].values, df["predicted_da"].values)
-            except Exception:
-                continue
-            if r2 > best_r2:
-                best_r2 = r2
-                best_params = params
-
-        return best_params, best_r2
 
     # ------------------------------------------------------------------
     # Metrics display (backward compat)

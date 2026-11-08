@@ -70,6 +70,16 @@ def test_enhanced_forecast_calls_the_engine_once_and_returns_the_band(client):
     assert body["ensemble"]["ensemble_weights"] == [0.5, 0.5, 0.0]
 
 
+def test_enhanced_rejects_classification(client):
+    """Only the regression task exists; any other is a bad request, not a forecast."""
+    engine = client.use(_Engine())
+    r = client.post("/api/forecast/enhanced",
+                    json={"date": "2019-06-03", "site": "Kalaloch", "task": "classification",
+                          "model": "ensemble"})
+    assert r.status_code == 422
+    assert engine.calls == []
+
+
 def test_enhanced_forecast_reports_alert_parts_and_level(client):
     client.use(_Engine(predicted=3.0, spike_probability=0.5))
     alert = _post(client, "Kalaloch", "2019-06-03")["alert"]   # last measurement 2.0

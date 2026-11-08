@@ -53,7 +53,7 @@ All fitted models are seeded with `config.MODEL_SEED` (42).
 | XGBoost | `global.xgb_base_params` merged with the site's `xgb_params`. With `USE_MONOTONIC_CONSTRAINTS` (default true), non-decreasing constraints on `last_observed_da_raw`, `raw_obs_roll_max_4`, `raw_obs_roll_mean_4`. |
 | Random Forest | `global.rf_base_params` merged with the site's `rf_params` (set for Coos Bay, Cannon Beach, Gold Beach, Newport). |
 | Naive persistence | Last real DA at or before the anchor (`PERSISTENCE_MAX_DAYS = None`, no age cap). External baseline, never blended. If a site has no prior real measurement the point is dropped. |
-| Ridge (`linear`) | `LINEAR_REGRESSION_ALPHA` on the full preprocessed feature set; a competitor, not part of the ensemble. Logistic regression is its classification counterpart. |
+| Ridge (`linear`) | `LINEAR_REGRESSION_ALPHA` on the full preprocessed feature set; a competitor, not part of the ensemble. |
 
 **Post-processing** (`_postprocess`, applied to XGB, RF and Ridge): floor at 0. There is no upper clip: `prediction_clip_q`, `prediction_clip_max` and `PREDICTION_CLIP_Q` are null. The clip they once set capped forecasts at a quantile of the training `da_raw`, which is mostly gap-filled (Coos Bay q95 81 µg/g vs 145 over real measurements), and removing it raised R² in every window (`docs/CORRECTED_NUMBERS.md`). `DATECT_CLIP_Q_OVERRIDE=<q>` restores a clip at quantile *q* for ablations.
 
@@ -89,7 +89,7 @@ One convention everywhere (`forecasting/metrics.py`, `config.py`): **reaching a 
 - **Spike**: actual DA `>= SPIKE_THRESHOLD` (20 µg/g). `metrics.exceeds()` is always `>=`; `metrics.detection_scores()` computes recall, precision, F1, F2, FNR, FPR from confusion counts with scikit-learn's formulas.
 - **Regression alert**: ensemble prediction `>= SPIKE_REGRESSION_ALERT_THRESHOLD` (12 µg/g).
 - **Hybrid spike alert** (`spike_alert` in each result): pooled spike-classifier probability `>= SPIKE_ALERT_PROB_THRESHOLD` (0.1) **or** the regression alert. The classifier (`ClassificationAdapter.train_spike_binary_classifier`) is an XGBoost model trained per prediction on real measurements from all sites up to the anchor (at least 30 rows), on every row, including weeks already above 20 (the lag and rolling DA features stay), without `last_observed_da_raw` / `weeks_since_last_spike`, with balanced class weights and `SPIKE_CLASSIFIER_PARAMS`. If it cannot be trained, the regression rule alone decides.
-- **Risk categories**: `DA_CATEGORY_BINS` with `pd.cut(..., right=False)`: Low `[0, 5)`, Moderate `[5, 20)`, High `[20, 40)`, Extreme `>= 40`. A value on a boundary belongs to the higher category. `ClassificationAdapter.threshold_classify` bins the regression prediction into `predicted_category`. Classification-task single forecasts also train a dedicated balanced XGBoost 4-class classifier (`predicted_category_ml` plus class probabilities); with `model_type="logistic"` a logistic regression supplies the category instead.
+- **Risk categories**: `DA_CATEGORY_BINS` with `pd.cut(..., right=False)`: Low `[0, 5)`, Moderate `[5, 20)`, High `[20, 40)`, Extreme `>= 40`. A value on a boundary belongs to the higher category. `ClassificationAdapter.threshold_classify` bins the regression prediction into `predicted_category`. Regression is the only task: the 4-category classifier and the logistic model were removed, and `task != "regression"` or `model_type="logistic"` raises `ValueError`.
 
 ## 9. Single forecasts (dashboard and `/api/forecast/*`)
 
@@ -122,4 +122,4 @@ Retrospective evaluation skips intervals; they do not affect reported metrics. T
 
 ## Caching and serving
 
-The precomputed store (Delta tables built on Spark on Hyak, `datect_spark/store.sbatch`) holds weekly forecasts, 8 task/model retrospectives (regression: ensemble, xgboost, rf, naive, linear; classification: ensemble, naive, logistic), spectral analyses and per-site correlation heatmaps. The API (`backend/precomputed.py`) serves rows whose config hash matches its own code, config, data and library versions, and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).
+The precomputed store (Delta tables built on Spark on Hyak, `datect_spark/store.sbatch`) holds weekly forecasts, 5 retrospectives (regression: ensemble, xgboost, rf, naive, linear), spectral analyses and per-site correlation heatmaps. The API (`backend/precomputed.py`) serves rows whose config hash matches its own code, config, data and library versions, and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).

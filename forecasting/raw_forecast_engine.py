@@ -25,7 +25,6 @@ from joblib import Parallel, delayed
 from sklearn.metrics import (
     r2_score,
     mean_absolute_error,
-    accuracy_score,
 )
 from tqdm import tqdm
 
@@ -45,7 +44,6 @@ from .raw_model_factory import (
     build_xgb_regressor,
     build_rf_regressor,
     build_linear_regressor,
-    build_logistic_classifier,
 )
 from .per_site_models import (
     apply_site_xgb_params,
@@ -80,8 +78,19 @@ def _quiet_warnings(fn):
 
 
 # ---------------------------------------------------------------------------
-# Helper: leakage verification (ported from source config.py)
+# Helpers: supported requests; leakage verification (ported from source config.py)
 # ---------------------------------------------------------------------------
+
+def _require_regression(task: str, model_type: str) -> None:
+    """The engine forecasts DA levels only. The 4-category classifier and the
+    logistic model were removed (categories come from the predicted level, and on
+    the dashboard from the error band), so asking for them fails here instead of
+    falling through to another model."""
+    if task != "regression":
+        raise ValueError(f"Unknown task '{task}': the engine supports 'regression' only")
+    if model_type == "logistic":
+        raise ValueError("model_type 'logistic' was removed with the 4-category classifier")
+
 
 def _verify_no_data_leakage(train_data, test_date, anchor_date):
     """Assert no training week extends past the anchor date."""
@@ -254,14 +263,16 @@ class RawForecastEngine:
         site : str
             Monitoring site name.
         task : str
-            ``"regression"`` or ``"classification"``.
+            ``"regression"``, the only task; anything else raises ``ValueError``.
         model_type : str
-            ``"ensemble"``, ``"xgboost"``, ``"rf"``, ``"naive"``, etc.
+            ``"ensemble"``, ``"xgboost"``, ``"rf"``, ``"naive"`` or ``"linear"``
+            (``"logistic"`` raises ``ValueError``).
 
         Returns
         -------
         dict or None
         """
+        _require_regression(task, model_type)
         forecast_date = pd.Timestamp(forecast_date)
         feature_frame = self._load_feature_frame()
 
@@ -325,72 +336,16 @@ class RawForecastEngine:
         }
 
         # --- Quantile / bootstrap confidence intervals ---
-        if task == "regression":
-            quantiles = self._compute_confidence_intervals(
-                fitted["X_train_processed"], fitted["y_train"], fitted["X_test_processed"],
-                fitted["xgb_params"], fitted["postprocess"], model_type, site,
-                naive_prediction, fitted["rf_params"], (w_xgb, w_rf, w_naive),
-            )
-            result["bootstrap_quantiles"] = quantiles
+        result["bootstrap_quantiles"] = self._compute_confidence_intervals(
+            fitted["X_train_processed"], fitted["y_train"], fitted["X_test_processed"],
+            fitted["xgb_params"], fitted["postprocess"], model_type, site,
+            naive_prediction, fitted["rf_params"], (w_xgb, w_rf, w_naive),
+        )
 
-        # --- Classification ---
-        if task == "classification" or task == "both":
-            cls_result = self.classification_adapter.classify_prediction(
-                primary_prediction
-            )
-            result["predicted_category"] = cls_result["predicted_category"]
-            result["class_probabilities"] = cls_result["class_probabilities"]
-
-            if model_type == "logistic":
-                # Train LogisticRegression on category labels
-                y_categories = self.classification_adapter.threshold_classify_series(
-                    fitted["train_data"]["da_raw"]
-                )
-                unique_cats = sorted(y_categories.unique())
-                if len(unique_cats) >= 2:
-                    try:
-                        logistic_model = build_logistic_classifier()
-                        logistic_model.fit(fitted["X_train_processed"], y_categories)
-                        result["predicted_category"] = int(
-                            logistic_model.predict(fitted["X_test_processed"])[0]
-                        )
-                        if hasattr(logistic_model, "predict_proba"):
-                            probs = logistic_model.predict_proba(fitted["X_test_processed"])[0]
-                            prob_array = [0.0, 0.0, 0.0, 0.0]
-                            for i, cls in enumerate(logistic_model.classes_):
-                                cls_id = int(cls)
-                                if 0 <= cls_id <= 3:
-                                    prob_array[cls_id] = float(probs[i])
-                            result["class_probabilities"] = prob_array
-                    except Exception as exc:
-                        logger.debug("Logistic classifier failed: %s", exc)
-                else:
-                    result["predicted_category"] = (
-                        self.classification_adapter.threshold_classify(primary_prediction)
-                    )
-            else:
-                # Also try dedicated ML classifier for richer probabilities
-                try:
-                    classifier_result = (
-                        self.classification_adapter.train_dedicated_classifier(
-                            fitted["X_train_processed"],
-                            fitted["train_data"]["da_raw"],
-                            site=site,
-                        )
-                    )
-                    if classifier_result is not None:
-                        full_cls = self.classification_adapter.classify_prediction(
-                            primary_prediction, classifier_result, fitted["X_test_processed"],
-                        )
-                        result["predicted_category_ml"] = full_cls["predicted_category_ml"]
-                        result["class_probabilities"] = full_cls["class_probabilities"]
-                except Exception as exc:
-                    logger.debug("Dedicated classifier failed: %s", exc)
-        elif task == "regression":
-            # Even for regression, provide threshold classification for the UI
-            result["predicted_category"] = (
-                self.classification_adapter.threshold_classify(primary_prediction)
-            )
+        # Risk category of the selected prediction (left-closed bins)
+        result["predicted_category"] = (
+            self.classification_adapter.threshold_classify(primary_prediction)
+        )
 
         # --- Spike alert: the evaluated hybrid rule (pooled classifier OR ensemble >= alert) ---
         if core["spike_probability"] is not None:
@@ -593,9 +548,12 @@ class RawForecastEngine:
 
         If *max_test_samples* is set, the per-site draw is subsampled to at
         most that many rows (after concatenation), for quick smoke tests.
+
+        Only ``task="regression"`` exists; another task or
+        ``model_type="logistic"`` raises ``ValueError``.
         """
+        _require_regression(task, model_type)
         logger.info("Running LEAK-FREE %s evaluation with %s", task, model_type)
-        self._retro_model_type = model_type
 
         feature_frame = self._load_feature_frame()
         raw_data = self._raw_data_cache
@@ -760,9 +718,7 @@ class RawForecastEngine:
 
         # For predicted_category, use the final predicted_da
         pred_col = "predicted_da"
-        if model_type == "logistic" and "predicted_category_logistic" in results_df.columns:
-            results_df["predicted_category"] = results_df["predicted_category_logistic"]
-        elif pred_col in results_df.columns:
+        if pred_col in results_df.columns:
             results_df["predicted_category"] = (
                 self.classification_adapter.threshold_classify_series(
                     results_df[pred_col]
@@ -789,7 +745,7 @@ class RawForecastEngine:
             )
 
         self.results_df = results_df
-        self._display_evaluation_metrics(task)
+        self._display_evaluation_metrics()
 
         return results_df
 
@@ -951,23 +907,6 @@ class RawForecastEngine:
         except Exception:
             linear_prediction = None
 
-        # Logistic classification (only when needed for retrospective)
-        predicted_category_logistic = None
-        if getattr(self, "_retro_model_type", None) == "logistic":
-            try:
-                y_categories = self.classification_adapter.threshold_classify_series(
-                    train_data["da_raw"]
-                )
-                unique_cats = sorted(y_categories.unique())
-                if len(unique_cats) >= 2:
-                    logistic_model = build_logistic_classifier()
-                    logistic_model.fit(X_train_processed, y_categories)
-                    predicted_category_logistic = int(
-                        logistic_model.predict(X_test_processed)[0]
-                    )
-            except Exception:
-                predicted_category_logistic = None
-
         # Feature importance
         feature_importance = {}
         if hasattr(xgb_model, "feature_importances_"):
@@ -1035,7 +974,6 @@ class RawForecastEngine:
             "predicted_da_rf": rf_prediction if rf_prediction is not None else prediction,
             "naive_prediction": naive_prediction,
             "predicted_da_linear": linear_prediction,
-            "predicted_category_logistic": predicted_category_logistic,
             "training_samples": len(train_data),
             "days_ahead": (test_date - anchor_date).days,
             "date_diff_to_processed": int(
@@ -1069,33 +1007,24 @@ class RawForecastEngine:
     # Metrics display (backward compat)
     # ------------------------------------------------------------------
 
-    def _display_evaluation_metrics(self, task: str):
+    def _display_evaluation_metrics(self):
         """Display evaluation metrics to log."""
         if self.results_df is None or self.results_df.empty:
             return
 
         logger.info("Processed %d retrospective forecasts", len(self.results_df))
 
-        if task in ("regression", "both"):
-            valid = self.results_df.dropna(subset=["actual_da", "predicted_da"])
-            if not valid.empty:
-                r2 = r2_score(valid["actual_da"], valid["predicted_da"])
-                mae = mean_absolute_error(valid["actual_da"], valid["predicted_da"])
-                f1_val = detection_scores(
-                    exceeds(valid["actual_da"], config.SPIKE_THRESHOLD),
-                    exceeds(valid["predicted_da"], config.SPIKE_REGRESSION_ALERT_THRESHOLD),
-                )["f1"]
-                logger.info(
-                    "Regression — R2: %.4f  MAE: %.4f  Spike F1: %.4f",
-                    r2,
-                    mae,
-                    f1_val,
-                )
-
-        if task in ("classification", "both"):
-            valid = self.results_df.dropna(
-                subset=["actual_category", "predicted_category"]
+        valid = self.results_df.dropna(subset=["actual_da", "predicted_da"])
+        if not valid.empty:
+            r2 = r2_score(valid["actual_da"], valid["predicted_da"])
+            mae = mean_absolute_error(valid["actual_da"], valid["predicted_da"])
+            f1_val = detection_scores(
+                exceeds(valid["actual_da"], config.SPIKE_THRESHOLD),
+                exceeds(valid["predicted_da"], config.SPIKE_REGRESSION_ALERT_THRESHOLD),
+            )["f1"]
+            logger.info(
+                "Regression — R2: %.4f  MAE: %.4f  Spike F1: %.4f",
+                r2,
+                mae,
+                f1_val,
             )
-            if not valid.empty:
-                acc = accuracy_score(valid["actual_category"], valid["predicted_category"])
-                logger.info("Classification — Accuracy: %.4f", acc)

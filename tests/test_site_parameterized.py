@@ -4,8 +4,8 @@ Thorough Parameterized Verification Suite for DATect monitoring sites and models
 Exercises:
 - Config mappings across all 10 monitoring sites.
 - Plotly chart builders across all 10 sites.
-- End-to-end forecasts across all 10 sites, multiple historical dates,
-  regression vs classification tasks, and 5 distinct model types.
+- End-to-end regression forecasts across all 10 sites, multiple historical
+  dates and 5 distinct model types.
 """
 
 from pathlib import Path
@@ -41,7 +41,6 @@ SITES = [
 
 # Forecast parameters to combinatorial test
 DATES = ["2018-06-11", "2019-09-16", "2020-07-20", "2021-01-11"]
-TASKS = ["regression", "classification"]
 MODELS = ["ensemble", "xgboost", "rf", "naive", "linear"]
 
 
@@ -147,32 +146,27 @@ class TestSiteParameterized:
             assert data["rows"] and data["series"].startswith("raw measurements")
             assert data["site"] == site
 
-    # 4. End-to-End Pipeline Combinatorics (10 sites × 2 dates × 2 tasks × 5 models = 200 tests!)
+    # 4. End-to-End Pipeline Combinatorics (10 sites × 4 dates × 5 models = 200 tests)
     @pytest.mark.parametrize("site", SITES)
     @pytest.mark.parametrize("date", DATES)
-    @pytest.mark.parametrize("task", TASKS)
     @pytest.mark.parametrize("model", MODELS)
-    def test_pipeline_forecast_combinatorics(self, site, date, task, model):
+    def test_pipeline_forecast_combinatorics(self, site, date, model):
         """Verify single forecast generation across all combinatorial paths."""
         # Twin Harbors / Newport are high-N sites, Gold Beach / Newport are small-N, etc.
-        # This exercises all features, constraints, classification thresholds, and ML blended layers.
-        
-        # Override model classification name mapping
-        m_type = "logistic" if model == "linear" and task == "classification" else model
-
+        # This exercises all features, constraints, category thresholds, and ML blended layers.
         result = self.engine.generate_single_forecast(
             data_path=str(self.parquet_path),
             forecast_date=date,
             site=site,
-            task=task,
-            model_type=m_type
+            task="regression",
+            model_type=model
         )
         
         # Every site has years of history before these 2018-2021 dates
         assert isinstance(result, dict)
         assert result["site"] == site
-        assert result["task"] == task
-        assert "predicted_da" in result or "predicted_category" in result
+        assert result["task"] == "regression"
+        assert "predicted_da" in result and result["predicted_category"] in (0, 1, 2, 3)
         assert "naive_prediction" in result
 
     # 5. Temporal Integrity Boundaries (20 tests)

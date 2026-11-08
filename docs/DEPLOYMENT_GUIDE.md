@@ -15,7 +15,7 @@ The store is a directory of four Delta tables that the API reads with `deltalake
 | Table | Contents | Built by |
 |---|---|---|
 | `forecasts` | `generate_single_forecast` output for every (site, week) in `final_output.parquet`, model `ensemble`, regression only (10,950 entries; the measured 2026-11 run stored both tasks, 21,900) | `datect_spark/forecast_serving.py precompute` |
-| `retrospective` | retrospective records (the model traces of the spectral plots) for 8 task/model slices: regression × {ensemble, xgboost, rf, naive, linear}, classification × {ensemble, naive, logistic} | `datect_spark/precompute_store.py retrospective` |
+| `retrospective` | retrospective records (the model traces of the spectral plots) for 5 slices: regression × {ensemble, xgboost, rf, naive, linear} | `datect_spark/precompute_store.py retrospective` |
 | `spectral` | spectral analysis per site and for all sites | `datect_spark/precompute_store.py visuals` |
 | `correlation` | correlation heatmap per site | `datect_spark/precompute_store.py visuals` |
 

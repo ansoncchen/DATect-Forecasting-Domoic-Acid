@@ -5,7 +5,7 @@ Ensemble Model Factory
 Class-based wrapper that provides the same ``get_supported_models()`` /
 ``get_model_description()`` interface the API layer expects, while
 delegating to the raw-pipeline's standalone model builders for the actual
-XGBoost / Random Forest / classifier construction.
+XGBoost / Random Forest / Ridge construction.
 
 This replaces the target project's original ``ModelFactory`` for the new
 raw-data ensemble pipeline.
@@ -19,9 +19,7 @@ import config
 from .raw_model_factory import (
     build_xgb_regressor,
     build_rf_regressor,
-    build_xgb_classifier,
     build_linear_regressor,
-    build_logistic_classifier,
 )
 from .per_site_models import (
     apply_site_xgb_params,
@@ -41,10 +39,7 @@ class EnsembleModelFactory:
       - naive:    Last-known-DA baseline
       - linear:   Linear regression baseline
 
-    Supported classification models:
-      - ensemble:  Threshold classification from ensemble regression output
-      - naive:     Threshold classification from naive regression output
-      - logistic:  Logistic regression classifier
+    Regression is the only task.
     """
 
     def __init__(self):
@@ -71,7 +66,7 @@ class EnsembleModelFactory:
         Parameters
         ----------
         task : str
-            ``"regression"`` or ``"classification"``.
+            ``"regression"``, the only task.
         model_type : str
             One of the keys from ``get_supported_models()[task]``.
         site : str, optional
@@ -81,10 +76,7 @@ class EnsembleModelFactory:
         """
         if task == "regression":
             return self._get_regression_model(model_type, site, params_override)
-        elif task == "classification":
-            return self._get_classification_model(model_type, site, params_override)
-        else:
-            raise ValueError(f"Unknown task: {task}. Must be 'regression' or 'classification'")
+        raise ValueError(f"Unknown task: {task}. Must be 'regression'")
 
     def _get_regression_model(self, model_type, site=None, params_override=None):
         if model_type in ("ensemble", "naive"):
@@ -115,25 +107,6 @@ class EnsembleModelFactory:
             f"Supported: {self.get_supported_models()['regression']}"
         )
 
-    def _get_classification_model(self, model_type, site=None, params_override=None):
-        if model_type in ("ensemble", "naive"):
-            # Threshold classification is derived from regression output
-            return None
-
-        if model_type in ("xgboost", "xgb"):
-            base_params = dict(config.XGB_CLASSIFICATION_PARAMS)
-            if params_override:
-                base_params.update(params_override)
-            return build_xgb_classifier(base_params)
-
-        if model_type == "logistic":
-            return build_logistic_classifier()
-
-        raise ValueError(
-            f"Unknown classification model: {model_type}. "
-            f"Supported: {self.get_supported_models()['classification']}"
-        )
-
     # ------------------------------------------------------------------
     # API-compatible metadata
     # ------------------------------------------------------------------
@@ -142,7 +115,6 @@ class EnsembleModelFactory:
         """Return supported model types, matching the API's expected interface."""
         models = {
             "regression": ["ensemble", "naive", "linear"],
-            "classification": ["ensemble", "naive", "logistic"],
         }
         if task is None:
             return models
@@ -159,6 +131,5 @@ class EnsembleModelFactory:
             "naive": "Naive Baseline (Most recent DA before anchor date)",
             "threshold": "Threshold Classification",
             "linear": "Ridge Regression",
-            "logistic": "Logistic Regression",
         }
         return descriptions.get(model_type, f"Unknown model: {model_type}")

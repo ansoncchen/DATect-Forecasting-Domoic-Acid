@@ -123,7 +123,7 @@ def resolve_site(site: str) -> str:
 class ForecastRequest(BaseModel):
     date: date
     site: str
-    task: str = "regression"  # "regression" or "classification"
+    task: Literal["regression"] = "regression"  # the only task; others are a 422
     model: str = "ensemble"
 
 class SiteInfo(BaseModel):

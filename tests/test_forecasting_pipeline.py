@@ -3,7 +3,7 @@ Integration tests for the core DATect forecasting pipeline and OAD feature integ
 
 Verifies that the RawForecastEngine can initialize successfully, build features
 from raw and processed datasets, handle OAD features cleanly without leakage,
-and generate regression/classification predictions correctly.
+and generate regression predictions and their risk categories correctly.
 """
 
 from pathlib import Path
@@ -107,25 +107,29 @@ class TestForecastingPipeline:
         assert calls[0]["site"] == "Newport"
         assert calls[0]["date"] == pd.Timestamp("2018-06-11")
 
-    def test_classification_forecast(self):
-        """Test end-to-end classification forecasting producing risk categories."""
-        forecast_date = "2018-06-11"
-        site = "Twin Harbors"
-        
-        result = self.engine.generate_single_forecast(
-            data_path=str(self.parquet_path),
-            forecast_date=forecast_date,
-            site=site,
-            task="classification",
-            model_type="ensemble"
+    def test_classification_task_is_rejected(self):
+        """The 4-category classifier and the logistic model are gone: asking for
+        either fails loudly instead of falling through to another model."""
+        for task, model_type, message in (("classification", "ensemble", "task 'classification'"),
+                                          ("regression", "logistic", "'logistic'")):
+            with pytest.raises(ValueError, match=message):
+                self.engine.generate_single_forecast(
+                    data_path=str(self.parquet_path),
+                    forecast_date="2018-06-11",
+                    site="Twin Harbors",
+                    task=task,
+                    model_type=model_type,
+                )
+            with pytest.raises(ValueError, match=message):
+                self.engine.run_retrospective_evaluation(task=task, model_type=model_type)
+
+    def test_retrospective_has_no_logistic_column(self):
+        """The always-empty logistic category column is gone; the Ridge competitor stays."""
+        eval_df = self.engine.run_retrospective_evaluation(
+            task="regression", model_type="ensemble", max_test_samples=3,
         )
-        
-        assert result is not None
-        assert "predicted_category" in result
-        assert result["predicted_category"] in [0, 1, 2, 3]  # Low, Moderate, High, Extreme
-        assert "class_probabilities" in result
-        assert len(result["class_probabilities"]) == 4
-        assert sum(result["class_probabilities"]) == pytest.approx(1.0)
+        assert "predicted_category_logistic" not in eval_df.columns
+        assert "predicted_da_linear" in eval_df.columns
 
     def test_spike_classifier_probability(self):
         """Verify that the dedicated spike binary classifier evaluates probability and triggers alerts."""

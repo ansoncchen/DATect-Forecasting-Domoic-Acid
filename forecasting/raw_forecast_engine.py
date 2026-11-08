@@ -587,7 +587,6 @@ class RawForecastEngine:
         raw_measurement: dict,
         feature_frame: pd.DataFrame,
         base_params: dict,
-        return_internals: bool = False,
     ) -> Optional[dict]:
         """
         One leak-free forecast for one site and date: the function every caller uses.
@@ -604,24 +603,20 @@ class RawForecastEngine:
             if config.USE_PER_SITE_MODELS
             else base_params
         )
-        return self._run_single_raw_validation(
-            raw_measurement, feature_frame, params,
-            return_internals=return_internals,
-        )
+        return self._run_single_raw_validation(raw_measurement, feature_frame, params)
 
     def _run_single_raw_validation(
         self,
         raw_measurement: dict,
         feature_frame: pd.DataFrame,
         model_params: dict,
-        return_internals: bool = False,
     ) -> Optional[dict]:
         """
         Core single-point forecast: the models every reported number is scored on.
 
         Called only through ``_point_forecast``, which hands it the final XGBoost
-        params (``return_internals=True`` adds the training frame under
-        ``"_internals"``; the Spark tuner reads it).
+        params. ``training_samples`` is the number of training rows (the Spark tuner
+        records it as ``n_train``).
         """
         test_date = raw_measurement["date"]
         site = raw_measurement["site"]
@@ -814,9 +809,6 @@ class RawForecastEngine:
             "spike_probability": spike_prob,
             "spike_alert": spike_alert,
         }
-
-        if return_internals:
-            result["_internals"] = {"train_data": train_data}
         return result
 
     @staticmethod

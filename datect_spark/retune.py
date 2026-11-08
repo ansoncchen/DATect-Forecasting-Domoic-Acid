@@ -103,13 +103,13 @@ def _predict_partition(batches):
             t0 = time.time()
             out = engine._point_forecast(
                 {"date": pd.Timestamp(r.date), "site": r.site, "da_raw": r.actual_da},
-                feature_frame, base, return_internals=True,
+                feature_frame, base,
             )
             row = {"site": r.site, "date": r.date, "actual_da": r.actual_da,
                    "host": host, "ok": out is not None, "n_train": 0}
             if out is not None:
                 row.update(xgb_raw=out["predicted_da"], rf_raw=out["predicted_da_rf"],
-                           n_train=len(out["_internals"]["train_data"]))
+                           n_train=out["training_samples"])
             row["task_seconds"] = time.time() - t0
             rows.append(row)
         yield pd.DataFrame(rows).reindex(columns=[c.split()[0] for c in PRED_SCHEMA.split(", ")])

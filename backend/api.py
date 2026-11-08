@@ -474,66 +474,6 @@ def _spectral_model_results() -> dict:
         out[key] = pd.DataFrame(records) if records else None
     return out
 
-def get_latest_da_from_raw_files():
-    """Latest DA from raw CSVs; uses ``config.ORIGINAL_DA_FILES`` (same paths as the forecast pipeline)."""
-    from forecasting.raw_data_forecaster import _normalize_site_name
-
-    latest_da_data = {}
-
-    for site_key, rel_path in config.ORIGINAL_DA_FILES.items():
-        file_path = _resolve_repo_relative_path(rel_path)
-        site_name = _normalize_site_name(site_key)
-
-        if not os.path.exists(file_path):
-            continue
-
-        try:
-            df = pd.read_csv(file_path)
-        except Exception as e:
-            logger.warning("Failed to read raw DA file %s: %s", file_path, e)
-            continue
-
-        if df.empty:
-            continue
-
-        last_row = df.iloc[-1]
-        date_obj = None
-        da_value = None
-
-        if "CollectDate" in df.columns and "Domoic Result" in df.columns:
-            date_obj = pd.to_datetime(str(last_row["CollectDate"]), errors="coerce")
-            da_value = last_row["Domoic Result"]
-        elif (
-            "Harvest Month" in df.columns
-            and "Harvest Date" in df.columns
-            and "Harvest Year" in df.columns
-            and "Domoic Acid" in df.columns
-        ):
-            date_str = (
-                f"{last_row['Harvest Month']} {last_row['Harvest Date']}, "
-                f"{last_row['Harvest Year']}"
-            )
-            date_obj = pd.to_datetime(date_str, errors="coerce")
-            da_value = last_row["Domoic Acid"]
-        else:
-            logger.warning("Unknown raw DA schema for %s", file_path)
-            continue
-
-        if pd.isna(date_obj):
-            logger.warning("Unparseable date in last row of %s", file_path)
-            continue
-
-        from forecasting.measurements import parse_da_values
-
-        da_numeric = float(parse_da_values([da_value]).iloc[0])  # "<1" -> LOD/2
-        if pd.isna(da_numeric):
-            logger.warning("Unparseable DA value in last row of %s", file_path)
-            continue
-
-        latest_da_data[site_name] = {"da": da_numeric, "date": date_obj}
-
-    return latest_da_data
-
 MAP_CATEGORY_COLORS = ("#9aa5b1", "#e0a100", "#e4670f", "#c0392b")  # by category: gray, never green
 
 
@@ -547,7 +487,9 @@ def get_site_map():
         
         # Get site coordinates from config and latest DA data from raw files
         sites = config.SITES
-        latest_da_data = get_latest_da_from_raw_files()
+        measurements = _raw_measurements()
+        latest = measurements.sort_values("date").groupby("site").tail(1)
+        latest_da_data = {r.site: {"da": float(r.da_raw), "date": r.date} for r in latest.itertuples()}
         
         # Prepare data for map
         site_names = []

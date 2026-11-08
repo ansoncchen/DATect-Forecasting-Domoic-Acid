@@ -173,3 +173,28 @@ def test_site_map_reports_measurements_not_a_risk_verdict():
     assert not {"green", "yellow"} & set(trace["marker"]["color"])
     hover = " ".join(trace["hovertemplate"])
     assert "Risk Level" not in hover and "Last measured DA" in hover
+
+
+def _map_hovers():
+    with TestClient(app) as client:
+        trace = client.get("/api/visualizations/map").json()["plot"]["data"][0]
+    return dict(zip(trace["text"], zip(trace["hovertemplate"], trace["marker"]["color"])))
+
+
+def test_map_uses_the_canonical_measurements():
+    from forecasting.raw_data_forecaster import load_raw_da_measurements
+    m = load_raw_da_measurements()
+    latest = m[m["date"] == m.groupby("site")["date"].transform("max")]
+    hovers = _map_hovers()
+    for site, grp in latest.groupby("site"):
+        hover = hovers[site][0]
+        assert f"{grp['da_raw'].max():.2f}" in hover
+        assert grp["date"].iloc[0].strftime("%Y-%m-%d") in hover
+
+
+def test_map_marks_a_site_without_measurements(monkeypatch):
+    from backend import api
+    m = api._raw_measurements()
+    monkeypatch.setattr(api, "_raw_measurements", lambda: m[m["site"] != "Newport"])
+    hover, color = _map_hovers()["Newport"]
+    assert "no data" in hover and color == "#d0d5db"

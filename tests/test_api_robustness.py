@@ -181,17 +181,47 @@ def _map_hovers():
     return dict(zip(trace["text"], zip(trace["hovertemplate"], trace["marker"]["color"])))
 
 
-def test_map_uses_the_canonical_measurements():
-    from forecasting.raw_data_forecaster import load_raw_da_measurements
-    m = load_raw_da_measurements()
-    latest = m[m["date"] == m.groupby("site")["date"].transform("max")]
+_NO_MAPBOX_WARNING = pytest.mark.filterwarnings("ignore:.*scattermapbox.*:DeprecationWarning")
+
+
+@_NO_MAPBOX_WARNING
+def test_map_uses_the_canonical_measurements(monkeypatch):
+    import pandas as pd
+
+    import config
+    from backend import api
+
+    rows, expected = [], {}
+    for k, site in enumerate(config.SITES):
+        latest = pd.Timestamp("2023-06-01") + pd.Timedelta(days=7 * k)
+        value = 1.25 + k
+        # out of date order; the older row of the first site has the larger value
+        rows += [(site, latest, value),
+                 (site, latest - pd.Timedelta(days=30), value + 50.0),
+                 (site, latest - pd.Timedelta(days=60), 0.5)]
+        expected[site] = (value, latest.strftime("%Y-%m-%d"))
+    frame = pd.DataFrame(rows[::-1], columns=["site", "date", "da_raw"])
+    monkeypatch.setattr(api, "_raw_measurements", lambda: frame)
     hovers = _map_hovers()
-    for site, grp in latest.groupby("site"):
-        hover = hovers[site][0]
-        assert f"{grp['da_raw'].max():.2f}" in hover
-        assert grp["date"].iloc[0].strftime("%Y-%m-%d") in hover
+    assert set(hovers) == set(expected)
+    for site, (value, day) in expected.items():
+        assert f"{value:.2f}" in hovers[site][0] and day in hovers[site][0]
 
 
+@_NO_MAPBOX_WARNING
+def test_map_degrades_to_no_data_when_no_raw_file_loads(monkeypatch):
+    from backend import api
+
+    def boom():
+        raise ValueError("No raw DA measurements could be loaded.")
+    monkeypatch.setattr(api, "_raw_measurements", boom)
+    hovers = _map_hovers()
+    assert len(hovers) == 10
+    for hover, color in hovers.values():
+        assert "no data" in hover and color == "#d0d5db"
+
+
+@_NO_MAPBOX_WARNING
 def test_map_marks_a_site_without_measurements(monkeypatch):
     from backend import api
     m = api._raw_measurements()

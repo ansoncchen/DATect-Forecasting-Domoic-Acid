@@ -487,7 +487,10 @@ def get_site_map():
         
         # Get site coordinates from config and latest DA data from raw files
         sites = config.SITES
-        measurements = _raw_measurements()
+        try:
+            measurements = _raw_measurements()
+        except ValueError:  # no raw DA file loaded: draw every site as "no data"
+            measurements = pd.DataFrame({"site": [], "date": [], "da_raw": []})
         latest = measurements.sort_values("date").groupby("site").tail(1)
         latest_da_data = {r.site: {"da": float(r.da_raw), "date": r.date} for r in latest.itertuples()}
         

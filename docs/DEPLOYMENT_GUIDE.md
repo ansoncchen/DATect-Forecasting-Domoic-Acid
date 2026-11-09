@@ -1,11 +1,11 @@
 # Deployment Guide
 
-DATect deploys as one container on Google Cloud Run: the FastAPI backend serves the API and the built React app from the same origin, with the precomputed store baked into the image.
+DATect deploys as one container: the FastAPI backend serves the API and the built React app from the same origin, with the precomputed store baked into the image. It runs on Render's free tier (no billing account); the Google Cloud Run path (§3b) needs billing enabled.
 
 ```
-Hyak (Spark)                          Your machine                      Google Cloud
-datect_spark/store.sbatch      ──→    copy the store into ./store  ──→  deploy/deploy_gcloud.sh
-  → ~/datect-store/<commit>/                                           (Cloud Build → Cloud Run)
+Hyak (Spark)                     GitHub                                     Render (free)
+datect_spark/store.sbatch  ──→   prerelease store-<commit>/store.tar.gz ──→  web service from
+  → ~/datect-store/<commit>/     publish-image workflow → ghcr.io/…/datect   render.yaml
 ```
 
 ## 1. Build the store on Hyak
@@ -47,6 +47,32 @@ curl -s localhost:8080/health | python3 -m json.tool                       # tab
 ```
 
 ## 3. Deploy
+
+### 3a. Render (free)
+
+The image is built on GitHub Actions (x86_64, so the store's hash check runs exactly as on the server) and published to GitHub's container registry; Render runs it.
+
+1. Attach the store to a GitHub prerelease named after the commit it was built at:
+
+   ```bash
+   ssh klone-login 'tar -czf - -C datect-store/<commit> .' > store.tar.gz
+   gh release create store-<commit> store.tar.gz --target <commit> --prerelease \
+     --title "Precomputed store for <commit>" --notes "Built by datect_spark/store.sbatch."
+   ```
+
+2. Build, check and publish the image from a commit whose hashed inputs match the store's (a later commit that changes only workflows, docs or the frontend still matches):
+
+   ```bash
+   gh workflow run publish-image.yml -f store_tag=store-<commit>
+   ```
+
+   `.github/workflows/publish-image.yml` builds `Dockerfile.production` (which refuses a stale or incomplete store), starts the container, requires a forecast for Newport on 2019-06-03 to come from the store, then pushes `ghcr.io/<owner>/datect:<sha>` and `:latest`. If the package's page on GitHub shows it as private after the first push, change its visibility to public (package settings) so Render can pull it without credentials.
+
+3. On Render, **New → Blueprint**, pick this repository; `render.yaml` defines the service (image `ghcr.io/ansoncchen/datect:latest`, free plan, Oregon, health check `/health`, `PORT=8080`). After later image pushes, use **Manual Deploy → Deploy latest reference**.
+
+Free-tier limits: 512 MB RAM (the API peaks around 330 MB), 0.1 CPU, and the service sleeps after 15 idle minutes, so the first request after a pause takes about a minute. Forecasts in the store are lookups; other dates or models are computed on demand, which is slow at 0.1 CPU.
+
+### 3b. Google Cloud Run (needs billing)
 
 ```bash
 gcloud auth login                      # once

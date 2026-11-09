@@ -1,0 +1,18 @@
+# Render Blueprint: the free web service that runs the production image.
+# The image (API + built frontend + precomputed store) is built and checked by
+# .github/workflows/publish-image.yml and pulled from GitHub's container registry.
+# Free instances have 512 MB and 0.1 CPU and sleep after 15 idle minutes; the API
+# peaks around 330 MB. Forecasts in the store are lookups; others are computed on
+# demand, which is slow at 0.1 CPU. See docs/DEPLOYMENT_GUIDE.md.
+services:
+  - type: web
+    name: datect
+    runtime: image
+    image:
+      url: ghcr.io/ansoncchen/datect:latest
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8080"  # the image's EXPOSE and HEALTHCHECK use 8080

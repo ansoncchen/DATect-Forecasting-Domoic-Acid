@@ -103,7 +103,8 @@ python run_datect.py
 | `python dataset-creation.py` | Full dataset rebuild from source (re-downloads every satellite and climate series from NOAA ERDDAP; slow and often fails). Use the offline rebuild above for anything else |
 | `bash scripts/eval/golden_baseline.sh <git-ref>` | Re-run every evaluation behind a reported number (Hyak) |
 | `sbatch datect_spark/retune.sbatch` | Propose per-site ensemble weights (Spark, Hyak); adopting them is a separate change |
-| `PROJECT_ID=<gcp-project> ./deploy/deploy_gcloud.sh` | Deploy to Google Cloud Run |
+| `gh workflow run publish-image.yml -f store_tag=store-<commit>` | Build, check and publish the production image that Render runs (`render.yaml`) |
+| `PROJECT_ID=<gcp-project> ./deploy/deploy_gcloud.sh` | Deploy to Google Cloud Run (needs billing) |
 
 ## Environment Variables
 
@@ -240,14 +241,20 @@ Every job checks its output against the existing pipeline exactly. Measurements,
 | [docs/OAD_INTEGRATION_RESULTS.md](docs/OAD_INTEGRATION_RESULTS.md) | How OAD features enter DATect and what was learned |
 | [docs/HYAK_SETUP.md](docs/HYAK_SETUP.md) | Hyak (UW Klone) cluster workflow |
 | [datect_spark/RESULTS.md](datect_spark/RESULTS.md) | Spark, Delta Lake and MLflow on Hyak: re-tune, MODIS lake, forecast serving; parity, sizes, timings |
-| [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Cache refresh on Hyak and Cloud Run deploy |
+| [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Store rebuild on Hyak; Render (free) and Cloud Run deploys |
 | [docs/VISUALIZATIONS_GUIDE.md](docs/VISUALIZATIONS_GUIDE.md) | Reading the dashboard charts |
 | [docs/superpowers/](docs/superpowers/) | Design spec and plan for the upcoming transport-aware forecasting work |
 | [oad/README.md](oad/README.md), [oad/RESULTS.md](oad/RESULTS.md), [oad/OAD_STORYLINE.md](oad/OAD_STORYLINE.md) | OAD subproject: workflow, results, narrative |
 
-## Google Cloud Deployment
+## Deployment
 
-Copy the Hyak-built store into `./store` first, built at the commit you deploy. The deploy script bakes it into the image and stops if `./store` is missing or empty. Then:
+The app runs as one container (API, built frontend and the precomputed store) on Render's free tier:
+
+1. Build the store on Hyak at the commit you deploy and attach it to a GitHub prerelease `store-<commit>` as `store.tar.gz`.
+2. `gh workflow run publish-image.yml -f store_tag=store-<commit>` builds the image (refusing a stale store), checks that it serves a precomputed forecast and pushes `ghcr.io/ansoncchen/datect`.
+3. Render runs that image as the free web service defined in `render.yaml`.
+
+The Google Cloud Run path needs billing enabled. Copy the Hyak-built store into `./store` first, built at the commit you deploy; the deploy script bakes it into the image and stops if `./store` is missing or empty. Then:
 
 ```bash
 gcloud auth login

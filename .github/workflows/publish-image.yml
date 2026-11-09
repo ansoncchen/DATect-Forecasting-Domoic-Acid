@@ -1,0 +1,68 @@
+name: publish-image
+
+# Builds the production image with the precomputed store, checks that the container
+# serves it, and pushes it to ghcr.io/<owner>/datect, which the Render service in
+# render.yaml runs.
+#
+# The store is built on Hyak (datect_spark/store.sbatch) and attached as store.tar.gz
+# to a GitHub prerelease tagged store-<commit>. Dockerfile.production refuses a store
+# that is not current for the checked-out code, data and pinned libraries, so run this
+# from a commit whose hashed inputs match the store's (see backend/precomputed.py).
+#
+#   gh workflow run publish-image.yml -f store_tag=store-<commit>
+
+on:
+  workflow_dispatch:
+    inputs:
+      store_tag:
+        description: "Release tag that holds store.tar.gz (store-<commit>)"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      STORE_TAG: ${{ inputs.store_tag }}
+      IMAGE: ghcr.io/${{ github.repository_owner }}/datect
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fetch the store
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$STORE_TAG" -p store.tar.gz
+          mkdir store && tar -xzf store.tar.gz -C store
+          ls store
+
+      - name: Build image (refuses a stale or incomplete store)
+        run: |
+          docker build -f Dockerfile.production \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+
+      - name: Serve a precomputed forecast from the built image
+        run: |
+          trap 'docker logs served || true' ERR
+          docker run -d --name served -p 8080:8080 "$IMAGE:latest"
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/health > /dev/null && break; sleep 2; done
+          curl -fsS http://localhost:8080/health; echo
+          curl -fsS -o /tmp/body.json -w 'forecast in %{time_total}s\n' -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{"date": "2019-06-03", "site": "Newport", "task": "regression", "model": "ensemble"}' \
+            http://localhost:8080/api/forecast/enhanced
+          source=$(python3 -c 'import json; print(json.load(open("/tmp/body.json"))["source"])')
+          echo "source: $source"
+          [ "$source" = precomputed ]
+
+      - name: Push
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+          echo "pushed $IMAGE:${{ github.sha }} and :latest" >> "$GITHUB_STEP_SUMMARY"

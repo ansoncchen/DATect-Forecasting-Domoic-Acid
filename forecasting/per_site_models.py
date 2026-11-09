@@ -4,15 +4,15 @@ Per-site model configurations for DATect raw-data DA forecasting.
 Each site can override:
   - xgb_params: XGBoost hyperparameter overrides (merged onto base_params)
   - rf_params: Random Forest hyperparameter overrides (merged onto RF base_params)
-  - param_grid: Custom PARAM_GRID for per-anchor XGB tuning (replaces global grid)
   - feature_subset: Explicit list of features to keep (None = use all default features)
-  - ensemble_weights: (xgb_weight, rf_weight, naive_weight) tuple (None = use global)
+  - ensemble_weights: (xgb_weight, rf_weight, naive_weight) tuple
+    (None = equal XGB/RF weights, (0.5, 0.5, 0.0))
     naive_weight is always 0.0; naive persistence is reported as an external baseline only
   - prediction_clip_q: Custom quantile for prediction clipping (None = use global)
   - prediction_clip_max: Hard ceiling on predictions in ug/g (None = no hard ceiling)
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import config
 from forecasting.logging_config import get_logger
@@ -28,7 +28,7 @@ _WARNED_MISSING_FEATURES: set = set()
 # --------------------------------------------------------------------------
 
 # SITE_SPECIFIC_CONFIGS is now loaded from config/tuned_hyperparameters.json.
-# To change values: edit that JSON (or regenerate via scripts/tune/tune_all.py),
+# To change values: edit that JSON,
 # do NOT add hardcoded literals back here. Env-var overlays below still apply.
 from forecasting.tuned_config import get_per_site as _get_per_site
 SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
@@ -43,7 +43,6 @@ SITE_SPECIFIC_CONFIGS: Dict[str, Dict[str, Any]] = {
 DEFAULT_SITE_CONFIG: Dict[str, Any] = {
     'xgb_params': None,
     'rf_params': None,
-    'param_grid': None,
     'feature_subset': None,
     'ensemble_weights': None,
     'prediction_clip_q': None,
@@ -117,24 +116,35 @@ def apply_site_rf_params(base_params: dict, site: str) -> dict:
     return {**base_params, **site_cfg['rf_params']}
 
 
-def get_site_param_grid(site: str) -> Optional[List[dict]]:
-    """Return site-specific PARAM_GRID, or None to use global grid."""
-    return get_site_config(site)['param_grid']
+EQUAL_WEIGHTS: tuple[float, float, float] = (0.5, 0.5, 0.0)
 
 
-def get_site_ensemble_weights(site: str) -> Tuple[float, float, float]:
+def get_site_ensemble_weights(site: str) -> tuple[float, float, float]:
     """Return (xgb_weight, rf_weight, naive_weight) for this site.
 
-    Default: (0.56, 0.44, 0.00).  naive_weight is always 0.0; naive
-    persistence is evaluated as an external standalone baseline only.
+    Equal XGB/RF weights, no naive term, when per-site models are off or the
+    site has no tuned weights.  Naive persistence is an external baseline.
     """
+    if not config.USE_PER_SITE_MODELS:
+        return EQUAL_WEIGHTS
     weights = get_site_config(site)['ensemble_weights']
-    if weights is not None:
-        return weights
-    return (0.56, 0.44, 0.00)
+    return weights if weights is not None else EQUAL_WEIGHTS
 
 
-def get_site_clip_params(site: str) -> Tuple[Optional[float], Optional[float]]:
+def blend(xgb: float, rf: float | None, naive: float,
+          weights: tuple[float, float, float]) -> float:
+    """w_xgb*xgb + w_rf*rf + w_naive*naive, evaluated left to right.
+
+    rf=None means no RF prediction: the XGB prediction stands in for it.
+    Works on floats and on arrays/Series alike.
+    """
+    w_xgb, w_rf, w_naive = weights
+    if rf is None:
+        rf = xgb
+    return w_xgb * xgb + w_rf * rf + w_naive * naive
+
+
+def get_site_clip_params(site: str) -> tuple[Optional[float], Optional[float]]:
     """Return (clip_quantile, clip_max) for prediction clipping."""
     cfg = get_site_config(site)
     return cfg['prediction_clip_q'], cfg['prediction_clip_max']

@@ -53,9 +53,7 @@ def test_global_block_required_keys():
     g = get_global()
     required = (
         "xgb_base_params", "rf_base_params",
-        "spike_classifier_params", "param_grid",
-        "per_anchor_tuning", "min_training_for_tuning", "calibration_fraction",
-        "max_calibration_rows", "min_tuning_samples",
+        "spike_classifier_params",
         "spike_alert_prob_threshold", "spike_regression_alert_threshold", "alert_warning_prob_cutoff",
         "spike_threshold_actual", "linear_regression_alpha",
         "prediction_clip_q_default", "zero_importance_features",
@@ -84,13 +82,33 @@ def test_per_site_has_all_10_sites():
 
 
 def test_per_site_required_fields():
-    """Every per-site config must contain the standard 7 fields."""
+    """Every per-site config must contain the standard 6 fields."""
     from forecasting.tuned_config import get_per_site
-    required = ("xgb_params", "rf_params", "param_grid", "feature_subset",
+    required = ("xgb_params", "rf_params", "feature_subset",
                 "ensemble_weights", "prediction_clip_q", "prediction_clip_max")
     for site, cfg in get_per_site().items():
         missing = [k for k in required if k not in cfg]
         assert not missing, f"{site} missing keys: {missing}"
+
+
+def test_per_anchor_tuning_is_gone():
+    """Per-anchor XGB tuning was off by default and unreachable (every effective
+    grid had 2-4 entries), so its switch, its code and its grids are removed."""
+    import config
+    from forecasting.raw_forecast_engine import RawForecastEngine
+    from forecasting.tuned_config import get_global, get_per_site
+
+    for name in ("PER_ANCHOR_TUNING", "MIN_TRAINING_FOR_TUNING", "PARAM_GRID",
+                 "CALIBRATION_FRACTION", "MAX_CALIBRATION_ROWS", "MIN_TUNING_SAMPLES"):
+        assert not hasattr(config, name), f"config.{name} should be gone"
+    assert not hasattr(RawForecastEngine, "_tune_xgb_params")
+    assert not hasattr(RawForecastEngine, "_run_single_retrospective")
+    with_grid = [site for site, cfg in get_per_site().items() if "param_grid" in cfg]
+    assert not with_grid, f"site blocks still carry param_grid: {with_grid}"
+    stale = [k for k in ("param_grid", "per_anchor_tuning", "min_training_for_tuning",
+                         "calibration_fraction", "max_calibration_rows",
+                         "min_tuning_samples") if k in get_global()]
+    assert not stale, f"global block still carries tuning keys: {stale}"
 
 
 def test_ensemble_weights_normalized():
@@ -148,10 +166,6 @@ def test_config_py_loads_from_json(fresh_import):
     # config.py value must equal JSON value
     assert config.SPIKE_THRESHOLD == float(g["spike_threshold_actual"])
     assert config.SPIKE_ALERT_PROB_THRESHOLD == float(g["spike_alert_prob_threshold"])
-    assert config.MIN_TRAINING_FOR_TUNING == int(g["min_training_for_tuning"])
-    assert config.PER_ANCHOR_TUNING is bool(g["per_anchor_tuning"])
-    assert config.CALIBRATION_FRACTION == float(g["calibration_fraction"])
-    assert list(config.PARAM_GRID) == list(g["param_grid"])
     assert list(config.ZERO_IMPORTANCE_FEATURES) == list(g["zero_importance_features"])
 
 

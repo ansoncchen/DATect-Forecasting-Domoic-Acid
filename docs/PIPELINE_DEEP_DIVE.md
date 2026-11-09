@@ -8,7 +8,7 @@ How the forecasting engine (`forecasting/raw_forecast_engine.py`, class `RawFore
 
 | Source | Holds |
 |---|---|
-| `config/tuned_hyperparameters.json` | Single source of truth for tuned values: XGB/RF base params, spike thresholds, per-anchor tuning switch, and every per-site block (XGB/RF overrides, feature subset, ensemble weights, clip quantile). Loaded by `forecasting/tuned_config.py`. |
+| `config/tuned_hyperparameters.json` | Single source of truth for tuned values: XGB/RF base params, spike thresholds, and every per-site block (XGB/RF overrides, feature subset, ensemble weights, clip quantile). Loaded by `forecasting/tuned_config.py`. |
 | `config.py` | Paths, horizon (`FORECAST_HORIZON_DAYS = 7`), seeds, category bins, decay-fill constants, sampling fractions, and the `DATECT_*` env-var overrides. Reads the JSON's `global` block. |
 | `forecasting/per_site_models.py` | Exposes the JSON's `per_site` block as `SITE_SPECIFIC_CONFIGS` and applies the env-var overlays (`DATECT_FEATURE_SUBSET_MODE`, `DATECT_OAD_ON_SMALL_N`, `DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_CLIP_Q_OVERRIDE`). |
 
@@ -53,7 +53,7 @@ All fitted models are seeded with `config.MODEL_SEED` (42).
 | XGBoost | `global.xgb_base_params` merged with the site's `xgb_params`. With `USE_MONOTONIC_CONSTRAINTS` (default true), non-decreasing constraints on `last_observed_da_raw`, `raw_obs_roll_max_4`, `raw_obs_roll_mean_4`. |
 | Random Forest | `global.rf_base_params` merged with the site's `rf_params` (set for Coos Bay, Cannon Beach, Gold Beach, Newport). |
 | Naive persistence | Last real DA at or before the anchor (`PERSISTENCE_MAX_DAYS = None`, no age cap). External baseline, never blended. If a site has no prior real measurement the point is dropped. |
-| Ridge (`linear`) | `LINEAR_REGRESSION_ALPHA` on the full preprocessed feature set; a competitor, not part of the ensemble. Logistic regression is its classification counterpart. |
+| Ridge (`linear`) | `LINEAR_REGRESSION_ALPHA` on the full preprocessed feature set; a competitor, not part of the ensemble. |
 
 **Post-processing** (`_postprocess`, applied to XGB, RF and Ridge): floor at 0. There is no upper clip: `prediction_clip_q`, `prediction_clip_max` and `PREDICTION_CLIP_Q` are null. The clip they once set capped forecasts at a quantile of the training `da_raw`, which is mostly gap-filled (Coos Bay q95 81 µg/g vs 145 over real measurements), and removing it raised R² in every window (`docs/CORRECTED_NUMBERS.md`). `DATECT_CLIP_Q_OVERRIDE=<q>` restores a clip at quantile *q* for ablations.
 
@@ -76,11 +76,11 @@ All fitted models are seeded with `config.MODEL_SEED` (42).
 
 The JSON is authoritative; re-check it after any re-tune. `RawForecastEngine._ensemble_weights()` serves these to evaluation, the spike alert and the API. With `USE_PER_SITE_MODELS=false` every site uses 0.5 / 0.5.
 
-## 7. Per-anchor XGB tuning (opt-in)
+## 7. One per-point forecast (per-anchor tuning removed)
 
-Off by default: `config.PER_ANCHOR_TUNING` comes from `DATECT_PER_ANCHOR_TUNING`, defaulting to `global.per_anchor_tuning = false` in the JSON. Every reported number was produced with it off; the provenance note in the JSON records that it changed predictions without improving skill while costing minutes per forecast.
+Every forecast of one site and date goes through `RawForecastEngine._point_forecast`: the retrospective (each test point), `datect_spark/retune.py` (each Spark task) and `generate_single_forecast`. It merges the site's `xgb_params` onto the base XGBoost params when `USE_PER_SITE_MODELS` is on and runs the core `_run_single_raw_validation`. XGBoost threads come with the params the caller passes: `n_jobs=1` in the retrospective and the tuner, the library default in single forecasts.
 
-When enabled (retrospective path only, `_run_single_retrospective`), it runs if the training frame has at least `MIN_TRAINING_FOR_TUNING` (80) rows and the grid has more than one entry. It samples `CALIBRATION_FRACTION` (0.3) of the real training rows, capped at `MAX_CALIBRATION_ROWS` (20) and requiring `MIN_TUNING_SAMPLES` (10), runs a nested leak-free forecast for each with every grid entry (site `param_grid` first, then the global `PARAM_GRID`), and keeps the entry with the best R². Single forecasts never tune.
+The engine used to offer a per-anchor XGBoost grid search on calibration rows before each forecast. It was off by default, every reported number was produced without it, and it changed about 23% of predictions without improving skill (`docs/CORRECTED_NUMBERS.md`), so it was removed together with its grids and settings.
 
 ## 8. Spikes, alerts and categories
 
@@ -89,22 +89,19 @@ One convention everywhere (`forecasting/metrics.py`, `config.py`): **reaching a 
 - **Spike**: actual DA `>= SPIKE_THRESHOLD` (20 µg/g). `metrics.exceeds()` is always `>=`; `metrics.detection_scores()` computes recall, precision, F1, F2, FNR, FPR from confusion counts with scikit-learn's formulas.
 - **Regression alert**: ensemble prediction `>= SPIKE_REGRESSION_ALERT_THRESHOLD` (12 µg/g).
 - **Hybrid spike alert** (`spike_alert` in each result): pooled spike-classifier probability `>= SPIKE_ALERT_PROB_THRESHOLD` (0.1) **or** the regression alert. The classifier (`ClassificationAdapter.train_spike_binary_classifier`) is an XGBoost model trained per prediction on real measurements from all sites up to the anchor (at least 30 rows), on every row, including weeks already above 20 (the lag and rolling DA features stay), without `last_observed_da_raw` / `weeks_since_last_spike`, with balanced class weights and `SPIKE_CLASSIFIER_PARAMS`. If it cannot be trained, the regression rule alone decides.
-- **Risk categories**: `DA_CATEGORY_BINS` with `pd.cut(..., right=False)`: Low `[0, 5)`, Moderate `[5, 20)`, High `[20, 40)`, Extreme `>= 40`. A value on a boundary belongs to the higher category. `ClassificationAdapter.threshold_classify` bins the regression prediction into `predicted_category`. Classification-task single forecasts also train a dedicated balanced XGBoost 4-class classifier (`predicted_category_ml` plus class probabilities); with `model_type="logistic"` a logistic regression supplies the category instead.
+- **Risk categories**: `DA_CATEGORY_BINS` with `pd.cut(..., right=False)`: Low `[0, 5)`, Moderate `[5, 20)`, High `[20, 40)`, Extreme `>= 40`. A value on a boundary belongs to the higher category. `ClassificationAdapter.threshold_classify` bins the regression prediction into `predicted_category`. Regression is the only task: the 4-category classifier and the logistic model were removed, and `task != "regression"`, or a `model_type` outside `SUPPORTED_MODELS` (`ensemble`, `xgboost` or its alias `xgb`, `rf`, `naive`, `linear`; so `logistic` too), raises `ValueError`.
 
-## 9. Single forecasts (dashboard and `/api/forecast*`)
+## 9. Single forecasts (dashboard and `/api/forecast/*`)
 
-`generate_single_forecast(data_path, forecast_date, site, task, model_type)` calls `_run_single_raw_validation(..., return_internals=True)` — the same core every evaluation scores — so the dashboard shows the evaluated models. It then adds the selected model's prediction, the ensemble breakdown, categories, the spike alert and prediction intervals:
+`generate_single_forecast(data_path, forecast_date, site, task, model_type)` calls `_point_forecast` — the same per-point function every evaluation scores — so the dashboard shows the evaluated models. It then adds the selected model's prediction, the ensemble breakdown, the category and the spike alert.
 
-- `ensemble` / `xgboost`: three XGBoost models with `objective="reg:quantileerror"` and `quantile_alpha` 0.05, 0.50, 0.95, each post-processed. For `ensemble`, each quantile is blended as `w_xgb · q_XGB + w_rf · q_RF`, where `q_RF` is the same quantile of the Random Forest's individual tree predictions (RF has no quantile objective), so RF-only sites (Kalaloch, Coos Bay, Cannon Beach) also get a real band.
-- `rf`, `linear`, `naive`, or if the quantile fit fails: bootstrap with `N_BOOTSTRAP_ITERATIONS` (100) resamples (`BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0`), percentiles `CONFIDENCE_PERCENTILES = [5, 50, 95]`. Naive intervals have zero width.
-
-Retrospective evaluation skips intervals; they do not affect reported metrics. The dashboard no longer shows these intervals: `/api/forecast/enhanced` draws the 80% conformal band instead (`backend/band.py`, `docs/ERROR_BAND.md`), for the `ensemble` only, and the engine cleanup will remove the quantile and bootstrap code.
+The engine computes no prediction interval. `/api/forecast/enhanced` draws the 80% conformal band (`backend/band.py`, `docs/ERROR_BAND.md`) for the `ensemble` only; the other models get `band: null` with `band_reason: "calibrated for the ensemble only"`. The XGBoost quantile and bootstrap intervals the engine used to compute were removed: nothing showed them, and they never fed a prediction or a reported metric.
 
 ## 10. Retrospective evaluation (`run_retrospective_evaluation(task, model_type, max_test_samples)`)
 
 1. Candidates: raw measurements on or after `MIN_TEST_DATE` whose site already has at least `max(ceil(HISTORY_REQUIREMENT_FRACTION · site total), MIN_TRAINING_SAMPLES)` measurements on or before the anchor (`HISTORY_REQUIREMENT_FRACTION = 0.33`).
 2. Per-site sample of `ceil(TEST_SAMPLE_FRACTION · site total)` points (`TEST_SAMPLE_FRACTION = 0.20`), drawn with `RandomState(config.RANDOM_SEED)`.
-3. Each point runs `_run_single_retrospective` in parallel (`joblib`, `N_JOBS = -1`, backend `PARALLEL_BACKEND`, default `loky`).
+3. Each point runs `_point_forecast` in parallel (`joblib`, `N_JOBS = -1`, backend `PARALLEL_BACKEND`, default `loky`).
 4. The ensemble column is blended with the per-site weights, `predicted_da` is set from the requested `model_type`, categories are derived, and duplicate `(date, site)` rows are dropped.
 
 `scripts/eval/chronological_eval.py` instead scores every real measurement in a date window (validation `[2019-01-01, 2022-01-01)`, holdout `[2022-01-01, 2024-01-01)`, from the JSON's `eval_windows`).
@@ -122,4 +119,4 @@ Retrospective evaluation skips intervals; they do not affect reported metrics. T
 
 ## Caching and serving
 
-The precomputed store (Delta tables built on Spark on Hyak, `datect_spark/store.sbatch`) holds weekly forecasts, 8 task/model retrospectives (regression: ensemble, xgboost, rf, naive, linear; classification: ensemble, naive, logistic), spectral analyses and per-site correlation heatmaps. The API (`backend/precomputed.py`) serves rows whose config hash matches its own code, config, data and library versions, and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).
+The precomputed store (Delta tables built on Spark on Hyak, `datect_spark/store.sbatch`) holds weekly forecasts, 2 retrospectives (regression: xgboost and rf, the model traces the spectral analysis reads), spectral analyses and per-site correlation heatmaps. The API (`backend/precomputed.py`) serves rows whose config hash matches its own code, config, data and library versions, and otherwise computes on demand. See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md).

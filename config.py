@@ -186,7 +186,8 @@ SATELLITE_DATA = {
 # Operation mode: "retrospective" (historical validation) or "realtime" (dashboard)
 FORECAST_MODE = "retrospective"
 
-# Task type: "regression" (continuous DA levels) or "classification" (risk categories)
+# Task type: "regression" (continuous DA levels), the only task; risk categories
+# come from the predicted level (left-closed DA_CATEGORY_BINS)
 FORECAST_TASK = "regression"
 
 # ML algorithm: "ensemble", "naive", or "linear"
@@ -204,23 +205,6 @@ _tuned = _get_tuned_global()
 # XGBoost regression base parameters (per-site overrides live in SITE_SPECIFIC_CONFIGS)
 XGB_REGRESSION_PARAMS = dict(_tuned["xgb_base_params"])
 
-# Classification parameters
-XGB_CLASSIFICATION_PARAMS = {
-    "n_estimators": 500,
-    "max_depth": 7,
-    "learning_rate": 0.03,
-    "subsample": 0.9,
-    "colsample_bytree": 0.9,
-    "colsample_bylevel": 0.8,
-    "reg_alpha": 0.1,
-    "reg_lambda": 2.0,
-    "gamma": 0.2,
-    "min_child_weight": 5,
-    "tree_method": "hist",
-    "eval_metric": "logloss",
-}
-
-
 # Temporal Validation - prevents data leakage (handled by forecast horizon)
 
 # Model Performance
@@ -232,10 +216,6 @@ RANDOM_SEED = 42
 # serial, joblib-parallel and distributed runs agree (worker processes re-import
 # config, so a RANDOM_SEED patched in the parent never reached them anyway).
 MODEL_SEED = 42
-
-# Bootstrap confidence intervals
-ENABLE_BOOTSTRAP_INTERVALS = True  # Disable to skip bootstrap uncertainty
-N_BOOTSTRAP_ITERATIONS = 100  # Number of bootstrap iterations for confidence intervals
 
 # Lag Feature Configuration
 
@@ -277,21 +257,15 @@ if _spike_path and os.path.exists(_spike_path):
         SPIKE_ALERT_PROB_THRESHOLD = float(_alert_over)
 
 
-# Bootstrap subsample fraction for uncertainty estimation
-BOOTSTRAP_SUBSAMPLE_FRACTION = 1.0  # Use full resample for each iteration
-
 # Scientific Methodology Configuration
 
 # Ridge (linear competitor) regularization
 LINEAR_REGRESSION_ALPHA = float(_tuned["linear_regression_alpha"])
 
-# Linear/logistic models use the full feature set (no whitelist)
+# The linear (Ridge) model uses the full feature set (no whitelist)
 
 # Persistence baseline configuration
 PERSISTENCE_MAX_DAYS = None  # Set to an int (e.g., 28) to cap lookback
-
-# Confidence interval percentiles for bootstrap predictions
-CONFIDENCE_PERCENTILES = [5, 50, 95]  # 5th percentile, median, 95th percentile
 
 # Data Quality Configuration
 
@@ -343,18 +317,6 @@ MONOTONIC_FEATURE_CONSTRAINTS: dict = {
     "raw_obs_roll_mean_4": 1,        # Higher 4-week mean → higher or equal forecast
 }
 
-# Per-anchor XGB tuning (grid search on calibration rows before every forecast).
-# Off by default: every reported number was produced without it, and it changes
-# predictions without improving skill (see provenance in the tuned JSON).
-PER_ANCHOR_TUNING = os.environ.get(
-    "DATECT_PER_ANCHOR_TUNING", str(_tuned["per_anchor_tuning"])
-).lower() == "true"
-# Minimum training rows before per-anchor tuning is attempted (only when enabled).
-MIN_TRAINING_FOR_TUNING = int(os.environ.get(
-    "DATECT_MIN_TRAINING_FOR_TUNING",
-    str(_tuned["min_training_for_tuning"]),
-))
-
 # Prediction clipping — default applies when a site has no prediction_clip_q.
 # Per-site overrides live in SITE_SPECIFIC_CONFIGS via per_site_models.py.
 # Null everywhere in the tuned JSON: forecasts are not clipped (only floored at 0).
@@ -374,19 +336,6 @@ elif CLIP_Q_OVERRIDE is not None:
 # Parallelization
 ENABLE_PARALLEL = True
 N_JOBS = -1                      # Use all cores (-1)
-
-# Per-anchor tuning / calibration — loaded from tuned_hyperparameters.json
-CALIBRATION_FRACTION = float(_tuned["calibration_fraction"])
-MAX_CALIBRATION_ROWS = int(_tuned["max_calibration_rows"])
-MIN_TUNING_SAMPLES = int(_tuned["min_tuning_samples"])
-
-# Default XGB search grid (used when site has no custom param_grid).
-# Verified inert via pgrid-sweep (2026-05-23): site-level grids override at
-# all 10 sites in current config, so this fallback rarely fires.
-PARAM_GRID = list(_tuned["param_grid"])
-
-# Quantile prediction intervals
-ENABLE_QUANTILE_INTERVALS = True
 
 # Fraction of per-site raw measurements sampled as test points for retrospective
 TEST_SAMPLE_FRACTION = 0.20

@@ -11,8 +11,7 @@ deltalake (no JVM) and falls back to computing on demand on a miss.
 
 Grids: ``weekly`` = the (site, Monday) rows of final_output.parquet; ``daily`` = every
 day from the first to the last row, per site. Models: ``ensemble`` (the dashboard
-default). ``linear`` is not precomputable: its interval is a bootstrap drawn from
-the process-global NumPy RNG, so its on-demand output itself is not reproducible.
+default).
 
 ``parity`` checks that sampled table entries equal a fresh on-demand computation
 exactly (values and types), in a process with the API's threading, and that the
@@ -48,8 +47,7 @@ MODELS = ("ensemble",)
 OUT_SCHEMA = (
     "site string, forecast_date date, task string, model_type string, "
     "predicted_da double, predicted_category int, spike_probability double, spike_alert boolean, "
-    "q05 double, q50 double, q95 double, training_samples int, result_json string, "
-    "error string, task_seconds double, host string"
+    "training_samples int, result_json string, error string, task_seconds double, host string"
 )
 
 
@@ -89,22 +87,11 @@ def _engine():
 def _summary(result: dict | None) -> dict:
     if result is None:
         return {}
-    q = result.get("bootstrap_quantiles") or {}
     return {"predicted_da": result.get("predicted_da"),
             "predicted_category": result.get("predicted_category"),
             "spike_probability": result.get("spike_probability"),
             "spike_alert": result.get("spike_alert"),
-            "q05": q.get("q05"), "q50": q.get("q50"), "q95": q.get("q95"),
             "training_samples": result.get("training_samples")}
-
-
-def not_reproducible(result: dict | None) -> str | None:
-    """Why an output must not be stored, or None. An ensemble interval normally comes
-    from quantile XGBoost; if that fails the engine falls back to a bootstrap drawn
-    from the process-global NumPy RNG, which an on-demand call would not repeat."""
-    if result is not None and "bootstrap_predictions" in (result.get("bootstrap_quantiles") or {}):
-        return "bootstrap interval (global RNG): not reproducible on demand"
-    return None
 
 
 def _forecast_partition(batches):
@@ -124,11 +111,7 @@ def _forecast_partition(batches):
                 try:
                     result = engine.generate_single_forecast(
                         config.FINAL_OUTPUT_PATH, pd.Timestamp(r.date), r.site, task, model)
-                    reason = not_reproducible(result)
-                    if reason:
-                        row["error"] = reason
-                    else:
-                        row.update(_summary(result), result_json=encode(result))
+                    row.update(_summary(result), result_json=encode(result))
                 except Exception as exc:  # the API answers these with an error: not served
                     row["error"] = f"{type(exc).__name__}: {exc}"
                 row["task_seconds"] = time.time() - t0

@@ -82,25 +82,11 @@ def test_api_sites_endpoint():
         assert "max" in data["date_range"]
 
 
-def test_api_models_endpoint():
-    """Verify get_models endpoint returns available models and descriptions."""
-    with TestClient(app) as client:
-        response = client.get("/api/models")
-        assert response.status_code == 200
-        data = response.json()
-        assert "available_models" in data
-        assert "ensemble" in data["available_models"]["regression"]
-        assert "descriptions" in data
-
-
 def test_settings_travel_with_each_request():
-    """The server holds no per-user settings: no config mutation endpoint, and
-    /api/retrospective validates the task it is given."""
+    """The server holds no per-user settings: no config mutation endpoint."""
     with TestClient(app) as client:
         assert client.post("/api/config", json={"forecast_model": "naive"}).status_code == 405
         assert client.get("/api/config").status_code == 200
-        response = client.post("/api/retrospective", json={"task": "bogus", "model": "ensemble"})
-        assert response.status_code == 400
 
 
 def test_metrics_summary_reads_committed_results():
@@ -153,14 +139,10 @@ def test_summary_reliability_per_site():
     assert data["source"] and data["per_site"]["Gold Beach"]["spike_recall"] is not None
 
 
-def test_region_rollup_puts_clatsop_and_cannon_in_oregon():
+def test_site_states_follow_the_columbia_border():
     import config
-    from backend.api import _compute_summary
     assert config.SITE_STATES["Clatsop Beach"] == "OR" and config.SITE_STATES["Cannon Beach"] == "OR"
-    rows = [{"site": s, "actual_da": float(i), "predicted_da": float(i) + 0.5}
-            for s in ("Clatsop Beach", "Cannon Beach") for i in range(5)]
-    regions = _compute_summary(rows, task="regression")["per_region"]
-    assert regions["OR"]["n_sites"] == 2 and "WA" not in regions
+    assert config.SITE_STATES["Copalis"] == "WA" and config.SITE_STATES["Newport"] == "OR"
 
 
 def test_historical_returns_raw_measurements():
@@ -191,3 +173,63 @@ def test_site_map_reports_measurements_not_a_risk_verdict():
     assert not {"green", "yellow"} & set(trace["marker"]["color"])
     hover = " ".join(trace["hovertemplate"])
     assert "Risk Level" not in hover and "Last measured DA" in hover
+
+
+def _map_hovers():
+    with TestClient(app) as client:
+        trace = client.get("/api/visualizations/map").json()["plot"]["data"][0]
+    return dict(zip(trace["text"], zip(trace["hovertemplate"], trace["marker"]["color"])))
+
+
+_NO_MAPBOX_WARNING = pytest.mark.filterwarnings("ignore:.*scattermapbox.*:DeprecationWarning")
+
+
+@_NO_MAPBOX_WARNING
+def test_map_uses_the_canonical_measurements(monkeypatch):
+    import pandas as pd
+
+    import config
+    from backend import api
+
+    rows, expected = [], {}
+    for k, site in enumerate(config.SITES):
+        latest = pd.Timestamp("2023-06-01") + pd.Timedelta(days=7 * k)
+        value = 1.25 + k
+        # each site's newest row comes first and an older row has the larger value,
+        # so only sorting by date finds the latest reading
+        rows += [(site, latest, value),
+                 (site, latest - pd.Timedelta(days=30), value + 50.0),
+                 (site, latest - pd.Timedelta(days=60), 0.5)]
+        expected[site] = (value, latest.strftime("%Y-%m-%d"))
+    frame = pd.DataFrame(rows, columns=["site", "date", "da_raw"])
+    monkeypatch.setattr(api, "_raw_measurements", lambda: frame)
+    hovers = _map_hovers()
+    assert set(hovers) == set(expected)
+    for site, (value, day) in expected.items():
+        assert f"{value:.2f}" in hovers[site][0] and day in hovers[site][0]
+
+
+@_NO_MAPBOX_WARNING
+def test_map_degrades_to_no_data_when_no_raw_file_loads(monkeypatch, caplog):
+    from backend import api
+
+    def boom():
+        raise ValueError("No raw DA measurements could be loaded.")
+    monkeypatch.setattr(api, "_raw_measurements", boom)
+    with caplog.at_level("WARNING", logger=api.__name__):
+        hovers = _map_hovers()
+    assert len(hovers) == 10
+    for hover, color in hovers.values():
+        assert "no data" in hover and color == "#d0d5db"
+    # The fallback says why, with the loader's message
+    assert any(r.levelname == "WARNING" and "No raw DA measurements could be loaded." in r.getMessage()
+               for r in caplog.records)
+
+
+@_NO_MAPBOX_WARNING
+def test_map_marks_a_site_without_measurements(monkeypatch):
+    from backend import api
+    m = api._raw_measurements()
+    monkeypatch.setattr(api, "_raw_measurements", lambda: m[m["site"] != "Newport"])
+    hover, color = _map_hovers()["Newport"]
+    assert "no data" in hover and color == "#d0d5db"

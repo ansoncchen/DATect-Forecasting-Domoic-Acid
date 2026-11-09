@@ -197,7 +197,7 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--window", default=default_window,
                    help=f"Date range as 'YYYY-MM-DD:YYYY-MM-DD' (default holdout: {default_window})")
-    p.add_argument("--task", default="regression", choices=["regression", "classification"])
+    p.add_argument("--task", default="regression", choices=["regression"])
     p.add_argument("--model", default="ensemble")
     p.add_argument("--out-dir", default="results/chronological")
     args = p.parse_args()

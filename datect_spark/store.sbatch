@@ -15,7 +15,7 @@
 # check it. STEPS picks what runs, in order:
 #   forecasts      forecast_serving precompute (gold/forecasts, MLflow registry entry)
 #   parity         50 forecasts vs a fresh on-demand computation
-#   retrospective  precompute_store retrospective (8 slices; joblib -> Spark)
+#   retrospective  precompute_store retrospective (2 slices, xgboost and rf; joblib -> Spark)
 #   visuals        precompute_store visuals (spectral + correlation)
 #   after          the API's precomputed-endpoint bodies from the store ($STORE_DIR, default
 #                  this job's lake), compared with BEFORE_JSON (a `before` run)

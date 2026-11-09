@@ -8,7 +8,7 @@ whole retrospective for every weight, this:
 
 1. ``predict --window tuning|holdout``: one Spark task per real DA measurement in
    the window. Each task trains that point's models exactly as the retrospective
-   evaluation does (RawForecastEngine._run_single_retrospective) and returns the
+   evaluation does (RawForecastEngine._point_forecast) and returns the
    raw XGBoost and Random Forest predictions. Rows go to Delta.
 2. ``score``: applies the weight grid (w_xgb in 0, 0.25, 0.5, 0.75, 1) to the
    tuning rows in Spark SQL and scores each (site, weight) on yearly folds
@@ -87,8 +87,6 @@ def _engine():
         import config
         from forecasting.raw_forecast_engine import RawForecastEngine
 
-        if config.CLIP_Q_OVERRIDE != "none":
-            raise RuntimeError("workers must run with DATECT_CLIP_Q_OVERRIDE=none")
         engine = RawForecastEngine(validate_on_init=False)
         base = dict(config.XGB_REGRESSION_PARAMS)
         base["n_jobs"] = 1
@@ -103,15 +101,15 @@ def _predict_partition(batches):
         rows = []
         for r in pdf.itertuples(index=False):
             t0 = time.time()
-            out = engine._run_single_retrospective(
+            out = engine._point_forecast(
                 {"date": pd.Timestamp(r.date), "site": r.site, "da_raw": r.actual_da},
-                feature_frame, base, return_internals=True,
+                feature_frame, base,
             )
             row = {"site": r.site, "date": r.date, "actual_da": r.actual_da,
                    "host": host, "ok": out is not None, "n_train": 0}
             if out is not None:
                 row.update(xgb_raw=out["predicted_da"], rf_raw=out["predicted_da_rf"],
-                           n_train=len(out["_internals"]["train_data"]))
+                           n_train=out["training_samples"])
             row["task_seconds"] = time.time() - t0
             rows.append(row)
         yield pd.DataFrame(rows).reindex(columns=[c.split()[0] for c in PRED_SCHEMA.split(", ")])
@@ -130,8 +128,7 @@ def predict(window: str, limit: int | None = None) -> None:
         tasks = tasks.head(limit)  # smoke runs
 
     # Workers inherit this environment (local mode) or get it via executorEnv
-    env = {"DATECT_CLIP_Q_OVERRIDE": "none",
-           "PYTHONPATH": REPO_ROOT + os.pathsep + os.environ.get("PYTHONPATH", "")}
+    env = {"PYTHONPATH": REPO_ROOT + os.pathsep + os.environ.get("PYTHONPATH", "")}
     os.environ.update(env)
     spark = get_spark(f"datect-retune-predict-{window}",
                       conf={f"spark.executorEnv.{k}": v for k, v in env.items()})

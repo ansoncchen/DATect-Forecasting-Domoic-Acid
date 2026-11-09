@@ -216,8 +216,8 @@ a registered version and a commit.
   `model_version`);
 - the 50-entry check ran with the API's threading, so it also shows that
   single-threaded XGBoost on Spark workers matches the API's multithreaded XGBoost;
-- no stored entry uses the random bootstrap interval fallback, and the precompute now
-  refuses to store one.
+- no stored entry used the random bootstrap interval fallback when measured (the
+  bootstrap has since been removed from the engine).
 
 **Limits.**
 - Only weekly dates and the `ensemble` model are precomputed. A daily grid would take
@@ -225,8 +225,9 @@ a registered version and a commit.
   against a budget of about 2.
 - The table is a historical backfill, 2003-01-06 to 2023-12-25. 220 of its 21,900 entries
   are early dates with too little training data, stored empty as the engine returns them.
-- `linear` can't be precomputed exactly, because its interval bootstrap draws from
-  NumPy's global RNG and changes from call to call.
+- `linear` was not precomputed: when measured, its interval bootstrap drew from NumPy's
+  global RNG and changed from call to call (the bootstrap has since been removed; `linear`
+  is still computed on demand).
 - Any change to code, config or data makes the table stale until it is recomputed.
 
 Tests: `tests/test_precomputed.py` (lossless codec, strict equality, config
@@ -246,7 +247,7 @@ hash stability, hits, misses, stale rows, an unreadable table, both endpoints).
   sampled test points, so the choice of points and the models' randomness never
   interact, whether the forecasts run serially, on joblib or on Spark.
 - **Nondeterminism found and documented:**
-  - the `linear` model's bootstrap RNG;
+  - the `linear` model's bootstrap RNG (found then; the bootstrap is since removed and `linear` is deterministic);
   - `np.polyfit`'s last bits differ across machines, so rebuilds recompute only what
     changed;
   - test points used to depend on sort order (section 6).

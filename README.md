@@ -111,7 +111,6 @@ python run_datect.py
 |----------|---------|---------|
 | `ALLOWED_ORIGINS` | unset | Comma-separated CORS origins; unset allows only localhost dev servers, so set it in production |
 | `DATECT_PRECOMPUTED_DIR` | unset (`run_datect.py` sets `./store` if it exists) | Directory of the precomputed store's Delta tables (forecasts, retrospective, spectral, correlation; built on Spark). Rows whose config hash matches are served; everything else is computed on demand |
-| `DATECT_PER_ANCHOR_TUNING` | `false` | `true` runs a per-forecast XGBoost grid search (1–3 min per forecast). Off by default, which matches how every reported number was produced |
 
 Further `DATECT_*` variables for experiments (feature drops, per-site overrides, ablations) are documented in [CLAUDE.md](CLAUDE.md).
 
@@ -134,8 +133,7 @@ DATect-Forecasting-Domoic-Acid/
 │   ├── metrics.py                  # Spike detection and bootstrap metrics
 │   ├── oad_features.py             # OAD ocean-anomaly features (16 per row, leak-safe)
 │   ├── classification_adapter.py   # Risk categories and the spike classifier
-│   ├── raw_model_factory.py        # Model builders (XGBoost, RF, classifier)
-│   ├── ensemble_model_factory.py   # Model factory used by the API
+│   ├── raw_model_factory.py        # Model builders (XGBoost, RF, Ridge)
 │   ├── feature_utils.py            # Temporal features + transformers
 │   ├── logging_config.py
 │   └── validation.py               # Startup checks

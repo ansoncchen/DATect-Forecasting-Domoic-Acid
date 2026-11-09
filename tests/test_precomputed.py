@@ -22,13 +22,13 @@ def _result(site="Newport", day="2019-06-03", task="regression"):
         "naive_prediction": 9.4, "xgb_prediction": 5.32426643371582,
         "rf_prediction": 7.277734477520231, "ensemble_prediction": 5.32426643371582,
         "ensemble_weights": [1.0, 0.0, 0.0],
-        "bootstrap_quantiles": {"q05": 0.1, "q50": 4.0, "q95": 31.7},
         "predicted_category": 1, "spike_probability": 0.023508291691541672, "spike_alert": False,
     }
 
 
 def _records(model="xgboost"):
-    """/api/retrospective records (as retrospective_records builds them)."""
+    """Retrospective records as retrospective_records builds them (the rows the store's
+    retrospective table holds for a slice)."""
     days = pd.date_range("2019-01-07", periods=30, freq="7D")
     return [{"date": d.strftime("%Y-%m-%d"), "site": "Newport", "actual_da": float(i % 7),
              "predicted_da": float(i % 5) + (0.5 if model == "rf" else 0.0),
@@ -107,7 +107,7 @@ def store(tmp_path, monkeypatch):
     deltalake.write_deltalake(str(root / "forecasts"), df)
     deltalake.write_deltalake(str(root / "retrospective"), pd.DataFrame(
         [{"task": "regression", "model_type": m, "records_json": json.dumps(_records(m)),
-          "config_hash": current} for m in ("ensemble", "xgboost", "rf")]))
+          "config_hash": current} for m in ("xgboost", "rf")]))
     deltalake.write_deltalake(str(root / "spectral"), pd.DataFrame(
         [{"site": "Newport", "plots_json": json.dumps([{"data": [], "layout": {"title": "n"}}]),
           "config_hash": current},
@@ -176,12 +176,6 @@ class _Engine:
         self.calls.append((site, pd.Timestamp(forecast_date).date().isoformat(), task, model_type))
         return _result(site, pd.Timestamp(forecast_date).date().isoformat(), task)
 
-    def run_retrospective_evaluation(self, task, model_type):
-        self.calls.append(("retrospective", task, model_type))
-        return pd.DataFrame({"date": pd.to_datetime(["2019-01-07"]), "site": ["Newport"],
-                             "actual_da": [3.0], "predicted_da": [2.5], "actual_category": [0],
-                             "predicted_category": [0]})
-
 
 def test_enhanced_endpoint_serves_hits_and_computes_misses(store, monkeypatch):
     from backend import api
@@ -207,33 +201,6 @@ def test_enhanced_endpoint_serves_hits_and_computes_misses(store, monkeypatch):
     strip = ("source", "model_version")
     assert {k: v for k, v in served.items() if k not in strip} == \
         {k: v for k, v in computed.items() if k not in strip}
-
-
-def test_forecast_endpoint_reports_its_source(store, monkeypatch):
-    from backend import api
-
-    engine = _Engine()
-    monkeypatch.setattr(api, "get_forecast_engine", lambda: engine)
-    with TestClient(api.app) as client:
-        r = client.post("/api/forecast", json={"date": "2019-06-03", "site": "Newport",
-                                               "task": "regression", "model": "ensemble"}).json()
-    assert r["source"] == "precomputed" and r["prediction"] == 5.32426643371582 and engine.calls == []
-
-
-def test_retrospective_endpoint_serves_the_store_and_computes_misses(store, monkeypatch):
-    from backend import api
-
-    engine = _Engine()
-    monkeypatch.setattr(api, "get_forecast_engine", lambda: engine)
-    with TestClient(api.app) as client:
-        hit = client.post("/api/retrospective", json={"task": "regression", "model": "xgboost"}).json()
-        assert hit["results"] == _records("xgboost") and engine.calls == []
-        assert hit["precomputed"] == {"hit": True, "dir": store, "table_version": 0}
-        miss = client.post("/api/retrospective", json={"task": "classification", "model": "ensemble"}).json()
-    assert engine.calls == [("retrospective", "classification", "ensemble")]
-    assert miss["precomputed"]["hit"] is False
-    assert miss["results"] == [{"date": "2019-01-07", "site": "Newport", "actual_da": 3.0, "predicted_da": 2.5,
-                                "actual_category": 0, "predicted_category": 0}]
 
 
 def test_visualizations_serve_the_store(store, monkeypatch):
@@ -273,7 +240,7 @@ def test_health_reports_the_store(store):
     with TestClient(api.app) as client:
         health = client.get("/health").json()
     assert health["precomputed"]["tables"]["forecasts"]["entries"] == 3
-    assert health["precomputed"]["tables"]["retrospective"]["entries"] == 3
+    assert health["precomputed"]["tables"]["retrospective"]["entries"] == 2
 
 
 def test_health_without_a_store(monkeypatch):
@@ -370,3 +337,19 @@ def test_write_sample_stores_regression_forecasts_only(tmp_path, monkeypatch):
     assert pf.write_sample(str(tmp_path), [("Newport", "2019-06-03"), ("Kalaloch", "2019-06-03")]) == 2
     tasks = deltalake.DeltaTable(str(tmp_path / "forecasts")).to_pandas()["task"]
     assert set(tasks) == {"regression"}
+
+
+def test_store_builds_only_the_slices_spectral_reads():
+    # One list, in backend/precomputed.py; the store builder takes it as SLICES. Read the
+    # builder's assignment from source: importing datect_spark may need Spark
+    import ast
+
+    assert pf.SPECTRAL_SLICES == (("regression", "xgboost"), ("regression", "rf"))
+    assert set(pf.SPECTRAL_TRACE) == {model for _, model in pf.SPECTRAL_SLICES}
+    with open(f"{pf.REPO_ROOT}/datect_spark/precompute_store.py") as f:
+        tree = ast.parse(f.read())
+    value = next(n.value for n in tree.body if isinstance(n, ast.Assign)
+                 and any(getattr(t, "id", None) == "SLICES" for t in n.targets))
+    assert isinstance(value, ast.Name) and value.id == "SPECTRAL_SLICES"
+    assert any(isinstance(n, ast.ImportFrom) and n.module == "backend.precomputed"
+               and "SPECTRAL_SLICES" in {a.name for a in n.names} for n in tree.body)

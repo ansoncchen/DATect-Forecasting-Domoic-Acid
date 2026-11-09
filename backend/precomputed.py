@@ -5,7 +5,8 @@ One directory (``DATECT_PRECOMPUTED_DIR``, the lake's ``gold/``) holds four tabl
 
     forecasts      generate_single_forecast output per (site, date, task, model), as
                    lossless JSON (:func:`encode`); datect_spark/forecast_serving.py
-    retrospective  /api/retrospective records per (task, model)
+    retrospective  regression/xgboost and regression/rf retrospective records, the
+                   model traces of the spectral plots
     spectral       /api/visualizations/spectral plots per site ("all_sites" for all)
     correlation    /api/visualizations/correlation heatmap per site
                    (the last three: datect_spark/precompute_store.py)
@@ -50,6 +51,11 @@ COLUMNS = {
     "correlation": ["site", "plot_json", "config_hash"],
 }
 ALL_SITES = "all_sites"
+# The retrospective slices the store holds: the spectral analysis's XGBoost and Random
+# Forest model traces, and nothing else reads them. SPECTRAL_TRACE names each slice's
+# trace (generate_spectral_analysis takes xgb_results and rf_results).
+SPECTRAL_SLICES = (("regression", "xgboost"), ("regression", "rf"))
+SPECTRAL_TRACE = {"xgboost": "xgb", "rf": "rf"}
 
 
 # ── What a stored row depends on ─────────────────────────────────────────────
@@ -263,14 +269,6 @@ def spectral(site: str | None) -> list | None:
 def correlation(site: str) -> dict | None:
     store = load_from_env()
     return store.correlation(site) if store is not None else None
-
-
-def table_info() -> dict:
-    """Where retrospective results came from, for /api/retrospective's response."""
-    store = load_from_env()
-    if store is None or "retrospective" not in store.tables:
-        return {"dir": os.environ.get(STORE_ENV), "table_version": None}
-    return {"dir": store.root, "table_version": store.tables["retrospective"]["version"]}
 
 
 # ── A small forecasts table without Spark (local checks, CI) ────────────────

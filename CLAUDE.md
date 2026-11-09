@@ -68,17 +68,20 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
 - **Seeds:** `config.RANDOM_SEED` only chooses retrospective test points;
   `config.MODEL_SEED` (42) seeds every model. Joblib/Spark workers re-import `config`, so
   patching `config` in the parent never reaches them; vary behavior through env vars.
-- **Per-anchor XGB tuning is off by default** (`DATECT_PER_ANCHOR_TUNING=true` to enable). It
-  changes ~23% of predictions without improving skill and costs 1-3 min per forecast; every
-  reported number was produced with it off.
-- **Single forecasts use the evaluated models:** `generate_single_forecast` calls
-  `_run_single_raw_validation` (the retrospective core). The dashboard's forecast
+- **Per-anchor XGB tuning was removed.** It was off by default, changed ~23% of predictions
+  without improving skill and cost 1-3 min per forecast; every reported number ran without it.
+- **One per-point forecast function:** the retrospective, `datect_spark/retune.py` and
+  `generate_single_forecast` all call `RawForecastEngine._point_forecast` (site XGB params, then
+  the core `_run_single_raw_validation`); XGBoost threads travel in the params the caller passes
+  (`n_jobs=1` in the retrospective and the tuner). The dashboard's forecast
   (`/api/forecast/enhanced`, `backend/api.py::_forecast_payload`) is one regression run plus
   the 80% conformal band (`backend/band.py`, calibrated at request time from the committed
   all-years run), category chances from that band, and the alert's parts and
   Quiet/Watch/Warning level (`forecasting.metrics.alert_parts`; Watch is the hybrid alert,
-  Warning is the classifier at >= 0.35, chosen on validation). The engine still computes XGBoost `reg:quantileerror` + RF-tree intervals
-  (`bootstrap_quantiles`), which nothing shows any more.
+  Warning is the classifier at >= 0.35, chosen on validation). The engine computes no
+  prediction interval (the quantile and bootstrap intervals were removed), so `linear`'s
+  on-demand forecast is deterministic; the store still precomputes only `ensemble`. An unknown
+  `model_type` raises, and `ForecastRequest.model` rejects it with a 422; `task` is regression only.
 - **Track record and reliability** (`backend/track_record.py`): window summaries are computed
   server-side from `results/chronological` joined with `results/conformal_band`; R²/MAE come
   verbatim from the runs' JSON. The dashboard computes no metric in the browser.
@@ -113,8 +116,9 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
   Python version. Any change there makes the store stale (misses, computed on demand; `/health`
   reports it) until it is rebuilt, and the image build refuses a stale store. The image pins
   those libraries and Python 3.10 to the Hyak Spark env (`constraints.txt`,
-  `datect_spark/env-freeze.txt`); change them together. Only the `ensemble` model's forecasts are precomputed; `linear`'s bootstrap
-  interval uses the global NumPy RNG, so its on-demand output is not reproducible.
+  `datect_spark/env-freeze.txt`); change them together. Only the `ensemble` model's forecasts are precomputed. The
+  retrospective table holds only the `regression/xgboost` and `regression/rf` slices, the
+  spectral plots' model traces.
 - **Tests:** use the `fast_models` (class-scoped model shrinking, restored afterwards) and
   `fresh_import` (re-import config modules for one test, originals restored) fixtures in
   `tests/conftest.py`. Never mutate shared config dicts without restoring them; tests must
@@ -127,7 +131,6 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 
 | Variable | Effect |
 |---|---|
-| `DATECT_PER_ANCHOR_TUNING` | `true` enables per-anchor XGB grid tuning (default off) |
 | `DATECT_USE_PER_SITE_MODELS` | `false` disables per-site configs (equal XGB/RF weights) |
 | `DATECT_USE_INTERPOLATED_TRAINING` | `false` trains on real DA rows only |
 | `DATECT_USE_MONOTONIC_CONSTRAINTS` | `false` drops XGBoost monotone constraints |
@@ -197,13 +200,13 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
 
 | Path | Purpose |
 |---|---|
-| `forecasting/raw_forecast_engine.py` | Engine: retrospective evaluation, single forecasts, intervals, spike classifier |
+| `forecasting/raw_forecast_engine.py` | Engine: retrospective evaluation, single forecasts (`_point_forecast`), spike classifier |
 | `forecasting/raw_data_forecaster.py`, `raw_data_processor.py` | Raw DA loading, feature frame, observation-order lags, leak-free test rows |
 | `forecasting/per_site_models.py`, `tuned_config.py` | Per-site configs from `config/tuned_hyperparameters.json` + env overlays |
 | `forecasting/metrics.py`, `measurements.py` | Shared spike/bootstrap metrics; raw measurement parsing |
 | `forecasting/oad_features.py` | 16 OAD features (leak-safe R-5 day lag; cloud fractions) |
-| `forecasting/raw_model_factory.py`, `classification_adapter.py` | Model builders; categories and the spike classifier |
-| `backend/api.py` | FastAPI: forecasts, retrospective, visualizations, `/api/metrics/summary` |
+| `forecasting/raw_model_factory.py`, `classification_adapter.py` | XGB/RF/Ridge builders; threshold categories and the binary spike classifier |
+| `backend/api.py` | FastAPI: forecasts, track record, history, visualizations, `/api/metrics/summary` |
 | `frontend/` | React + Vite dashboard (trimmed Plotly bundle in `src/utils/Plot.js`) |
 | `dataset-creation.py` | Full dataset build (downloads; see hard rule 1) |
 | `scripts/eval/`, `scripts/data/` | Evaluation, offline data tools (tuning: `datect_spark/retune.py`) |
@@ -214,7 +217,7 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
 | `papers/` | `datect/`, `oad_mdpi/`, `oad_cvpr/`, `poster/` |
 
 **Models:** per-site weighted blend of XGBoost + Random Forest (`ensemble`); naive persistence
-is an external baseline; Ridge/logistic (`linear`) is a competitor. Training uses real plus
+is an external baseline; Ridge (`linear`) is a competitor. Training uses real plus
 gap-filled DA rows; evaluation uses real raw measurements only.
 
 **OAD integration:** the AE checkpoint `ae_3d_l32_c4_t4_s42_mae070` scores 5 PNW regions;

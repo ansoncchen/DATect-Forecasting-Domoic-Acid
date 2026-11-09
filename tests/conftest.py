@@ -16,12 +16,9 @@ def fast_models(request):
     import forecasting.per_site_models as per_site_models
 
     mp = pytest.MonkeyPatch()
-    mp.setattr(config, "N_BOOTSTRAP_ITERATIONS", 2)
-    for name in ("XGB_REGRESSION_PARAMS", "RF_REGRESSION_PARAMS",
-                 "XGB_CLASSIFICATION_PARAMS", "SPIKE_CLASSIFIER_PARAMS"):
+    for name in ("XGB_REGRESSION_PARAMS", "RF_REGRESSION_PARAMS", "SPIKE_CLASSIFIER_PARAMS"):
         mp.setitem(getattr(config, name), "n_estimators", 5)
     mp.setattr(config, "ENABLE_PARALLEL", False)
-    mp.setattr(config, "PER_ANCHOR_TUNING", False)
     fraction = getattr(request.cls, "test_sample_fraction", None)
     if fraction is not None:
         mp.setattr(config, "TEST_SAMPLE_FRACTION", fraction)

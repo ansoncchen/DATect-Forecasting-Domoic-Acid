@@ -11,9 +11,9 @@
 #SBATCH --output=golden-%j.out
 #SBATCH --error=golden-%j.err
 #
-# Runs every evaluation that backs a reported number, with the headline
-# config (per-anchor tuning off, the default). Submit via golden_baseline.sh so the
-# job runs in a disposable worktree; outputs land at their usual relative paths.
+# Runs every evaluation that backs a reported number, with the headline (default)
+# config. Submit via golden_baseline.sh so the job runs in a disposable worktree;
+# outputs land at their usual relative paths.
 # Results do not depend on the core count: every forecast is independent and seeded.
 set -euo pipefail
 

@@ -70,6 +70,16 @@ def test_enhanced_forecast_calls_the_engine_once_and_returns_the_band(client):
     assert body["ensemble"]["ensemble_weights"] == [0.5, 0.5, 0.0]
 
 
+def test_enhanced_rejects_classification(client):
+    """Only the regression task exists; any other is a bad request, not a forecast."""
+    engine = client.use(_Engine())
+    r = client.post("/api/forecast/enhanced",
+                    json={"date": "2019-06-03", "site": "Kalaloch", "task": "classification",
+                          "model": "ensemble"})
+    assert r.status_code == 422
+    assert engine.calls == []
+
+
 def test_enhanced_forecast_reports_alert_parts_and_level(client):
     client.use(_Engine(predicted=3.0, spike_probability=0.5))
     alert = _post(client, "Kalaloch", "2019-06-03")["alert"]   # last measurement 2.0
@@ -157,9 +167,42 @@ def test_band_only_for_the_ensemble(client):
     assert _post(client, "Kalaloch", "2019-06-03")["band_reason"] is None
 
 
+def test_every_model_still_forecasts_without_a_band(client):
+    """With the engine's intervals gone, every non-ensemble model is a forecast with no
+    band, not an error."""
+    engine = client.use(_Engine(predicted=5.3))
+    for model in ("linear", "rf", "naive", "xgboost"):
+        body = _post(client, "Kalaloch", "2019-06-03", model=model)
+        assert body["success"] is True, (model, body.get("error"))
+        assert body["band"] is None and body["band_reason"] == "calibrated for the ensemble only"
+    assert [c[3] for c in engine.calls] == ["linear", "rf", "naive", "xgboost"]
+
+
+def test_api_models_are_the_engines_without_the_xgb_alias():
+    """/api/forecast/* accept every model the engine supports except the eval scripts'
+    ``xgb`` alias."""
+    import typing
+
+    from backend import api
+    from forecasting.raw_forecast_engine import SUPPORTED_MODELS
+
+    assert set(typing.get_args(api.ForecastModel)) == set(SUPPORTED_MODELS) - {"xgb"}
+
+
 def test_all_sites_rejects_unknown_models(client):
     client.use(_Engine())
     assert client.get("/api/forecast/all", params={"model": "bogus"}).status_code == 422
+
+
+def test_enhanced_rejects_unknown_models(client):
+    """The request accepts the same models as /api/forecast/all; others are a 422 and
+    never reach the engine."""
+    engine = client.use(_Engine())
+    for model in ("bogus", "logistic", "threshold"):
+        r = client.post("/api/forecast/enhanced",
+                        json={"date": "2019-06-03", "site": "Kalaloch", "model": model})
+        assert r.status_code == 422, model
+    assert engine.calls == []
 
 
 def test_all_sites_survives_one_failing_site(client):

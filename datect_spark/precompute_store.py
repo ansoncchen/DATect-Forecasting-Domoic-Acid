@@ -5,11 +5,12 @@ These endpoints used to be served from a file cache (precompute_cache.py, remove
 They now come from three Delta tables of the precomputed store (backend/precomputed.py),
 next to gold/forecasts (datect_spark/forecast_serving.py):
 
-    retrospective   run_retrospective_evaluation for eight (task, model) slices. Spark
+    retrospective   run_retrospective_evaluation for the two slices the spectral
+                    analysis reads (regression/xgboost and regression/rf). Spark
                     runs the engine's own per-point forecasts: the engine fans them out
                     through joblib, and here joblib's backend is Spark (joblibspark,
                     DATECT_PARALLEL_BACKEND=spark), so sampling and assembly are the
-                    engine's, unchanged. Rows hold /api/retrospective's records.
+                    engine's, unchanged. Rows hold the retrospective records (backend/records.py).
     spectral        generate_spectral_analysis per site and for all sites, with the
                     regression/xgboost and regression/rf slices as model traces
     correlation     generate_correlation_heatmap per site
@@ -30,17 +31,14 @@ import time
 
 import pandas as pd
 
+from backend.precomputed import SPECTRAL_SLICES, SPECTRAL_TRACE
 from datect_spark.session import get_mlflow, get_spark, git_sha, lake_path
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(REPO_ROOT, "results", "store")
 EXPERIMENT = "datect-serving"
-# The slices the dashboard can request, plus XGBoost and RF for the spectral traces
-SLICES = [
-    ("regression", "ensemble"), ("regression", "xgboost"), ("regression", "rf"),
-    ("regression", "naive"), ("regression", "linear"),
-    ("classification", "ensemble"), ("classification", "naive"), ("classification", "logistic"),
-]
+# Only the spectral analysis reads retrospective records (the XGBoost and RF model traces)
+SLICES = SPECTRAL_SLICES
 
 
 def _spark(name: str):
@@ -130,11 +128,11 @@ def visuals() -> dict:
     chash, sha = config_hash(), git_sha(REPO_ROOT)
     store = Store(lake_path("gold"), expected_hash=chash)
     traces = {}
-    for key, model in (("xgb", "xgboost"), ("rf", "rf")):
-        records = store.retrospective("regression", model)
+    for task, model in SPECTRAL_SLICES:
+        records = store.retrospective(task, model)
         if records is None:
-            raise SystemExit(f"run the retrospective step first: regression/{model} is missing")
-        traces[key] = pd.DataFrame(records)
+            raise SystemExit(f"run the retrospective step first: {task}/{model} is missing")
+        traces[SPECTRAL_TRACE[model]] = pd.DataFrame(records)
     xgb, rf = traces["xgb"], traces["rf"]
 
     spark = _spark("datect-store-visuals")

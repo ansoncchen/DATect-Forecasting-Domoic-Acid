@@ -1,8 +1,8 @@
 """
 Model factory for DATect raw forecasting.
 
-Standalone functions for building XGBoost, Random Forest, and classification models.
-These are used by the RawForecastEngine and EnsembleModelFactory.
+Standalone functions for building the XGBoost, Random Forest and Ridge regressors.
+The RawForecastEngine uses them.
 """
 
 from __future__ import annotations
@@ -10,8 +10,8 @@ from __future__ import annotations
 from typing import Optional
 
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import Ridge, LogisticRegression
-from xgboost import XGBClassifier, XGBRegressor
+from sklearn.linear_model import Ridge
+from xgboost import XGBRegressor
 
 import config
 
@@ -49,29 +49,7 @@ def build_rf_regressor(param_overrides: Optional[dict] = None) -> RandomForestRe
     return RandomForestRegressor(**params, random_state=config.MODEL_SEED)
 
 
-def build_xgb_classifier(param_overrides: Optional[dict] = None) -> XGBClassifier:
-    """
-    Build an XGBoost classifier with config defaults.
-    """
-    base_params = dict(config.XGB_CLASSIFICATION_PARAMS)
-    params = {**base_params, **(param_overrides or {})}
-    params.pop("tree_method", None)
-    params.update(_resolve_xgb_device_params())
-    return XGBClassifier(**params, random_state=config.MODEL_SEED, verbosity=0)
-
-
 def build_linear_regressor() -> Ridge:
     """Ridge regression for an interpretable baseline with regularization."""
     alpha = config.LINEAR_REGRESSION_ALPHA
     return Ridge(alpha=alpha, random_state=config.MODEL_SEED)
-
-
-def build_logistic_classifier() -> LogisticRegression:
-    """Logistic regression classifier for interpretable baseline."""
-    return LogisticRegression(
-        solver="lbfgs",
-        max_iter=1000,
-        C=1.0,
-        random_state=config.MODEL_SEED,
-        n_jobs=1,
-    )

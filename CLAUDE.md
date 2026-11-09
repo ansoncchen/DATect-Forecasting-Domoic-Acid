@@ -20,7 +20,8 @@ python scripts/data/export_oad_features.py ae_3d_l32_c4_t4_s42_mae070  # OAD inp
 bash scripts/eval/golden_baseline.sh <git-ref> <label>
 python scripts/eval/compare_golden.py <golden_root>/<a> <golden_root>/<b>
 
-PROJECT_ID=<gcp-project> ./deploy/deploy_gcloud.sh                     # Cloud Run
+gh workflow run publish-image.yml -f store_tag=store-<commit>          # image for Render (render.yaml)
+PROJECT_ID=<gcp-project> ./deploy/deploy_gcloud.sh                     # Cloud Run (needs billing)
 ```
 
 Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install with

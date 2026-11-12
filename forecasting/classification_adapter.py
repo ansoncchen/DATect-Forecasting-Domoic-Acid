@@ -127,6 +127,9 @@ class ClassificationAdapter:
         # Use spike-specific params (shallower trees, refit per test point)
         from xgboost import XGBClassifier
         spike_params = dict(config.SPIKE_CLASSIFIER_PARAMS)
+        # One thread: the probability must not depend on the machine's core count
+        # (retrospective workers were already capped at one thread by joblib).
+        spike_params["n_jobs"] = 1
         model = XGBClassifier(
             **spike_params,
             random_state=config.MODEL_SEED,

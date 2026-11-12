@@ -146,6 +146,37 @@ class TestForecastingPipeline:
         assert calls[0]["site"] == "Newport"
         assert calls[0]["date"] == pd.Timestamp("2018-06-11")
 
+    def test_single_forecast_trains_xgboost_on_one_thread(self, monkeypatch):
+        """Every XGBoost model behind a single forecast (regressor and spike classifier)
+        runs on one thread, as in the retrospective: with more threads the histogram
+        sums can round differently, so the forecast would depend on the core count."""
+        import xgboost
+
+        from forecasting import raw_model_factory
+
+        built = []
+
+        def recording(cls):
+            class Recording(cls):
+                def __init__(self, **kwargs):
+                    built.append((cls.__name__, kwargs.get("n_jobs")))
+                    super().__init__(**kwargs)
+            return Recording
+
+        monkeypatch.setattr(raw_model_factory, "XGBRegressor", recording(xgboost.XGBRegressor))
+        monkeypatch.setattr(xgboost, "XGBClassifier", recording(xgboost.XGBClassifier))
+        result = self.engine.generate_single_forecast(
+            data_path=str(self.parquet_path),
+            forecast_date="2018-06-11",
+            site="Newport",
+            task="regression",
+            model_type="ensemble",
+        )
+
+        assert result is not None
+        assert {name for name, _ in built} == {"XGBRegressor", "XGBClassifier"}
+        assert all(n_jobs == 1 for _, n_jobs in built), built
+
     def test_classification_task_is_rejected(self):
         """The 4-category classifier and the logistic model are gone: asking for
         either fails loudly instead of falling through to another model."""

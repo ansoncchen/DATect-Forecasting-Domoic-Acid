@@ -73,8 +73,9 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
   without improving skill and cost 1-3 min per forecast; every reported number ran without it.
 - **One per-point forecast function:** the retrospective, `datect_spark/retune.py` and
   `generate_single_forecast` all call `RawForecastEngine._point_forecast` (site XGB params, then
-  the core `_run_single_raw_validation`); XGBoost threads travel in the params the caller passes
-  (`n_jobs=1` in the retrospective and the tuner). The dashboard's forecast
+  the core `_run_single_raw_validation`); XGBoost threads travel in the params the caller passes,
+  and every caller passes `n_jobs=1` (the spike classifier too): with more threads XGBoost's
+  sums can round differently, so results would depend on the core count. The dashboard's forecast
   (`/api/forecast/enhanced`, `backend/api.py::_forecast_payload`) is one regression run plus
   the 80% conformal band (`backend/band.py`, calibrated at request time from the committed
   all-years run), category chances from that band, and the alert's parts and

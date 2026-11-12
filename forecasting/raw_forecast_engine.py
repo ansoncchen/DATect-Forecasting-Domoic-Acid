@@ -289,11 +289,14 @@ class RawForecastEngine:
         forecast_date = pd.Timestamp(forecast_date)
         feature_frame = self._load_feature_frame()
 
-        # No n_jobs here: single forecasts keep XGBoost's default threads.
+        # One XGBoost thread, as in the retrospective and the tuner: with many threads
+        # the histogram sums can round differently, so a forecast would depend on the
+        # machine's core count (16 threads changed one in 50 precomputed forecasts in
+        # the last float32 bit).
         core = self._point_forecast(
             {"date": forecast_date, "site": site, "da_raw": np.nan},
             feature_frame,
-            dict(config.XGB_REGRESSION_PARAMS),
+            dict(config.XGB_REGRESSION_PARAMS, n_jobs=1),
         )
         if core is None:
             logger.warning("Insufficient data for a %s forecast on %s", site, forecast_date.date())
@@ -597,8 +600,8 @@ class RawForecastEngine:
         and the dashboard's single forecast all come here, so the dashboard shows the
         models the reported numbers score. It merges the site's XGBoost overrides onto
         ``base_params`` when ``config.USE_PER_SITE_MODELS`` and runs
-        ``_run_single_raw_validation``. XGBoost threads travel in ``base_params``: the
-        retrospective and the tuner set ``n_jobs=1``, single forecasts leave the default.
+        ``_run_single_raw_validation``. XGBoost threads travel in ``base_params``; every
+        caller sets ``n_jobs=1``, so a forecast does not depend on the core count.
         """
         params = (
             apply_site_xgb_params(base_params, raw_measurement["site"])

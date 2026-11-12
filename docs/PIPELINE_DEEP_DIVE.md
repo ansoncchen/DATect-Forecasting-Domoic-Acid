@@ -78,7 +78,7 @@ The JSON is authoritative; re-check it after any re-tune. `RawForecastEngine._en
 
 ## 7. One per-point forecast (per-anchor tuning removed)
 
-Every forecast of one site and date goes through `RawForecastEngine._point_forecast`: the retrospective (each test point), `datect_spark/retune.py` (each Spark task) and `generate_single_forecast`. It merges the site's `xgb_params` onto the base XGBoost params when `USE_PER_SITE_MODELS` is on and runs the core `_run_single_raw_validation`. XGBoost threads come with the params the caller passes: `n_jobs=1` in the retrospective and the tuner, the library default in single forecasts.
+Every forecast of one site and date goes through `RawForecastEngine._point_forecast`: the retrospective (each test point), `datect_spark/retune.py` (each Spark task) and `generate_single_forecast`. It merges the site's `xgb_params` onto the base XGBoost params when `USE_PER_SITE_MODELS` is on and runs the core `_run_single_raw_validation`. XGBoost threads come with the params the caller passes, and every caller (the retrospective, the tuner and single forecasts) passes `n_jobs=1`; the spike classifier also trains on one thread. With more threads XGBoost's histogram sums can round differently, so a forecast would depend on the machine's core count: at 16 threads, one in 50 precomputed forecasts differed in the last float32 bit.
 
 The engine used to offer a per-anchor XGBoost grid search on calibration rows before each forecast. It was off by default, every reported number was produced without it, and it changed about 23% of predictions without improving skill (`docs/CORRECTED_NUMBERS.md`), so it was removed together with its grids and settings.
 

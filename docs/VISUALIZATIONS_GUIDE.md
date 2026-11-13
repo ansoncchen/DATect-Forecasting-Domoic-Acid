@@ -6,14 +6,16 @@ Risk categories used by every chart: Low `[0, 5)`, Moderate `[5, 20)`, High `[20
 
 ## Data explorer (`frontend/src/pages/DataExplorer.jsx`)
 
-| Chart | Endpoint | Scope |
+| Chart (button) | Endpoint | Scope |
 |---|---|---|
-| Correlation heatmap | `/api/visualizations/correlation/{site}`, `/correlation/all` | single site or all |
-| Sensitivity analysis | `/api/visualizations/sensitivity/{site}`, `/sensitivity/all` | single site or all |
-| DA vs Pseudo-nitzschia | `/api/visualizations/comparison/{site}` | single site only |
-| Waterfall plot | `/api/visualizations/waterfall` | all sites |
-| Spectral analysis | `/api/visualizations/spectral/{site}`, `/spectral/all` | single site or all |
+| Correlation heatmap (What moves together) | `/api/visualizations/correlation/{site}`, `/correlation/all` | single site or all |
+| Sensitivity analysis (What the toxin tracks) | `/api/visualizations/sensitivity/{site}`, `/sensitivity/all` | single site or all |
+| DA vs Pseudo-nitzschia (Toxin and algae over time) | `/api/visualizations/comparison/{site}` | single site only |
+| Waterfall plot (Toxin at every site) | `/api/visualizations/waterfall` | all sites |
+| Spectral analysis (Repeating cycles) | `/api/visualizations/spectral/{site}`, `/spectral/all` | single site or all |
 | Site map | `/api/visualizations/map` | all sites |
+
+The page shows a one-line description of each chart. The server's figures are unchanged; `frontend/src/lib/figures.js` adjusts them for display: the heatmap and sensitivity bars get plain variable names (`lib/featureNames.js`), the heatmap drops its per-cell numbers (hover shows them) and by default shows 15 core variables (a checkbox restores all 29), and the site map is drawn in one colour.
 
 All except the site map read the weekly processed dataset, so their `da` and `pn` are the **gap-filled** weekly series, not raw measurements.
 

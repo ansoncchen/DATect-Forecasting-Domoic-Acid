@@ -3,18 +3,32 @@ import Plot from '../utils/Plot'
 import api from '../services/api'
 import { plotConfig, getPlotFilename } from '../utils/plotConfig'
 import { useConfig } from '../context/ConfigContext'
-import { INK } from '../lib/colors'
+import { plainSiteMap, readableHeatmap, readableLabels } from '../lib/figures'
 import Panel from '../components/ui/Panel'
 import Caution from '../components/ui/Caution'
 
 const VISUALIZATIONS = [
-  ['correlation', 'Correlation heatmap'],
-  ['sensitivity', 'Sensitivity analysis'],
-  ['comparison', 'DA vs Pseudo-nitzschia'],
-  ['waterfall', 'Waterfall plot'],
-  ['spectral', 'Spectral analysis'],
+  ['correlation', 'What moves together'],
+  ['sensitivity', 'What the toxin tracks'],
+  ['comparison', 'Toxin and algae over time'],
+  ['waterfall', 'Toxin at every site'],
+  ['spectral', 'Repeating cycles'],
   ['map', 'Site map'],
 ]
+
+const DESCRIPTIONS = {
+  correlation:
+    'Each square compares two measurements over the years. Blue means they tend to rise together, red means one rises as the other falls, white means no clear link. Hover a square for its value.',
+  sensitivity:
+    'Inputs ranked by how closely they track the toxin level. Tracking is not cause: two things can move together because of a third.',
+  comparison:
+    'Domoic acid and Pseudo-nitzschia, the algae that produce it, at one site. Both are scaled to 0–1 so you can compare their timing. Weeks between samples are filled in.',
+  waterfall:
+    'Toxin over time at every site, north at the top. Each line sits at its site\'s latitude, and peaks are toxin events. Weeks between samples are filled in.',
+  spectral:
+    'Looks for patterns that repeat, such as a yearly bloom season, in the toxin record and in the forecasts.',
+  map: 'Where the ten monitoring beaches are. Hover a site for its name.',
+}
 
 // Which visualizations take a site scope; the rest are fixed to one site (comparison) or all sites.
 const SCOPED = ['correlation', 'sensitivity', 'spectral']
@@ -31,13 +45,6 @@ function endpointFor(type, scope, site) {
 // Server-rendered layouts carry a fixed width; drop it so the figure fills its panel and redraws on resize.
 const fitted = (layout) => ({ ...layout, autosize: true, width: undefined })
 
-// Stop-gap until the API changes the figure: it colours sites by their last reading and titles them
-// "Risk Levels", against the dashboard's colour rules. The hover text stays.
-const plainSiteMap = (plot) => ({
-  data: plot.data.map((trace) => ({ ...trace, marker: { ...trace.marker, color: INK } })),
-  layout: { ...plot.layout, title: { text: 'Monitoring sites' } },
-})
-
 const selectClass = 'px-2 py-1.5 border border-gray-300 rounded text-sm min-w-[14rem] max-w-full bg-white'
 
 export default function DataExplorer() {
@@ -51,6 +58,7 @@ function DataExplorerPage({ sites }) {
   const [type, setType] = useState('correlation')
   const [scope, setScope] = useState('single')
   const [site, setSite] = useState(sites[0])
+  const [allVariables, setAllVariables] = useState(false)
   const [figure, setFigure] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -96,15 +104,19 @@ function DataExplorerPage({ sites }) {
     if (error) return <Caution>{error}</Caution>
     if (!figure) return <p className="text-sm text-gray-500">Loading</p>
     if (figure.plot) {
-      const plot = figure.type === 'map' ? plainSiteMap(figure.plot) : figure.plot
+      let plot = figure.plot
+      if (figure.type === 'map') plot = plainSiteMap(plot)
+      else if (figure.type === 'correlation') plot = readableHeatmap(plot, { all: allVariables })
+      else if (figure.type === 'sensitivity') plot = readableLabels(plot)
       return (
         <Plot data={plot.data} layout={fitted(plot.layout)} {...plotProps()} />
       )
     }
     if (Array.isArray(figure.plots)) {
+      const readable = figure.type === 'sensitivity' ? readableLabels : (p) => p
       return (
         <div className="space-y-4">
-          {figure.plots.map((p, i) => (
+          {figure.plots.map(readable).map((p, i) => (
             <Plot key={i} data={p.data} layout={fitted(p.layout)} {...plotProps(i + 1)} />
           ))}
         </div>
@@ -115,11 +127,17 @@ function DataExplorerPage({ sites }) {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Data explorer</h1>
+      <div>
+        <h1 className="text-xl font-semibold">Data explorer</h1>
+        <p className="text-sm text-gray-700 mt-1 max-w-3xl">
+          Charts of the data behind the forecasts: toxin measurements, algae counts, satellite ocean readings, river flow
+          and climate indices.
+        </p>
+      </div>
 
       <Panel className="px-4 py-3 space-y-3">
         <div>
-          <div className="text-xs text-gray-500 mb-1" id="viz-label">Visualization</div>
+          <div className="text-xs text-gray-500 mb-1" id="viz-label">Chart</div>
           <div
             role="group"
             aria-labelledby="viz-label"
@@ -141,14 +159,16 @@ function DataExplorerPage({ sites }) {
           </div>
         </div>
 
-        {(showScope || showSite) && (
+        <p className="text-sm text-gray-600 max-w-3xl">{DESCRIPTIONS[type]}</p>
+
+        {(showScope || showSite || type === 'correlation') && (
           <div className="flex flex-wrap items-end gap-4">
             {showScope && (
               <div>
-                <label htmlFor="scope" className="block text-xs text-gray-500 mb-1">Scope</label>
+                <label htmlFor="scope" className="block text-xs text-gray-500 mb-1">Sites</label>
                 <select id="scope" value={scope} onChange={(e) => setScope(e.target.value)} className={selectClass}>
-                  <option value="single">Single site</option>
-                  <option value="all">All sites</option>
+                  <option value="single">One site</option>
+                  <option value="all">All sites together</option>
                 </select>
               </div>
             )}
@@ -161,6 +181,12 @@ function DataExplorerPage({ sites }) {
                   ))}
                 </select>
               </div>
+            )}
+            {type === 'correlation' && (
+              <label className="inline-flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer pb-2">
+                <input type="checkbox" checked={allVariables} onChange={(e) => setAllVariables(e.target.checked)} />
+                Show every variable (adds the other ocean-anomaly variants)
+              </label>
             )}
           </div>
         )}

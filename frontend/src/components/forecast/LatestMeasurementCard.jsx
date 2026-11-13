@@ -17,8 +17,8 @@ export default function LatestMeasurementCard({ forecast, config }) {
   if (!lastMeasurement) {
     return (
       <Panel className="p-5">
-        <div className="text-xs text-gray-500">Latest measurement</div>
-        <p className="mt-1 text-sm text-gray-700">{noMeasurementText(forecast)}</p>
+        <h2 className="text-sm font-semibold text-gray-900">What was measured last?</h2>
+        <p className="mt-2 text-sm text-gray-700">{noMeasurementText(forecast)}</p>
       </Panel>
     )
   }
@@ -30,8 +30,8 @@ export default function LatestMeasurementCard({ forecast, config }) {
 
   return (
     <Panel className="p-5">
-      <div className="text-xs text-gray-500">Latest measurement</div>
-      <div className="mt-1 flex items-baseline gap-1.5 tabular-nums">
+      <h2 className="text-sm font-semibold text-gray-900">What was measured last?</h2>
+      <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
         <span className="text-4xl font-semibold">{formatValue(lastMeasurement.value)}</span>
         <span className="text-gray-500">µg/g</span>
       </div>
@@ -47,7 +47,7 @@ export default function LatestMeasurementCard({ forecast, config }) {
       )}
       {rows.length > 0 && (
         <>
-          <div className="mt-4 text-xs text-gray-500">Last {rows.length} measurements</div>
+          <div className="mt-4 text-xs text-gray-500">Recent lab measurements</div>
           <div className="mt-1 space-y-1">
             {rows.map((r) => (
               <div key={r.date} className="flex items-center gap-2 text-xs tabular-nums">

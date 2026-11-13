@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
-  reliabilityText, levelRecordText, trackRecordText, siteRecordText, bandVsAlertText,
+  trackRecordText, siteRecordText, bandVsAlertText,
   scoreCaption, levelCutoffsText, classifierConditionText, recentValuesText, jumpDefinition,
+  alertPlain, levelRecordPlain, weakSiteText,
 } from './copy'
 
 const overall = {
@@ -12,29 +13,7 @@ const overall = {
 const newport = { band: { coverage: 0.479, nBanded: 48, inside: 23 } }
 const L = '2022–2023'
 
-describe('reliabilityText', () => {
-  it('warns when the range is weak at a site', () => {
-    expect(reliabilityText('Newport', newport, overall, L)).toBe(
-      'Less reliable here. In 2022–2023 the range held 23 of 48 measurements at Newport (48%), against 80% across all sites. Expect values outside it.')
-  })
-  it('reports a site where the range held', () => {
-    const ok = { band: { coverage: 0.75, nBanded: 40, inside: 30 } }
-    expect(reliabilityText('Copalis', ok, overall, L)).toBe(
-      'In 2022–2023 the range held 30 of 40 measurements at Copalis (75%; all sites 80%).')
-  })
-  it('says there are too few measurements', () => {
-    const few = { band: { coverage: 1, nBanded: 2, inside: 2 } }
-    const msg = 'Only 2 measurements here in 2022–2023, too few to check the range at this site (all sites: 80%).'
-    expect(reliabilityText('Kalaloch', few, overall, L)).toBe(msg)
-    expect(reliabilityText('Kalaloch', undefined, overall, L)).toMatch(/^Only 0 measurements/)
-  })
-})
-
 describe('record sentences', () => {
-  it('describes a level record', () => {
-    expect(levelRecordText('Watch', { weeks: 68, followed: 9 }, L)).toBe(
-      'Watch weeks in 2022–2023 were followed by a jump 9 of 68 times (about 1 in 8).')
-  })
   it('describes the all-sites track record', () => {
     expect(trackRecordText(overall, L)).toBe(
       '2022–2023, all sites: caught 19 of 27 jumps (about 7 in 10); 19 of 106 alarms were followed by one (about 1 in 6). 48 of the 87 false alarms were near misses at 10–20 µg/g.')
@@ -70,11 +49,7 @@ describe('bandVsAlertText', () => {
 
 describe('score sentences', () => {
   it('captions the score as a score, not a chance', () => {
-    expect(scoreCaption(20, true)).toBe(
-      'classifier score for a jump to ≥ 20 µg/g next week. Not a calibrated chance; the line below says what weeks at this level did.')
-  })
-  it('points at no line that is not there', () => {
-    expect(scoreCaption(20, false)).toBe('classifier score for a jump to ≥ 20 µg/g next week. Not a calibrated chance.')
+    expect(scoreCaption(20)).toBe('classifier score for a jump to ≥ 20 µg/g next week. Not a calibrated chance.')
   })
   it('lists the cutoffs from config, leaving out levels with none', () => {
     const levels = [
@@ -109,6 +84,29 @@ describe('recentValuesText', () => {
 describe('jumpDefinition', () => {
   it('defines a jump from the threshold', () => {
     expect(jumpDefinition(20)).toBe(
-      'A jump: the last value known when the forecast was made was below 20 and the measurement reached 20.')
+      'A sudden rise (or jump): the last value known when the forecast was made was below 20 µg/g and the measurement reached 20 or more.')
+  })
+})
+
+describe('plain-language helpers', () => {
+  it('says what each alert level means without calling the score a chance', () => {
+    expect(alertPlain('quiet', 20)).toBe('A sudden rise to 20 µg/g or more looks unlikely.')
+    expect(alertPlain('watch', 20)).toBe('A sudden rise to 20 µg/g or more is possible.')
+    expect(alertPlain('warning', 20)).toBe('A sudden rise to 20 µg/g or more is more likely than usual.')
+    expect(alertPlain('already', 20)).toMatch(/^The last measurement was already at or above 20 µg\/g/)
+    expect(alertPlain('unavailable', 20)).toBe('No rise alert is available for this week.')
+    for (const level of ['quiet', 'watch', 'warning', 'already', 'unavailable']) {
+      expect(alertPlain(level, 20)).not.toMatch(/chance|probab|%/)
+    }
+  })
+  it('states a level record as counts with a rate in words', () => {
+    expect(levelRecordPlain('Quiet', { weeks: 213, followed: 8 }, L, 20)).toBe(
+      'In 2022–2023, 8 of 213 Quiet weeks (about 1 in 27) were followed by a rise to 20 µg/g or more.')
+    expect(levelRecordPlain('Warning', { weeks: 5, followed: 0 }, L, 20)).toBe(
+      'In 2022–2023, none of the 5 Warning weeks was followed by a rise to 20 µg/g or more.')
+  })
+  it('flags a weak site with its counts', () => {
+    expect(weakSiteText('Newport', newport, L)).toBe(
+      'Less reliable at Newport: in 2022–2023 only 23 of 48 measurements landed inside the likely range.')
   })
 })

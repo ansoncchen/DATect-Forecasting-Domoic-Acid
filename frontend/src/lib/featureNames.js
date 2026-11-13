@@ -1,4 +1,5 @@
 const NAMES = {
+  da: 'Domoic acid (the toxin)',
   last_observed_da_raw: 'Last measured DA',
   weeks_since_last_spike: 'Weeks since last spike',
   month: 'Month of year',

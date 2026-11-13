@@ -36,7 +36,7 @@ describe('buildGroundTraces', () => {
       row({ date: '2023-03-13', lo: 4, hi: 16 }),
     ]
     const { traces } = buildGroundTraces(rs, fc, cfg, { range: 'all' })
-    const band = named(traces, '80% range')
+    const band = named(traces, 'Likely range (80%)')
     expect(band.fill).toBe('toself')
     expect(band.x).toEqual([
       '2023-01-02', '2023-01-09', '2023-01-09', '2023-01-02', null,
@@ -54,8 +54,8 @@ describe('buildGroundTraces', () => {
 
   it('names the range from the band level', () => {
     const { traces } = buildGroundTraces([], fc, { ...cfg, bandLevel: 0.9 }, { range: 'all' })
-    expect(named(traces, '90% range')).toBeDefined()
-    expect(named(traces, '80% range')).toBeUndefined()
+    expect(named(traces, 'Likely range (90%)')).toBeDefined()
+    expect(named(traces, 'Likely range (80%)')).toBeUndefined()
   })
 
   it('draws a lone forecast as a bar from lo to hi with a small marker, outside the polygon', () => {
@@ -72,7 +72,7 @@ describe('buildGroundTraces', () => {
     expect(lone.showlegend).toBe(false)
     expect(lone.error_y.array).toEqual([5])
     expect(lone.error_y.arrayminus).toEqual([4])
-    expect(named(traces, '80% range').x).not.toContain('2023-01-02')
+    expect(named(traces, 'Likely range (80%)').x).not.toContain('2023-01-02')
   })
 
   it('leaves the strip clear of the x-axis labels', () => {
@@ -116,7 +116,7 @@ describe('buildGroundTraces', () => {
     const { traces } = buildGroundTraces(rs, fc, cfg, { range: 'all' })
     expect(named(traces, 'Measurement outside the range').x).toHaveLength(0)
     expect(named(traces, 'Measurement').x).toEqual(['2023-01-02', '2023-01-09', '2023-01-16'])
-    expect(named(traces, '80% range').x).toEqual([])
+    expect(named(traces, 'Likely range (80%)').x).toEqual([])
     expect(named(traces, 'Lone forecast').x).toEqual(['2023-01-02', '2023-01-16'])
     expect(named(traces, 'Forecast, made a week ahead').y).toEqual([5, null, 5])
   })

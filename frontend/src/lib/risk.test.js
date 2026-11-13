@@ -68,7 +68,7 @@ describe('siteReliability', () => {
 
 describe('dataCurrencyNotice', () => {
   it('speaks only when the newest measurement is more than 30 days old', () => {
-    expect(dataCurrencyNotice('2023-11-30', '2026-11-03')).toBe('Newest measurement in the data: 30 Nov 2023. Forecasts are not live.')
+    expect(dataCurrencyNotice('2023-11-30', '2026-11-03')).toBe('A demo on past data: the newest measurement is from 30 Nov 2023, so every forecast here is for a past week.')
     expect(dataCurrencyNotice('2026-10-20', '2026-11-03')).toBeNull()
     expect(dataCurrencyNotice('2026-10-04', '2026-11-03')).toBeNull()
     expect(dataCurrencyNotice('2026-10-03', '2026-11-03')).not.toBeNull()

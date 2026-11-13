@@ -59,11 +59,14 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
     <Panel className="p-5">
       <div className="flex flex-wrap items-start gap-3">
         <div>
-          <h2 className="text-base font-semibold">Measurements and forecasts, {shown ? shown.site : site}</h2>
+          <h2 className="text-base font-semibold">Past measurements and forecasts, {shown ? shown.site : site}</h2>
           <p className="text-sm text-gray-600 max-w-3xl mt-0.5">
-            Dots are lab measurements; hollow dots fell outside the {Math.round(config.bandLevel * 100)}% range. The line is
-            the forecast made a week before each measurement, shaded by its range; a forecast with no neighbours is a short bar. Ticks below mark Watch and Warning weeks.
-            The models were tuned on {validation.label}; {holdout.label} was never used for tuning.
+            Dots are lab measurements. The blue line is what the model forecast a week before each one, with its likely
+            range shaded; hollow dots fell outside that range. The red line marks {config.spikeThreshold} µg/g.
+          </p>
+          <p className="text-xs text-gray-500 max-w-3xl mt-1">
+            Ticks under the chart mark Watch and Warning weeks. The model was tuned on {validation.label}; {holdout.label} was
+            never used for tuning.
           </p>
         </div>
         <div className="ml-auto flex text-xs border border-gray-300 rounded overflow-hidden divide-x divide-gray-300">

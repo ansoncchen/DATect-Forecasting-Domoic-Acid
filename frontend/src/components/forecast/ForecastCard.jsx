@@ -4,9 +4,7 @@ import Caution from '../ui/Caution'
 import CategoryScaleBar from './CategoryScaleBar'
 import { formatValue } from '../../lib/format'
 import { categoryOf, reachesThreshold, siteReliability } from '../../lib/risk'
-import { reliabilityText } from '../../lib/copy'
-
-const catText = (c) => (c.hi === Infinity ? `${c.label} (≥ ${c.lo})` : `${c.label} (${c.lo}–${c.hi})`)
+import { weakSiteText } from '../../lib/copy'
 
 /**
  * @param {{ forecast: import('../../services/contract').Forecast,
@@ -15,44 +13,33 @@ const catText = (c) => (c.hi === Infinity ? `${c.label} (≥ ${c.lo})` : `${c.la
  */
 export default function ForecastCard({ forecast, summary, config }) {
   const { site, value, band, bandReason, error } = forecast
-  const holdout = summary?.reliability?.holdout
-  let reliability = null
-  if (holdout && !error) {
-    const rel = holdout.perSite[site]
-    const text = reliabilityText(site, rel, holdout.overall, config.windows.holdout.label)
-    reliability =
-      siteReliability(rel) === 'weak' ? (
-        <Caution>{text}</Caution>
-      ) : (
-        <p className="text-xs text-gray-500 mt-3">{text}</p>
-      )
-  }
+  const threshold = config.spikeThreshold
+  const rel = summary?.reliability?.holdout?.perSite[site]
+  const weak = !error && siteReliability(rel) === 'weak'
+  const category = value == null ? null : categoryOf(value, config.categories)
 
   return (
     <Panel className="p-5">
-      <div className="text-xs text-gray-500">Next week&apos;s forecast, {site}</div>
+      <h2 className="text-sm font-semibold text-gray-900">How much toxin next week?</h2>
       {error ? (
         <Caution>{error}</Caution>
       ) : (
         <>
-          <div className="mt-1 flex items-baseline gap-1.5 tabular-nums">
+          <div className="mt-2 flex items-baseline gap-2 tabular-nums">
             <span className="text-4xl font-semibold">{formatValue(value)}</span>
             <span className="text-gray-500">µg/g</span>
+            {category && <span className="ml-1 text-base font-medium text-gray-700">{category.label}</span>}
           </div>
-          <div className="text-sm text-gray-700 tabular-nums">
-            {band
-              ? `${Math.round(config.bandLevel * 100)}% range ${formatValue(band.lo)}–${formatValue(band.hi)} µg/g`
-              : `No range: ${bandReason}`}
-          </div>
-          <div className="text-sm text-gray-600 mt-1">
-            In the {catText(categoryOf(value, config.categories))} category
-            {reachesThreshold(band, config.spikeThreshold)
-              ? `; the range reaches the ${config.spikeThreshold} µg/g closure level`
-              : ''}
-            .
-          </div>
+          <p className="mt-1 text-sm text-gray-700 tabular-nums">
+            {band ? `Likely between ${formatValue(band.lo)} and ${formatValue(band.hi)} µg/g.` : `No likely range: ${bandReason}`}
+          </p>
+          <p className="mt-1 text-sm text-gray-600">
+            {reachesThreshold(band, threshold)
+              ? `The likely range reaches ${threshold} µg/g, the level at which harvests close.`
+              : `Harvests close at ${threshold} µg/g.`}
+          </p>
           <CategoryScaleBar value={value} band={band} config={config} />
-          {reliability}
+          {weak && <Caution>{weakSiteText(site, rel, config.windows.holdout.label)}</Caution>}
         </>
       )}
     </Panel>

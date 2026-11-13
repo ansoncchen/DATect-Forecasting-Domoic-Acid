@@ -4,8 +4,6 @@ import {
   toConfig, toForecast, toAllSites, toHistory, toSummary, toTrackRecord,
 } from './contract'
 
-export const HISTORY_SINCE = '2019-01-01'
-
 async function request(call) {
   try {
     const response = await call()
@@ -35,8 +33,9 @@ export async function getAllSites(date) {
   return toAllSites(raw)
 }
 
-export async function getSiteHistory(site) {
-  const raw = await request(() => api.get(`/api/sites/${encodeURIComponent(site)}/history`, { params: { since: HISTORY_SINCE } }))
+/** Every real measurement at `site` from `since` (an ISO date) on, with the forecast made for it. */
+export async function getSiteHistory(site, since) {
+  const raw = await request(() => api.get(`/api/sites/${encodeURIComponent(site)}/history`, { params: { since } }))
   return toHistory(raw)
 }
 

@@ -2,14 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Plot from '../../utils/Plot'
 import Panel from '../ui/Panel'
 import Caution from '../ui/Caution'
-import { HISTORY_SINCE, getSiteHistory } from '../../services/datect'
+import { getSiteHistory } from '../../services/datect'
 import { buildGroundTraces, noRowsNote } from '../../lib/groundTraces'
 
 const RANGES = [
   ['6m', '6 mo'],
   ['1y', '1 yr'],
   ['2y', '2 yr'],
-  ['all', 'Since 2019'],
+  ['all', 'All years'],
 ]
 const PLOT_CONFIG = { displaylogo: false, responsive: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'] }
 
@@ -30,10 +30,10 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
   useEffect(() => {
     const id = ++latest.current
     setError(null)
-    getSiteHistory(site)
+    getSiteHistory(site, config.dateRange.min)
       .then((r) => latest.current === id && setHistory({ site, rows: r }))
       .catch((e) => latest.current === id && (setHistory(null), setError(e?.message || String(e))))
-  }, [site])
+  }, [site, config.dateRange.min])
 
   useEffect(() => {
     setShowAfter(false)
@@ -52,7 +52,7 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
   const stale = !built && shown !== null
 
   if (!forecast) return null
-  const { holdout, validation } = config.windows
+  const { holdout } = config.windows
   const past = forecast.date < config.latestWeek
 
   return (
@@ -65,8 +65,8 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
             range shaded; hollow dots fell outside that range. The red line marks {config.spikeThreshold} µg/g.
           </p>
           <p className="text-xs text-gray-500 max-w-3xl mt-1">
-            Ticks under the chart mark Watch and Warning weeks. The model was tuned on {validation.label}; {holdout.label} was
-            never used for tuning.
+            Ticks under the chart mark Watch and Warning weeks. Forecasts before {holdout.start.slice(0, 4)} overlap the years used
+            to tune the model; {holdout.label} was never used for tuning.
           </p>
         </div>
         <div className="ml-auto flex text-xs border border-gray-300 rounded overflow-hidden divide-x divide-gray-300">
@@ -90,7 +90,7 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
         </label>
       )}
       {error && <Caution>{error}</Caution>}
-      {built?.empty && <p className="mt-2 text-sm text-gray-500">{noRowsNote(history.rows, forecast, HISTORY_SINCE)}</p>}
+      {built?.empty && <p className="mt-2 text-sm text-gray-500">{noRowsNote(history.rows, forecast, config.dateRange.min)}</p>}
       {shown && (
         <div className={`mt-2 ${loading || stale ? 'opacity-60' : ''}`}>
           <Plot

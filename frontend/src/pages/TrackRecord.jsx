@@ -51,10 +51,10 @@ function SiteHistoryChart({ site, rows, window, config }) {
   useEffect(() => {
     const id = ++latest.current
     setError(null)
-    getSiteHistory(site)
+    getSiteHistory(site, config.dateRange.min)
       .then((r) => latest.current === id && setHistory({ site, rows: r }))
       .catch((e) => latest.current === id && (setHistory(null), setError(e?.message || String(e))))
-  }, [site])
+  }, [site, config.dateRange.min])
 
   const built = useMemo(() => {
     if (!history || history.site !== site) return null

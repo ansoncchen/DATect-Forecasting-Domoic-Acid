@@ -100,7 +100,7 @@ export function buildGroundTraces(rows, forecast, config, { range, showAfter = f
       line: { width: 0 },
       fill: 'toself',
       fillcolor: BAND_FILL,
-      name: `${formatPct(config.bandLevel)} range`,
+      name: `Likely range (${formatPct(config.bandLevel)})`,
       hoverinfo: 'skip',
       connectgaps: false,
     },

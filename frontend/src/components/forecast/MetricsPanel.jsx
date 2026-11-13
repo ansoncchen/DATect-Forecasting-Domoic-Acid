@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Panel from '../ui/Panel'
+import More from '../ui/More'
 import { METRICS, loadMetricSelection, saveMetricSelection } from '../../lib/metricSelection'
 import {
   AlertTile, CoverageTile, MaeTile, CatsTile, R2Tile, LineTile, PartsTile, DriversTile, WidthTile, ProvTile,
@@ -37,30 +38,32 @@ export default function MetricsPanel({ site, forecast, summary, summaryError, co
 
   return (
     <Panel className={`p-5 ${loading ? 'opacity-60' : ''}`}>
-      <h2 className="text-base font-semibold">Metrics, {site}</h2>
-      <p className="text-xs text-gray-500 mt-0.5">
-        Listed in the order we suggest reading them. The selection is remembered on this device.
-      </p>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
-        {METRICS.map(([key, label]) => (
-          <label key={key} className="inline-flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
-            <input type="checkbox" checked={shown.includes(key)} onChange={() => toggle(key)} />
-            {label}
-          </label>
-        ))}
-      </div>
-      {!summary && (
-        <p className="text-xs text-gray-500 mt-3">
-          {summaryError ? 'Tiles that need the track record are hidden.' : 'Loading the track record.'}
+      <More summary={`More detail for ${site}`} summaryClassName="text-base font-semibold text-gray-900">
+        <p className="text-xs text-gray-500">
+          Accuracy at this site, the alert&apos;s record, and what went into the forecast. Tick a box to show a panel;
+          your choice is remembered on this device.
         </p>
-      )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-        {shown.length === 0 && <p className="text-sm text-gray-500">No metrics selected.</p>}
-        {METRICS.filter(([k]) => shown.includes(k)).map(([key]) => {
-          const Tile = TILES[key]
-          return <Tile key={key} site={site} forecast={current} summary={summary} config={config} />
-        })}
-      </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+          {METRICS.map(([key, label]) => (
+            <label key={key} className="inline-flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={shown.includes(key)} onChange={() => toggle(key)} />
+              {label}
+            </label>
+          ))}
+        </div>
+        {!summary && (
+          <p className="text-xs text-gray-500 mt-3">
+            {summaryError ? 'Tiles that need the track record are hidden.' : 'Loading the track record.'}
+          </p>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+          {shown.length === 0 && <p className="text-sm text-gray-500">No panels selected.</p>}
+          {METRICS.filter(([k]) => shown.includes(k)).map(([key]) => {
+            const Tile = TILES[key]
+            return <Tile key={key} site={site} forecast={current} summary={summary} config={config} />
+          })}
+        </div>
+      </More>
     </Panel>
   )
 }

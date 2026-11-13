@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useConfig } from '../context/ConfigContext'
 import { getSummary } from '../services/datect'
-import { formatDate } from '../lib/format'
-import { trackRecordText } from '../lib/copy'
+import { formatDate, formatPct, formatValue } from '../lib/format'
 import { siteReliability } from '../lib/risk'
 import Panel from '../components/ui/Panel'
 import Caution from '../components/ui/Caution'
@@ -15,12 +14,13 @@ export default function About() {
   return <AboutPage config={config} />
 }
 
-/** Sites whose range held under the weak threshold, as "Site k of n". */
-function weakSiteText(config, holdout) {
-  return config.sites
-    .filter((s) => siteReliability(holdout.perSite[s]) === 'weak')
-    .map((s) => `${s} ${holdout.perSite[s].band.inside} of ${holdout.perSite[s].band.nBanded}`)
-    .join(', ')
+function Section({ title, children }) {
+  return (
+    <Panel className="p-5">
+      <h2 className="text-base font-semibold">{title}</h2>
+      <div className="mt-2 text-sm text-gray-700 space-y-2 leading-relaxed">{children}</div>
+    </Panel>
+  )
 }
 
 function AboutPage({ config }) {
@@ -37,67 +37,95 @@ function AboutPage({ config }) {
     }
   }, [])
 
+  const threshold = config.spikeThreshold
   const holdout = summary?.reliability?.holdout
   const holdoutLabel = config.windows.holdout.label
-  const weak = holdout ? weakSiteText(config, holdout) : ''
+  const mae = summary?.headline?.overall?.mae
+  const weakSites = holdout ? config.sites.filter((s) => siteReliability(holdout.perSite[s]) === 'weak') : []
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="max-w-3xl space-y-5">
       <h1 className="text-xl font-semibold">About DATect</h1>
 
-      <Panel className="p-5 space-y-4">
-        <h2 className="text-base font-semibold">Domoic acid forecasting system</h2>
-        <p className="text-sm text-gray-600">
-          DATect is a scientific machine learning system for forecasting harmful algal bloom concentrations
-          (domoic acid) using satellite oceanographic data and environmental measurements.
+      <Section title="What this is">
+        <p>
+          Domoic acid is a natural toxin made by some algae (<i>Pseudo-nitzschia</i>). Shellfish such as razor clams and
+          mussels take it up, and eating them can cause amnesic shellfish poisoning. Washington and Oregon close shellfish
+          harvests when the toxin reaches {threshold} µg/g.
         </p>
+        <p>
+          DATect is a research project that forecasts next week&apos;s toxin level at ten beaches on the Washington and
+          Oregon coast, from 2003 to 2023.
+        </p>
+      </Section>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <h3 className="text-sm font-semibold">Key features</h3>
-            <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 mt-1">
-              <li>21 years of temporal coverage (2003-2023)</li>
-              <li>10 Pacific Coast monitoring sites</li>
-              <li>XGBoost and Random Forest, chosen or blended per site</li>
-              <li>One-week forecast with an {Math.round(config.bandLevel * 100)}% range, graded spike risk and a track record</li>
-              <li>Scientific data visualization</li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold">Data sources</h3>
-            <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 mt-1">
-              <li>MODIS satellite and anomaly</li>
-              <li>Climate indices (PDO, ONI, BEUTI)</li>
-              <li>USGS streamflow measurements</li>
-              <li>Shellfish toxin monitoring data</li>
-              <li>Pseudo-nitzschia cell counts</li>
-            </ul>
-          </div>
-        </div>
+      <Section title="How to read the forecast page">
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li>
+            <span className="font-medium">How much toxin next week?</span> The forecast and its likely range: across all
+            sites, about {formatPct(config.bandLevel)} of measurements land inside that range.
+          </li>
+          <li>
+            <span className="font-medium">Any sign of a sudden rise?</span> A separate alert for jumps from below{' '}
+            {threshold} µg/g to {threshold} or more, which the forecast alone tends to miss. It reads Quiet, Watch or
+            Warning.
+          </li>
+          <li>
+            <span className="font-medium">What was measured last?</span> The latest lab results and how old they are. A
+            forecast without a recent sample deserves less trust.
+          </li>
+        </ul>
+      </Section>
 
-        <div>
-          <h3 className="text-sm font-semibold">Scientific validation</h3>
-          <p className="text-sm text-gray-600 mt-1">
-            Each forecast is tested only on measurements after the data it was trained on; the{' '}
-            <Link to="/track-record" className="underline">Track record</Link> page shows the results.
+      <Section title="How it works">
+        <p>
+          Each site&apos;s forecast blends two machine-learning models (XGBoost and a random forest) with the last
+          measurement. The models learn from past toxin measurements, algae counts, satellite readings of the ocean,
+          river flow and climate indices. Every forecast uses
+          only data that was available a week before the measurement it predicts.
+        </p>
+        <p className="text-gray-600">
+          Data: shellfish toxin monitoring, <i>Pseudo-nitzschia</i> counts, MODIS satellite ocean colour and temperature,
+          the PDO, ONI and BEUTI climate and upwelling indices, and USGS river flow.
+        </p>
+      </Section>
+
+      <Section title="How well it works">
+        {holdout ? (
+          <p>
+            In {holdoutLabel}, years never used to tune the models, forecasts were off by{' '}
+            {mae ? `${formatValue(mae.value)} µg/g` : 'a few µg/g'} on average. The alert caught {holdout.overall.onsets.caught}{' '}
+            of {holdout.overall.onsets.n} sudden rises to {threshold} µg/g, and {holdout.overall.alarms.followed} of its{' '}
+            {holdout.overall.alarms.n} alarms were followed by one; {holdout.overall.alarms.falseNearMiss} of the other{' '}
+            {holdout.overall.alarms.n - holdout.overall.alarms.followed} came close (10–20 µg/g).
           </p>
-        </div>
-      </Panel>
+        ) : (
+          <p>{failed ? 'Track record figures are unavailable right now.' : 'Loading the track record.'}</p>
+        )}
+        <p>
+          The <Link to="/track-record" className="underline">Track record</Link> page has the details for every site.
+        </p>
+      </Section>
 
-      <Panel className="p-5">
-        <h2 className="text-base font-semibold">What the dashboard cannot do</h2>
-        <ul className="list-disc list-inside text-sm text-gray-700 space-y-1.5 mt-2">
-          {holdout && (
+      <Section title="Limits">
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li>
+            The data ends on {formatDate(config.newestMeasurement)}, so this is a demonstration on past weeks, not a live
+            service.
+          </li>
+          {weakSites.length > 0 && (
             <li>
-              The range is calibrated over all sites, not per site.
-              {weak && ` Weakest sites in ${holdoutLabel}, measurements inside the range: ${weak}.`}
+              Forecasts are less reliable at {weakSites.join(' and ')}, where measurements often landed outside the likely
+              range.
             </li>
           )}
-          {holdout && <li>{trackRecordText(holdout.overall, holdoutLabel)}</li>}
-          <li>Data ends {formatDate(config.newestMeasurement)}; forecasts are not live.</li>
+          <li>
+            The alert&apos;s score is not a probability. The forecast page shows how often weeks at each alert level were
+            actually followed by a rise.
+          </li>
+          <li>Not for making real harvest decisions: always follow official closure notices.</li>
         </ul>
-        {failed && <p className="text-xs text-gray-500 mt-2">Track record figures are unavailable right now.</p>}
-      </Panel>
+      </Section>
     </div>
   )
 }

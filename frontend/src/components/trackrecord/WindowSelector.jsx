@@ -11,11 +11,11 @@ export default function WindowSelector({ config, windowName, site, onWindow, onS
     <Panel className="px-4 py-3">
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <label htmlFor="window" className="block text-xs text-gray-500 mb-1">Window</label>
+          <label htmlFor="window" className="block text-xs text-gray-500 mb-1">Years</label>
           <select id="window" value={windowName} onChange={(e) => onWindow(e.target.value)} className={select}>
             {['holdout', 'validation'].map((n) => (
               <option key={n} value={n}>
-                {config.windows[n].label} ({n})
+                {config.windows[n].label} ({n === 'holdout' ? 'never used for tuning' : 'used for tuning'})
               </option>
             ))}
           </select>

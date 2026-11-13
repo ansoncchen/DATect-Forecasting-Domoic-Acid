@@ -1,9 +1,9 @@
 import React from 'react'
 
 const ROWS = [
-  ['ensemble', 'Ensemble'],
-  ['naive', 'Last value carried forward'],
-  ['linear', 'Ridge'],
+  ['ensemble', 'DATect model'],
+  ['naive', 'Repeat the last measurement'],
+  ['linear', 'Simple linear model (ridge)'],
 ]
 
 /**
@@ -14,9 +14,9 @@ export default function ModelComparison({ models }) {
     <table className="text-sm tabular-nums mt-2">
       <thead className="text-left text-xs text-gray-500 border-b border-gray-200">
         <tr>
-          <th className="py-2 pr-6 font-normal">Model</th>
-          <th className="pr-6 font-normal">R²</th>
-          <th className="font-normal">MAE (µg/g)</th>
+          <th className="py-2 pr-6 font-normal">Method</th>
+          <th className="pr-6 font-normal">Typical error (µg/g)</th>
+          <th className="font-normal">R² (higher is better)</th>
         </tr>
       </thead>
       <tbody>
@@ -27,8 +27,8 @@ export default function ModelComparison({ models }) {
               <td className="py-1.5 pr-6 whitespace-nowrap">{label}</td>
               {m && m.r2 != null && m.mae != null ? (
                 <>
-                  <td className="pr-6">{m.r2.toFixed(2)}</td>
-                  <td>{m.mae.toFixed(1)}</td>
+                  <td className="pr-6">{m.mae.toFixed(1)}</td>
+                  <td>{m.r2.toFixed(2)}</td>
                 </>
               ) : (
                 <td colSpan={2} className="text-gray-500">too few</td>

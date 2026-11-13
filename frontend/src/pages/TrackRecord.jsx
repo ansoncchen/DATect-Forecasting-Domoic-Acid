@@ -4,8 +4,9 @@ import { getSiteHistory, getTrackRecord } from '../services/datect'
 import { buildGroundTraces } from '../lib/groundTraces'
 import { exportCsv } from '../lib/csv'
 import { jumpDefinition } from '../lib/copy'
-import { formatPct, formatStat } from '../lib/format'
+import { formatPct, formatStat, formatValue } from '../lib/format'
 import Panel from '../components/ui/Panel'
+import More from '../components/ui/More'
 import Caution from '../components/ui/Caution'
 import Plot from '../utils/Plot'
 import WindowSelector from '../components/trackrecord/WindowSelector'
@@ -28,6 +29,16 @@ function Item({ label, children }) {
     <div>
       <dt className="text-xs text-gray-500">{label}</dt>
       <dd className="tabular-nums">{children}</dd>
+    </div>
+  )
+}
+
+function BigStat({ label, value, note }) {
+  return (
+    <div>
+      <dt className="text-sm text-gray-700">{label}</dt>
+      <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{value}</dd>
+      {note && <dd className="text-xs text-gray-500 mt-0.5">{note}</dd>}
     </div>
   )
 }
@@ -55,8 +66,8 @@ function SiteHistoryChart({ site, rows, window, config }) {
     <>
       <h2 className="text-base font-semibold">Measurements and forecasts, {site}</h2>
       <p className="text-sm text-gray-600 max-w-3xl mt-0.5">
-        Dots are lab measurements; hollow dots fell outside the {Math.round(config.bandLevel * 100)}% range. The line is
-        the forecast made a week before each measurement, shaded by its range; a forecast with no neighbours is a short bar.
+        Dots are lab measurements. The blue line is what the model forecast a week before each one, with its likely range
+        shaded; hollow dots fell outside that range.
       </p>
       {error && <Caution>{error}</Caution>}
       {built && rows.length > 0 && (
@@ -94,37 +105,68 @@ function TrackRecordPage({ config }) {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold text-gray-900">Track record</h1>
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900">Track record</h1>
+        <p className="text-sm text-gray-700 mt-1 max-w-3xl">
+          How good were past forecasts? Each lab measurement here was forecast one week ahead, using only data
+          available at the time, and then compared with what the lab found.
+        </p>
+      </div>
       <WindowSelector config={config} windowName={windowName} site={site} onWindow={setWindowName} onSite={setSite} />
       {error && <Caution>{error}</Caution>}
       {loading && !data && !error && <p className="text-sm text-gray-500">Loading</p>}
       {data && (
         <div className={`space-y-5 ${loading ? 'opacity-60' : ''}`}>
-          <div>
-            <p className="text-sm text-gray-700">
-              Every real measurement in {label} (N = {scope ? scope.n : 0}). Each forecast was made a week ahead from data up to its anchor.
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              {shownName === 'validation' ? `${label} was used for tuning.` : `${label} was never used for tuning.`}
-            </p>
-          </div>
-
           <Panel className="p-5">
             <h2 className="text-base font-semibold">{site || 'All sites'}, {label}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {scope ? `${scope.n} lab measurements. ` : ''}
+              {shownName === 'validation'
+                ? `${label} was used to tune the model, so these numbers flatter it.`
+                : `${label} was never used to tune the model.`}
+            </p>
             {scope ? (
-              <dl className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-x-6 gap-y-3 text-sm">
-                <Item label="N">{scope.n}</Item>
-                <Item label="R²">{scope.r2 ? formatStat(scope.r2, 2) : <span className={muted}>too few</span>}</Item>
-                <Item label="Log R²">{scope.logR2 ? formatStat(scope.logR2, 2) : <span className={muted}>too few</span>}</Item>
-                <Item label="MAE (µg/g)">{scope.mae ? formatStat(scope.mae, 1) : <span className={muted}>too few</span>}</Item>
-                <Item label={`Range held (${formatPct(config.bandLevel)})`}><RangeHeld reliability={scope} /></Item>
-                <Item label="Jumps caught">{scope.onsets.caught} of {scope.onsets.n}</Item>
-                <Item label="Alarms followed by a jump">{scope.alarms.followed} of {scope.alarms.n}</Item>
-              </dl>
+              <>
+                <dl className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                  <BigStat
+                    label="Typical error"
+                    value={scope.mae ? `${formatValue(scope.mae.value)} µg/g` : 'too few'}
+                    note="how far off a forecast was, on average"
+                  />
+                  <BigStat
+                    label="Inside the likely range"
+                    value={scope.band.nBanded ? formatPct(scope.band.coverage) : 'too few'}
+                    note={scope.band.nBanded ? `${scope.band.inside} of ${scope.band.nBanded} measurements (target ${formatPct(config.bandLevel)})` : null}
+                  />
+                  <BigStat
+                    label="Sudden rises caught"
+                    value={scope.onsets.n ? `${scope.onsets.caught} of ${scope.onsets.n}` : 'no rises'}
+                    note={scope.onsets.n ? `the alert was raised a week before a rise to ${config.spikeThreshold}+` : null}
+                  />
+                  <BigStat
+                    label="Alarms followed by a rise"
+                    value={`${scope.alarms.followed} of ${scope.alarms.n}`}
+                    note={scope.alarms.n > scope.alarms.followed ? `${scope.alarms.falseNearMiss} of the false alarms came close (10–20 µg/g)` : null}
+                  />
+                </dl>
+                <p className="mt-4 text-xs text-gray-500">{jumpDefinition(config.spikeThreshold)}</p>
+                <More summary="Show statistics" className="mt-3">
+                  <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-3 text-sm">
+                    <Item label="N">{scope.n}</Item>
+                    <Item label="R²">{scope.r2 ? formatStat(scope.r2, 2) : <span className={muted}>too few</span>}</Item>
+                    <Item label="Log R²">{scope.logR2 ? formatStat(scope.logR2, 2) : <span className={muted}>too few</span>}</Item>
+                    <Item label="MAE (µg/g)">{scope.mae ? formatStat(scope.mae, 1) : <span className={muted}>too few</span>}</Item>
+                    <Item label={`Range held (${formatPct(config.bandLevel)})`}><RangeHeld reliability={scope} /></Item>
+                  </dl>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Brackets are 95% bootstrap intervals. R² is the share of the ups and downs the forecast explains (1 is
+                    perfect); log R² is the same on a log scale, so low values count as much as spikes.
+                  </p>
+                </More>
+              </>
             ) : (
               <p className="mt-2 text-sm text-gray-500">No measurements at this site in this window.</p>
             )}
-            <p className="mt-3 text-xs text-gray-500">{jumpDefinition(config.spikeThreshold)}</p>
           </Panel>
 
           <Panel className="p-5">
@@ -134,8 +176,8 @@ function TrackRecordPage({ config }) {
               <>
                 <h2 className="text-base font-semibold">Forecast against measurement, all sites</h2>
                 <p className="text-sm text-gray-600 max-w-3xl mt-0.5">
-                  Each point is one measurement; the blue bar is its {formatPct(config.bandLevel)} range. Points on the gray
-                  line were forecast exactly; dotted red lines mark {config.spikeThreshold} µg/g.
+                  Each point is one measurement. A point on the gray line was forecast exactly; points above it were
+                  over-forecast, points below it under-forecast. The dotted red lines mark {config.spikeThreshold} µg/g.
                 </p>
                 <PredictedVsActualChart rows={rows} config={config} />
               </>
@@ -143,8 +185,11 @@ function TrackRecordPage({ config }) {
           </Panel>
 
           <Panel className="p-5">
-            <h2 className="text-base font-semibold">Against simpler models, {site || 'all sites'}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Same measurements, same week-ahead anchors.</p>
+            <h2 className="text-base font-semibold">Compared with simpler methods, {site || 'all sites'}</h2>
+            <p className="text-sm text-gray-600 mt-0.5 max-w-3xl">
+              The simplest forecast is to repeat the last measurement. A useful model should beat it on the same
+              measurements.
+            </p>
             <ModelComparison models={scope?.r2 ? scope.models : null} />
           </Panel>
 

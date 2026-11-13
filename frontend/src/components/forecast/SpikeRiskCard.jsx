@@ -1,11 +1,13 @@
 import React from 'react'
 import Panel from '../ui/Panel'
 import LevelTag from '../ui/LevelTag'
+import More from '../ui/More'
 import { INK } from '../../lib/colors'
-import { formatDate, formatScore, formatValue } from '../../lib/format'
+import { formatScore, formatValue } from '../../lib/format'
 import { levelKey } from '../../lib/risk'
 import {
-  classifierConditionText, levelCutoffsText, levelRecordText, recentValuesText, scoreCaption, siteRecordText, trackRecordText,
+  alertPlain, classifierConditionText, jumpDefinition, levelCutoffsText, levelRecordPlain, recentValuesText,
+  scoreCaption, siteRecordText, trackRecordText,
 } from '../../lib/copy'
 
 function Condition({ holds, children }) {
@@ -30,13 +32,14 @@ function Tick({ cutoff }) {
 }
 
 /**
- * Graded spike-risk level beside the alert's track record.
+ * The rise alert's level in words, with how it works one click away.
  * @param {{ forecast: import('../../services/contract').Forecast,
  *   summary: import('../../services/contract').Summary | null,
  *   config: import('../../services/contract').Config }} props
  */
 export default function SpikeRiskCard({ forecast, summary, config }) {
-  const { site, alert, lastMeasurement, recentMeasurements } = forecast
+  const { site, alert, recentMeasurements } = forecast
+  const threshold = config.spikeThreshold
   const level = levelKey(alert)
   const available = level !== 'unavailable'
   const already = level === 'already'
@@ -51,74 +54,72 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
 
   return (
     <Panel className="p-5">
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-gray-500">Spike risk</div>
-        <div className="text-sm font-medium">
-          <LevelTag level={level} config={config} />
-        </div>
+      <h2 className="text-sm font-semibold text-gray-900">Any sign of a sudden rise?</h2>
+      <div className="mt-2 text-3xl font-semibold">
+        <LevelTag level={level} config={config} />
       </div>
-      {!already && (
-        <div className="mt-1 tabular-nums">
-          <div className="text-4xl font-semibold">{formatScore(score)}</div>
-          <p className="mt-1 text-sm text-gray-600 leading-snug">
-            {score != null ? scoreCaption(config.spikeThreshold, Boolean(record)) : 'Spike classifier unavailable for this week'}
-          </p>
-        </div>
+      <p className="mt-1 text-sm text-gray-700">{alertPlain(level, threshold)}</p>
+      {record && (
+        <p className="mt-2 text-sm text-gray-600">{levelRecordPlain(levelName, record, holdoutLabel, threshold)}</p>
       )}
-      {score != null && (
-        <>
-          <div className="relative mt-3 mb-5 h-4">
-            <div className="absolute top-1 left-0 right-0 h-0.5 bg-gray-200" />
-            {config.levels
-              .filter((l) => l.cutoff != null)
-              .map((l) => (
-                <Tick key={l.name} cutoff={l.cutoff} />
-              ))}
-            <div
-              className="absolute -top-0.5 w-1 h-3.5 -ml-0.5"
-              style={{ left: `${100 * Math.min(1, Math.max(0, score))}%`, background: INK }}
-            />
-          </div>
-          <p className="mb-2 text-[11px] text-gray-500 tabular-nums">{levelCutoffsText(config.levels)}</p>
-        </>
-      )}
-      {already && lastMeasurement && (
-        <p className="mt-2 text-sm text-gray-700">
-          The last measurement ({formatValue(lastMeasurement.value)} on {formatDate(lastMeasurement.date)}) is already at
-          or above {config.spikeThreshold}. This alert is for jumps from below {config.spikeThreshold}; follow the
-          forecast and the measurements.
+      {(level === 'watch' || level === 'warning') && forecast.value != null && forecast.value < threshold && (
+        <p className="mt-2 text-xs text-gray-500">
+          The forecast is the most likely level. This alert looks separately for a sudden jump, which the forecast tends
+          to miss, so the two can disagree.
         </p>
       )}
+
       {available && !already && (
-        <>
-          <ul className="mt-1 text-sm space-y-0.5 tabular-nums">
-            <Condition holds={alert.byClassifier}>
-              {classifierConditionText(score, config.classifierCutoff, alert.byClassifier)}
-            </Condition>
-            <Condition holds={alert.byRegression}>
-              Forecast {formatValue(forecast.value)} {alert.byRegression ? '≥' : '<'} {config.regressionAlert} µg/g
-            </Condition>
-          </ul>
-          {record && (
-            <p className="mt-2 text-sm text-gray-700">{levelRecordText(levelName, record, holdoutLabel)}</p>
-          )}
-        </>
-      )}
-      {recent.length > 0 && (
-        <p className="mt-1 text-xs text-gray-500 tabular-nums">
-          {recentValuesText(recent.map((r) => r.value))}
-        </p>
-      )}
-      {(holdout || placeholders.length > 0) && (
-        <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-600 space-y-1">
-          {holdout && <p>{trackRecordText(holdout.overall, holdoutLabel)}</p>}
-          {holdout?.perSite[site] && <p>{siteRecordText(site, holdout.perSite[site].onsets)}</p>}
-          {placeholders.map((l) => (
-            <p key={l.name} className="text-gray-400">
-              The {l.name} cutoff is a placeholder until the alert experiments set the levels.
+        <More summary="How this alert works" className="mt-4 pt-3 border-t border-gray-200">
+          <div className="space-y-3 text-sm">
+            <p className="text-gray-700">
+              The alert has three levels. It moves up from Quiet when a separate model, trained only to spot sudden
+              rises, gives a high score, or when the forecast itself reaches {config.regressionAlert} µg/g.
             </p>
-          ))}
-        </div>
+            {score != null && (
+              <div>
+                <div className="tabular-nums">
+                  <span className="text-xl font-semibold">{formatScore(score)}</span>{' '}
+                  <span className="text-gray-600">{scoreCaption(threshold)}</span>
+                </div>
+                <div className="relative mt-3 mb-5 h-4">
+                  <div className="absolute top-1 left-0 right-0 h-0.5 bg-gray-200" />
+                  {config.levels
+                    .filter((l) => l.cutoff != null)
+                    .map((l) => (
+                      <Tick key={l.name} cutoff={l.cutoff} />
+                    ))}
+                  <div
+                    className="absolute -top-0.5 w-1 h-3.5 -ml-0.5"
+                    style={{ left: `${100 * Math.min(1, Math.max(0, score))}%`, background: INK }}
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500 tabular-nums">{levelCutoffsText(config.levels)}</p>
+              </div>
+            )}
+            <ul className="space-y-0.5 tabular-nums">
+              <Condition holds={alert.byClassifier}>
+                {classifierConditionText(score, config.classifierCutoff, alert.byClassifier)}
+              </Condition>
+              <Condition holds={alert.byRegression}>
+                Forecast {formatValue(forecast.value)} {alert.byRegression ? '≥' : '<'} {config.regressionAlert} µg/g
+              </Condition>
+            </ul>
+            {recent.length > 0 && (
+              <p className="text-xs text-gray-500 tabular-nums">{recentValuesText(recent.map((r) => r.value))}</p>
+            )}
+            <div className="text-xs text-gray-600 space-y-1">
+              <p>{jumpDefinition(threshold)}</p>
+              {holdout && <p>{trackRecordText(holdout.overall, holdoutLabel)}</p>}
+              {holdout?.perSite[site] && <p>{siteRecordText(site, holdout.perSite[site].onsets)}</p>}
+              {placeholders.map((l) => (
+                <p key={l.name} className="text-gray-400">
+                  The {l.name} cutoff is a placeholder until the alert experiments set the levels.
+                </p>
+              ))}
+            </div>
+          </div>
+        </More>
       )}
     </Panel>
   )

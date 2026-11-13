@@ -73,5 +73,5 @@ export function siteReliability(reliability) {
  */
 export function dataCurrencyNotice(newestIso, todayIso) {
   if (daysBetween(newestIso, todayIso) <= 30) return null
-  return `Newest measurement in the data: ${formatDate(newestIso)}. Forecasts are not live.`
+  return `A demo on past data: the newest measurement is from ${formatDate(newestIso)}, so every forecast here is for a past week.`
 }

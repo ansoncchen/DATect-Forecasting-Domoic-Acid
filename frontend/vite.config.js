@@ -11,8 +11,10 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      // DATECT_API_PROXY points the dev server at another API, e.g. the deployed one:
+      // DATECT_API_PROXY=https://datect.onrender.com npm run dev
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.DATECT_API_PROXY || 'http://localhost:8000',
         changeOrigin: true,
       }
     }

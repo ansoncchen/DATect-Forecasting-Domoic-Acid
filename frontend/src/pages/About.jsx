@@ -68,7 +68,9 @@ function AboutPage({ config }) {
           <li>
             <span className="font-medium">Any sign of a sudden rise?</span> A separate alert for jumps from below{' '}
             {threshold} µg/g to {threshold} or more, which the forecast alone tends to miss. It reads Quiet, Watch or
-            Warning. At Washington beaches, an algae bloom counted while the toxin is still low also raises a Watch.
+            Warning.
+            {config.bloomWatch &&
+              ` At ${config.bloomWatch.sites.join(' and ')}, an algae bloom counted while the toxin is still low also raises a Watch.`}
           </li>
           <li>
             <span className="font-medium">What was measured last?</span> The latest lab results and how old they are. A
@@ -128,10 +130,13 @@ function AboutPage({ config }) {
             The alert&apos;s score is not a probability. The forecast page shows how often weeks at each alert level were
             actually followed by a rise.
           </li>
-          <li>
-            The algae-bloom Watch rests on few bloom events; every sudden rise it caught was at Long Beach or Twin
-            Harbors. It assumes a cell count is known on the day it is sampled.
-          </li>
+          {config.bloomWatch && (
+            <li>
+              The algae-bloom Watch covers only {config.bloomWatch.sites.join(' and ')}, the beaches where it came before
+              sudden rises in past years. That choice was made after looking at those years, and it rests on few events.
+              It assumes a cell count is known on the day it is sampled.
+            </li>
+          )}
           <li>Not for making real harvest decisions: always follow official closure notices.</li>
         </ul>
       </Section>

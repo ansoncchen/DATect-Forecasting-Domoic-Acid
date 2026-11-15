@@ -50,21 +50,33 @@ against quiet weeks (`forecasting.metrics.onset_scores`; the chronological JSON'
 | Holdout 2022–2023 | 27 / 292 | **19 (0.70)**, 29.8% | **0.773** | 14, 14.4% | 0.744 | 0.550 |
 | Validation 2019–2021 | 34 / 486 | **27 (0.79)**, 15.0% | **0.874** | 15, 8.2% | 0.752 | 0.651 |
 
-**The deployed alert adds the bloom Watch** (`forecasting/bloom.py`): a Watch when a
-Washington beach's own *Pseudo-nitzschia* count reached 100,000 cells/L in the 7 days
-ending on the anchor while the last DA reading is below 5. It changes no prediction,
+**The deployed alert adds the bloom Watch** (`forecasting/bloom.py`): a Watch when
+Long Beach's or Twin Harbors' own *Pseudo-nitzschia* count reached 100,000 cells/L in the
+7 days ending on the anchor while the last DA reading is below 5. It changes no prediction,
 so the engine's `spike_alert` and the table above stay the hybrid alert. The dashboard's
 track record counts the alert as shown, hybrid or bloom (`backend/track_record.py`,
 pinned in `tests/test_track_record.py`):
 
 | Window | Onsets caught | Quiet weeks alarmed |
 |---|---|---|
-| Holdout 2022–2023 | 19 of 27 (no Washington rise from below 5 occurred) | 95 of 292, 32.5% (hybrid: 87, 29.8%) |
-| Validation 2019–2021 | 28 of 34 (hybrid 27; + Long Beach, 2020-10-22) | 91 of 486, 18.7% (hybrid: 73, 15.0%) |
+| Holdout 2022–2023 | 19 of 27 (no rise from below 5 at the two beaches) | 90 of 292, 30.8% (hybrid: 87, 29.8%) |
+| Validation 2019–2021 | 28 of 34 (hybrid 27; + Long Beach, 2020-10-22) | 78 of 486, 16.0% (hybrid: 73, 15.0%) |
 
-Its record before the holdout, on the committed all-years run (Washington rows from
-October 2005 to 2021): on in 83 forecast weeks, 6 followed by a rise from below 5 to 20
-or more; it was on before 6 of the 9 such rises, all at Long Beach and Twin Harbors.
+Its record before the holdout, on the committed all-years run (Long Beach and Twin Harbors
+rows from November 2007 to 2021): on in 37 forecast weeks, 6 followed by a rise from below 5
+to 20 or more; it was on before all 6 such rises there.
+
+**The two beaches were chosen after the backtest.** The rule was declared for all five
+Washington beaches. On the all-years run, Kalaloch, Quinault and Copalis had 52 weeks with
+it on and none followed by a rise the next week (with all five beaches the holdout cost was
+95 quiet weeks alarmed, 32.5%, and validation 91, 18.7%). Their rises mostly start from 5–20
+(Quinault 0 of 13 from below 5, Copalis 0 of 7, Kalaloch 3 of 10), where the rule is off.
+At the two beaches, a grid over count (25,000–500,000), days (7, 14, 21) and last-value cap
+(5, 10, 20) found nothing better than the declared values on 2003–2021, and no variant
+catches a 2022–2023 rise: the three there started at 7, 10 and 15 µg/g, the hybrid alert
+caught two, and the miss (Twin Harbors, 2022-11-06) had at most 17,000 cells/L in the four
+weeks before. So the holdout cannot confirm the rule; it shows only its cost (3 quiet weeks).
+
 The rule was declared and backtested by the onset research before it was ported
 (`docs/ONSET_RESEARCH.md` sections 13–15 on the research branch, not merged: with
 2002–2021 rows, leave-one-event-out 10 of 14 at a 10% alarm budget, whole-search

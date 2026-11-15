@@ -1,5 +1,5 @@
 """
-Bloom Watch: a Pseudo-nitzschia bloom at a Washington beach while its toxin is still low.
+Bloom Watch: a Pseudo-nitzschia bloom at Twin Harbors or Long Beach while the toxin is still low.
 
 The forecast and the classifier miss sudden rises from near zero: in 2015-2021 the hybrid
 alert caught none of Washington's 8 rises from below 5 to 20 ug/g or more. The onset
@@ -7,7 +7,9 @@ research found one signal that precedes them, the beach's own cell count, and de
 backtested this rule before it was ported (docs/ONSET_RESEARCH.md, sections 13-15, on the
 research branch): leave-one-event-out 10 of 14 at a 10% budget, and a permutation test
 that re-runs the whole search gives p = 0.012 at that budget. Seven bloom events stand
-behind it, so its record is rough.
+behind it, so its record is rough. The rule was declared for all five Washington beaches;
+it now covers only the two where it ever preceded a rise (``config.BLOOM_WATCH_SITES``),
+a choice made after seeing the backtest.
 
 Leak-free: only samples dated on or before the anchor are read, like the DA readings the
 engine sees. A count is taken as known on its sample day.
@@ -62,8 +64,8 @@ def load_pn_counts() -> Counts:
 
 
 def applies(site: str) -> bool:
-    """Whether the bloom Watch covers ``site`` (Washington beaches)."""
-    return config.SITE_STATES.get(site) in config.BLOOM_WATCH_STATES
+    """Whether the bloom Watch covers ``site`` (``config.BLOOM_WATCH_SITES``)."""
+    return site in config.BLOOM_WATCH_SITES
 
 
 def _window(site: str, anchor, table: Counts) -> tuple[np.ndarray, np.ndarray]:

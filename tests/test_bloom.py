@@ -1,7 +1,8 @@
-"""The bloom Watch (forecasting/bloom.py): a Pseudo-nitzschia bloom at a Washington
-beach while its last toxin reading is still low. The rule was declared and backtested
-in the onset research (docs/ONSET_RESEARCH.md, sections 13-15, on the research
-branch); the expected flags below are that research's port spec."""
+"""The bloom Watch (forecasting/bloom.py): a Pseudo-nitzschia bloom at Twin Harbors or
+Long Beach while its last toxin reading is still low. The rule was declared and backtested
+for all five Washington beaches in the onset research (docs/ONSET_RESEARCH.md, sections
+13-15, on the research branch); its port spec flagged 92 rows on the all-years run, of
+which these two beaches hold 40."""
 import numpy as np
 import pandas as pd
 import pytest
@@ -39,8 +40,11 @@ def test_threshold_and_last_value_boundaries():
     assert not on("Long Beach", "2020-10-08", None, at)
 
 
-def test_washington_only_and_the_beach_own_counts():
+def test_two_beaches_only_and_the_beach_own_counts():
+    assert on("Twin Harbors", "2020-10-08", 1.0, counts("Twin Harbors", [("2020-10-08", 1e6)]))
     assert not on("Newport", "2020-10-08", 1.0, counts("Newport", [("2020-10-08", 1e6)]))
+    for north in ("Kalaloch", "Quinault", "Copalis"):     # declared for them, dropped after the backtest
+        assert not on(north, "2020-10-08", 1.0, counts(north, [("2020-10-08", 1e6)]))
     assert not on("Long Beach", "2020-10-08", 1.0, counts("Twin Harbors", [("2020-10-08", 1e6)]))
     assert not on("Long Beach", "2020-10-08", 1.0, counts("Long Beach", []))
 
@@ -71,12 +75,13 @@ def all_years():
 
 
 def test_flags_on_the_all_years_run_match_the_research(all_years):
+    """The research's 92 flags restricted to the two beaches (Long Beach 21, Twin Harbors 19)."""
     flagged = all_years[all_years["bloom"]]
-    assert len(flagged) == 92
+    assert len(flagged) == 40
+    assert flagged["site"].value_counts().to_dict() == {"Long Beach": 21, "Twin Harbors": 19}
     year = flagged["date"].dt.year
     assert [int((year < 2015).sum()), int(year.between(2015, 2018).sum()),
-            int(year.between(2019, 2021).sum()), int((year >= 2022).sum())] == [52, 12, 19, 9]
-    assert set(flagged["site"]) <= {"Kalaloch", "Quinault", "Copalis", "Twin Harbors", "Long Beach"}
+            int(year.between(2019, 2021).sum()), int((year >= 2022).sum())] == [21, 10, 6, 3]
     assert (flagged["naive_prediction"] < 5).all()
     # the one sudden rise it adds in the validation window
     assert ((flagged["site"] == "Long Beach") & (flagged["date"] == "2020-10-22")).any()

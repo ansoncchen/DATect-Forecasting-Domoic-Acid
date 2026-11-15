@@ -69,7 +69,7 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
         <div className="mt-3 border-l-2 border-gray-300 pl-3">
           <p className="text-sm font-medium text-gray-900">Why: algae bloom at this beach</p>
           <p className="mt-0.5 text-sm text-gray-700">{bloomReasonText(site, rule)}</p>
-          {bloomRecord && <p className="mt-1 text-xs text-gray-600">{bloomRecordText(bloomRecord, threshold)}</p>}
+          {bloomRecord && <p className="mt-1 text-xs text-gray-600">{bloomRecordText(bloomRecord, threshold, rule)}</p>}
         </div>
       )}
       {(level === 'watch' || level === 'warning') && forecast.value != null && forecast.value < threshold && (
@@ -85,7 +85,7 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
             <p className="text-gray-700">
               The alert has three levels. It moves up from Quiet when a separate model, trained only to spot sudden
               rises, gives a high score, or when the forecast itself reaches {config.regressionAlert} µg/g
-              {bloomApplies ? '. At Washington beaches an algae bloom counted while the toxin is still low also raises a Watch' : ''}.
+              {bloomApplies ? `. At ${rule.sites.join(' and ')} an algae bloom counted while the toxin is still low also raises a Watch` : ''}.
             </p>
             {score != null && (
               <div>
@@ -128,7 +128,7 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
               {holdout?.perSite[site] && <p>{siteRecordText(site, holdout.perSite[site].onsets)}</p>}
               {bloomApplies && bloomRecord && (
                 <>
-                  <p>{bloomRecordText(bloomRecord, threshold)}</p>
+                  <p>{bloomRecordText(bloomRecord, threshold, rule)}</p>
                   <p>{bloomCaughtText(bloomRecord, rule)}</p>
                   <p>
                     The bloom rule assumes a cell count is known on the day it is sampled. Cell counts: Olympic Region

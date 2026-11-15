@@ -241,14 +241,17 @@ SPIKE_REGRESSION_ALERT_THRESHOLD = float(_tuned["spike_regression_alert_threshol
 # Chosen on validation by the onset experiments; see the tuned JSON's provenance.
 ALERT_WARNING_PROB_CUTOFF = float(_tuned["alert_warning_prob_cutoff"])
 
-# Bloom Watch (forecasting/bloom.py): Watch when a Washington beach's own Pseudo-nitzschia
-# count reached BLOOM_WATCH_COUNT cells/L in the BLOOM_WATCH_DAYS days ending on the anchor
-# while the last DA reading is below BLOOM_WATCH_LAST_BELOW ug/g. Declared and backtested by
-# the onset research (docs/ONSET_RESEARCH.md sections 13-15); fixed values, not tuned here.
+# Bloom Watch (forecasting/bloom.py): Watch when one of BLOOM_WATCH_SITES has its own
+# Pseudo-nitzschia count reach BLOOM_WATCH_COUNT cells/L in the BLOOM_WATCH_DAYS days ending on
+# the anchor while the last DA reading is below BLOOM_WATCH_LAST_BELOW ug/g. Count, days and
+# cap were declared and backtested by the onset research (docs/ONSET_RESEARCH.md sections
+# 13-15) for all five Washington beaches. The site list was narrowed afterwards to the two
+# beaches where it ever preceded a rise (Kalaloch, Quinault and Copalis: 52 weeks on, none
+# followed by one); see docs/CORRECTED_NUMBERS.md.
 BLOOM_WATCH_COUNT = 100_000.0
 BLOOM_WATCH_DAYS = 7
 BLOOM_WATCH_LAST_BELOW = 5.0
-BLOOM_WATCH_STATES = ("WA",)
+BLOOM_WATCH_SITES = ("Twin Harbors", "Long Beach")
 
 SPIKE_CLASSIFIER_PARAMS = dict(_tuned["spike_classifier_params"])
 # Provide eval_metric default (not in JSON since it's a structural param, not a tunable)

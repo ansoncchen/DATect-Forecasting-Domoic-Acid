@@ -112,18 +112,20 @@ describe('plain-language helpers', () => {
 })
 
 describe('bloom Watch wording', () => {
-  const rule = { count: 100000, days: 7, lastBelow: 5 }
-  const record = { start: '2005-10-17', end: '2022-01-01', on: 83, followed: 6, suddenRises: 9, caught: 6,
+  const rule = { count: 100000, days: 7, lastBelow: 5, sites: ['Twin Harbors', 'Long Beach'] }
+  const record = { start: '2007-11-14', end: '2022-01-01', on: 37, followed: 6, suddenRises: 6, caught: 6,
     caughtBySite: { 'Long Beach': 4, 'Twin Harbors': 2 } }
   it('says why the Watch is on from the API rule', () => {
     expect(bloomReasonText('Long Beach', rule)).toBe(
       'An algae bloom at Long Beach: the algae that make domoic acid reached 100,000 cells per litre in the 7 days before the forecast, while the toxin was still below 5 µg/g.')
   })
   it('states the record as counts with a rate in words', () => {
-    expect(bloomRecordText(record, 20)).toBe(
-      'In 2005–2021 the bloom Watch would have been on in 83 forecast weeks at Washington beaches; 6 of them (about 1 in 14) were followed by a sudden rise to 20 µg/g or more. Most blooms are not toxic.')
+    expect(bloomRecordText(record, 20, rule)).toBe(
+      'In 2007–2021 the bloom Watch would have been on in 37 forecast weeks at Twin Harbors and Long Beach; 6 of them (about 1 in 6) were followed by a sudden rise to 20 µg/g or more. Most blooms are not toxic.')
     expect(bloomCaughtText(record, rule)).toBe(
-      'It was on before 6 of the 9 sudden rises from below 5 µg/g, all at Long Beach and Twin Harbors. These are few events, so treat this record as rough.')
+      'It was on before all 6 sudden rises from below 5 µg/g there. These beaches were picked after seeing that record, and the events are few, so treat it as rough.')
+    expect(bloomCaughtText({ ...record, caught: 4 }, rule)).toBe(
+      'It was on before 4 of the 6 sudden rises from below 5 µg/g there. These beaches were picked after seeing that record, and the events are few, so treat it as rough.')
   })
   it('says when no count was taken instead of implying one was checked', () => {
     expect(bloomConditionText('Kalaloch', rule, { counted: false, lastCountDate: '2023-11-02' }, false)).toBe(

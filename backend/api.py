@@ -322,7 +322,7 @@ def get_config():
         "alert_levels": _alert_levels(),
         "bloom_watch": {"count": config.BLOOM_WATCH_COUNT, "days": config.BLOOM_WATCH_DAYS,
                         "last_below": config.BLOOM_WATCH_LAST_BELOW,
-                        "sites": [s for s in _sites_north_to_south() if config.SITE_STATES[s] in config.BLOOM_WATCH_STATES]},
+                        "sites": [s for s in _sites_north_to_south() if s in config.BLOOM_WATCH_SITES]},
         "band_level": band.chosen_variant()["coverage"],
         "category_bins": [0, *config.DA_CATEGORY_BINS[1:-1], None],
         "category_labels": CATEGORY_LABELS,

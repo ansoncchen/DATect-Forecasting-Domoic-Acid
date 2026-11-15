@@ -160,24 +160,25 @@ export function bloomReasonText(site, rule) {
  * The bloom Watch's record before the holdout, from the API.
  * @param {{ start: string, end: string, on: number, followed: number }} record
  * @param {number} threshold
+ * @param {{ sites: string[] }} rule
  * @returns {string}
  */
-export function bloomRecordText({ start, end, on, followed }, threshold) {
+export function bloomRecordText({ start, end, on, followed }, threshold, rule) {
   const span = `${start.slice(0, 4)}–${Number(end.slice(0, 4)) - 1}`
   const after = followed === 0 ? 'none was followed by' : `${followed} of them (${ratioWords(followed, on)}) were followed by`
-  return `In ${span} the bloom Watch would have been on in ${on} forecast weeks at Washington beaches; ${after} a sudden rise to ${threshold} µg/g or more. Most blooms are not toxic.`
+  return `In ${span} the bloom Watch would have been on in ${on} forecast weeks at ${rule.sites.join(' and ')}; ${after} a sudden rise to ${threshold} µg/g or more. Most blooms are not toxic.`
 }
 
 /**
- * Which sudden rises the bloom Watch was on before.
- * @param {{ suddenRises: number, caught: number, caughtBySite: Object<string, number> }} record
+ * Which sudden rises the bloom Watch was on before. The beaches it covers were chosen
+ * after seeing this record, so the text says so.
+ * @param {{ suddenRises: number, caught: number }} record
  * @param {{ lastBelow: number }} rule
  * @returns {string}
  */
-export function bloomCaughtText({ suddenRises, caught, caughtBySite }, rule) {
-  const where = Object.keys(caughtBySite)
-  const at = where.length ? `, all at ${where.join(' and ')}` : ''
-  return `It was on before ${caught} of the ${suddenRises} sudden rises from below ${rule.lastBelow} µg/g${at}. These are few events, so treat this record as rough.`
+export function bloomCaughtText({ suddenRises, caught }, rule) {
+  const share = caught === suddenRises ? `all ${suddenRises}` : `${caught} of the ${suddenRises}`
+  return `It was on before ${share} sudden rises from below ${rule.lastBelow} µg/g there. These beaches were picked after seeing that record, and the events are few, so treat it as rough.`
 }
 
 /**

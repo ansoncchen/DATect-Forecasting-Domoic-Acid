@@ -101,9 +101,12 @@ print('holdout   ', w['holdout_start'], '->', w['holdout_end'])
 "
 ```
 
-Per-site ensemble weights are tuned on pre-2022 data only: `datect_spark/retune.py`
-scores each weight on yearly folds 2015–2021 (nothing is clipped since #18). The
-current weights came from the removed `scripts/eval/grid_search_weights_clip.py` (75 weight × clip configurations per site, 3-fold chronological CV on 2019–2021, chosen jointly with the clip that #18 removed; winners promoted to the JSON in `cdc2a32c`, per-site outputs in `results/tuning_provenance/grid_search_results/`, script last changed in `9c435f59`). OAD features carry an extra 5-day
+The served model is one random forest with shared settings at every beach (no per-site
+tuning; chosen on 2019–2021 in [`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md) §3c).
+The retired per-site configuration (`DATECT_USE_PER_SITE_MODELS=true`) reproduces earlier
+numbers; its weights are tuned on pre-2022 data only: `datect_spark/retune.py`
+scores each weight on yearly folds 2015–2021 (nothing is clipped since #18). Those
+weights came from the removed `scripts/eval/grid_search_weights_clip.py` (75 weight × clip configurations per site, 3-fold chronological CV on 2019–2021, chosen jointly with the clip that #18 removed; winners promoted to the JSON in `cdc2a32c`, per-site outputs in `results/tuning_provenance/grid_search_results/`, script last changed in `9c435f59`). OAD features carry an extra 5-day
 lag so the centered MODIS composites never overlap the forecast window
 (`forecasting/oad_features.py`, [`OAD_INTEGRATION_RESULTS.md`](OAD_INTEGRATION_RESULTS.md)).
 
@@ -171,7 +174,8 @@ python scripts/eval/spike_detection_eval.py --seed 123 --sample-fraction 0.40
 
 ## Re-run the tuning
 
-Per-site ensemble weights are the only values re-tuned, by the one weight tuner on Hyak
+The served model has no weights to tune. The retired per-site configuration's weights are
+re-tuned by the one weight tuner on Hyak
 (`datect_spark/retune.py`: Spark, yearly folds 2015–2021, every run in MLflow; it
 proposes weights in `results/tuning_provenance/retune_weights/proposed_overrides.json`
 and never adopts them; adopting is a separate commit to `config/tuned_hyperparameters.json`):

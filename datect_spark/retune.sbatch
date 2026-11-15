@@ -14,12 +14,15 @@
 # Per-site ensemble-weight re-tune on Spark (local mode on one node) with Delta +
 # MLflow. STEPS picks what runs, in order (default: all four). The job runs on
 # node-local disk (see hyak_stage.sh); results/tuning_provenance/retune_weights is
-# kept. Nothing is adopted: proposed_overrides.json is a proposal.
+# kept. Nothing is adopted: proposed_overrides.json is a proposal. The served model is
+# one random forest at every beach with no weights to tune (docs/FORECAST_EXPERIMENTS.md
+# §3c); this tunes the retired per-site configuration's weights, pinned below.
 #   sbatch -o ~/datect-spark-logs/%x-%j.out -e ~/datect-spark-logs/%x-%j.err datect_spark/retune.sbatch
 #   sbatch ... --export=ALL,STEPS="predict-holdout",LIMIT=20,MLFLOW_TRACKING_URI=local datect_spark/retune.sbatch  # smoke
 set -euo pipefail
 
 export MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-sqlite:////gscratch/stf/ac283/datect-mlflow/mlflow.db}
+export DATECT_USE_PER_SITE_MODELS=${DATECT_USE_PER_SITE_MODELS:-true}
 RESULTS_SUBDIR=tuning_provenance/retune_weights
 source "$SLURM_SUBMIT_DIR/datect_spark/hyak_stage.sh"
 mkdir -p "results/$RESULTS_SUBDIR"

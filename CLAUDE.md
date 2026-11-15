@@ -133,7 +133,7 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 
 | Variable | Effect |
 |---|---|
-| `DATECT_USE_PER_SITE_MODELS` | `false` disables per-site configs (equal XGB/RF weights) |
+| `DATECT_USE_PER_SITE_MODELS` | default `false`: one random forest at every beach; `true` restores the retired per-site configs (weights, feature lists, hyperparameters) |
 | `DATECT_USE_INTERPOLATED_TRAINING` | `false` trains on real DA rows only |
 | `DATECT_USE_MONOTONIC_CONSTRAINTS` | `false` drops XGBoost monotone constraints |
 | `DATECT_LAG_FEATURES` | lag list, e.g. `1,2`; `none` disables lag features |
@@ -158,8 +158,12 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
   every real DA measurement in the window, no sampling. Confirm with the 5-seed bootstrap
   (`multi_seed_baseline.py`, seeds 42-46 at 20%). Single-seed R² at N~1,000 is noise-dominated
   (std across seeds ~0.05 pooled, ~0.10 on the holdout rows); never report one seed alone.
+- **The served model has no per-site tuning** (one random forest, shared settings; §3c of
+  `docs/FORECAST_EXPERIMENTS.md`). The per-site configuration in the tuned JSON is retired:
+  `DATECT_USE_PER_SITE_MODELS=true` restores it, and the paper's ablation/sensitivity scripts and
+  `retune.sbatch` pin it.
 - **Never tune all dimensions at once.** A full Optuna search over 18 dims overfit badly
-  (validation +0.07 R², holdout -0.16). Tune only ensemble weights, with the one
+  (validation +0.07 R², holdout -0.16). For the retired per-site configuration, tune only ensemble weights, with the one
   weight tuner `datect_spark/retune.py` (Spark; yearly folds 2015-2021, all before the holdout;
   weights only, nothing is clipped), and verify on the holdout (its `holdout` step, then the
   chronological eval).
@@ -218,7 +222,8 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
 | `oad/` | Ocean Anomaly Detection subproject (MODIS autoencoder; see `oad/README.md`) |
 | `papers/` | `datect/`, `oad_mdpi/`, `oad_cvpr/`, `poster/` |
 
-**Models:** per-site weighted blend of XGBoost + Random Forest (`ensemble`); naive persistence
+**Models:** one random forest with shared settings at every beach (served as `ensemble`, weights
+(0, 1, 0); chosen over XGBoost in `docs/FORECAST_EXPERIMENTS.md` §3c); naive persistence
 is an external baseline; Ridge (`linear`) is a competitor. Training uses real plus
 gap-filled DA rows; evaluation uses real raw measurements only.
 

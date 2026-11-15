@@ -680,6 +680,22 @@ Committed before the holdout was read.
 - **The 50/50 average reproduces the older per-site-off run's validation R² (0.344).** The
   1-of-6 laptop mismatch was the platform, not the engine.
 
+**Holdout 2022–2023, read once after the pick** (`one_algorithm_compare.py ... holdout`):
+
+| | R² [95% CI] | MAE | Onsets caught (of 27) | Quiet weeks alarmed (of 292) |
+|---|---|---|---|---|
+| X: XGBoost alone | 0.342 | 8.02 | 19 | 88 |
+| **R: random forest alone (pick)** | **0.473 [0.190, 0.642]** | **7.34** | **20** | 89 |
+| 50/50 average (ref) | 0.419 | 7.61 | 19 | 89 |
+| Per-beach picks, committed (ref) | 0.516 [0.308, 0.654] | 7.44 | 19 | 87 |
+
+- **The pick holds on the holdout:** ΔR² X − R = −0.132 [−0.292, −0.024].
+- **Shared random forest vs per-beach picks:** ΔR² −0.043 [−0.154, +0.030] on the holdout
+  (−0.014 [−0.095, +0.042] on validation), so a tie. The random forest has the lower MAE
+  (7.34 vs 7.44) and catches one more onset.
+- **Not adopted here.** Serving it changes the headline, the error band's input run and the
+  store. That is a separate change with its own before/after.
+
 
 ## 4. Shortlist and one-time holdout check
 

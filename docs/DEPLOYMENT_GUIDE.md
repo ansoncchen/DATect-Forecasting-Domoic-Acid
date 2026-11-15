@@ -68,7 +68,7 @@ The image is built on GitHub Actions (x86_64, so the store's hash check runs exa
 
    `.github/workflows/publish-image.yml` builds `Dockerfile.production` (which refuses a stale or incomplete store), starts the container, requires a forecast for Newport on 2019-06-03 to come from the store, then pushes `ghcr.io/<owner>/datect:<sha>` and `:latest`. If the package's page on GitHub shows it as private after the first push, change its visibility to public (package settings) so Render can pull it without credentials.
 
-3. On Render, **New → Blueprint**, pick this repository; `render.yaml` defines the service (image `ghcr.io/ansoncchen/datect:latest`, free plan, Oregon, health check `/health`, `PORT=8080`). After later image pushes, use **Manual Deploy → Deploy latest reference**.
+3. On Render, **New → Blueprint**, pick this repository; `render.yaml` defines the service (image `ghcr.io/ansoncchen/datect:latest`, free plan, Oregon, health check `/health`, `PORT=8080`). After later image pushes Render needs a deploy: either save the service's deploy hook (Render: the service's **Settings → Deploy Hook**) once as the repository secret `RENDER_DEPLOY_HOOK` (`gh secret set RENDER_DEPLOY_HOOK`, then paste it), and the workflow's last step triggers the deploy itself, or use **Manual Deploy → Deploy latest reference**.
 
 Free-tier limits: 512 MB RAM (the API peaks around 330 MB), 0.1 CPU, and the service sleeps after 15 idle minutes, so the first request after a pause takes about a minute. Forecasts in the store are lookups; other dates or models are computed on demand, which is slow at 0.1 CPU.
 

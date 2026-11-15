@@ -658,6 +658,28 @@ decision.
 - The random forest's forecasts *with* the per-beach feature lists and hyperparameters,
   from the committed all-years run.
 
+**Validation result and pick** (Hyak job 43274247 at `fa8160d2`, 19.6 min; outputs in
+`results/one_algorithm/`; scored by `scripts/eval/one_algorithm_compare.py ... validation`).
+Committed before the holdout was read.
+
+| | 2015–2018 R² / MAE | 2019–2021 R² / MAE | 2019–2021 alert: onsets caught, quiet weeks alarmed |
+|---|---|---|---|
+| X: XGBoost alone | 0.074 / 14.14 | 0.250 / 6.98 | 27 of 34, 72 of 486 |
+| **R: random forest alone** | **0.275 / 13.37** | **0.409 / 6.57** | 27 of 34, 74 of 486 |
+| 50/50 average (ref) | 0.202 / 13.54 | 0.344 / 6.72 | 27 of 34, 71 of 486 |
+| Per-beach picks, committed (ref) | 0.314 / 12.86 | 0.423 / 6.55 | 27 of 34, 73 of 486 |
+
+- **ΔR² X − R on 2019–2021: −0.160 [−0.405, −0.029].** The interval excludes zero, so
+  **the rule picks R, the random forest alone.** 2015–2018 agrees: −0.201 [−0.380, −0.064].
+- **XGBoost's loss is concentrated at Gold Beach and Newport** (per-site R² −0.47 vs 0.04
+  and −0.75 vs −0.42). Elsewhere the two are within about 0.05 of each other.
+- **Alert:** onset detection is the same for every row (27 of 34). The classifier carries
+  it, and the regression part changes at most 3 quiet-week alarms.
+- **Shared random forest vs per-beach picks:** validation R² 0.409 vs 0.423 and MAE 6.57 vs
+  6.55. The per-beach picks were tuned on this window, so the gap overstates them.
+- **The 50/50 average reproduces the older per-site-off run's validation R² (0.344).** The
+  1-of-6 laptop mismatch was the platform, not the engine.
+
 
 ## 4. Shortlist and one-time holdout check
 

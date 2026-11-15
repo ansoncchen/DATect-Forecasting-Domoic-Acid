@@ -6,7 +6,7 @@ import { INK } from '../../lib/colors'
 import { formatScore, formatValue } from '../../lib/format'
 import { levelKey } from '../../lib/risk'
 import {
-  alertPlain, bloomCaughtText, bloomConditionText, bloomReasonText, bloomRecordText, classifierConditionText,
+  alertPlain, bloomCaughtText, bloomConditionText, bloomLateText, bloomReasonText, bloomRecordText, classifierConditionText,
   jumpDefinition, levelCutoffsText, levelRecordPlain, recentValuesText, scoreCaption, siteRecordText, trackRecordText,
 } from '../../lib/copy'
 
@@ -130,10 +130,8 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
                 <>
                   <p>{bloomRecordText(bloomRecord, threshold, rule)}</p>
                   <p>{bloomCaughtText(bloomRecord, rule)}</p>
-                  <p>
-                    The bloom rule assumes a cell count is known on the day it is sampled. Cell counts: Olympic Region
-                    Harmful Algal Blooms partnership (ORHAB).
-                  </p>
+                  <p>{bloomLateText(bloomRecord)}</p>
+                  <p>Cell counts: Olympic Region Harmful Algal Blooms partnership (ORHAB).</p>
                 </>
               )}
               {placeholders.map((l) => (

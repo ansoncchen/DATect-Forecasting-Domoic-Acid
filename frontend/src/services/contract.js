@@ -63,7 +63,8 @@ import { windowLabel } from '../lib/format'
  *   headline: { overall: Headline, perSite: Object<string, Headline> },
  *   reliability: Object<string, { overall: Reliability, perSite: Object<string, Reliability> }>,
  *   bloomRecord: { start: string, end: string, on: number, followed: number, suddenRises: number,
- *                  caught: number, caughtBySite: Object<string, number> } | null
+ *                  caught: number, caughtBySite: Object<string, number>,
+ *                  late: { days: number, on: number, caught: number }[] } | null
  * }} Summary
  *
  * @typedef {{
@@ -294,6 +295,7 @@ export function toSummary(raw) {
           suddenRises: raw.bloom_record.sudden_rises,
           caught: raw.bloom_record.caught,
           caughtBySite: raw.bloom_record.caught_by_site,
+          late: raw.bloom_record.late ?? [],
         }
       : null,
   }

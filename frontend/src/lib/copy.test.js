@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   trackRecordText, siteRecordText, bandVsAlertText,
   scoreCaption, levelCutoffsText, classifierConditionText, recentValuesText, jumpDefinition,
-  alertPlain, levelRecordPlain, weakSiteText, bloomReasonText, bloomRecordText, bloomCaughtText, bloomConditionText,
+  alertPlain, levelRecordPlain, weakSiteText, bloomReasonText, bloomRecordText, bloomCaughtText, bloomConditionText, bloomLateText,
 } from './copy'
 
 const overall = {
@@ -126,6 +126,12 @@ describe('bloom Watch wording', () => {
       'It was on before all 6 sudden rises from below 5 µg/g there. These beaches were picked after seeing that record, and the events are few, so treat it as rough.')
     expect(bloomCaughtText({ ...record, caught: 4 }, rule)).toBe(
       'It was on before 4 of the 6 sudden rises from below 5 µg/g there. These beaches were picked after seeing that record, and the events are few, so treat it as rough.')
+  })
+  it('says how the record changes if counts arrive late', () => {
+    const late = [{ days: 1, on: 34, caught: 5 }, { days: 2, on: 29, caught: 4 }]
+    expect(bloomLateText({ ...record, late })).toBe(
+      'This record takes a cell count as known on the day it was sampled. Had counts arrived a day later, the Watch would have been on before 5 of these 6 rises; two days later, 4 of 6.')
+    expect(bloomLateText({ ...record, late: [] })).toBe('This record takes a cell count as known on the day it was sampled.')
   })
   it('says when no count was taken instead of implying one was checked', () => {
     expect(bloomConditionText('Kalaloch', rule, { counted: false, lastCountDate: '2023-11-02' }, false)).toBe(

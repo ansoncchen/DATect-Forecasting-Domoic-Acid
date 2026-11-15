@@ -139,3 +139,5 @@ def test_bloom_record_before_the_holdout():
     assert (b["start"], b["end"]) == ("2007-11-14", "2022-01-01")
     assert (b["on"], b["followed_by_sudden_rise"], b["sudden_rises"], b["caught"]) == (37, 6, 6, 6)
     assert b["caught_by_site"] == {"Long Beach": 4, "Twin Harbors": 2}
+    # counts known 1 and 2 days after sampling (onset research, round 9: 34/5 and 29/4)
+    assert b["late"] == [{"days": 1, "on": 34, "caught": 5}, {"days": 2, "on": 29, "caught": 4}]

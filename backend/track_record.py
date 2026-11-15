@@ -23,7 +23,7 @@ from sklearn.metrics import mean_absolute_error, r2_score
 import config
 from backend.band import REPO_ROOT
 from forecasting.bloom import applies as bloom_applies
-from forecasting.bloom import bloom_watch
+from forecasting.bloom import bloom_watch, load_pn_counts
 from forecasting.metrics import alert_parts, exceeds, onset_scores
 from forecasting.tuned_config import get_eval_windows
 
@@ -159,22 +159,35 @@ def window_summary(window: Window, site: str | None = None) -> dict:
     return out
 
 
+LATE_COUNT_DAYS = (1, 2)   # the bloom record's timing check: counts known this many days after sampling
+
+
+def _bloom_on(rows: pd.DataFrame, late_days: int = 0) -> np.ndarray:
+    """The bloom Watch for each row, with each count known ``late_days`` after its sample day."""
+    table = {site: (dates + np.timedelta64(late_days, "D"), values)
+             for site, (dates, values) in load_pn_counts().items()}
+    return np.array([bloom_watch(s, pd.Timestamp(a), last, table)
+                     for s, a, last in zip(rows["site"], rows["anchor_date"], rows["naive_prediction"])], dtype=bool)
+
+
 @lru_cache(maxsize=1)
 def bloom_record() -> dict:
     """The bloom Watch before the holdout at the beaches it covers, from the committed
     all-years run: weeks it was on, how many a sudden rise followed (last value below
     the bloom cap, measurement at or above the spike threshold), and the sudden rises it
-    caught, overall and per site. Model outputs play no part: the rule reads only counts
-    and the last DA reading."""
+    caught, overall and per site. ``late`` repeats the count with each cell count known
+    1 and 2 days after it was sampled (the shipped rule takes it as known that day; the
+    count files hold no report date). Model outputs play no part: the rule reads only
+    counts and the last DA reading."""
     rows = pd.read_parquet(os.path.join(REPO_ROOT, ALL_YEARS_RUN),
                            columns=["date", "anchor_date", "site", "actual_da", "naive_prediction"])
     rows["date"] = pd.to_datetime(rows["date"])
     rows = rows[(rows["date"] < pd.Timestamp(window_bounds("holdout")[0])) & rows["site"].map(bloom_applies)]
-    on = np.array([bloom_watch(s, pd.Timestamp(a), last)
-                   for s, a, last in zip(rows["site"], rows["anchor_date"], rows["naive_prediction"])], dtype=bool)
+    on = _bloom_on(rows)
     last, y = rows["naive_prediction"].to_numpy(float), rows["actual_da"].to_numpy(float)
     sudden = (last < config.BLOOM_WATCH_LAST_BELOW) & exceeds(y, config.SPIKE_THRESHOLD)
     caught = rows.loc[on & sudden, "site"].value_counts()
+    late = [(days, _bloom_on(rows, days)) for days in LATE_COUNT_DAYS]
     return {
         "start": rows["date"].min().date().isoformat(),
         "end": window_bounds("holdout")[0],
@@ -183,6 +196,7 @@ def bloom_record() -> dict:
         "sudden_rises": int(sudden.sum()),
         "caught": int((on & sudden).sum()),
         "caught_by_site": {site: int(n) for site, n in caught.items()},
+        "late": [{"days": days, "on": int(o.sum()), "caught": int((o & sudden).sum())} for days, o in late],
     }
 
 

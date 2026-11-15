@@ -83,10 +83,13 @@ describe('contract adapters', () => {
     const c = toConfig({ ...configFixture, bloom_watch: { count: 100000, days: 7, last_below: 5, sites: ['Long Beach'] } }, sitesFixture)
     expect(c.bloomWatch).toEqual({ count: 100000, days: 7, lastBelow: 5, sites: ['Long Beach'] })
     expect(toConfig(configFixture, sitesFixture).bloomWatch).toBeNull()
-    const s = toSummary({ ...summaryFixture, bloom_record: { start: '2005-10-17', end: '2022-01-01', on: 83,
-      followed_by_sudden_rise: 6, sudden_rises: 9, caught: 6, caught_by_site: { 'Long Beach': 4 } } })
-    expect(s.bloomRecord).toEqual({ start: '2005-10-17', end: '2022-01-01', on: 83, followed: 6, suddenRises: 9,
-      caught: 6, caughtBySite: { 'Long Beach': 4 } })
+    const raw = { start: '2007-11-14', end: '2022-01-01', on: 37, followed_by_sudden_rise: 6, sudden_rises: 6,
+      caught: 6, caught_by_site: { 'Long Beach': 4 } }
+    const late = [{ days: 1, on: 34, caught: 5 }]
+    expect(toSummary({ ...summaryFixture, bloom_record: { ...raw, late } }).bloomRecord).toEqual({
+      start: '2007-11-14', end: '2022-01-01', on: 37, followed: 6, suddenRises: 6, caught: 6,
+      caughtBySite: { 'Long Beach': 4 }, late })
+    expect(toSummary({ ...summaryFixture, bloom_record: raw }).bloomRecord.late).toEqual([])   // older payloads
   })
 
   it('builds config thresholds, levels, categories and site order', () => {

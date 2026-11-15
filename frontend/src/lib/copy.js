@@ -181,6 +181,22 @@ export function bloomCaughtText({ suddenRises, caught }, rule) {
   return `It was on before ${share} sudden rises from below ${rule.lastBelow} µg/g there. These beaches were picked after seeing that record, and the events are few, so treat it as rough.`
 }
 
+const DAY_WORDS = { 1: 'a day', 2: 'two days', 3: 'three days' }
+
+/**
+ * How the bloom record changes if cell counts arrive late, from the API's timing check.
+ * @param {{ suddenRises: number, late: { days: number, caught: number }[] }} record
+ * @returns {string}
+ */
+export function bloomLateText({ suddenRises, late }) {
+  const base = 'This record takes a cell count as known on the day it was sampled.'
+  if (!late.length) return base
+  const later = (days) => `${DAY_WORDS[days] ?? `${days} days`} later`
+  const [first, ...rest] = late
+  const more = rest.map((l) => `; ${later(l.days)}, ${l.caught} of ${suddenRises}`).join('')
+  return `${base} Had counts arrived ${later(first.days)}, the Watch would have been on before ${first.caught} of these ${suddenRises} rises${more}.`
+}
+
 /**
  * The bloom condition in the alert's checklist.
  * @param {string} site

@@ -1,4 +1,4 @@
-import { formatPct, formatScore, formatValue, ratioWords } from './format'
+import { formatDate, formatPct, formatScore, formatValue, ratioWords } from './format'
 import { levelKey } from './risk'
 
 /**
@@ -144,4 +144,55 @@ export function bandVsAlertText(forecast, threshold) {
   }
   if (alert.probability == null) return `${range}; the alert's classifier score is unavailable for this week.`
   return `${range}; the alert's classifier score is ${formatScore(alert.probability)}, which is not a calibrated chance. The alert keeps the classifier because the range was not shown to catch jumps as well.`
+}
+
+/**
+ * Why a bloom Watch is on, in plain words.
+ * @param {string} site
+ * @param {{ count: number, days: number, lastBelow: number }} rule
+ * @returns {string}
+ */
+export function bloomReasonText(site, rule) {
+  return `An algae bloom at ${site}: the algae that make domoic acid reached ${rule.count.toLocaleString('en-US')} cells per litre in the ${rule.days} days before the forecast, while the toxin was still below ${rule.lastBelow} µg/g.`
+}
+
+/**
+ * The bloom Watch's record before the holdout, from the API.
+ * @param {{ start: string, end: string, on: number, followed: number }} record
+ * @param {number} threshold
+ * @returns {string}
+ */
+export function bloomRecordText({ start, end, on, followed }, threshold) {
+  const span = `${start.slice(0, 4)}–${Number(end.slice(0, 4)) - 1}`
+  const after = followed === 0 ? 'none was followed by' : `${followed} of them (${ratioWords(followed, on)}) were followed by`
+  return `In ${span} the bloom Watch would have been on in ${on} forecast weeks at Washington beaches; ${after} a sudden rise to ${threshold} µg/g or more. Most blooms are not toxic.`
+}
+
+/**
+ * Which sudden rises the bloom Watch was on before.
+ * @param {{ suddenRises: number, caught: number, caughtBySite: Object<string, number> }} record
+ * @param {{ lastBelow: number }} rule
+ * @returns {string}
+ */
+export function bloomCaughtText({ suddenRises, caught, caughtBySite }, rule) {
+  const where = Object.keys(caughtBySite)
+  const at = where.length ? `, all at ${where.join(' and ')}` : ''
+  return `It was on before ${caught} of the ${suddenRises} sudden rises from below ${rule.lastBelow} µg/g${at}. These are few events, so treat this record as rough.`
+}
+
+/**
+ * The bloom condition in the alert's checklist.
+ * @param {string} site
+ * @param {{ count: number, lastBelow: number }} rule
+ * @param {{ counted: boolean, lastCountDate: string | null }} status
+ * @param {boolean} holds
+ * @returns {string}
+ */
+export function bloomConditionText(site, rule, status, holds) {
+  if (!status.counted) {
+    const newest = status.lastCountDate ? ` (newest: ${formatDate(status.lastCountDate)})` : ''
+    return `No algae count at ${site} in the week before the forecast${newest}`
+  }
+  const count = `${rule.count.toLocaleString('en-US')} cells/L`
+  return holds ? `Algae count ≥ ${count} with toxin below ${rule.lastBelow}` : `No algae count ≥ ${count} with toxin below ${rule.lastBelow}`
 }

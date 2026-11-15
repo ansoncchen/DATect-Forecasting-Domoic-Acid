@@ -101,6 +101,11 @@ def test_alert_parts_levels_and_boundaries():
     done = alert_parts(0.90, 30.0, 20.0, **kw)
     assert done["level"] is None and done["level_reason"] == "already_at_or_above_threshold"
     assert done["alert"] is True and done["by_classifier"] and done["by_regression"]
+    bloom = alert_parts(0.05, 3.0, 2.0, by_bloom=True, **kw)            # bloom Watch alone
+    assert bloom["level"] == "Watch" and bloom["alert"] and bloom["by_bloom"]
+    assert not bloom["by_classifier"] and not bloom["by_regression"]
+    assert alert_parts(0.40, 3.0, 2.0, by_bloom=True, **kw)["level"] == "Warning"   # never lowers
+    assert alert_parts(0.05, 3.0, 2.0, **kw)["by_bloom"] is False
     blind = alert_parts(None, 3.0, 2.0, **kw)                          # classifier unavailable
     assert blind["level"] == "Quiet" and blind["level_reason"] == "no_classifier"
     assert blind["by_classifier"] is False and blind["classifier_probability"] is None

@@ -135,8 +135,9 @@ def test_summary_reliability_per_site():
     assert rel["holdout"]["per_site"]["Gold Beach"]["band"]["coverage"] == pytest.approx(0.375)
     assert rel["holdout"]["per_site"]["Newport"]["band"]["coverage"] == pytest.approx(0.479, abs=5e-4)
     assert rel["holdout"]["summary"]["onsets"]["caught"] == 19
-    assert rel["validation"]["summary"]["onsets"]["caught"] == 27
+    assert rel["validation"]["summary"]["onsets"]["caught"] == 28   # 27 by the hybrid alert + 1 by the bloom Watch
     assert data["source"] and data["per_site"]["Gold Beach"]["spike_recall"] is not None
+    assert data["bloom_record"]["caught"] == 6
 
 
 def test_site_states_follow_the_columbia_border():

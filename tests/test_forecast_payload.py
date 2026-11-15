@@ -87,6 +87,19 @@ def test_enhanced_forecast_reports_alert_parts_and_level(client):
     assert alert["by_classifier"] is True and alert["by_regression"] is False and alert["alert"] is True
 
 
+def test_bloom_watch_raises_watch_and_says_whether_counts_were_checked(client):
+    """Long Beach, 2020-10-22: a Pseudo-nitzschia bloom in the week to the anchor while the
+    last toxin reading was below 5 (the sudden rise the bloom Watch adds in 2019-2021)."""
+    client.use(_Engine(predicted=3.0, spike_probability=0.01))
+    body = _post(client, "Long Beach", "2020-10-22")
+    assert body["alert"]["level"] == "Watch" and body["alert"]["by_bloom"] is True
+    assert body["alert"]["by_classifier"] is False and body["alert"]["by_regression"] is False
+    assert body["bloom"] == {"applies": True, "counted": True, "last_count_date": body["bloom"]["last_count_date"]}
+    assert body["bloom"]["last_count_date"] <= body["anchor_date"]
+    oregon = _post(client, "Newport", "2020-10-22")
+    assert oregon["alert"]["by_bloom"] is False and oregon["bloom"]["applies"] is False
+
+
 def test_no_level_once_the_last_measurement_reached_the_threshold(client):
     client.use(_Engine(predicted=25.0, spike_probability=0.9))
     m = load_raw_da_measurements()

@@ -11,11 +11,12 @@ import { windowLabel } from '../lib/format'
  *   categories: { lo: number, hi: number, label: string }[],
  *   windows: { validation: Window, holdout: Window },
  *   bandLevel: number, newestMeasurement: string, latestWeek: string,
- *   sites: string[], dateRange: { min: string, max: string }
+ *   sites: string[], dateRange: { min: string, max: string },
+ *   bloomWatch: { count: number, days: number, lastBelow: number, sites: string[] } | null
  * }} Config
  *
  * @typedef {{
- *   probability: number | null, byClassifier: boolean, byRegression: boolean, fired: boolean,
+ *   probability: number | null, byClassifier: boolean, byRegression: boolean, byBloom: boolean, fired: boolean,
  *   level: 'Quiet' | 'Watch' | 'Warning' | null, reason: string | null
  * }} Alert
  *
@@ -26,6 +27,7 @@ import { windowLabel } from '../lib/format'
  *   bandReason: string | null,
  *   categoryChances: number[] | null, bandPExceed: number | null,
  *   alert: Alert | null,
+ *   bloom: { applies: boolean, counted: boolean, lastCountDate: string | null } | null,
  *   lastMeasurement: { date: string, value: number } | null,
  *   recentMeasurements: { date: string, value: number }[],
  *   parts: { xgb: number, rf: number, naive: number, weights: number[] } | null,
@@ -59,7 +61,9 @@ import { windowLabel } from '../lib/format'
  * @typedef {{
  *   source: object,
  *   headline: { overall: Headline, perSite: Object<string, Headline> },
- *   reliability: Object<string, { overall: Reliability, perSite: Object<string, Reliability> }>
+ *   reliability: Object<string, { overall: Reliability, perSite: Object<string, Reliability> }>,
+ *   bloomRecord: { start: string, end: string, on: number, followed: number, suddenRises: number,
+ *                  caught: number, caughtBySite: Object<string, number> } | null
  * }} Summary
  *
  * @typedef {{
@@ -113,6 +117,9 @@ export function toConfig(raw, rawSites) {
     latestWeek: raw.latest_forecast_week,
     sites: raw.sites_north_to_south,
     dateRange: { min: rawSites.date_range.min, max: rawSites.date_range.max },
+    bloomWatch: raw.bloom_watch
+      ? { count: raw.bloom_watch.count, days: raw.bloom_watch.days, lastBelow: raw.bloom_watch.last_below, sites: raw.bloom_watch.sites }
+      : null,
   }
 }
 
@@ -123,6 +130,7 @@ function toAlert(raw) {
     probability: orNull(raw.classifier_probability),
     byClassifier: raw.by_classifier,
     byRegression: raw.by_regression,
+    byBloom: raw.by_bloom ?? false,
     fired: raw.alert,
     level: orNull(raw.level),
     reason: orNull(raw.level_reason),
@@ -166,6 +174,7 @@ export function toForecast(raw) {
     categoryChances: raw.category_probabilities ?? raw.band?.category_probabilities ?? null,
     bandPExceed: raw.band_p_exceed ?? raw.band?.p_exceed ?? null,
     alert: toAlert(raw.alert),
+    bloom: raw.bloom ? { applies: raw.bloom.applies, counted: raw.bloom.counted, lastCountDate: orNull(raw.bloom.last_count_date) } : null,
     lastMeasurement: raw.last_measurement ?? null,
     recentMeasurements: raw.recent_measurements ?? [],
     parts: toParts(raw.ensemble),
@@ -191,6 +200,7 @@ export function toAllSites(raw) {
     categoryChances: s.band?.category_probabilities ?? null,
     bandPExceed: s.band?.p_exceed ?? null,
     alert: toAlert(s.alert),
+    bloom: null,
     lastMeasurement: s.last_measurement ?? null,
     recentMeasurements: [],
     parts: null,
@@ -275,6 +285,17 @@ export function toSummary(raw) {
       overall: toReliability(r.summary),
       perSite: mapValues(r.per_site, toReliability),
     })),
+    bloomRecord: raw.bloom_record
+      ? {
+          start: raw.bloom_record.start,
+          end: raw.bloom_record.end,
+          on: raw.bloom_record.on,
+          followed: raw.bloom_record.followed_by_sudden_rise,
+          suddenRises: raw.bloom_record.sudden_rises,
+          caught: raw.bloom_record.caught,
+          caughtBySite: raw.bloom_record.caught_by_site,
+        }
+      : null,
   }
 }
 

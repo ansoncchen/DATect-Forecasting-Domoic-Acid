@@ -22,11 +22,14 @@ from sklearn.metrics import mean_absolute_error, r2_score
 
 import config
 from backend.band import REPO_ROOT
+from forecasting.bloom import applies as bloom_applies
+from forecasting.bloom import bloom_watch
 from forecasting.metrics import alert_parts, exceeds, onset_scores
 from forecasting.tuned_config import get_eval_windows
 
 Window = Literal["holdout", "validation"]
 BAND_PREDICTIONS_PATH = "results/conformal_band/band_predictions.parquet"
+ALL_YEARS_RUN = "results/chronological/chronological_regression_ensemble_20030101_20240101.parquet"
 ROW_COLUMNS = ["date", "anchor_date", "site", "actual_da", "predicted_da", "naive_prediction",
                "predicted_da_linear", "spike_probability", "spike_alert", "band_lo", "band_hi", "p_exceed"]
 HISTORY_COLUMNS = ["date", "anchor_date", "site", "actual_da", "predicted_da", "naive_prediction",
@@ -77,11 +80,14 @@ def window_rows(window: Window, site: str | None = None) -> pd.DataFrame:
 
 
 def _alert_levels(rows: pd.DataFrame) -> list:
-    """The alert's parts for each row (dict per row), from the engine's own outputs."""
+    """The alert's parts for each row (dict per row): the hybrid alert from the engine's own
+    outputs, plus the bloom Watch from the site's counts up to the row's anchor."""
     return [alert_parts(p, f, last, prob_cutoff=config.SPIKE_ALERT_PROB_THRESHOLD,
                         regression_cutoff=config.SPIKE_REGRESSION_ALERT_THRESHOLD,
-                        warning_cutoff=config.ALERT_WARNING_PROB_CUTOFF, threshold=config.SPIKE_THRESHOLD)
-            for p, f, last in zip(rows["spike_probability"], rows["predicted_da"], rows["naive_prediction"])]
+                        warning_cutoff=config.ALERT_WARNING_PROB_CUTOFF, threshold=config.SPIKE_THRESHOLD,
+                        by_bloom=bloom_watch(site, anchor, last))
+            for p, f, last, site, anchor in zip(rows["spike_probability"], rows["predicted_da"],
+                                                rows["naive_prediction"], rows["site"], rows["anchor_date"])]
 
 
 def _share(mask: np.ndarray) -> float | None:
@@ -93,7 +99,8 @@ def summarize(rows: pd.DataFrame) -> dict:
     thr = config.SPIKE_THRESHOLD
     y = rows["actual_da"].to_numpy(dtype=float)
     last = rows["naive_prediction"].to_numpy(dtype=float)
-    alert = rows["spike_alert"].astype(bool).to_numpy()
+    parts = _alert_levels(rows)
+    alert = np.array([p["alert"] for p in parts], dtype=bool)  # hybrid alert or bloom Watch
     below, jump = ~exceeds(last, thr), exceeds(y, thr)
     onset, quiet = below & jump, below & ~jump
     scores = onset_scores(last, y, alert, threshold=thr)
@@ -104,10 +111,10 @@ def summarize(rows: pd.DataFrame) -> dict:
     inside = (y >= lo) & (y <= hi)
 
     levels = {name: {"weeks": 0, "followed_by_jump": 0} for name in LEVELS}
-    for parts, jumped in zip(_alert_levels(rows), jump):
-        if parts["level"] is not None:
-            levels[parts["level"]]["weeks"] += 1
-            levels[parts["level"]]["followed_by_jump"] += int(jumped)
+    for part, jumped in zip(parts, jump):
+        if part["level"] is not None:
+            levels[part["level"]]["weeks"] += 1
+            levels[part["level"]]["followed_by_jump"] += int(jumped)
 
     return {
         "n": int(len(rows)),
@@ -152,6 +159,33 @@ def window_summary(window: Window, site: str | None = None) -> dict:
     return out
 
 
+@lru_cache(maxsize=1)
+def bloom_record() -> dict:
+    """The bloom Watch before the holdout at the beaches it covers, from the committed
+    all-years run: weeks it was on, how many a sudden rise followed (last value below
+    the bloom cap, measurement at or above the spike threshold), and the sudden rises it
+    caught, overall and per site. Model outputs play no part: the rule reads only counts
+    and the last DA reading."""
+    rows = pd.read_parquet(os.path.join(REPO_ROOT, ALL_YEARS_RUN),
+                           columns=["date", "anchor_date", "site", "actual_da", "naive_prediction"])
+    rows["date"] = pd.to_datetime(rows["date"])
+    rows = rows[(rows["date"] < pd.Timestamp(window_bounds("holdout")[0])) & rows["site"].map(bloom_applies)]
+    on = np.array([bloom_watch(s, pd.Timestamp(a), last)
+                   for s, a, last in zip(rows["site"], rows["anchor_date"], rows["naive_prediction"])], dtype=bool)
+    last, y = rows["naive_prediction"].to_numpy(float), rows["actual_da"].to_numpy(float)
+    sudden = (last < config.BLOOM_WATCH_LAST_BELOW) & exceeds(y, config.SPIKE_THRESHOLD)
+    caught = rows.loc[on & sudden, "site"].value_counts()
+    return {
+        "start": rows["date"].min().date().isoformat(),
+        "end": window_bounds("holdout")[0],
+        "on": int(on.sum()),
+        "followed_by_sudden_rise": int((on & sudden).sum()),
+        "sudden_rises": int(sudden.sum()),
+        "caught": int((on & sudden).sum()),
+        "caught_by_site": {site: int(n) for site, n in caught.items()},
+    }
+
+
 def records(rows: pd.DataFrame) -> list:
     """Rows as JSON-ready dicts, dates as YYYY-MM-DD."""
     out = rows.copy()
@@ -168,7 +202,15 @@ def site_history(site: str, since: str = "2019-01-01", until: str | None = None)
     if until is not None:
         keep &= bp["date"] <= pd.Timestamp(until)
     rows = bp.loc[keep, HISTORY_COLUMNS].sort_values("date", kind="stable").reset_index(drop=True)
+    return records(with_alert(rows))
+
+
+def with_alert(rows: pd.DataFrame) -> pd.DataFrame:
+    """``rows`` plus the alert as the dashboard shows it: ``alert`` (hybrid alert or bloom
+    Watch), ``by_bloom`` and ``level``. ``spike_alert`` stays the engine's hybrid alert."""
     parts = _alert_levels(rows)
-    rows["alert"] = [p["alert"] for p in parts]
-    rows["level"] = [p["level"] for p in parts]
-    return records(rows)
+    out = rows.copy()
+    out["alert"] = [p["alert"] for p in parts]
+    out["by_bloom"] = [p["by_bloom"] for p in parts]
+    out["level"] = [p["level"] for p in parts]
+    return out

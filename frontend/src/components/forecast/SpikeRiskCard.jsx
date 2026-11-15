@@ -6,8 +6,8 @@ import { INK } from '../../lib/colors'
 import { formatScore, formatValue } from '../../lib/format'
 import { levelKey } from '../../lib/risk'
 import {
-  alertPlain, classifierConditionText, jumpDefinition, levelCutoffsText, levelRecordPlain, recentValuesText,
-  scoreCaption, siteRecordText, trackRecordText,
+  alertPlain, bloomCaughtText, bloomConditionText, bloomReasonText, bloomRecordText, classifierConditionText,
+  jumpDefinition, levelCutoffsText, levelRecordPlain, recentValuesText, scoreCaption, siteRecordText, trackRecordText,
 } from '../../lib/copy'
 
 function Condition({ holds, children }) {
@@ -38,7 +38,7 @@ function Tick({ cutoff }) {
  *   config: import('../../services/contract').Config }} props
  */
 export default function SpikeRiskCard({ forecast, summary, config }) {
-  const { site, alert, recentMeasurements } = forecast
+  const { site, alert, recentMeasurements, bloom } = forecast
   const threshold = config.spikeThreshold
   const level = levelKey(alert)
   const available = level !== 'unavailable'
@@ -51,6 +51,9 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
   const record = levelName && score != null ? holdout?.overall.levels[levelName] : null
   const recent = (recentMeasurements ?? []).slice(-5)
   const placeholders = config.levels.filter((l) => l.placeholder)
+  const rule = config.bloomWatch
+  const bloomApplies = Boolean(rule && bloom?.applies)
+  const bloomRecord = summary?.bloomRecord
 
   return (
     <Panel className="p-5">
@@ -61,6 +64,13 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
       <p className="mt-1 text-sm text-gray-700">{alertPlain(level, threshold)}</p>
       {record && (
         <p className="mt-2 text-sm text-gray-600">{levelRecordPlain(levelName, record, holdoutLabel, threshold)}</p>
+      )}
+      {alert?.byBloom && rule && (
+        <div className="mt-3 border-l-2 border-gray-300 pl-3">
+          <p className="text-sm font-medium text-gray-900">Why: algae bloom at this beach</p>
+          <p className="mt-0.5 text-sm text-gray-700">{bloomReasonText(site, rule)}</p>
+          {bloomRecord && <p className="mt-1 text-xs text-gray-600">{bloomRecordText(bloomRecord, threshold)}</p>}
+        </div>
       )}
       {(level === 'watch' || level === 'warning') && forecast.value != null && forecast.value < threshold && (
         <p className="mt-2 text-xs text-gray-500">
@@ -74,7 +84,8 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
           <div className="space-y-3 text-sm">
             <p className="text-gray-700">
               The alert has three levels. It moves up from Quiet when a separate model, trained only to spot sudden
-              rises, gives a high score, or when the forecast itself reaches {config.regressionAlert} µg/g.
+              rises, gives a high score, or when the forecast itself reaches {config.regressionAlert} µg/g
+              {bloomApplies ? '. At Washington beaches an algae bloom counted while the toxin is still low also raises a Watch' : ''}.
             </p>
             {score != null && (
               <div>
@@ -104,6 +115,9 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
               <Condition holds={alert.byRegression}>
                 Forecast {formatValue(forecast.value)} {alert.byRegression ? '≥' : '<'} {config.regressionAlert} µg/g
               </Condition>
+              {bloomApplies && (
+                <Condition holds={alert.byBloom}>{bloomConditionText(site, rule, bloom, alert.byBloom)}</Condition>
+              )}
             </ul>
             {recent.length > 0 && (
               <p className="text-xs text-gray-500 tabular-nums">{recentValuesText(recent.map((r) => r.value))}</p>
@@ -112,6 +126,16 @@ export default function SpikeRiskCard({ forecast, summary, config }) {
               <p>{jumpDefinition(threshold)}</p>
               {holdout && <p>{trackRecordText(holdout.overall, holdoutLabel)}</p>}
               {holdout?.perSite[site] && <p>{siteRecordText(site, holdout.perSite[site].onsets)}</p>}
+              {bloomApplies && bloomRecord && (
+                <>
+                  <p>{bloomRecordText(bloomRecord, threshold)}</p>
+                  <p>{bloomCaughtText(bloomRecord, rule)}</p>
+                  <p>
+                    The bloom rule assumes a cell count is known on the day it is sampled. Cell counts: Olympic Region
+                    Harmful Algal Blooms partnership (ORHAB).
+                  </p>
+                </>
+              )}
               {placeholders.map((l) => (
                 <p key={l.name} className="text-gray-400">
                   The {l.name} cutoff is a placeholder until the alert experiments set the levels.

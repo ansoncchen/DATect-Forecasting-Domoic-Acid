@@ -104,19 +104,22 @@ def onset_scores(last_known, actual, alert=None, score=None, threshold: float = 
 
 def alert_parts(classifier_probability: float | None, forecast: float, last_known: float | None, *,
                 prob_cutoff: float, regression_cutoff: float, warning_cutoff: float,
-                threshold: float = 20.0) -> dict:
+                threshold: float = 20.0, by_bloom: bool = False) -> dict:
     """The hybrid alert's two triggers and the dashboard's alert level.
 
     Watch is the hybrid alert (classifier >= ``prob_cutoff`` or forecast >=
-    ``regression_cutoff``); Warning is the classifier at or above
-    ``warning_cutoff``; Quiet is neither. The alert is about jumps from below
+    ``regression_cutoff``) or the bloom Watch (``by_bloom``, from
+    ``forecasting.bloom.bloom_watch``); Warning is the classifier at or above
+    ``warning_cutoff``; Quiet is none of them. The alert is about jumps from below
     ``threshold``, so there is no level when the last known value already
-    reached it. A missing classifier probability counts as not firing.
+    reached it. A missing classifier probability counts as not firing. The
+    engine's ``spike_alert`` is the hybrid alert alone.
     """
     has_prob = classifier_probability is not None and np.isfinite(classifier_probability)
     by_classifier = bool(has_prob and exceeds([classifier_probability], prob_cutoff)[0])
     by_regression = bool(exceeds([forecast], regression_cutoff)[0])
-    alert = by_classifier or by_regression
+    by_bloom = bool(by_bloom)
+    alert = by_classifier or by_regression or by_bloom
     if last_known is not None and exceeds([last_known], threshold)[0]:
         level, reason = None, "already_at_or_above_threshold"
     else:
@@ -124,5 +127,6 @@ def alert_parts(classifier_probability: float | None, forecast: float, last_know
         level = "Warning" if warning else "Watch" if alert else "Quiet"
         reason = None if has_prob else "no_classifier"
     return {"classifier_probability": float(classifier_probability) if has_prob else None,
-            "by_classifier": by_classifier, "by_regression": by_regression, "alert": alert,
+            "by_classifier": by_classifier, "by_regression": by_regression, "by_bloom": by_bloom,
+            "alert": alert,
             "level": level, "level_reason": reason}

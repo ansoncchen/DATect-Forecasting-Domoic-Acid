@@ -68,7 +68,7 @@ function AboutPage({ config }) {
           <li>
             <span className="font-medium">Any sign of a sudden rise?</span> A separate alert for jumps from below{' '}
             {threshold} µg/g to {threshold} or more, which the forecast alone tends to miss. It reads Quiet, Watch or
-            Warning.
+            Warning. At Washington beaches, an algae bloom counted while the toxin is still low also raises a Watch.
           </li>
           <li>
             <span className="font-medium">What was measured last?</span> The latest lab results and how old they are. A
@@ -87,6 +87,11 @@ function AboutPage({ config }) {
         <p className="text-gray-600">
           Data: shellfish toxin monitoring, <i>Pseudo-nitzschia</i> counts, MODIS satellite ocean colour and temperature,
           the PDO, ONI and BEUTI climate and upwelling indices, and USGS river flow.
+        </p>
+        <p className="text-gray-600">
+          We thank the Olympic Region Harmful Algal Bloom (ORHAB) partnership and its member partners for the shore
+          samples of particulate domoic acid and <i>Pseudo-nitzschia</i> used here. ORHAB has been funded since 2006 by a
+          surcharge on Washington State shellfish and seaweed licenses (RCW 77.21.555).
         </p>
       </Section>
 
@@ -122,6 +127,10 @@ function AboutPage({ config }) {
           <li>
             The alert&apos;s score is not a probability. The forecast page shows how often weeks at each alert level were
             actually followed by a rise.
+          </li>
+          <li>
+            The algae-bloom Watch rests on few bloom events; every sudden rise it caught was at Long Beach or Twin
+            Harbors. It assumes a cell count is known on the day it is sampled.
           </li>
           <li>Not for making real harvest decisions: always follow official closure notices.</li>
         </ul>

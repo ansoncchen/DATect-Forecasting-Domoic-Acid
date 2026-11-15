@@ -22,6 +22,7 @@ from forecasting import ForecastEngine
 import config
 from backend import band
 from backend.band import forecast_band
+from forecasting.bloom import bloom_status, bloom_watch
 from forecasting.metrics import alert_parts
 from forecasting.raw_data_forecaster import load_raw_da_measurements
 from forecasting.tuned_config import get_eval_windows
@@ -238,6 +239,7 @@ def _load_metrics_summary() -> dict:
             "r2_std": float(np.std(seed_r2)) if seed_r2 else None,
         },
         "reliability": reliability,
+        "bloom_record": track_record.bloom_record(),
         "source": {
             "chronological": f"results/chronological/chronological_regression_ensemble_{tag}.json",
             "band": track_record.BAND_PREDICTIONS_PATH,
@@ -281,7 +283,7 @@ def get_track_record(window: track_record.Window = "holdout", site: str | None =
         "window": {"name": window, "start": start, "end": end},
         "summary": track_record.window_summary(window, site),
         "per_site": per_site,
-        "rows": track_record.records(rows),
+        "rows": track_record.records(track_record.with_alert(rows)),
     })
 
 
@@ -318,6 +320,9 @@ def get_config():
         "regression_alert_threshold": config.SPIKE_REGRESSION_ALERT_THRESHOLD,
         "classifier_alert_cutoff": config.SPIKE_ALERT_PROB_THRESHOLD,
         "alert_levels": _alert_levels(),
+        "bloom_watch": {"count": config.BLOOM_WATCH_COUNT, "days": config.BLOOM_WATCH_DAYS,
+                        "last_below": config.BLOOM_WATCH_LAST_BELOW,
+                        "sites": [s for s in _sites_north_to_south() if config.SITE_STATES[s] in config.BLOOM_WATCH_STATES]},
         "band_level": band.chosen_variant()["coverage"],
         "category_bins": [0, *config.DA_CATEGORY_BINS[1:-1], None],
         "category_labels": CATEGORY_LABELS,
@@ -594,7 +599,7 @@ def _no_forecast(site: str, forecast_date: pd.Timestamp, error: str, source: dic
         "success": False, "forecast_date": forecast_date.strftime('%Y-%m-%d'), "site": site,
         "anchor_date": anchor.date().isoformat(), "error": error,
         "band": None, "band_reason": None, "band_p_exceed": None, "category_probabilities": None,
-        "alert": None, "last_measurement": recent[-1] if recent else None,
+        "alert": None, "bloom": None, "last_measurement": recent[-1] if recent else None,
         "recent_measurements": recent, "graphs": {},
         **(source or {"source": "computed", "model_version": None}),
     }
@@ -631,6 +636,7 @@ def _forecast_payload(site: str, forecast_date: pd.Timestamp, model_type: str) -
         prob_cutoff=config.SPIKE_ALERT_PROB_THRESHOLD,
         regression_cutoff=config.SPIKE_REGRESSION_ALERT_THRESHOLD,
         warning_cutoff=config.ALERT_WARNING_PROB_CUTOFF, threshold=config.SPIKE_THRESHOLD,
+        by_bloom=bloom_watch(site, anchor, last["value"] if last else None),
     )
 
     graphs = {}
@@ -666,6 +672,7 @@ def _forecast_payload(site: str, forecast_date: pd.Timestamp, model_type: str) -
         "band_p_exceed": band_info["p_exceed"] if band_info else None,
         "category_probabilities": band_info["category_probabilities"] if band_info else None,
         "alert": alert,
+        "bloom": bloom_status(site, anchor),
         "last_measurement": last,
         "recent_measurements": recent,
         "graphs": graphs,

@@ -16,25 +16,30 @@ def test_holdout_summary_matches_the_reported_numbers():
     assert s["mae"] == pytest.approx([7.4407, 6.1999, 8.8675], abs=5e-4)
     assert s["models"]["ensemble"]["r2"] == pytest.approx(s["r2"][0])
     assert s["models"]["naive"]["r2"] == pytest.approx(0.225, abs=5e-4)   # CORRECTED_NUMBERS
-    assert s["onsets"] == {"n": 27, "caught": 19, "quiet": 292, "quiet_alarmed": 87}
-    assert s["alarms"] == {"n": 106, "followed_by_jump": 19, "false_below_5": 21,
-                           "false_5_to_10": 18, "false_near_miss": 48}
+    # the alert is the hybrid alert or the bloom Watch (9 holdout rows flagged; no sudden rise
+    # in Washington to catch, so 19 of 27 stands and 8 quiet weeks gain a Watch)
+    assert s["onsets"] == {"n": 27, "caught": 19, "quiet": 292, "quiet_alarmed": 95}
+    assert s["alarms"] == {"n": 114, "followed_by_jump": 19, "false_below_5": 25,
+                           "false_5_to_10": 19, "false_near_miss": 51}
     assert s["band"]["coverage"] == pytest.approx(0.802, abs=5e-4)
     assert s["band"]["coverage_at_onsets"] == pytest.approx(10 / 27)
     assert (s["band"]["inside"], s["band"]["n_banded"], s["band"]["onsets_inside"]) == (328, 409, 10)
     assert s["band"]["median_width"] == pytest.approx(15.08, abs=0.01)
-    assert s["levels"] == {"Quiet": {"weeks": 213, "followed_by_jump": 8},
-                           "Watch": {"weeks": 68, "followed_by_jump": 9},
+    assert s["levels"] == {"Quiet": {"weeks": 205, "followed_by_jump": 8},
+                           "Watch": {"weeks": 76, "followed_by_jump": 9},
                            "Warning": {"weeks": 38, "followed_by_jump": 10}}
 
 
 def test_validation_and_per_site_reliability():
     v = tr.window_summary("validation")
-    assert v["onsets"]["caught"] == 27 and v["band"]["coverage"] == pytest.approx(0.819, abs=5e-4)
-    assert v["levels"] == {"Quiet": {"weeks": 420, "followed_by_jump": 7},
-                           "Watch": {"weeks": 63, "followed_by_jump": 13},
+    # the bloom Watch adds one caught jump (Long Beach, 2020-10-22) and 18 quiet-week alarms
+    assert v["onsets"]["caught"] == 28 and v["onsets"]["quiet_alarmed"] == 91
+    assert v["band"]["coverage"] == pytest.approx(0.819, abs=5e-4)
+    assert v["levels"] == {"Quiet": {"weeks": 401, "followed_by_jump": 6},
+                           "Watch": {"weeks": 82, "followed_by_jump": 14},
                            "Warning": {"weeks": 37, "followed_by_jump": 14}}
-    assert (v["alarms"]["false_below_5"], v["alarms"]["false_5_to_10"], v["alarms"]["false_near_miss"]) == (23, 13, 37)
+    assert (v["alarms"]["n"], v["alarms"]["followed_by_jump"]) == (119, 28)
+    assert (v["alarms"]["false_below_5"], v["alarms"]["false_5_to_10"], v["alarms"]["false_near_miss"]) == (38, 16, 37)
     g = tr.window_summary("holdout", "Gold Beach")
     assert g["n"] == 40 and g["band"]["coverage"] == pytest.approx(0.375)
     assert g["r2"][0] == pytest.approx(-0.208, abs=5e-4)
@@ -42,6 +47,7 @@ def test_validation_and_per_site_reliability():
 
 
 def test_recomputed_alert_equals_the_engines_spike_alert():
+    """The engine's ``spike_alert`` is the hybrid alert; the bloom Watch is added at serve time."""
     for window in ("holdout", "validation"):
         rows = tr.window_rows(window)
         for r in rows.itertuples():
@@ -49,7 +55,7 @@ def test_recomputed_alert_equals_the_engines_spike_alert():
                                 prob_cutoff=config.SPIKE_ALERT_PROB_THRESHOLD,
                                 regression_cutoff=config.SPIKE_REGRESSION_ALERT_THRESHOLD,
                                 warning_cutoff=config.ALERT_WARNING_PROB_CUTOFF)
-            assert parts["alert"] == bool(r.spike_alert), (window, r.site, r.date)
+            assert (parts["by_classifier"] or parts["by_regression"]) == bool(r.spike_alert), (window, r.site, r.date)
 
 
 @pytest.fixture
@@ -63,6 +69,9 @@ def test_track_record_endpoint_returns_rows_and_summaries(client):
     body = client.get("/api/track-record", params={"window": "holdout"}).json()
     assert body["window"] == {"name": "holdout", "start": "2022-01-01", "end": "2024-01-01"}
     assert len(body["rows"]) == 409 and body["summary"]["onsets"]["caught"] == 19
+    # rows carry the alert as shown (hybrid or bloom); it agrees with the summary's alarm count
+    below = [r for r in body["rows"] if r["naive_prediction"] < 20]
+    assert sum(r["alert"] for r in below) == body["summary"]["alarms"]["n"] == 114
     assert body["per_site"]["Gold Beach"]["band"]["coverage"] == pytest.approx(0.375)
     one = client.get("/api/track-record", params={"window": "holdout", "site": "gold-beach"}).json()
     assert {r["site"] for r in one["rows"]} == {"Gold Beach"} and one["summary"]["n"] == 40
@@ -101,3 +110,31 @@ def test_r2_is_undefined_on_a_constant_or_tiny_target():
     assert s["mae"] is not None and s["n"] == 11
     assert tr.window_summary("holdout", "Cannon Beach")["models"] is None   # 2 rows
     assert tr.window_summary("holdout", "Gold Beach")["models"]["naive"]["r2"] is not None
+
+
+def test_washington_beaches_on_the_holdout():
+    """Per-beach counts with the bloom Watch (port spec, section 5)."""
+    expected = {  # quiet weeks alarmed, alarms (followed), Watch weeks
+        "Kalaloch": (10, (10, 0), 9), "Quinault": (12, (17, 5), 8), "Copalis": (18, (18, 0), 13),
+        "Twin Harbors": (10, (10, 0), 9), "Long Beach": (7, (9, 2), 7),
+    }
+    for site, (quiet_alarmed, (alarms, followed), watch) in expected.items():
+        s = tr.window_summary("holdout", site)
+        assert s["onsets"]["quiet_alarmed"] == quiet_alarmed, site
+        assert (s["alarms"]["n"], s["alarms"]["followed_by_jump"]) == (alarms, followed), site
+        assert s["levels"]["Watch"]["weeks"] == watch, site
+
+
+def test_history_rows_say_when_the_bloom_watch_was_on(client):
+    rows = client.get("/api/sites/Long Beach/history", params={"since": "2020-10-01", "until": "2020-10-31"}).json()["rows"]
+    day = next(r for r in rows if r["date"] == "2020-10-22")
+    assert day["by_bloom"] is True and day["alert"] is True and day["level"] == "Watch"
+
+
+def test_bloom_record_before_the_holdout():
+    """The record the dashboard quotes for the bloom Watch, from the committed all-years run
+    (its Washington rows start in October 2005)."""
+    b = tr.bloom_record()
+    assert (b["start"], b["end"]) == ("2005-10-17", "2022-01-01")
+    assert (b["on"], b["followed_by_sudden_rise"], b["sudden_rises"], b["caught"]) == (83, 6, 9, 6)
+    assert b["caught_by_site"] == {"Long Beach": 4, "Twin Harbors": 2}

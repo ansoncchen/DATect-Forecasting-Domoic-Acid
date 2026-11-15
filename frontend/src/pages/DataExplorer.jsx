@@ -22,7 +22,7 @@ const DESCRIPTIONS = {
   sensitivity:
     'Inputs ranked by how closely they track the toxin level. Tracking is not cause: two things can move together because of a third.',
   comparison:
-    'Domoic acid and Pseudo-nitzschia, the algae that produce it, at one site. Both are scaled to 0–1 so you can compare their timing. Weeks between samples are filled in.',
+    'Domoic acid and Pseudo-nitzschia, the algae that produce it, at one site. Both are scaled to 0–1 so you can compare their timing. Weeks between samples are filled in. Washington cell counts: Olympic Region Harmful Algal Blooms partnership (ORHAB).',
   waterfall:
     'Toxin over time at every site, north at the top. Each line sits at its site\'s latitude, and peaks are toxin events. Weeks between samples are filled in.',
   spectral:

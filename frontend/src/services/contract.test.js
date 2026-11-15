@@ -70,6 +70,25 @@ describe('contract adapters', () => {
     expect(toForecast({ ...noClassifier, alert: { level: 'Quiet' } }).alert.probability).toBeNull()
   })
 
+  it('maps the bloom Watch: its reason, its status, its rule and its record', () => {
+    const f = toForecast({
+      ...forecastFixture,
+      alert: { ...forecastFixture.alert, by_bloom: true },
+      bloom: { applies: true, counted: true, last_count_date: '2020-10-14' },
+    })
+    expect(f.alert.byBloom).toBe(true)
+    expect(f.bloom).toEqual({ applies: true, counted: true, lastCountDate: '2020-10-14' })
+    expect(toForecast(forecastFixture).alert.byBloom).toBe(false)   // older payloads have no bloom
+    expect(toForecast(forecastFixture).bloom).toBeNull()
+    const c = toConfig({ ...configFixture, bloom_watch: { count: 100000, days: 7, last_below: 5, sites: ['Long Beach'] } }, sitesFixture)
+    expect(c.bloomWatch).toEqual({ count: 100000, days: 7, lastBelow: 5, sites: ['Long Beach'] })
+    expect(toConfig(configFixture, sitesFixture).bloomWatch).toBeNull()
+    const s = toSummary({ ...summaryFixture, bloom_record: { start: '2005-10-17', end: '2022-01-01', on: 83,
+      followed_by_sudden_rise: 6, sudden_rises: 9, caught: 6, caught_by_site: { 'Long Beach': 4 } } })
+    expect(s.bloomRecord).toEqual({ start: '2005-10-17', end: '2022-01-01', on: 83, followed: 6, suddenRises: 9,
+      caught: 6, caughtBySite: { 'Long Beach': 4 } })
+  })
+
   it('builds config thresholds, levels, categories and site order', () => {
     const c = toConfig(configFixture, sitesFixture)
     expect(c.spikeThreshold).toBe(20); expect(c.regressionAlert).toBe(12); expect(c.classifierCutoff).toBe(0.1)

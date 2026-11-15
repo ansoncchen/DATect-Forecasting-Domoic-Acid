@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   trackRecordText, siteRecordText, bandVsAlertText,
   scoreCaption, levelCutoffsText, classifierConditionText, recentValuesText, jumpDefinition,
-  alertPlain, levelRecordPlain, weakSiteText,
+  alertPlain, levelRecordPlain, weakSiteText, bloomReasonText, bloomRecordText, bloomCaughtText, bloomConditionText,
 } from './copy'
 
 const overall = {
@@ -108,5 +108,27 @@ describe('plain-language helpers', () => {
   it('flags a weak site with its counts', () => {
     expect(weakSiteText('Newport', newport, L)).toBe(
       'Less reliable at Newport: in 2022–2023 only 23 of 48 measurements landed inside the likely range.')
+  })
+})
+
+describe('bloom Watch wording', () => {
+  const rule = { count: 100000, days: 7, lastBelow: 5 }
+  const record = { start: '2005-10-17', end: '2022-01-01', on: 83, followed: 6, suddenRises: 9, caught: 6,
+    caughtBySite: { 'Long Beach': 4, 'Twin Harbors': 2 } }
+  it('says why the Watch is on from the API rule', () => {
+    expect(bloomReasonText('Long Beach', rule)).toBe(
+      'An algae bloom at Long Beach: the algae that make domoic acid reached 100,000 cells per litre in the 7 days before the forecast, while the toxin was still below 5 µg/g.')
+  })
+  it('states the record as counts with a rate in words', () => {
+    expect(bloomRecordText(record, 20)).toBe(
+      'In 2005–2021 the bloom Watch would have been on in 83 forecast weeks at Washington beaches; 6 of them (about 1 in 14) were followed by a sudden rise to 20 µg/g or more. Most blooms are not toxic.')
+    expect(bloomCaughtText(record, rule)).toBe(
+      'It was on before 6 of the 9 sudden rises from below 5 µg/g, all at Long Beach and Twin Harbors. These are few events, so treat this record as rough.')
+  })
+  it('says when no count was taken instead of implying one was checked', () => {
+    expect(bloomConditionText('Kalaloch', rule, { counted: false, lastCountDate: '2023-11-02' }, false)).toBe(
+      'No algae count at Kalaloch in the week before the forecast (newest: 2 Nov 2023)')
+    expect(bloomConditionText('Long Beach', rule, { counted: true, lastCountDate: '2020-10-14' }, true)).toBe(
+      'Algae count ≥ 100,000 cells/L with toxin below 5')
   })
 })

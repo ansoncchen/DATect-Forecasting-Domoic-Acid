@@ -79,8 +79,11 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
   (`/api/forecast/enhanced`, `backend/api.py::_forecast_payload`) is one regression run plus
   the 80% conformal band (`backend/band.py`, calibrated at request time from the committed
   all-years run), category chances from that band, and the alert's parts and
-  Quiet/Watch/Warning level (`forecasting.metrics.alert_parts`; Watch is the hybrid alert,
-  Warning is the classifier at >= 0.35, chosen on validation). The engine computes no
+  Quiet/Watch/Warning level (`forecasting.metrics.alert_parts`; Watch is the hybrid alert or
+  the bloom Watch, Warning is the classifier at >= 0.35, chosen on validation). The bloom Watch
+  (`forecasting/bloom.py`, Washington only) reads raw PN counts dated <= the anchor and changes
+  no prediction: `spike_alert` in the results stays the hybrid alert, and the track record
+  counts the alert as shown (`track_record.with_alert`). The engine computes no
   prediction interval (the quantile and bootstrap intervals were removed), so `linear`'s
   on-demand forecast is deterministic; the store still precomputes only `ensemble`. An unknown
   `model_type` raises, and `ForecastRequest.model` rejects it with a 422; `task` is regression only.
@@ -206,6 +209,7 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
 | `forecasting/raw_data_forecaster.py`, `raw_data_processor.py` | Raw DA loading, feature frame, observation-order lags, leak-free test rows |
 | `forecasting/per_site_models.py`, `tuned_config.py` | Per-site configs from `config/tuned_hyperparameters.json` + env overlays |
 | `forecasting/metrics.py`, `measurements.py` | Shared spike/bootstrap metrics; raw measurement parsing |
+| `forecasting/bloom.py` | Bloom Watch: raw PN counts and the Washington bloom rule (a serve-time alert reason) |
 | `forecasting/oad_features.py` | 16 OAD features (leak-safe R-5 day lag; cloud fractions) |
 | `forecasting/raw_model_factory.py`, `classification_adapter.py` | XGB/RF/Ridge builders; threshold categories and the binary spike classifier |
 | `backend/api.py` | FastAPI: forecasts, track record, history, visualizations, `/api/metrics/summary` |

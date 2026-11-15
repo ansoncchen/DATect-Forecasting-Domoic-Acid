@@ -66,3 +66,16 @@ jobs:
           docker push "$IMAGE:${{ github.sha }}"
           docker push "$IMAGE:latest"
           echo "pushed $IMAGE:${{ github.sha }} and :latest" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy on Render
+        # A Render deploy hook (service Settings -> Deploy Hook), saved once as the repo secret
+        # RENDER_DEPLOY_HOOK, makes Render pull :latest. Without it, deploy from the dashboard.
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK is not set: deploy from Render (Manual Deploy -> Deploy latest reference)." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          curl -fsS -X POST -o /dev/null "$RENDER_DEPLOY_HOOK"
+          echo "asked Render to deploy :latest" >> "$GITHUB_STEP_SUMMARY"

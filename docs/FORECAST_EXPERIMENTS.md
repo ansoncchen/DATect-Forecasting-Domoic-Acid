@@ -611,6 +611,54 @@ R² 0.364 / 0.437 / 0.378. Sources: `results/experiments/pooled_ablation_val_F1_
   and the holdout under the §3b rule.
 
 
+## 3c. One algorithm at every beach: declared comparison (2026-11-15)
+
+**Question.** The level forecast picks a model per beach: XGBoost alone at six, random
+forest alone at three, 25/75 at Twin Harbors, plus per-beach feature lists and
+hyperparameters. Those picks came from the removed weight × clip grid search, chosen
+jointly with a clip that no longer exists. Replace them with **one algorithm and one
+configuration at every beach**. **This subsection was written and committed before the run
+it describes.**
+
+**Candidates.** Both use `DATECT_USE_PER_SITE_MODELS=false`: all features, the shared
+hyperparameters in `config.py` and the tuned JSON's global entries, no per-beach feature
+lists, no clip. Training rows, the spike classifier and the conformal band are unchanged.
+- **X:** XGBoost alone at every beach.
+- **R:** random forest alone at every beach.
+
+Reported next to them, not candidates: the 50/50 average of the two (what
+`DATECT_USE_PER_SITE_MODELS=false` serves today), and the committed per-beach configuration
+(`results/chronological/`).
+
+**Run.** One `chronological_eval.py --window 2003-01-01:2024-01-01` on Hyak at `main`
+(`fa8160d2`) with `DATECT_USE_PER_SITE_MODELS=false`. It stores the random forest's forecast
+and the 50/50 average for every real measurement. XGBoost's forecast is recovered as
+2 × average − random forest; the blend is `0.5·x + 0.5·r`, so this is exact to float
+rounding. Each candidate's regression alert (forecast ≥ 12) uses its own forecast; the
+classifier part is shared.
+
+**Rule (validation 2019–2021 only).**
+1. **R² on every real measurement.** A paired bootstrap (2,000 resamples of the same rows)
+   gives ΔR² = X − R. If its 95% interval excludes zero, the higher R² wins.
+2. **If it includes zero (a tie),** the lower validation MAE wins.
+3. **Reported, not used to pick:**
+   - 2015–2018 R² and MAE;
+   - the hybrid alert's onsets caught and quiet weeks alarmed with each candidate's
+     regression part;
+   - per-site R².
+
+**Holdout.** 2022–2023 is read once, after the pick is committed, and reported for every
+row; it does not change the pick. Adopting the pick as the served model is a separate
+decision.
+
+**Already seen before this declaration** (so not evidence for either candidate):
+- An older per-site-off run in `results/chronological_no_per_site/` (50/50 average):
+  validation R² 0.344, holdout 0.419. Today's engine does not reproduce it exactly
+  (1 of 6 points re-run on a laptop matched), so it is not reused.
+- The random forest's forecasts *with* the per-beach feature lists and hyperparameters,
+  from the committed all-years run.
+
+
 ## 4. Shortlist and one-time holdout check
 
 **Shortlist, fixed from validation (with the 2015–2018 window as a consistency check)

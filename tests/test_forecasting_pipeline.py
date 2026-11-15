@@ -77,6 +77,12 @@ class TestForecastingPipeline:
         assert "naive_prediction" in result
         assert "ensemble_prediction" in result
 
+        # The served forecast is the random forest alone, and the importances are its own
+        assert tuple(result["ensemble_weights"]) == (0.0, 1.0, 0.0)
+        assert result["ensemble_prediction"] == result["rf_prediction"]
+        importance = result["feature_importance"]
+        assert importance and sum(importance.values()) == pytest.approx(1.0)
+
     def test_single_forecast_carries_no_interval(self):
         """The engine computes no interval: the dashboard shows the conformal band."""
         result = self.engine.generate_single_forecast(

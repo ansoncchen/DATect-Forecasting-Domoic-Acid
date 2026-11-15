@@ -10,6 +10,8 @@ Runs 4 ablation experiments, each disabling one key component:
 
 Each experiment runs as a subprocess so config.py is re-imported fresh
 with the correct environment variables (required for loky/joblib workers).
+The base configuration is the retired per-site one the paper reports
+(DATECT_USE_PER_SITE_MODELS=true, set below), not the served random forest.
 
 Usage (from repository root; run on Hyak):
     python3 scripts/eval/paper_ablation_study.py              # dev set (seed 42)
@@ -27,6 +29,12 @@ import warnings
 from _subprocess import last_json_line, run_python
 
 warnings.filterwarnings("ignore")
+
+# These studies (and paper_sensitivity_study, which imports this module) describe the
+# per-site configuration the paper reports. It is no longer the served model (one random
+# forest at every beach, docs/FORECAST_EXPERIMENTS.md §3c), so pin it here: every run's
+# subprocess inherits it, and the published tables keep their meaning.
+os.environ.setdefault("DATECT_USE_PER_SITE_MODELS", "true")
 
 
 # ── Derived features to disable in ablation 4 ─────────────────────────────

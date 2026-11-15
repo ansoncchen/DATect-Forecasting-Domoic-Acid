@@ -715,6 +715,7 @@ class RawForecastEngine:
             rf_prediction = _postprocess(rf_raw)
         except Exception as e:
             logger.warning("RF training failed for %s on %s: %s — using XGB prediction only", site, test_date, e)
+            rf_model = None
             rf_prediction = prediction
 
         # Naive (always use real observations only)
@@ -737,16 +738,21 @@ class RawForecastEngine:
         except Exception:
             linear_prediction = None
 
-        # Feature importance
+        # Feature importance of the served forecast: each model's importances weighted by
+        # its share of the blend (the random forest alone by default)
         feature_importance = {}
-        if hasattr(xgb_model, "feature_importances_"):
-            try:
-                feat_names = X_train.columns.tolist()
-                feature_importance = dict(
-                    zip(feat_names, xgb_model.feature_importances_)
-                )
-            except Exception:
-                pass
+        w_xgb, w_rf, _ = self._ensemble_weights(site)
+        parts = [(w_xgb, xgb_model), (w_rf, rf_model)]
+        try:
+            feat_names = X_train.columns.tolist()
+            total = np.zeros(len(feat_names))
+            for weight, model in parts:
+                if weight and model is not None and hasattr(model, "feature_importances_"):
+                    total += weight * np.asarray(model.feature_importances_, dtype=float)
+            if total.any():
+                feature_importance = dict(zip(feat_names, total / total.sum()))
+        except Exception:
+            pass
 
         # Spike binary classifier (pooled cross-site training)
         spike_prob = None
@@ -817,8 +823,8 @@ class RawForecastEngine:
 
     @staticmethod
     def _ensemble_weights(site: str) -> tuple[float, float, float]:
-        """(w_xgb, w_rf, w_naive): per-site weights, or an equal XGB/RF split when
-        USE_PER_SITE_MODELS is off (naive persistence is an external baseline)."""
+        """(w_xgb, w_rf, w_naive): the random forest alone, or the retired per-site
+        weights when USE_PER_SITE_MODELS is on (naive persistence is an external baseline)."""
         return get_site_ensemble_weights(site)
 
     # ------------------------------------------------------------------

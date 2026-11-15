@@ -302,7 +302,11 @@ if _rf_params_json:
     RF_REGRESSION_PARAMS = {**RF_REGRESSION_PARAMS, **_json.loads(_rf_params_json)}
 
 # Target and model toggles (overridable via env vars for ablation studies)
-USE_PER_SITE_MODELS = os.environ.get("DATECT_USE_PER_SITE_MODELS", "true").lower() == "true"
+# One configuration at every beach: the random forest alone, shared features and
+# hyperparameters (docs/FORECAST_EXPERIMENTS.md §3c). "true" restores the retired per-beach
+# configuration from the tuned JSON (weights, feature lists, hyperparameters) to reproduce
+# earlier numbers.
+USE_PER_SITE_MODELS = os.environ.get("DATECT_USE_PER_SITE_MODELS", "false").lower() == "true"
 USE_INTERPOLATED_TRAINING = os.environ.get("DATECT_USE_INTERPOLATED_TRAINING", "true").lower() == "true"
 USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
 

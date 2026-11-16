@@ -23,13 +23,13 @@ real DA measurement in the window (N = 409, no sampling):
 
 | Metric | Value |
 |---|---|
-| R² [95% CI] | 0.473 [0.200, 0.644] (naive persistence 0.225) |
-| MAE | 7.34 µg/g |
-| Spike recall (actual ≥ 20 µg/g, alert at predicted ≥ 12) | 0.845 (F2 0.729) |
-| Spike onsets caught by the hybrid alert (last known value < 20, measurement ≥ 20) | 20 of 27, alarming on 30% of quiet weeks |
+| R² [95% CI] | 0.482 [0.218, 0.647] (naive persistence 0.225) |
+| MAE | 7.31 µg/g |
+| Spike recall (actual ≥ 20 µg/g, alert at predicted ≥ 12) | 0.833 (F2 0.723) |
+| Spike onsets caught by the hybrid alert (last known value < 20, measurement ≥ 20) | 19 of 27, alarming on 30% of quiet weeks |
 
-The pooled R² leans on Coos Bay (0.80 there, 0.15 for the other sites together).
-All five Washington sites score R² 0.55–0.68 on the holdout. Newport (0.04) and
+The pooled R² leans on Coos Bay (0.80 there, 0.17 for the other sites together).
+All five Washington sites score R² 0.56–0.68 on the holdout. Newport (0.07) and
 Gold Beach (below zero) in southern Oregon score lowest: their toxin levels have
 almost no week-to-week persistence (lag-1 R² ≈ 0.05), so a one-week-ahead forecast
 has little to work with.

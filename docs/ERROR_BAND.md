@@ -79,7 +79,48 @@ numbers were not computed before this commit.
 
 ## Results
 
-### Current: re-run for the random forest (`1c9206c6`, 2026-11-15)
+### Current: re-run after the training-row fix (`edf64987`, 2026-11-16)
+
+`edf64987` stopped training on weeks with no last known value
+([`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md), "Training rows need a last known
+value"), which changes the forecasts and so their errors. The band was
+re-calibrated with the protocol above, unchanged. Hyak job 43283813 ran the
+all-years retrospective at `edf64987`: 3,510 forecasts, whose 635 validation and
+409 holdout rows equal the committed headline predictions exactly.
+
+| Error window | Mondrian | 80% coverage | Interval score (log1p) |
+|---|---|---:|---:|
+| 250 | no | 0.813 | 3.551 |
+| **250** | **yes** | **0.819** | **3.516** |
+| 500 | no | 0.828 | 3.535 |
+| 500 | yes | 0.809 | 3.569 |
+| all | no | 0.746 | 3.782 |
+| all | yes | 0.748 | 3.618 |
+
+Four variants are within 0.03 of 0.80; the rule again picks the lowest interval
+score, the most recent 250 errors with Mondrian calibration. The alert threshold
+is P(DA >= 20) >= 0.088 (14.6% of validation quiet weeks; hybrid alert 14.8%).
+
+| Nominal | Validation (N = 635) | Holdout (N = 409) |
+|---:|---:|---:|
+| 50% | 0.529 | 0.513 |
+| **80%** | **0.819** | **0.807** |
+| 90% | 0.904 | 0.919 |
+| Median width of the 80% band | 10.8 µg/g | 15.6 µg/g |
+
+Holdout coverage by predicted category: 0.756 below 5 (N = 160), 0.854 from 5 to
+20 (N = 178), 0.803 from 20 up (N = 71). By site it is still uneven: 0.425 at
+Gold Beach and 0.46 at Newport, 0.81–0.97 at the other sites with more than two
+rows. At onsets the band contains the measurement 11 times in 27 (0.41).
+
+**One-model test: the classifier stays.** On the holdout the band's
+P(DA >= 20) >= 0.088 catches 16 of 27 onsets at 24.7% quiet alarms (hybrid
+alert: 19 at 30.5%); onset AUC 0.685 vs 0.773, difference −0.088 [−0.201,
++0.021]. The CI's lower bound is below −0.05 and the band catches 16 where 18
+were required, so two of the three conditions fail again.
+
+### Random forest (`1c9206c6`, 2026-11-15)
+
 
 The served model became one random forest at every beach
 ([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md) §3c), so the band was
@@ -206,7 +247,8 @@ The dashboard shows this band with every forecast (`backend/band.py`):
   `band_predictions.parquet`: the same errors and P(DA >= 20), and edges equal to within
   1e-12 (`expm1`/`log1p` differ in the last bits across platforms).
 - **Variant:** read from `band_eval.json` (`selection.chosen`): since `1c9206c6` the most
-  recent 250 errors with Mondrian calibration, 80% (first run: 500 errors, no Mondrian).
+  recent 250 errors with Mondrian calibration, 80%, chosen again at `edf64987` (first run:
+  500 errors, no Mondrian).
   `backend/band.py` keeps one error history per predicted category and selects errors
   exactly as `past_residual_bands` does: same-category errors known by the anchor if
   there are at least 30, else all errors, then the most recent 250. It lives in

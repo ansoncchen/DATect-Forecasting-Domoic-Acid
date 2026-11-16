@@ -1,4 +1,4 @@
-"""The one ensemble blend and its default weights."""
+"""The one blend and its default weights (the random forest alone)."""
 
 import numpy as np
 
@@ -44,27 +44,39 @@ def test_blend_is_elementwise_on_arrays():
     assert (blend(x, r, n, w) == w[0] * x + w[1] * r + w[2] * n).all()
 
 
-def test_equal_weights_when_per_site_models_are_off(monkeypatch, fresh_import):
-    monkeypatch.setenv("DATECT_USE_PER_SITE_MODELS", "false")
+def test_the_random_forest_alone_is_the_default(monkeypatch, fresh_import):
+    """One configuration at every beach (docs/FORECAST_EXPERIMENTS.md §3c); the retired
+    per-site weights come back only when switched on."""
+    monkeypatch.delenv("DATECT_USE_PER_SITE_MODELS", raising=False)
+    fresh_import(lambda m: m == "config" or m == "forecasting.per_site_models")
+    import config
+    from forecasting.per_site_models import get_site_ensemble_weights
+
+    assert config.USE_PER_SITE_MODELS is False
+    assert {get_site_ensemble_weights(s) for s in SITE_SPECIFIC_CONFIGS} == {(0.0, 1.0, 0.0)}
+
+
+def test_per_site_weights_only_when_switched_on(monkeypatch, fresh_import):
+    monkeypatch.setenv("DATECT_USE_PER_SITE_MODELS", "true")
     fresh_import(lambda m: m == "config" or m == "forecasting.per_site_models")
     from forecasting.per_site_models import get_site_ensemble_weights
 
-    assert get_site_ensemble_weights("Newport") == (0.5, 0.5, 0.0)
+    assert get_site_ensemble_weights("Newport") == SITE_SPECIFIC_CONFIGS["Newport"]["ensemble_weights"]
 
 
-def test_unknown_site_gets_equal_weights(monkeypatch):
+def test_unknown_site_gets_the_shared_weights(monkeypatch):
     import forecasting.per_site_models as per_site_models
 
     monkeypatch.setattr(per_site_models.config, "USE_PER_SITE_MODELS", True)
     assert "Nowhere Beach" not in SITE_SPECIFIC_CONFIGS
-    assert per_site_models.get_site_ensemble_weights("Nowhere Beach") == per_site_models.EQUAL_WEIGHTS
-    assert per_site_models.EQUAL_WEIGHTS == (0.5, 0.5, 0.0)
+    assert per_site_models.get_site_ensemble_weights("Nowhere Beach") == per_site_models.SHARED_WEIGHTS
+    assert per_site_models.SHARED_WEIGHTS == (0.0, 1.0, 0.0)
 
 
-def test_per_site_off_retrospective_blend_unchanged(monkeypatch):
+def test_shared_blend_is_the_random_forest(monkeypatch):
     """With per-site models off, the retrospective's per-row blend (iterrows over the
-    results frame) equals the vectorized expression the old per-site-off branch used,
-    bit for bit, including a row whose RF prediction is NaN."""
+    results frame) is the random forest's prediction, including a row whose RF prediction
+    is NaN."""
     import pandas as pd
 
     import forecasting.per_site_models as per_site_models
@@ -75,17 +87,12 @@ def test_per_site_off_retrospective_blend_unchanged(monkeypatch):
     # What the engine's per-point results hold: a string site, Python-float predictions
     results = [{"site": sites[i % len(sites)], "predicted_da": float(x),
                 "predicted_da_rf": float(r), "naive_prediction": float(n)}
-               for i, (x, r, n) in enumerate(rng.uniform(-5, 80, (500, 3)))]
+               for i, (x, r, n) in enumerate(rng.uniform(0, 80, (500, 3)))]
     results[7]["predicted_da_rf"] = float("nan")
     df = pd.DataFrame(results)
 
-    # The engine's retrospective blend
-    new = [per_site_models.blend(row["predicted_da"], row["predicted_da_rf"], row["naive_prediction"],
-                                 per_site_models.get_site_ensemble_weights(row["site"]))
-           for _, row in df.iterrows()]
-    # The old per-site-off branch
-    w_xgb, w_rf, w_naive = 0.50, 0.50, 0.00
-    old = w_xgb * df.predicted_da + w_rf * df.predicted_da_rf + w_naive * df.naive_prediction
-
-    assert np.isnan(new[7]) and np.isnan(old[7])
-    assert (_bits(new) == _bits(old.to_numpy())).all()
+    blended = np.array([per_site_models.blend(row["predicted_da"], row["predicted_da_rf"], row["naive_prediction"],
+                                              per_site_models.get_site_ensemble_weights(row["site"]))
+                        for _, row in df.iterrows()])
+    assert np.isnan(blended[7])
+    assert np.array_equal(blended, df["predicted_da_rf"].to_numpy(), equal_nan=True)

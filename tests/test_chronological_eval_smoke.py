@@ -54,33 +54,21 @@ def test_chronological_metrics_match_paper():
     ov = data["overall"]
     assert ov["n"] == 409
     assert ov["n_spikes"] == 84
-    assert ov["r2"][0] == pytest.approx(0.5162, abs=5e-4)
-    assert ov["mae"][0] == pytest.approx(7.441, abs=5e-3)
+    assert ov["r2"][0] == pytest.approx(0.4734, abs=5e-4)
+    assert ov["mae"][0] == pytest.approx(7.337, abs=5e-3)
     assert ov["spike_recall"] == pytest.approx(0.8452, abs=5e-4)
-    assert ov["spike_f2"] == pytest.approx(0.7365, abs=5e-4)
+    assert ov["spike_f2"] == pytest.approx(0.7290, abs=5e-4)
 
 
 @pytest.mark.skipif(
     not all(p.exists() for p in HOLDOUT_PARQUETS),
     reason="Chronological eval artifacts not present",
 )
-def test_chronological_eval_uses_grid_winner_config():
-    """Holdout predictions must reflect each site's grid-winner ensemble weights.
-
-    The parquet stores the blended prediction and the RF component, so RF-only
-    sites must match the RF prediction exactly and XGB-only sites must not.
-    """
-    import numpy as np
-    from forecasting.per_site_models import SITE_SPECIFIC_CONFIGS
-
-    df = pd.read_parquet(HOLDOUT_PARQUETS[0])
-    for site, cfg in SITE_SPECIFIC_CONFIGS.items():
-        w_xgb, w_rf, _ = cfg["ensemble_weights"]
-        sub = df[df["site"] == site]
-        if sub.empty:
-            continue
-        matches_rf = np.isclose(sub["predicted_da"], sub["predicted_da_rf"]).mean()
-        if (w_xgb, w_rf) == (0.0, 1.0):
-            assert matches_rf == 1.0, f"{site} is RF-only but ensemble != RF prediction"
-        elif (w_xgb, w_rf) == (1.0, 0.0):
-            assert matches_rf < 0.5, f"{site} is XGB-only but ensemble tracks the RF prediction"
+def test_chronological_eval_serves_the_random_forest():
+    """The reported forecast is the random forest alone at every beach
+    (docs/FORECAST_EXPERIMENTS.md §3c): the stored blend equals its RF component exactly."""
+    for path in HOLDOUT_PARQUETS:
+        df = pd.read_parquet(path)
+        assert df["site"].nunique() >= 9
+        assert (df["ensemble_prediction"] == df["predicted_da_rf"]).all(), path.name
+        assert (df["predicted_da"] == df["predicted_da_rf"]).all(), path.name

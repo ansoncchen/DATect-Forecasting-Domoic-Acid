@@ -275,7 +275,7 @@ export function PartsTile({ forecast }) {
   if (!error && parts) {
     const [wx, wr, wn] = parts.weights
     const rows = [
-      ['Ensemble', value, null],
+      ['Forecast', value, null],
       ['XGBoost', parts.xgb, wx],
       ['Random Forest', parts.rf, wr],
       ['Last value carried forward', parts.naive, wn],
@@ -305,17 +305,11 @@ export function PartsTile({ forecast }) {
 
 export function DriversTile({ forecast }) {
   if (!forecast) return null
-  const { drivers, error, parts } = forecast
+  const { drivers, error } = forecast
   const top = [...drivers].sort((a, b) => b.importance - a.importance).slice(0, TOP_DRIVERS)
   let body = NO_FORECAST
   let foot = null
-  if (!error && parts?.weights[0] === 0) {
-    body = (
-      <span className="text-sm text-gray-500">
-        This site&apos;s forecast comes from the Random Forest, which reports no importances here.
-      </span>
-    )
-  } else if (!error && top.length) {
+  if (!error && top.length) {
     body = (
       <ol className="text-xs space-y-0.5 list-decimal list-inside text-gray-700">
         {top.map((d) => (
@@ -328,7 +322,7 @@ export function DriversTile({ forecast }) {
     body = <span className="text-sm text-gray-500">Not available for this forecast</span>
   }
   return (
-    <Tile title="XGBoost's feature importances" foot={foot}>
+    <Tile title="What the model leaned on" foot={foot}>
       {body}
     </Tile>
   )

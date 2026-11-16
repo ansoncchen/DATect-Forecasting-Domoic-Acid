@@ -244,7 +244,7 @@ weights (nothing is clipped since #18), scored on yearly folds 2015–2021 (job
 | Wall time, 16 cores | 815 s, against 7,362 s of task time (9.0×) |
 | MLflow runs | 1,990 forecast runs + 50 (site, weight) scoring runs |
 | Parity | The current weights applied to its raw predictions equal the committed chronological predictions exactly (max abs diff 0.0 on 635 + 409 rows; the other 946 points have no committed reference) |
-| Holdout 2022–2023 | Current weights R² 0.516 (the headline), MAE 7.44; proposed R² 0.507, MAE 7.39 |
+| Holdout 2022–2023 | Current weights R² 0.516 (the headline then; the per-site configuration is since retired), MAE 7.44; proposed R² 0.507, MAE 7.39 |
 
 Nothing was adopted: the proposal (`results/tuning_provenance/retune_weights/`)
 does worse on the holdout R². The old tuning stack is removed: the clip grid search,

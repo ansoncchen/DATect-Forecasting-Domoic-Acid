@@ -116,19 +116,22 @@ def apply_site_rf_params(base_params: dict, site: str) -> dict:
     return {**base_params, **site_cfg['rf_params']}
 
 
-EQUAL_WEIGHTS: tuple[float, float, float] = (0.5, 0.5, 0.0)
+# The served forecast at every beach: the random forest alone. Chosen over XGBoost alone in
+# a declared comparison on 2019-2021 (docs/FORECAST_EXPERIMENTS.md §3c).
+SHARED_WEIGHTS: tuple[float, float, float] = (0.0, 1.0, 0.0)
 
 
 def get_site_ensemble_weights(site: str) -> tuple[float, float, float]:
     """Return (xgb_weight, rf_weight, naive_weight) for this site.
 
-    Equal XGB/RF weights, no naive term, when per-site models are off or the
-    site has no tuned weights.  Naive persistence is an external baseline.
+    ``SHARED_WEIGHTS`` (the random forest alone) at every site, unless the retired
+    per-site configuration is switched on (``DATECT_USE_PER_SITE_MODELS=true``) and the
+    site has tuned weights. Naive persistence is an external baseline.
     """
     if not config.USE_PER_SITE_MODELS:
-        return EQUAL_WEIGHTS
+        return SHARED_WEIGHTS
     weights = get_site_config(site)['ensemble_weights']
-    return weights if weights is not None else EQUAL_WEIGHTS
+    return weights if weights is not None else SHARED_WEIGHTS
 
 
 def blend(xgb: float, rf: float | None, naive: float,

@@ -20,6 +20,22 @@ describe('featureLabel', () => {
     expect(featureLabel('oad_valid_frac')).toBe('Satellite coverage (this site’s region)')
     expect(featureLabel('oad_score_bogus')).toBe('oad_score_bogus')
   })
+  it('names every feature a forecast reports (Copalis, 2023-06-12)', () => {
+    const reported = ['oni', 'pdo', 'discharge', 'pn', 'beuti', 'modis-flr', 'modis-sst', 'sst-anom',
+      'oad_score', 'oad_score_lag1week', 'oad_score_lag2week', 'oad_score_30day_mean', 'oad_score_30day_max',
+      'oad_score_30day_trend', 'oad_score_zscore_doy', 'oad_overall_score', 'oad_overall_score_lag1week',
+      'oad_overall_score_lag2week', 'oad_overall_score_30day_mean', 'oad_overall_score_30day_max',
+      'oad_overall_score_30day_trend', 'oad_overall_score_zscore_doy', 'oad_valid_frac', 'oad_overall_valid_frac',
+      'sin_day_of_year', 'cos_day_of_year', 'month', 'pn_log', 'last_observed_da_raw', 'weeks_since_last_spike',
+      'raw_obs_roll_mean_4', 'raw_obs_roll_std_4', 'raw_obs_roll_max_4', 'raw_obs_roll_std_8', 'raw_obs_roll_max_8',
+      'raw_obs_roll_std_12', 'raw_obs_roll_max_12', 'da_raw_prev_obs_1', 'da_raw_prev_obs_2',
+      'da_raw_prev_obs_2_weeks_ago', 'da_raw_prev_obs_3', 'da_raw_prev_obs_3_weeks_ago', 'da_raw_prev_obs_4',
+      'da_raw_prev_obs_diff_1_2']
+    for (const n of reported) expect(featureLabel(n), n).not.toBe(n)
+    expect(featureLabel('raw_obs_roll_max_4')).toBe('Highest measured DA, last 4 weeks')
+    expect(featureLabel('raw_obs_roll_std_12')).toBe('Swings in measured DA, last 12 weeks')
+    expect(featureLabel('da_raw_prev_obs_3_weeks_ago')).toBe('Weeks since measurement 3 back')
+  })
   it('covers the other engine and parquet features', () => {
     for (const n of ['da_raw_prev_obs_1', 'month', 'weeks_since_last_spike', 'pdo', 'oni', 'discharge', 'pn', 'beuti', 'chla-anom', 'modis-chla', 'modis-flr', 'modis-k490', 'modis-par', 'sst-anom']) {
       expect(featureLabel(n), n).not.toBe(n)

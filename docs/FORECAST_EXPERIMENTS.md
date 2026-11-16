@@ -611,6 +611,97 @@ R² 0.364 / 0.437 / 0.378. Sources: `results/experiments/pooled_ablation_val_F1_
   and the holdout under the §3b rule.
 
 
+## 3c. One algorithm at every beach: declared comparison (2026-11-15)
+
+**Question.** The level forecast picks a model per beach: XGBoost alone at six, random
+forest alone at three, 25/75 at Twin Harbors, plus per-beach feature lists and
+hyperparameters. Those picks came from the removed weight × clip grid search, chosen
+jointly with a clip that no longer exists. Replace them with **one algorithm and one
+configuration at every beach**. **This subsection was written and committed before the run
+it describes.**
+
+**Candidates.** Both use `DATECT_USE_PER_SITE_MODELS=false`: all features, the shared
+hyperparameters in `config.py` and the tuned JSON's global entries, no per-beach feature
+lists, no clip. Training rows, the spike classifier and the conformal band are unchanged.
+- **X:** XGBoost alone at every beach.
+- **R:** random forest alone at every beach.
+
+Reported next to them, not candidates: the 50/50 average of the two (what
+`DATECT_USE_PER_SITE_MODELS=false` serves today), and the committed per-beach configuration
+(`results/chronological/`).
+
+**Run.** One `chronological_eval.py --window 2003-01-01:2024-01-01` on Hyak at `main`
+(`fa8160d2`) with `DATECT_USE_PER_SITE_MODELS=false`. It stores the random forest's forecast
+and the 50/50 average for every real measurement. XGBoost's forecast is recovered as
+2 × average − random forest; the blend is `0.5·x + 0.5·r`, so this is exact to float
+rounding. Each candidate's regression alert (forecast ≥ 12) uses its own forecast; the
+classifier part is shared.
+
+**Rule (validation 2019–2021 only).**
+1. **R² on every real measurement.** A paired bootstrap (2,000 resamples of the same rows)
+   gives ΔR² = X − R. If its 95% interval excludes zero, the higher R² wins.
+2. **If it includes zero (a tie),** the lower validation MAE wins.
+3. **Reported, not used to pick:**
+   - 2015–2018 R² and MAE;
+   - the hybrid alert's onsets caught and quiet weeks alarmed with each candidate's
+     regression part;
+   - per-site R².
+
+**Holdout.** 2022–2023 is read once, after the pick is committed, and reported for every
+row; it does not change the pick. Adopting the pick as the served model is a separate
+decision.
+
+**Already seen before this declaration** (so not evidence for either candidate):
+- An older per-site-off run in `results/chronological_no_per_site/` (50/50 average):
+  validation R² 0.344, holdout 0.419. Today's engine does not reproduce it exactly
+  (1 of 6 points re-run on a laptop matched), so it is not reused.
+- The random forest's forecasts *with* the per-beach feature lists and hyperparameters,
+  from the committed all-years run.
+
+**Validation result and pick** (Hyak job 43274247 at `fa8160d2`, 19.6 min; outputs in
+`results/one_algorithm/`; scored by `scripts/eval/one_algorithm_compare.py ... validation`).
+Committed before the holdout was read.
+
+| | 2015–2018 R² / MAE | 2019–2021 R² / MAE | 2019–2021 alert: onsets caught, quiet weeks alarmed |
+|---|---|---|---|
+| X: XGBoost alone | 0.074 / 14.14 | 0.250 / 6.98 | 27 of 34, 72 of 486 |
+| **R: random forest alone** | **0.275 / 13.37** | **0.409 / 6.57** | 27 of 34, 74 of 486 |
+| 50/50 average (ref) | 0.202 / 13.54 | 0.344 / 6.72 | 27 of 34, 71 of 486 |
+| Per-beach picks, committed (ref) | 0.314 / 12.86 | 0.423 / 6.55 | 27 of 34, 73 of 486 |
+
+- **ΔR² X − R on 2019–2021: −0.160 [−0.405, −0.029].** The interval excludes zero, so
+  **the rule picks R, the random forest alone.** 2015–2018 agrees: −0.201 [−0.380, −0.064].
+- **XGBoost's loss is concentrated at Gold Beach and Newport** (per-site R² −0.47 vs 0.04
+  and −0.75 vs −0.42). Elsewhere the two are within about 0.05 of each other.
+- **Alert:** onset detection is the same for every row (27 of 34). The classifier carries
+  it, and the regression part changes at most 3 quiet-week alarms.
+- **Shared random forest vs per-beach picks:** validation R² 0.409 vs 0.423 and MAE 6.57 vs
+  6.55. The per-beach picks were tuned on this window, so the gap overstates them.
+- **The 50/50 average reproduces the older per-site-off run's validation R² (0.344).** The
+  1-of-6 laptop mismatch was the platform, not the engine.
+
+**Holdout 2022–2023, read once after the pick** (`one_algorithm_compare.py ... holdout`):
+
+| | R² [95% CI] | MAE | Onsets caught (of 27) | Quiet weeks alarmed (of 292) |
+|---|---|---|---|---|
+| X: XGBoost alone | 0.342 | 8.02 | 19 | 88 |
+| **R: random forest alone (pick)** | **0.473 [0.190, 0.642]** | **7.34** | **20** | 89 |
+| 50/50 average (ref) | 0.419 | 7.61 | 19 | 89 |
+| Per-beach picks, committed (ref) | 0.516 [0.308, 0.654] | 7.44 | 19 | 87 |
+
+- **The pick holds on the holdout:** ΔR² X − R = −0.132 [−0.292, −0.024].
+- **Shared random forest vs per-beach picks:** ΔR² −0.043 [−0.154, +0.030] on the holdout
+  (−0.014 [−0.095, +0.042] on validation), so a tie. The random forest has the lower MAE
+  (7.34 vs 7.44) and catches one more onset.
+- **Not adopted here.** Serving it changes the headline, the error band's input run and the
+  store. That is a separate change with its own before/after.
+- **Adopted afterwards in `1c9206c6`**, with that before/after: its golden re-run reproduces
+  the R column exactly (635, 409 and 3,510 rows). The all-years runs show a cost this
+  comparison did not look at: before 2015 the forest over-forecasts quiet weeks at Copalis,
+  Clatsop Beach and Long Beach, so the all-years 5-seed R² falls 0.448 → 0.407
+  ([`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md), "One random forest at every beach").
+
+
 ## 4. Shortlist and one-time holdout check
 
 **Shortlist, fixed from validation (with the 2015–2018 window as a consistency check)

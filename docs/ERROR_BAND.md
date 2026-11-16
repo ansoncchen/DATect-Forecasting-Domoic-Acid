@@ -79,6 +79,48 @@ numbers were not computed before this commit.
 
 ## Results
 
+### Current: re-run for the random forest (`1c9206c6`, 2026-11-15)
+
+The served model became one random forest at every beach
+([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md) §3c), so the band was
+re-calibrated on its errors with the protocol above, unchanged. Hyak job 43275774
+ran the all-years retrospective at `1c9206c6`: 3,510 forecasts, whose 635
+validation and 409 holdout rows equal the committed headline predictions exactly.
+
+| Error window | Mondrian | 80% coverage | Interval score (log1p) |
+|---|---|---:|---:|
+| 250 | no | 0.817 | 3.545 |
+| **250** | **yes** | **0.811** | **3.521** |
+| 500 | no | 0.831 | 3.523 |
+| 500 | yes | 0.803 | 3.533 |
+| all | no | 0.775 | 3.585 |
+| all | yes | 0.754 | 3.612 |
+
+Four variants are within 0.03 of 0.80 and their interval scores differ by at most
+0.024; the rule picks the lowest, the most recent 250 errors with Mondrian
+calibration. The alert threshold is P(DA >= 20) >= 0.092 (14.4% of validation
+quiet weeks; hybrid alert 15.2%).
+
+| Nominal | Validation (N = 635) | Holdout (N = 409) |
+|---:|---:|---:|
+| 50% | 0.532 | 0.521 |
+| **80%** | **0.811** | **0.812** |
+| 90% | 0.907 | 0.917 |
+| Median width of the 80% band | 11.5 µg/g | 15.7 µg/g |
+
+Holdout coverage by predicted category: 0.770 below 5 (N = 161), 0.858 from 5 to
+20 (N = 176), 0.792 from 20 up (N = 72). By site it is still uneven: 0.45 at
+Gold Beach and 0.48 at Newport, 0.79–0.97 at the other sites with more than two
+rows. At onsets the band contains the measurement 11 times in 27 (0.41).
+
+**One-model test: the classifier stays.** On the holdout the band's
+P(DA >= 20) >= 0.092 catches 17 of 27 onsets at 25.7% quiet alarms (hybrid
+alert: 20 at 30.5%); onset AUC 0.706 vs 0.773, difference −0.068 [−0.179,
++0.036]. The CI's lower bound is below −0.05 and the band catches 17 where 19
+were required, so two of the three conditions fail again.
+
+### First run (`595ab4a4`, per-site configuration)
+
 Hyak job 42762246 ran the all-years retrospective at `595ab4a4` in 15 minutes
 on 16 cores: 3,510 forecasts from 2005-10-17 to 2023-11-30 (earlier site-weeks
 lack the training data). Its 635 validation and 409 holdout rows equal the
@@ -91,7 +133,7 @@ Source: `results/conformal_band/band_eval.json` (all numbers below) and
 `band_predictions.parquet` (every row with its band and P(DA >= 20)); input
 `results/chronological/chronological_regression_ensemble_20030101_20240101.parquet`.
 
-### Chosen on validation
+#### Chosen on validation
 
 | Error window | Mondrian | 80% coverage | Interval score (log1p) |
 |---|---|---:|---:|
@@ -108,7 +150,7 @@ Mondrian has the lowest interval score. Using every past error under-covers
 different model. The alert threshold is P(DA >= 20) >= 0.084, which alarms
 14.8% of validation quiet weeks (hybrid alert: 15.0%).
 
-### Coverage
+#### Coverage
 
 | Nominal | Validation (N = 635) | Holdout (N = 409) |
 |---|---:|---:|
@@ -133,7 +175,7 @@ from 5 to 20 (N = 175) and 0.779 from 20 up (N = 68).
   anticipate, so the measurement usually lies above the band. Warning of
   onsets is the spike alert's job, not the band's.
 
-### One-model test: the classifier stays
+#### One-model test: the classifier stays
 
 | Holdout (27 onsets, 292 quiet weeks) | Band P(DA >= 20) >= 0.084 | Hybrid alert |
 |---|---:|---:|
@@ -160,11 +202,17 @@ The dashboard shows this band with every forecast (`backend/band.py`):
 - **Error history:** `results/chronological/chronological_regression_ensemble_20030101_20240101.parquet`,
   the all-years run above. A forecast anchored at *t* is calibrated by the rows of that
   run measured on or before *t*, exactly as `past_residual_bands` selects them;
-  `tests/test_band_service.py` checks 50 sampled forecasts against
+  `tests/test_band_service.py` checks every banded forecast (3,480) against
   `band_predictions.parquet`: the same errors and P(DA >= 20), and edges equal to within
   1e-12 (`expm1`/`log1p` differ in the last bits across platforms).
-- **Variant:** read from `band_eval.json` (`selection.chosen`): the most recent 500 errors,
-  no Mondrian, 80%. A forecast with fewer than 30 earlier errors (before about 2006) gets no band.
+- **Variant:** read from `band_eval.json` (`selection.chosen`): since `1c9206c6` the most
+  recent 250 errors with Mondrian calibration, 80% (first run: 500 errors, no Mondrian).
+  `backend/band.py` keeps one error history per predicted category and selects errors
+  exactly as `past_residual_bands` does: same-category errors known by the anchor if
+  there are at least 30, else all errors, then the most recent 250. It lives in
+  `backend/` rather than `forecasting/` because the band is computed per request, not
+  stored, and `forecasting/` is part of the precomputed store's config hash. A forecast
+  with fewer than 30 earlier errors (before about 2006) gets no band.
 - **Category chances** (`forecasting.conformal.category_probabilities`) spread the same
   errors over [0,5) [5,20) [20,40) [40,inf); they are the line's, not the alert's.
 - **Keep it current:** the history holds the engine's own forecasts, so it must be

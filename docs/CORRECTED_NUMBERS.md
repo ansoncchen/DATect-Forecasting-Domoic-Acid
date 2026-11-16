@@ -5,13 +5,16 @@ README, CLAUDE.md and the dashboard (`GET /api/metrics/summary`) quote this page
 when a re-run changes a number, change it here first. The paper's tables still
 predate the leakage fixes and are updated from this page in one pass.
 
-Every number below comes from commit `93518c7d` (forecasts no longer clipped,
-forecast-row lags built like training rows; see "Clip removal and forecast-row
-lags" below). Hyak golden job 42671543 (`scripts/eval/golden_baseline.sbatch`)
-produced the headline, 5-seed, paper-sample and spike numbers; jobs 42671544
-(ablation), 42671548 (per-site configuration off), 42674365 and 42674366 (feature
-groups, perturbations) and 42671547 (classifier importance) the rest. Every
-model is seeded with `MODEL_SEED = 42`.
+Every number below comes from commit `1c9206c6` (one random forest with shared
+settings at every beach; see "One random forest at every beach" below) unless its
+section names another commit. Hyak golden job 43275770
+(`scripts/eval/golden_baseline.sbatch`) produced the headline, 5-seed, paper-sample
+and spike numbers, and job 43275774 the all-years run behind the error band. The
+component ablation, the per-site configuration check, the feature-group and
+perturbation studies still describe the retired per-site configuration at
+`93518c7d` (jobs 42671544, 42671548, 42674365, 42674366); the spike classifier did
+not change, so its importance (job 42671547) still holds. Every model is seeded
+with `MODEL_SEED = 42`.
 
 ## Headline: deterministic chronological evaluation
 
@@ -22,15 +25,15 @@ bootstrap. Spike = actual DA ≥ 20 µg/g; the regression alert fires at a predi
 
 | Window | N | Spikes | R² [95% CI] | MAE µg/g [95% CI] | RMSE | Spike recall | Precision | F2 |
 |---|---:|---:|---|---|---:|---:|---:|---:|
-| **Holdout 2022–2023** | **409** | 84 | **0.516 [0.308, 0.654]** | **7.44 [6.20, 8.87]** | 15.56 | **0.845** | 0.486 | **0.737** |
-| Validation 2019–2021 | 635 | 114 | 0.423 [0.216, 0.626] | 6.55 [5.51, 7.69] | 15.50 | 0.816 | 0.554 | 0.745 |
+| **Holdout 2022–2023** | **409** | 84 | **0.473 [0.200, 0.644]** | **7.34 [5.99, 8.85]** | 16.23 | **0.845** | 0.470 | **0.729** |
+| Validation 2019–2021 | 635 | 114 | 0.409 [0.186, 0.611] | 6.57 [5.53, 7.72] | 15.69 | 0.842 | 0.545 | 0.759 |
 
 Naive persistence on the same rows: R² 0.225 (holdout) and 0.213 (validation).
 
 **Read the pooled R² with two caveats.** It is carried by a few large values: on
-the holdout, Coos Bay alone scores 0.798 and the other sites together 0.233
-(validation: 0.329 and 0.425). On a log scale (R² of `log1p` values), which weighs
-every row, the holdout scores 0.370 [0.234, 0.494] and validation 0.343 [0.231, 0.443].
+the holdout, Coos Bay alone scores 0.796 and the other sites together 0.153
+(validation: 0.278 and 0.412). On a log scale (R² of `log1p` values), which weighs
+every row, the holdout scores 0.413 [0.256, 0.558] and validation 0.387 [0.264, 0.500].
 
 Source: `results/chronological/chronological_regression_ensemble_{20220101_20240101,20190101_20220101}.{json,parquet}`.
 `tests/test_chronological_eval_smoke.py` pins the holdout row.
@@ -41,21 +44,22 @@ An **onset** is a test point whose last value known at the anchor was below 20 a
 whose measurement reached 20; the other below-20 points are **quiet weeks**. Points
 already at or above 20 are left out, because carrying the last value forward
 catches those for free. The **hybrid alert** (`spike_alert`) is the pooled spike
-classifier's probability ≥ 0.10 OR the ensemble forecast ≥ 12. AUC ranks onsets
+classifier's probability ≥ 0.10 OR the forecast ≥ 12. AUC ranks onsets
 against quiet weeks (`forecasting.metrics.onset_scores`; the chronological JSON's
 `overall.onset` block).
 
-| Window | Onsets / quiet weeks | Hybrid alert: onsets caught, quiet weeks alarmed | Classifier AUC | Regression ≥ 12: caught, alarmed | Ensemble AUC | Last-value AUC |
+| Window | Onsets / quiet weeks | Hybrid alert: onsets caught, quiet weeks alarmed | Classifier AUC | Forecast ≥ 12: caught, alarmed | Forecast AUC | Last-value AUC |
 |---|---|---|---:|---|---:|---:|
-| Holdout 2022–2023 | 27 / 292 | **19 (0.70)**, 29.8% | **0.773** | 14, 14.4% | 0.744 | 0.550 |
-| Validation 2019–2021 | 34 / 486 | **27 (0.79)**, 15.0% | **0.874** | 15, 8.2% | 0.752 | 0.651 |
+| Holdout 2022–2023 | 27 / 292 | **20 (0.74)**, 30.5% | **0.773** | 14, 16.4% | 0.724 | 0.550 |
+| Validation 2019–2021 | 34 / 486 | **27 (0.79)**, 15.2% | **0.874** | 20, 9.3% | 0.749 | 0.651 |
 
-The hybrid alert's recall, precision and F2 over all spikes are 0.905 / 0.388 /
-0.714 on the holdout and 0.939 / 0.498 / 0.797 on validation. For scale: alerting
+The hybrid alert's recall, precision and F2 over all spikes are 0.917 / 0.387 /
+0.720 on the holdout and 0.939 / 0.495 / 0.796 on validation. For scale: alerting
 on the highest last known values, with as many below-20 alerts as the hybrid
 raises, catches 14 of the 27 holdout onsets and 20 of the 34 validation onsets.
-The classifier's lead over that rule (5 and 7 onsets) is what the model adds for
-early warning; the regression alert alone (≥ 12) catches about half the onsets.
+The hybrid alert's lead over that rule (6 and 7 onsets) is what the models add for
+early warning; the forecast alone (≥ 12) catches about half the onsets (14 of 27,
+20 of 34).
 
 **The classifier's score is not a calibrated chance.** It ranks weeks, but its
 value does not say how often a jump follows: on the holdout, scores of 0.35–0.60
@@ -79,41 +83,44 @@ Bins are left-closed. The rows sum to the onsets and quiet weeks above (27 of 31
 
 | Site | State | N | Spikes | R² [95% CI] | MAE | log R² |
 |---|---|---:|---:|---|---:|---:|
-| Coos Bay | OR | 35 | 14 | 0.798 [0.639, 0.938] | 10.85 | 0.868 |
-| Kalaloch | WA | 35 | 1 | 0.667 [0.413, 0.808] | 1.87 | 0.651 |
-| Quinault | WA | 55 | 9 | 0.642 [0.355, 0.824] | 3.08 | 0.592 |
-| Twin Harbors | WA | 42 | 8 | 0.630 [0.332, 0.793] | 3.80 | 0.509 |
-| Copalis | WA | 60 | 6 | 0.587 [0.334, 0.759] | 3.41 | 0.697 |
-| Clatsop Beach | OR | 48 | 16 | 0.538 [0.351, 0.652] | 6.17 | 0.678 |
-| Long Beach | WA | 44 | 8 | 0.503 [0.131, 0.836] | 4.09 | 0.585 |
-| Newport | OR | 48 | 16 | 0.129 [−0.348, 0.410] | 22.12 | −0.132 |
-| Gold Beach | OR | 40 | 6 | −0.208 [−2.815, 0.202] | 13.15 | −0.701 |
+| Coos Bay | OR | 35 | 14 | 0.796 [0.628, 0.915] | 11.25 | 0.855 |
+| Copalis | WA | 60 | 6 | 0.682 [0.480, 0.819] | 2.88 | 0.769 |
+| Kalaloch | WA | 35 | 1 | 0.666 [0.408, 0.810] | 1.86 | 0.647 |
+| Quinault | WA | 55 | 9 | 0.666 [0.383, 0.841] | 3.03 | 0.639 |
+| Twin Harbors | WA | 42 | 8 | 0.609 [0.324, 0.775] | 3.93 | 0.540 |
+| Long Beach | WA | 44 | 8 | 0.552 [0.207, 0.861] | 3.76 | 0.661 |
+| Clatsop Beach | OR | 48 | 16 | 0.537 [0.357, 0.693] | 5.87 | 0.685 |
+| Newport | OR | 48 | 16 | 0.041 [−0.722, 0.425] | 22.16 | −0.075 |
+| Gold Beach | OR | 40 | 6 | −0.449 [−4.735, 0.196] | 13.17 | −0.535 |
 | Cannon Beach | OR | 2 | — | too few measurements in the window | — | — |
 
 8 of the 9 evaluable sites have positive R². All five Washington sites score
-0.50–0.67; the two southern Oregon sites score lowest (Newport 0.13, Gold Beach
+0.55–0.68; the two southern Oregon sites score lowest (Newport 0.04, Gold Beach
 below zero), consistent with their near-zero persistence ceilings (below).
 
 ### Error band on the forecast line
 
 An 80% split-conformal band from the model's own past errors (log1p scale,
-pooled across sites, most recent 500 errors known at the anchor; chosen on
-validation). Protocol and full results: `docs/ERROR_BAND.md`.
+pooled across sites; the most recent 250 errors known at the anchor from
+forecasts in the same predicted category, [0,5) [5,20) [20,∞), or from every
+forecast while that category has fewer than 30; chosen on validation). Protocol
+and full results: `docs/ERROR_BAND.md`.
 
 | Window | 50% band | 80% band | 90% band | Median 80% width |
 |---|---:|---:|---:|---:|
-| Holdout 2022–2023 | 0.484 | **0.802** | 0.900 | 15.1 µg/g |
-| Validation 2019–2021 | 0.502 | 0.819 | 0.915 | 10.3 µg/g |
+| Holdout 2022–2023 | 0.521 | **0.812** | 0.917 | 15.7 µg/g |
+| Validation 2019–2021 | 0.532 | 0.811 | 0.907 | 11.5 µg/g |
 
-Calibrated overall and by forecast size, not by site: holdout 80% coverage is
-0.375 at Gold Beach and 0.479 at Newport, 0.85–0.93 elsewhere. The declared
-one-model test kept the spike classifier: on the holdout the band's
-P(DA ≥ 20) catches 16 of 27 onsets at 27.1% quiet alarms (hybrid alert: 19 at
-29.8%), onset AUC 0.747 vs 0.773, difference −0.027 [−0.126, +0.067].
+Calibrated overall and roughly by forecast size (holdout 0.77 below 5, 0.86 from
+5 to 20, 0.79 from 20 up), not by site: holdout 80% coverage is 0.45 at Gold
+Beach and 0.48 at Newport, 0.79–0.97 elsewhere. The declared one-model test kept
+the spike classifier: on the holdout the band's P(DA ≥ 20) catches 17 of 27
+onsets at 25.7% quiet alarms (hybrid alert: 20 at 30.5%), onset AUC 0.706 vs
+0.773, difference −0.068 [−0.179, +0.036].
 
 Source: `results/conformal_band/band_eval.json`, from the all-years run
 `results/chronological/chronological_regression_ensemble_20030101_20240101.parquet`
-(Hyak job 42762246, commit `595ab4a4`; its 2019–2023 rows equal the headline
+(Hyak job 43275774, commit `1c9206c6`; its 2019–2023 rows equal the headline
 predictions exactly).
 
 ## Confirmation: 5-seed bootstrap
@@ -123,13 +130,15 @@ predictions exactly).
 
 | Subset | R² mean ± std (min–max) | MAE | Spike recall | F2 |
 |---|---|---:|---:|---:|
-| All years | 0.448 ± 0.034 (0.416–0.502) | 6.32 ± 0.28 | 0.845 ± 0.019 | 0.754 ± 0.014 |
-| Holdout rows only (N 100–133 per seed) | 0.429 ± 0.121 | | | |
-| Validation rows only (N 171–183 per seed) | 0.578 ± 0.082 | | | |
+| All years | 0.407 ± 0.035 (0.350–0.441) | 6.75 ± 0.26 | 0.867 ± 0.022 | 0.760 ± 0.014 |
+| Holdout rows only (N 100–133 per seed) | 0.322 ± 0.136 | | | |
+| Validation rows only (N 171–183 per seed) | 0.582 ± 0.097 | | | |
 
-Every seed improved over the run before the clip removal (0.381 ± 0.026). The
-holdout subset's seed-to-seed spread (± 0.121) is why a single seed is never
-reported alone; the deterministic evaluation above has no sampling noise.
+The retired per-site configuration scored 0.448 ± 0.034 (MAE 6.32) on the same
+samples; the difference is in the years before 2019 (see "One random forest at
+every beach"). The holdout subset's seed-to-seed spread (± 0.136) is why a
+single seed is never reported alone; the deterministic evaluation above has no
+sampling noise.
 
 ## Paper sample (seed 123, 40%, N = 2,105)
 
@@ -139,44 +148,50 @@ Source: `results/paper_metrics/` (`table1_model_comparison.csv`,
 
 **Table 1: models**
 
-| Model | R² [95% CI] | MAE [95% CI] | RMSE | ΔR² of ensemble vs model [95% CI] |
+| Model | R² [95% CI] | MAE [95% CI] | RMSE | ΔR² of the random forest vs model [95% CI] |
 |---|---|---|---:|---|
-| **Ensemble (XGB + RF)** | **0.464 [0.367, 0.552]** | **6.61 [5.95, 7.31]** | 17.47 | — |
-| XGBoost | 0.408 [0.334, 0.488] | 6.89 [6.20, 7.63] | 18.36 | +0.056 [+0.020, +0.091] |
-| Random Forest | 0.443 [0.344, 0.539] | 7.13 [6.47, 7.84] | 17.81 | +0.021 [−0.022, +0.075] |
-| Ridge | 0.393 [0.289, 0.493] | 6.92 [6.18, 7.62] | 18.59 | +0.071 [+0.027, +0.119] |
-| Naive persistence | 0.166 [−0.128, 0.402] | 6.62 [5.78, 7.54] | 21.78 | +0.297 [+0.099, +0.584] |
+| **Random forest (served)** | **0.447 [0.335, 0.542]** | **7.04 [6.36, 7.74]** | 17.74 | — |
+| XGBoost (same features and settings) | 0.295 [0.075, 0.462] | 6.78 [6.00, 7.60] | 20.03 | +0.152 [+0.050, +0.296] |
+| Ridge | 0.417 [0.291, 0.525] | 6.88 [6.16, 7.56] | 18.21 | +0.030 [−0.027, +0.091] |
+| Naive persistence | 0.166 [−0.128, 0.402] | 6.62 [5.78, 7.54] | 21.78 | +0.281 [+0.111, +0.513] |
 
-The ensemble beats XGBoost alone and Ridge (paired CIs exclude zero) and is
-statistically tied with Random Forest. Naive persistence matches the ensemble's
-MAE: most measurements are low and stay low, which persistence copies exactly.
+The random forest beats XGBoost on the same features (the paired CI excludes
+zero) and is statistically tied with Ridge. It has the highest MAE of the four:
+most measurements are low and stay low, which persistence copies exactly, and the
+forest over-forecasts low weeks in the early years of this all-years sample (see
+"One random forest at every beach"). The retired per-site configuration scored
+R² 0.464 [0.367, 0.552], MAE 6.61 on the same 2,105 points.
 
 **Table 2: per site**
 
 | Site | N | R² [95% CI] | MAE | 4-category accuracy |
 |---|---:|---|---:|---:|
-| Kalaloch | 222 | 0.816 [0.587, 0.890] | 3.13 | 0.752 |
-| Clatsop Beach | 309 | 0.698 [0.477, 0.835] | 5.43 | 0.735 |
-| Quinault | 196 | 0.681 [0.535, 0.777] | 3.00 | 0.765 |
-| Copalis | 275 | 0.678 [0.535, 0.800] | 3.01 | 0.793 |
-| Twin Harbors | 216 | 0.580 [0.416, 0.851] | 4.96 | 0.773 |
-| Long Beach | 209 | 0.560 [0.389, 0.700] | 3.97 | 0.770 |
-| Coos Bay | 110 | 0.509 [0.353, 0.626] | 22.41 | 0.591 |
-| Newport | 208 | 0.198 [−0.073, 0.392] | 11.21 | 0.438 |
-| Cannon Beach | 118 | 0.183 [−0.947, 0.336] | 2.94 | 0.856 |
-| Gold Beach | 242 | 0.134 [0.024, 0.267] | 12.75 | 0.723 |
+| Kalaloch | 222 | 0.828 [0.578, 0.909] | 2.85 | 0.788 |
+| Clatsop Beach | 309 | 0.681 [0.487, 0.813] | 6.41 | 0.631 |
+| Quinault | 196 | 0.678 [0.505, 0.777] | 2.97 | 0.791 |
+| Long Beach | 209 | 0.578 [0.413, 0.710] | 4.48 | 0.775 |
+| Twin Harbors | 216 | 0.564 [0.392, 0.847] | 5.18 | 0.741 |
+| Coos Bay | 110 | 0.527 [0.341, 0.653] | 22.37 | 0.627 |
+| Copalis | 275 | 0.525 [0.321, 0.673] | 4.62 | 0.433 |
+| Cannon Beach | 118 | 0.188 [−1.919, 0.319] | 3.14 | 0.839 |
+| Gold Beach | 242 | 0.135 [−0.222, 0.355] | 12.80 | 0.756 |
+| Newport | 208 | 0.002 [−0.808, 0.410] | 11.36 | 0.519 |
+
+Copalis's 4-category accuracy (0.43; per-site configuration 0.79) is the early-year
+over-forecast: before 2016 the forest forecasts 5–8 µg/g there in weeks that
+measured below 5.
 
 **Table 3: four categories** (left-closed bins [0,5) [5,20) [20,40) [40,∞))
 
 | Category | N | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|
-| Low | 1,370 | 0.870 | 0.828 | 0.849 |
-| Moderate | 457 | 0.494 | 0.578 | 0.532 |
-| High | 160 | 0.378 | 0.406 | 0.392 |
-| Extreme | 118 | 0.621 | 0.500 | 0.554 |
-| Macro average | 2,105 | 0.591 | 0.578 | 0.582 |
+| Low | 1,370 | 0.883 | 0.726 | 0.797 |
+| Moderate | 457 | 0.424 | 0.650 | 0.513 |
+| High | 160 | 0.399 | 0.406 | 0.403 |
+| Extreme | 118 | 0.597 | 0.576 | 0.586 |
+| Macro average | 2,105 | 0.576 | 0.590 | 0.575 |
 
-Overall accuracy 0.723.
+Overall accuracy 0.677 (per-site configuration 0.723).
 
 ## Spike detection and transitions (seed 123, 40%)
 
@@ -185,22 +200,22 @@ predictions: 278 spikes, of which 93 are **transitions** (the site's previous
 measurement was below 20; unlike an onset above, that measurement may fall
 inside the 7-day forecast gap). Here the regression rows alert at a predicted
 ≥ 20 unless noted; the classifier alerts at probability ≥ 0.10; the hybrid alert
-is classifier ≥ 0.10 OR ensemble ≥ 12, exactly as the engine's `spike_alert`.
+is classifier ≥ 0.10 OR forecast ≥ 12, exactly as the engine's `spike_alert`.
 
 | Alert | Spike recall | Precision | F2 | Transition recall |
 |---|---:|---:|---:|---:|
 | Naive persistence (≥ 20) | 0.687 | 0.668 | 0.683 | 0.129 |
-| Ensemble regression (≥ 20) | 0.637 | 0.663 | 0.642 | 0.172 |
-| Ensemble regression (≥ 12) | 0.827 | 0.520 | 0.740 | — |
+| Forecast (≥ 20) | 0.662 | 0.664 | 0.662 | 0.247 |
+| Forecast (≥ 12) | 0.845 | 0.519 | 0.751 | — |
 | Spike classifier (p ≥ 0.10) | 0.896 | 0.484 | 0.766 | 0.710 |
-| **Hybrid alert** | **0.921** | **0.460** | **0.767** | **0.785** |
+| **Hybrid alert** | **0.921** | **0.461** | **0.768** | **0.785** |
 
 On the deterministic 2022–2023 holdout (409 rows, 84 spikes, 29 transitions) the
-hybrid alert catches 21 of the 29 transitions (0.724; scored with the snippet in
+hybrid alert catches 22 of the 29 transitions (0.759; scored with the snippet in
 [`QUICKSTART_FOR_REVIEWERS.md`](QUICKSTART_FOR_REVIEWERS.md)).
 
-The ensemble's mean prediction on transition rows is 15.7 µg/g against a mean
-actual 50.2: regression shrinks toward the mean and rarely crosses 20 at onset,
+The forecast's mean on transition rows is 19.8 µg/g against a mean actual 50.2:
+regression shrinks toward the mean and rarely crosses 20 at onset,
 which is why the separate classifier exists. Sources:
 `results/spike_metrics_seed123/{spike_metrics_by_model,per_site_metrics,threshold_sweep}.csv`,
 log in `results/final_verification/spike_detection_eval.txt`.
@@ -224,6 +239,12 @@ Source: `results/final_verification/autocorrelation_diagnostic.txt`.
 
 ## Component ablation (seed 42, 20%, N = 1,054)
 
+**This section and the per-site, feature-group and perturbation studies below
+measure the retired per-site configuration at `93518c7d`** (the scripts pin
+`DATECT_USE_PER_SITE_MODELS=true`). They are the record of what that
+configuration did and were not re-run for the random forest; "Full DATect" here
+is the per-site configuration, not the served model.
+
 `paper_ablation_study.py` (Hyak job 42671544), each run in a fresh process. Source:
 `results/ablation/paper_ablation_results.json`, log `results/final_verification/paper_ablation_study.txt`.
 This sample includes 2022–2023 rows, so it is a diagnostic, never used to choose a
@@ -245,8 +266,9 @@ but it is one seed; see the deterministic per-site check below.
 
 **Per-site configuration on the deterministic windows** (`chronological_eval.py` with
 `DATECT_USE_PER_SITE_MODELS=false`, Hyak job 42671548;
-`results/chronological_no_per_site/`). "Off" means equal XGB/RF weights, no
-per-site feature subsets and no per-site hyperparameters.
+`results/chronological_no_per_site/`). "Off" meant, at `93518c7d`, equal XGB/RF
+weights, no per-site feature subsets and no per-site hyperparameters; since
+`1c9206c6` off is the random forest alone, the served model.
 
 | Window | Per-site on | Per-site off | ΔR² off − on [95% CI] | Δ log R² |
 |---|---|---|---|---|
@@ -314,9 +336,9 @@ DA maxima carry 57% of the gain; PDO is the strongest environmental feature.
 | `da_raw_prev_obs_1` | 0.020 | 0.019–0.021 |
 
 **Per-site R² by seed** (`seed_stability_table.py` over `results/multi_seed`;
-`results/multi_seed/per_site_r2_by_seed.csv`): Washington means 0.54–0.76 (std
-0.05–0.16), Clatsop Beach 0.60 ± 0.11, Coos Bay 0.38 ± 0.16, the other Oregon
-sites −0.04 to 0.22.
+`results/multi_seed/per_site_r2_by_seed.csv`, the random forest): Washington means
+0.47–0.71 (std 0.06–0.20), Clatsop Beach 0.66 ± 0.04, Coos Bay 0.39 ± 0.21, the
+other Oregon sites −0.36 to 0.23.
 
 ## How the headline got here
 
@@ -329,7 +351,8 @@ sites −0.04 to 0.22.
 | 5 | Cleanup fixes (`0330150b`…`d53fb6d5`) | 0.441 [0.257, 0.571] | 409 | Spike rule, non-detects, PN parsing, mae070 OAD, classifier encoding (see below) |
 | 6 | One measurement per site-day (`a2de8dac`) | 0.419 [0.247, 0.546] | 409 | Same-day duplicates scored at their daily max |
 | 7 | Leakage fixes (`e14db2eb`, `2688fb8d`) | 0.497 [0.365, 0.601] | 409 | Training persistence features no longer contain the target; only weeks that end by the anchor (see below) |
-| **8** | **No clip; forecast-row lags (`0f4466d2`, `c099f20b`)** | **0.516 [0.308, 0.654]** | **409** | Forecasts no longer capped below real highs; forecast rows built like training rows (see below) |
+| 8 | No clip; forecast-row lags (`0f4466d2`, `c099f20b`) | 0.516 [0.308, 0.654] | 409 | Forecasts no longer capped below real highs; forecast rows built like training rows (see below) |
+| **9** | **One random forest at every beach (`1c9206c6`)** | **0.473 [0.200, 0.644]** | **409** | Per-beach model picks, feature lists and hyperparameters replaced by one shared configuration; a tie with step 8 (see below) |
 
 **Why 0.485 became 0.419.** About 1,200 site-days have several same-day DA
 samples that often disagree (Gold Beach 2019-01-24 recorded 0 and 190 µg/g; the
@@ -345,6 +368,56 @@ reordered rows. The daily max raises 123 targets (65 validation, 58 holdout),
 lowers none, and turns 16 more holdout measurements into spikes (68 → 84).
 
 The validation window followed the same path: 0.384 (published) → 0.312 → 0.329.
+
+## One random forest at every beach (`1c9206c6`)
+
+The per-site configuration picked XGBoost, a random forest or a blend per beach,
+with its own feature list and hyperparameters, from a grid search. A declared
+comparison ([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md) §3c) asked which single
+algorithm to use at every beach with shared features and settings. On validation
+the random forest beat XGBoost (ΔR² XGBoost − forest −0.160 [−0.405, −0.029]); the
+holdout, read once after the pick, agreed (−0.132 [−0.292, −0.024]). `1c9206c6`
+made it the served model (`DATECT_USE_PER_SITE_MODELS=false`, weights (0, 1, 0));
+`true` restores the per-site configuration. Its predictions equal the comparison
+run's forest column exactly (635, 409 and 3,510 of 3,510 rows).
+
+| | Per-site configuration (`93518c7d`) | Random forest (`1c9206c6`) | ΔR² forest − per-site [95% CI] |
+|---|---|---|---|
+| Validation 2019–2021 (N = 635) | R² 0.423, MAE 6.55, onsets 27/34 | R² 0.409, MAE 6.57, onsets 27/34 | −0.014 [−0.095, +0.042] |
+| Holdout 2022–2023 (N = 409) | R² 0.516, MAE 7.44, onsets 19/27 | R² 0.473, MAE 7.34, onsets 20/27 | −0.043 [−0.154, +0.030] |
+| 5 seeds, all years (20%) | R² 0.448 ± 0.034, MAE 6.32 | R² 0.407 ± 0.035, MAE 6.75 | — |
+| Paper sample (seed 123, 40%, all years) | R² 0.464, MAE 6.61 | R² 0.447, MAE 7.04 | — |
+
+Paired intervals from `scripts/eval/one_algorithm_compare.py` (2,000 row resamples).
+Both deterministic windows are ties, with log-scale R² up (holdout 0.370 → 0.413,
+validation 0.343 → 0.387) and the hybrid alert unchanged or one onset better.
+
+**Where it costs: before 2019.** The all-years run (every real measurement,
+2005–2023) by period, per-site configuration → forest:
+
+| Years | N | R² | MAE µg/g | Mean error when the measurement is below 5 |
+|---|---:|---|---|---|
+| 2005–2010 | 805 | 0.039 → −0.190 | 2.25 → 2.95 | +1.6 → +2.5 |
+| 2011–2015 | 961 | 0.566 → 0.559 | 5.70 → 6.30 | +2.5 → +3.3 |
+| 2016–2018 | 700 | 0.269 → 0.213 | 11.65 → 12.11 | +7.4 → +10.6 |
+| 2019–2021 | 635 | 0.423 → 0.409 | 6.55 → 6.57 | +2.9 → +2.9 |
+| 2022–2023 | 409 | 0.516 → 0.473 | 7.44 → 7.34 | +5.0 → +5.3 |
+
+The forest over-forecasts quiet weeks more in the early years, mostly at Copalis
+(MAE +3.3 µg/g over 2005–2015), Clatsop Beach (+1.6) and Long Beach (+1.4), three
+beaches where the per-site configuration used XGBoost. At Copalis in 2005–2010
+(median 341 training rows) the forest's median forecast is 6.4 µg/g against
+measurements averaging 1.2; XGBoost on the same shared features forecasts 0.3, so
+this is the forest, not the shared feature list. The comparison chose on
+2019–2021 and showed 2015–2018 as a second look (forest 0.275 vs per-site
+0.314); the years before 2015 were not part of it. The 5-seed and paper samples
+draw from all years, which is why they fall while the deterministic windows tie.
+
+**Error band.** Re-run on the forest's errors, the declared band protocol
+(`docs/ERROR_BAND.md`) now chooses the most recent 250 errors with Mondrian
+calibration (validation interval score 3.521; the previous choice, 500 errors
+without Mondrian, 3.523). `backend/band.py` now serves Mondrian calibration,
+equal to the evaluated band on all 3,480 rows that have one.
 
 ## Clip removal and forecast-row lags (after the leakage fixes)
 
@@ -502,12 +575,16 @@ on validation and 2015–2018 before a single holdout check
 ```bash
 # Hyak: chronological (both windows), multi-seed 42-46, paper metrics (seed 123),
 # spike eval, in a disposable worktree
-bash scripts/eval/golden_baseline.sh 93518c7d port-c4-lags
+bash scripts/eval/golden_baseline.sh 1c9206c6 rf-1c9206c6
+# The all-years run behind the error band, then (laptop) the band protocol
+python scripts/eval/chronological_eval.py --window 2003-01-01:2024-01-01
+.venv/bin/python scripts/eval/conformal_band_eval.py
+# The retired per-site configuration's ablation (pins DATECT_USE_PER_SITE_MODELS=true)
 bash scripts/eval/golden_baseline.sh 93518c7d ablation-port-93518c7d scripts/eval/paper_ablation_study.sbatch
 # Appendix studies, one job per STUDY (features, perturbations, classifier), from a worktree
 sbatch --export=ALL,STUDY=features scripts/eval/paper_sensitivity_study.sbatch
-# Per-site configuration off, both windows
-DATECT_USE_PER_SITE_MODELS=false python scripts/eval/chronological_eval.py --window 2022-01-01:2024-01-01 --out-dir results/chronological_no_per_site
+# The retired per-site configuration, both windows
+DATECT_USE_PER_SITE_MODELS=true python scripts/eval/chronological_eval.py --window 2022-01-01:2024-01-01 --out-dir results/chronological_per_site
 
 # Laptop, after copying the golden run's results/retro_seed123/ (the seed-123 retrospective
 # parquets spike_detection_eval.py writes and reloads; not the dashboard's precomputed store)

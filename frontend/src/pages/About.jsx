@@ -79,10 +79,11 @@ function AboutPage({ config }) {
 
       <Section title="How it works">
         <p>
-          Each site&apos;s forecast blends two machine-learning models (XGBoost and a random forest) with the last
-          measurement. The models learn from past toxin measurements, algae counts, satellite readings of the ocean,
-          river flow and climate indices. Every forecast uses
-          only data that was available a week before the measurement it predicts.
+          Each forecast comes from a random forest, a machine-learning model made of many decision trees. It is the
+          same model with the same settings at every beach, retrained for each forecast on that beach&apos;s past
+          weeks. It learns from the last few toxin measurements, algae counts, satellite readings of the ocean, river
+          flow and climate indices. Every forecast uses only data that was available a week before the measurement it
+          predicts.
         </p>
         <p className="text-gray-600">
           Data: shellfish toxin monitoring, <i>Pseudo-nitzschia</i> counts, MODIS satellite ocean colour and temperature,

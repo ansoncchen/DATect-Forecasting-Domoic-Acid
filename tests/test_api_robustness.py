@@ -132,9 +132,9 @@ def test_summary_reliability_per_site():
     with TestClient(app) as client:
         data = client.get("/api/metrics/summary").json()
     rel = data["reliability"]
-    assert rel["holdout"]["per_site"]["Gold Beach"]["band"]["coverage"] == pytest.approx(0.375)
+    assert rel["holdout"]["per_site"]["Gold Beach"]["band"]["coverage"] == pytest.approx(0.45)
     assert rel["holdout"]["per_site"]["Newport"]["band"]["coverage"] == pytest.approx(0.479, abs=5e-4)
-    assert rel["holdout"]["summary"]["onsets"]["caught"] == 19
+    assert rel["holdout"]["summary"]["onsets"]["caught"] == 20
     assert rel["validation"]["summary"]["onsets"]["caught"] == 27
     assert data["source"] and data["per_site"]["Gold Beach"]["spike_recall"] is not None
 

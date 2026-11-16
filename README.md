@@ -10,7 +10,7 @@
 DATect forecasts domoic acid (DA), the harmful-algal-bloom toxin, in shellfish at 10 monitoring beaches on the Washington and Oregon coast, one week ahead. It combines satellite ocean data, climate indices, river discharge and past toxin measurements, with strict safeguards against using future data.
 
 - 10 monitoring sites, 2003–2023
-- Two-model ensemble (XGBoost + Random Forest) with per-site weights, feature subsets and prediction clipping; naive persistence is reported as a separate baseline
+- One random forest at every beach, with the same features and settings everywhere, retrained for each forecast on past weeks only; XGBoost and Ridge are reported as competitors and naive persistence as a baseline
 - Observation-order lag features for sparse, irregular measurements
 - Leak-free evaluation: `_verify_no_data_leakage()` runs on every prediction, and models are scored only on real DA measurements
 - Three-window chronological protocol: training before each anchor, validation 2019–2021, untouched holdout 2022–2023; a 5-seed bootstrap (seeds 42–46) confirms the holdout result
@@ -23,13 +23,13 @@ real DA measurement in the window (N = 409, no sampling):
 
 | Metric | Value |
 |---|---|
-| R² [95% CI] | 0.516 [0.308, 0.654] (naive persistence 0.225) |
-| MAE | 7.44 µg/g |
-| Spike recall (actual ≥ 20 µg/g, alert at predicted ≥ 12) | 0.845 (F2 0.737) |
-| Spike onsets caught by the hybrid alert (last known value < 20, measurement ≥ 20) | 19 of 27, alarming on 30% of quiet weeks |
+| R² [95% CI] | 0.473 [0.200, 0.644] (naive persistence 0.225) |
+| MAE | 7.34 µg/g |
+| Spike recall (actual ≥ 20 µg/g, alert at predicted ≥ 12) | 0.845 (F2 0.729) |
+| Spike onsets caught by the hybrid alert (last known value < 20, measurement ≥ 20) | 20 of 27, alarming on 30% of quiet weeks |
 
-The pooled R² leans on Coos Bay (0.80 there, 0.23 for the other sites together).
-All five Washington sites score R² 0.50–0.67 on the holdout. Newport (0.13) and
+The pooled R² leans on Coos Bay (0.80 there, 0.15 for the other sites together).
+All five Washington sites score R² 0.55–0.68 on the holdout. Newport (0.04) and
 Gold Beach (below zero) in southern Oregon score lowest: their toxin levels have
 almost no week-to-week persistence (lag-1 R² ≈ 0.05), so a one-week-ahead forecast
 has little to work with.
@@ -102,7 +102,7 @@ python run_datect.py
 | `python scripts/data/export_oad_features.py <checkpoint>` then `rebuild_final_output.py --recompute oad` | Switch or refresh the OAD input and features |
 | `python dataset-creation.py` | Full dataset rebuild from source (re-downloads every satellite and climate series from NOAA ERDDAP; slow and often fails). Use the offline rebuild above for anything else |
 | `bash scripts/eval/golden_baseline.sh <git-ref>` | Re-run every evaluation behind a reported number (Hyak) |
-| `sbatch datect_spark/retune.sbatch` | Propose per-site ensemble weights (Spark, Hyak); adopting them is a separate change |
+| `sbatch datect_spark/retune.sbatch` | Propose weights for the retired per-site configuration (Spark, Hyak); the served model does not use them |
 | `gh workflow run publish-image.yml -f store_tag=store-<commit>` | Build, check and publish the production image that Render runs (`render.yaml`) |
 | `PROJECT_ID=<gcp-project> ./deploy/deploy_gcloud.sh` | Deploy to Google Cloud Run (needs billing) |
 
@@ -182,7 +182,7 @@ A spike is an actual DA of 20 µg/g or more; the regression alert fires when the
 
 ## Re-tuning and Re-evaluating
 
-All tunable values live in `config/tuned_hyperparameters.json`. The per-site ensemble weights are the only values re-tuned, on Hyak, by `datect_spark/retune.py` (Spark; leak-free yearly folds 2015–2021; every run in MLflow). It proposes weights and never adopts them:
+All tunable values live in `config/tuned_hyperparameters.json`. The served model has no per-site tuning: one random forest with shared settings at every beach, chosen over XGBoost in a declared comparison ([docs/FORECAST_EXPERIMENTS.md](docs/FORECAST_EXPERIMENTS.md) §3c). The JSON still holds the retired per-site configuration (weights, feature lists, hyperparameters), restored with `DATECT_USE_PER_SITE_MODELS=true` to reproduce earlier numbers and the paper's tables. `datect_spark/retune.py` (Spark; leak-free yearly folds 2015–2021; every run in MLflow) re-tunes that configuration's weights. It proposes weights and never adopts them:
 
 ```bash
 sbatch -o ~/datect-spark-logs/%x-%j.out -e ~/datect-spark-logs/%x-%j.err datect_spark/retune.sbatch

@@ -12,32 +12,32 @@ from forecasting.metrics import alert_parts
 def test_holdout_summary_matches_the_reported_numbers():
     s = tr.window_summary("holdout")
     assert s["n"] == 409
-    assert s["r2"] == pytest.approx([0.5162, 0.3081, 0.6538], abs=5e-4)    # chronological JSON
-    assert s["mae"] == pytest.approx([7.4407, 6.1999, 8.8675], abs=5e-4)
+    assert s["r2"] == pytest.approx([0.4734, 0.2005, 0.6443], abs=5e-4)    # chronological JSON
+    assert s["mae"] == pytest.approx([7.3373, 5.9942, 8.8461], abs=5e-4)
     assert s["models"]["ensemble"]["r2"] == pytest.approx(s["r2"][0])
     assert s["models"]["naive"]["r2"] == pytest.approx(0.225, abs=5e-4)   # CORRECTED_NUMBERS
-    assert s["onsets"] == {"n": 27, "caught": 19, "quiet": 292, "quiet_alarmed": 87}
-    assert s["alarms"] == {"n": 106, "followed_by_jump": 19, "false_below_5": 21,
-                           "false_5_to_10": 18, "false_near_miss": 48}
-    assert s["band"]["coverage"] == pytest.approx(0.802, abs=5e-4)
-    assert s["band"]["coverage_at_onsets"] == pytest.approx(10 / 27)
-    assert (s["band"]["inside"], s["band"]["n_banded"], s["band"]["onsets_inside"]) == (328, 409, 10)
-    assert s["band"]["median_width"] == pytest.approx(15.08, abs=0.01)
-    assert s["levels"] == {"Quiet": {"weeks": 213, "followed_by_jump": 8},
-                           "Watch": {"weeks": 68, "followed_by_jump": 9},
+    assert s["onsets"] == {"n": 27, "caught": 20, "quiet": 292, "quiet_alarmed": 89}
+    assert s["alarms"] == {"n": 109, "followed_by_jump": 20, "false_below_5": 21,
+                           "false_5_to_10": 18, "false_near_miss": 50}
+    assert s["band"]["coverage"] == pytest.approx(0.812, abs=5e-4)
+    assert s["band"]["coverage_at_onsets"] == pytest.approx(11 / 27)
+    assert (s["band"]["inside"], s["band"]["n_banded"], s["band"]["onsets_inside"]) == (332, 409, 11)
+    assert s["band"]["median_width"] == pytest.approx(15.71, abs=0.01)
+    assert s["levels"] == {"Quiet": {"weeks": 210, "followed_by_jump": 7},
+                           "Watch": {"weeks": 71, "followed_by_jump": 10},
                            "Warning": {"weeks": 38, "followed_by_jump": 10}}
 
 
 def test_validation_and_per_site_reliability():
     v = tr.window_summary("validation")
-    assert v["onsets"]["caught"] == 27 and v["band"]["coverage"] == pytest.approx(0.819, abs=5e-4)
-    assert v["levels"] == {"Quiet": {"weeks": 420, "followed_by_jump": 7},
-                           "Watch": {"weeks": 63, "followed_by_jump": 13},
+    assert v["onsets"]["caught"] == 27 and v["band"]["coverage"] == pytest.approx(0.811, abs=5e-4)
+    assert v["levels"] == {"Quiet": {"weeks": 419, "followed_by_jump": 7},
+                           "Watch": {"weeks": 64, "followed_by_jump": 13},
                            "Warning": {"weeks": 37, "followed_by_jump": 14}}
-    assert (v["alarms"]["false_below_5"], v["alarms"]["false_5_to_10"], v["alarms"]["false_near_miss"]) == (23, 13, 37)
+    assert (v["alarms"]["false_below_5"], v["alarms"]["false_5_to_10"], v["alarms"]["false_near_miss"]) == (24, 16, 34)
     g = tr.window_summary("holdout", "Gold Beach")
-    assert g["n"] == 40 and g["band"]["coverage"] == pytest.approx(0.375)
-    assert g["r2"][0] == pytest.approx(-0.208, abs=5e-4)
+    assert g["n"] == 40 and g["band"]["coverage"] == pytest.approx(0.45)
+    assert g["r2"][0] == pytest.approx(-0.449, abs=5e-4)
     assert tr.window_summary("holdout", "Cannon Beach")["r2"] is None   # 2 rows, no JSON entry
 
 
@@ -62,8 +62,8 @@ def client():
 def test_track_record_endpoint_returns_rows_and_summaries(client):
     body = client.get("/api/track-record", params={"window": "holdout"}).json()
     assert body["window"] == {"name": "holdout", "start": "2022-01-01", "end": "2024-01-01"}
-    assert len(body["rows"]) == 409 and body["summary"]["onsets"]["caught"] == 19
-    assert body["per_site"]["Gold Beach"]["band"]["coverage"] == pytest.approx(0.375)
+    assert len(body["rows"]) == 409 and body["summary"]["onsets"]["caught"] == 20
+    assert body["per_site"]["Gold Beach"]["band"]["coverage"] == pytest.approx(0.45)
     one = client.get("/api/track-record", params={"window": "holdout", "site": "gold-beach"}).json()
     assert {r["site"] for r in one["rows"]} == {"Gold Beach"} and one["summary"]["n"] == 40
 

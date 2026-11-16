@@ -31,8 +31,9 @@ Run everything from the repository root. Locally, use a virtual environment with
 | How each tuned value was chosen | `config/tuned_hyperparameters.json` (`provenance`) and `results/tuning_provenance/` |
 | OAD vs ESP mooring correlations | [`../oad/OAD_STORYLINE.md`](../oad/OAD_STORYLINE.md), Chapter 9 |
 
-Every result, including the ablation and sensitivity studies, comes from the re-run
-at commit `93518c7d`, after the leakage fixes and the clip removal (golden baseline below). `results/holdout_validation/` and
+Every headline, 5-seed, paper-sample, spike and error-band result comes from the re-run
+at commit `1c9206c6` (one random forest at every beach; golden baseline below). The ablation
+and sensitivity studies describe the retired per-site configuration at `93518c7d`. `results/holdout_validation/` and
 `results/tuning_provenance/` predate the cleanup: they document how the per-site
 configuration was chosen and are not re-run.
 
@@ -69,8 +70,8 @@ print(f'{len(r2)} seeds: R2 {np.mean(r2):.3f} +/- {np.std(r2):.3f}')
 ```
 
 `pytest tests/test_chronological_eval_smoke.py` checks that the holdout artifact
-covers only its window, that its metrics are in the expected range, and that it
-was produced with the grid-winner per-site configuration.
+covers only its window, that its metrics are in the expected range, and that the
+stored forecast is the random forest alone at every beach.
 
 ---
 
@@ -101,9 +102,12 @@ print('holdout   ', w['holdout_start'], '->', w['holdout_end'])
 "
 ```
 
-Per-site ensemble weights are tuned on pre-2022 data only: `datect_spark/retune.py`
-scores each weight on yearly folds 2015–2021 (nothing is clipped since #18). The
-current weights came from the removed `scripts/eval/grid_search_weights_clip.py` (75 weight × clip configurations per site, 3-fold chronological CV on 2019–2021, chosen jointly with the clip that #18 removed; winners promoted to the JSON in `cdc2a32c`, per-site outputs in `results/tuning_provenance/grid_search_results/`, script last changed in `9c435f59`). OAD features carry an extra 5-day
+The served model is one random forest with shared settings at every beach (no per-site
+tuning; chosen on 2019–2021 in [`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md) §3c).
+The retired per-site configuration (`DATECT_USE_PER_SITE_MODELS=true`) reproduces earlier
+numbers; its weights are tuned on pre-2022 data only: `datect_spark/retune.py`
+scores each weight on yearly folds 2015–2021 (nothing is clipped since #18). Those
+weights came from the removed `scripts/eval/grid_search_weights_clip.py` (75 weight × clip configurations per site, 3-fold chronological CV on 2019–2021, chosen jointly with the clip that #18 removed; winners promoted to the JSON in `cdc2a32c`, per-site outputs in `results/tuning_provenance/grid_search_results/`, script last changed in `9c435f59`). OAD features carry an extra 5-day
 lag so the centered MODIS composites never overlap the forecast window
 (`forecasting/oad_features.py`, [`OAD_INTEGRATION_RESULTS.md`](OAD_INTEGRATION_RESULTS.md)).
 
@@ -171,7 +175,8 @@ python scripts/eval/spike_detection_eval.py --seed 123 --sample-fraction 0.40
 
 ## Re-run the tuning
 
-Per-site ensemble weights are the only values re-tuned, by the one weight tuner on Hyak
+The served model has no weights to tune. The retired per-site configuration's weights are
+re-tuned by the one weight tuner on Hyak
 (`datect_spark/retune.py`: Spark, yearly folds 2015–2021, every run in MLflow; it
 proposes weights in `results/tuning_provenance/retune_weights/proposed_overrides.json`
 and never adopts them; adopting is a separate commit to `config/tuned_hyperparameters.json`):

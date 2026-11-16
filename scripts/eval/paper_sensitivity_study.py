@@ -7,7 +7,8 @@ Sensitivity studies for the paper appendix (seed 42, 20% development sample).
 
 Each experiment runs in a fresh subprocess through paper_ablation_study.run_ablation,
 so every change travels as a DATECT_* environment variable that joblib workers
-also read. The results file is rewritten after each experiment and finished
+also read. Like the ablation, it perturbs the retired per-site configuration the paper
+reports (paper_ablation_study sets DATECT_USE_PER_SITE_MODELS=true on import). The results file is rewritten after each experiment and finished
 experiments of the same commit are skipped on restart, so a preempted ckpt job
 resumes where it stopped.
 

@@ -235,9 +235,11 @@ feature because the score correlates with cloud cover (r ~ 0.4-0.5).
 ## Results
 
 All current numbers, their protocol and history are in `docs/CORRECTED_NUMBERS.md`.
-Headline (2022–2023 holdout, every real measurement, commit `93518c7d`): R² 0.516
-[0.308, 0.654], MAE 7.44 ug/g, spike recall 0.845, F2 0.737, N = 409; the hybrid alert
-catches 19 of 27 onsets (last known value < 20, measurement ≥ 20).
+Headline (2022–2023 holdout, every real measurement, commit `1c9206c6`, one random forest
+at every beach): R² 0.473 [0.200, 0.644], MAE 7.34 ug/g, spike recall 0.845, F2 0.729,
+N = 409; the hybrid alert catches 20 of 27 onsets (last known value < 20, measurement ≥ 20).
+The forest over-forecasts quiet weeks before 2019 (Copalis, Clatsop, Long Beach), so the
+all-years 5-seed and paper samples fall (R² 0.448 -> 0.407) while 2019-2023 ties.
 `tests/test_chronological_eval_smoke.py` pins it, and `tests/test_track_record.py` pins the
 track-record counts served to the dashboard; change them together.
 

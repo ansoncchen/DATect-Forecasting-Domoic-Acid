@@ -695,6 +695,11 @@ Committed before the holdout was read.
   (7.34 vs 7.44) and catches one more onset.
 - **Not adopted here.** Serving it changes the headline, the error band's input run and the
   store. That is a separate change with its own before/after.
+- **Adopted afterwards in `1c9206c6`**, with that before/after: its golden re-run reproduces
+  the R column exactly (635, 409 and 3,510 rows). The all-years runs show a cost this
+  comparison did not look at: before 2015 the forest over-forecasts quiet weeks at Copalis,
+  Clatsop Beach and Long Beach, so the all-years 5-seed R² falls 0.448 → 0.407
+  ([`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md), "One random forest at every beach").
 
 
 ## 4. Shortlist and one-time holdout check

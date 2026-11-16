@@ -31,8 +31,9 @@ Run everything from the repository root. Locally, use a virtual environment with
 | How each tuned value was chosen | `config/tuned_hyperparameters.json` (`provenance`) and `results/tuning_provenance/` |
 | OAD vs ESP mooring correlations | [`../oad/OAD_STORYLINE.md`](../oad/OAD_STORYLINE.md), Chapter 9 |
 
-Every result, including the ablation and sensitivity studies, comes from the re-run
-at commit `93518c7d`, after the leakage fixes and the clip removal (golden baseline below). `results/holdout_validation/` and
+Every headline, 5-seed, paper-sample, spike and error-band result comes from the re-run
+at commit `1c9206c6` (one random forest at every beach; golden baseline below). The ablation
+and sensitivity studies describe the retired per-site configuration at `93518c7d`. `results/holdout_validation/` and
 `results/tuning_provenance/` predate the cleanup: they document how the per-site
 configuration was chosen and are not re-run.
 
@@ -69,8 +70,8 @@ print(f'{len(r2)} seeds: R2 {np.mean(r2):.3f} +/- {np.std(r2):.3f}')
 ```
 
 `pytest tests/test_chronological_eval_smoke.py` checks that the holdout artifact
-covers only its window, that its metrics are in the expected range, and that it
-was produced with the grid-winner per-site configuration.
+covers only its window, that its metrics are in the expected range, and that the
+stored forecast is the random forest alone at every beach.
 
 ---
 

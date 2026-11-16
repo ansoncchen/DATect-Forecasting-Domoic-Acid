@@ -7,8 +7,9 @@ from backend import band
 
 
 def test_serve_time_band_equals_the_evaluated_band():
+    """Every row of the evaluated run, so each Mondrian category and its fallback is covered."""
     rows = pd.read_parquet("results/conformal_band/band_predictions.parquet").dropna(subset=["band_lo"])
-    for _, r in rows.sample(50, random_state=0).iterrows():
+    for _, r in rows.iterrows():
         b = band.forecast_band(r.predicted_da, r.anchor_date)
         # expm1/log1p differ in the last bits across platforms (the file was written on a
         # Mac, CI runs Linux); the errors selected, and so the counted share, are exact
@@ -28,4 +29,4 @@ def test_category_probabilities_sum_to_one_and_respect_bins():
 
 
 def test_chosen_variant_comes_from_the_declared_selection():
-    assert band.chosen_variant() == {"coverage": 0.8, "window": 500}
+    assert band.chosen_variant() == {"coverage": 0.8, "window": 250, "mondrian": True}

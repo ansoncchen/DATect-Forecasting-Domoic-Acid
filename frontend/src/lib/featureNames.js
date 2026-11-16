@@ -15,7 +15,13 @@ const NAMES = {
   beuti: 'Coastal upwelling (BEUTI)',
   discharge: 'River discharge',
   pn: 'Pseudo-nitzschia count',
+  pn_log: 'Pseudo-nitzschia count (log scale)',
+  sin_day_of_year: 'Time of year (sine)',
+  cos_day_of_year: 'Time of year (cosine)',
+  da_raw_prev_obs_diff_1_2: 'Change between the last two measurements',
 }
+
+const ROLLING = { max: 'Highest', mean: 'Average', std: 'Swings in' }
 
 const OAD_SUFFIX = {
   '30day_max': ', 30-day maximum',
@@ -37,6 +43,11 @@ export function featureLabel(name) {
   if (NAMES[name]) return NAMES[name]
   const prev = /^da_raw_prev_obs_(\d+)$/.exec(name)
   if (prev) return ORDINAL_BACK[prev[1]] ?? `Measurement ${prev[1]} back`
+  const age = /^da_raw_prev_obs_(\d+)_weeks_ago$/.exec(name)
+  if (age) return `Weeks since measurement ${age[1]} back`
+  // Rolling statistics of the last measured DA over the k weeks before the forecast
+  const roll = /^raw_obs_roll_(max|mean|std)_(\d+)$/.exec(name)
+  if (roll) return `${ROLLING[roll[1]]} measured DA, last ${roll[2]} weeks`
   const oad = /^oad_(overall_)?(score|valid_frac)(?:_(.+))?$/.exec(name)
   if (oad) {
     const [, overall, kind, rest] = oad

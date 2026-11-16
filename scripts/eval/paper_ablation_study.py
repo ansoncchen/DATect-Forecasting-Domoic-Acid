@@ -33,8 +33,10 @@ warnings.filterwarnings("ignore")
 # These studies (and paper_sensitivity_study, which imports this module) describe the
 # per-site configuration the paper reports. It is no longer the served model (one random
 # forest at every beach, docs/FORECAST_EXPERIMENTS.md §3c), so pin it here: every run's
-# subprocess inherits it, and the published tables keep their meaning.
+# subprocess inherits it, and the published tables keep their meaning. They also predate
+# leaving history-less weeks out of training (DATECT_TRAIN_REQUIRE_HISTORY), so keep those.
 os.environ.setdefault("DATECT_USE_PER_SITE_MODELS", "true")
+os.environ.setdefault("DATECT_TRAIN_REQUIRE_HISTORY", "false")
 
 
 # ── Derived features to disable in ablation 4 ─────────────────────────────

@@ -135,6 +135,7 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 |---|---|
 | `DATECT_USE_PER_SITE_MODELS` | default `false`: one random forest at every beach; `true` restores the retired per-site configs (weights, feature lists, hyperparameters) |
 | `DATECT_USE_INTERPOLATED_TRAINING` | `false` trains on real DA rows only |
+| `DATECT_TRAIN_REQUIRE_HISTORY` | default `true`: training rows need a last known DA value (each beach's first measured week and the weeks before it are left out); `false` restores them to reproduce earlier numbers |
 | `DATECT_USE_MONOTONIC_CONSTRAINTS` | `false` drops XGBoost monotone constraints |
 | `DATECT_LAG_FEATURES` | lag list, e.g. `1,2`; `none` disables lag features |
 | `DATECT_EXTRA_DROP_FEATURES` | CSV of extra features to drop |

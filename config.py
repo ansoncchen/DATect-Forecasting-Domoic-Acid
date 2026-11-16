@@ -308,6 +308,11 @@ if _rf_params_json:
 # earlier numbers.
 USE_PER_SITE_MODELS = os.environ.get("DATECT_USE_PER_SITE_MODELS", "false").lower() == "true"
 USE_INTERPOLATED_TRAINING = os.environ.get("DATECT_USE_INTERPOLATED_TRAINING", "true").lower() == "true"
+# A training row must have a last known DA value, as every forecast row does. The weeks up
+# to a beach's first measurement have none: their history features are empty, the imputer
+# fills them with the median, and the first measured week (60-140 ug/g at eight beaches)
+# then passes for a quiet one. "false" restores those rows to reproduce earlier numbers.
+TRAIN_REQUIRE_HISTORY = os.environ.get("DATECT_TRAIN_REQUIRE_HISTORY", "true").lower() == "true"
 USE_GPU = False                  # CPU inference (set True for CUDA-enabled systems)
 
 # Monotonic constraints on persistence features (XGBoost only)

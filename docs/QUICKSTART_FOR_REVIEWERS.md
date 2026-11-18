@@ -32,7 +32,8 @@ Run everything from the repository root. Locally, use a virtual environment with
 | OAD vs ESP mooring correlations | [`../oad/OAD_STORYLINE.md`](../oad/OAD_STORYLINE.md), Chapter 9 |
 
 Every headline, 5-seed, paper-sample, spike and error-band result comes from the re-run
-at commit `1c9206c6` (one random forest at every beach; golden baseline below). The ablation
+at commit `edf64987` (one random forest at every beach, trained only on weeks with a last
+known value; golden baseline below). The ablation
 and sensitivity studies describe the retired per-site configuration at `93518c7d`. `results/holdout_validation/` and
 `results/tuning_provenance/` predate the cleanup: they document how the per-site
 configuration was chosen and are not re-run.

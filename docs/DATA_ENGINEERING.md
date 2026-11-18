@@ -28,7 +28,7 @@ maps each piece to its Databricks equivalent.
 | Batch inference | 21,900 entries (21,680 forecasts, 220 too early to forecast) in 2.19 h wall (26.0 h of task time, 11.9× the wall time), 16.9 MB Delta table | 50 / 50 random entries equal a fresh on-demand run in every value and type |
 | Serving from Delta | API latency on precomputed dates p50 3.28 s → 0.12 s, p95 10.6 s → 0.13 s (20 sequential requests on a Hyak node) | All 20 timed responses equal the on-demand API's (sha256 of the body without `source` and `model_version`) |
 | Reproducibility | Every behavior-neutral refactor reproduced the golden baseline byte for byte | `scripts/eval/compare_golden.py` on Hyak |
-| Leakage audit | Two train/test leaks and one train/test feature mismatch found and fixed; headline holdout R² 0.516 [0.308, 0.654] after them; 0.473 [0.200, 0.644] since one random forest replaced the per-site configuration (a tie) | `tests/test_leakage_audit.py`, deterministic chronological evaluation |
+| Leakage audit | Two train/test leaks and one train/test feature mismatch found and fixed; headline holdout R² 0.516 [0.308, 0.654] after them; 0.482 [0.218, 0.647] since one random forest replaced the per-site configuration (a tie) and stopped training on weeks with no last known value | `tests/test_leakage_audit.py`, deterministic chronological evaluation |
 | Data quality | 339 non-detects, 1,604 PN counts with thousands separators, ~1,200 duplicate site-days handled | The published holdout R² of 0.485 is shown to come from file order (0.419 once fixed) |
 | Dashboard | JavaScript 5.07 MB → 2.40 MB; first page load 1,586 KB → 56 KB gzipped | `vite build` |
 
@@ -328,10 +328,10 @@ already measured by its anchor, the same cut-off as the model. A test rewrites e
 later measurement and checks that the band does not change. The protocol and decision
 rule were committed before the holdout was scored.
 
-- **Coverage:** 0.812 on the holdout (re-calibrated on the random forest's errors).
-- **Not calibrated per site:** 0.45 at Gold Beach.
+- **Coverage:** 0.807 on the holdout (re-calibrated on the random forest's errors).
+- **Not calibrated per site:** 0.425 at Gold Beach.
 - **The spike classifier stays:** the declared test found the band's spike probability
-  could not replace it (17 vs 20 onsets caught out of 27).
+  could not replace it (16 vs 19 onsets caught out of 27).
 
 ## 10. App performance
 

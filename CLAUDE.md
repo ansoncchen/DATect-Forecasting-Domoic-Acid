@@ -135,6 +135,7 @@ subprocess environment (see `scripts/eval/_subprocess.py`):
 |---|---|
 | `DATECT_USE_PER_SITE_MODELS` | default `false`: one random forest at every beach; `true` restores the retired per-site configs (weights, feature lists, hyperparameters) |
 | `DATECT_USE_INTERPOLATED_TRAINING` | `false` trains on real DA rows only |
+| `DATECT_TRAIN_REQUIRE_HISTORY` | default `true`: training rows need a last known DA value (each beach's first measured week and the weeks before it are left out); `false` restores them to reproduce earlier numbers |
 | `DATECT_USE_MONOTONIC_CONSTRAINTS` | `false` drops XGBoost monotone constraints |
 | `DATECT_LAG_FEATURES` | lag list, e.g. `1,2`; `none` disables lag features |
 | `DATECT_EXTRA_DROP_FEATURES` | CSV of extra features to drop |
@@ -235,11 +236,13 @@ feature because the score correlates with cloud cover (r ~ 0.4-0.5).
 ## Results
 
 All current numbers, their protocol and history are in `docs/CORRECTED_NUMBERS.md`.
-Headline (2022–2023 holdout, every real measurement, commit `1c9206c6`, one random forest
-at every beach): R² 0.473 [0.200, 0.644], MAE 7.34 ug/g, spike recall 0.845, F2 0.729,
-N = 409; the hybrid alert catches 20 of 27 onsets (last known value < 20, measurement ≥ 20).
-The forest over-forecasts quiet weeks before 2019 (Copalis, Clatsop, Long Beach), so the
-all-years 5-seed and paper samples fall (R² 0.448 -> 0.407) while 2019-2023 ties.
+Headline (2022–2023 holdout, every real measurement, commit `edf64987`, one random forest
+at every beach): R² 0.482 [0.218, 0.647], MAE 7.31 ug/g, spike recall 0.833, F2 0.723,
+N = 409; the hybrid alert catches 19 of 27 onsets (last known value < 20, measurement ≥ 20).
+Training rows need a last known value (`DATECT_TRAIN_REQUIRE_HISTORY`): each beach's first
+measured week, median-imputed, made the forest over-forecast quiet weeks before 2016;
+without it the all-years MAE is 6.08, not 6.86. The over-forecast after large events
+(2016-2018, holdout) remains.
 `tests/test_chronological_eval_smoke.py` pins it, and `tests/test_track_record.py` pins the
 track-record counts served to the dashboard; change them together.
 

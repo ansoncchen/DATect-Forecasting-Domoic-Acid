@@ -226,6 +226,9 @@ def get_site_training_frame(
         train_data = train_data.dropna(subset=["da_raw"])
         train_data["_is_interpolated"] = False
 
+    if config.TRAIN_REQUIRE_HISTORY:
+        train_data = train_data[train_data["last_observed_da_raw"].notna()]
+
     if len(train_data) < min_training_samples:
         return None
     return train_data

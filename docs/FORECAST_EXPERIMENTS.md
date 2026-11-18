@@ -700,6 +700,8 @@ Committed before the holdout was read.
   comparison did not look at: before 2015 the forest over-forecasts quiet weeks at Copalis,
   Clatsop Beach and Long Beach, so the all-years 5-seed R² falls 0.448 → 0.407
   ([`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md), "One random forest at every beach").
+  The cause was each beach's history-less first training row; `edf64987` leaves those rows
+  out (all-years MAE 6.86 → 6.08; "Training rows need a last known value").
 
 
 ## 4. Shortlist and one-time holdout check

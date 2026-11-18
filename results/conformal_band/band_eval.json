@@ -22,64 +22,64 @@
         "window": 250,
         "mondrian": false,
         "n": 635,
-        "coverage": 0.8173228346456692,
-        "interval_score_log1p": 3.5450768161306154
+        "coverage": 0.8125984251968504,
+        "interval_score_log1p": 3.5512313602320202
       },
       {
         "window": 250,
         "mondrian": true,
         "n": 635,
-        "coverage": 0.8110236220472441,
-        "interval_score_log1p": 3.520671126110503
+        "coverage": 0.8188976377952756,
+        "interval_score_log1p": 3.5155328441876645
       },
       {
         "window": 500,
         "mondrian": false,
         "n": 635,
-        "coverage": 0.831496062992126,
-        "interval_score_log1p": 3.5233260988790644
+        "coverage": 0.8283464566929134,
+        "interval_score_log1p": 3.5345834248468564
       },
       {
         "window": 500,
         "mondrian": true,
         "n": 635,
-        "coverage": 0.8031496062992126,
-        "interval_score_log1p": 3.5331474482687955
+        "coverage": 0.8094488188976378,
+        "interval_score_log1p": 3.5693578706384455
       },
       {
         "window": null,
         "mondrian": false,
         "n": 635,
-        "coverage": 0.7748031496062993,
-        "interval_score_log1p": 3.584919543623033
+        "coverage": 0.7464566929133858,
+        "interval_score_log1p": 3.7822933782137422
       },
       {
         "window": null,
         "mondrian": true,
         "n": 635,
-        "coverage": 0.7543307086614173,
-        "interval_score_log1p": 3.612154053314218
+        "coverage": 0.7480314960629921,
+        "interval_score_log1p": 3.6176376917396786
       }
     ],
     "chosen": {
       "window": 250,
       "mondrian": true
     },
-    "alert_threshold_p_exceed": 0.092
+    "alert_threshold_p_exceed": 0.088
   },
   "validation": {
     "n": 635,
-    "coverage": 0.8110236220472441,
-    "interval_score_log1p": 3.520671126110503,
-    "median_width": 11.455168308179319,
+    "coverage": 0.8188976377952756,
+    "interval_score_log1p": 3.5155328441876645,
+    "median_width": 10.84236663020672,
     "coverage_by_predicted_category": {
       "[0,5)": {
-        "n": 345,
-        "coverage": 0.7623188405797101
+        "n": 348,
+        "coverage": 0.7787356321839081
       },
       "[5,20)": {
-        "n": 185,
-        "coverage": 0.8378378378378378
+        "n": 182,
+        "coverage": 0.8351648351648352
       },
       "[20,inf)": {
         "n": 105,
@@ -88,23 +88,23 @@
     },
     "coverage_by_site": {
       "Cannon Beach": 1.0,
-      "Clatsop Beach": 0.7,
-      "Coos Bay": 0.6851851851851852,
+      "Clatsop Beach": 0.7285714285714285,
+      "Coos Bay": 0.7037037037037037,
       "Copalis": 0.9574468085106383,
-      "Gold Beach": 0.6857142857142857,
-      "Kalaloch": 0.8823529411764706,
+      "Gold Beach": 0.6714285714285714,
+      "Kalaloch": 0.9019607843137255,
       "Long Beach": 0.8421052631578947,
-      "Newport": 0.5789473684210527,
+      "Newport": 0.618421052631579,
       "Quinault": 0.967032967032967,
-      "Twin Harbors": 0.9016393442622951
+      "Twin Harbors": 0.8852459016393442
     },
     "coverage_at_onsets": {
       "n": 34,
       "coverage": 0.4117647058823529
     },
     "coverage_other_levels": {
-      "0.5": 0.5322834645669291,
-      "0.9": 0.9070866141732283
+      "0.5": 0.5291338582677165,
+      "0.9": 0.9039370078740158
     },
     "onsets": {
       "band": {
@@ -112,48 +112,48 @@
         "n_quiet": 486,
         "onsets_caught": 21,
         "onset_recall": 0.6176470588235294,
-        "quiet_alarm_rate": 0.1440329218106996,
-        "onset_auc": 0.7331457274267731
+        "quiet_alarm_rate": 0.14609053497942387,
+        "onset_auc": 0.7227063664972162
       },
       "hybrid_alert": {
         "n_onsets": 34,
         "n_quiet": 486,
         "onsets_caught": 27,
         "onset_recall": 0.7941176470588235,
-        "quiet_alarm_rate": 0.1522633744855967,
+        "quiet_alarm_rate": 0.14814814814814814,
         "onset_auc": 0.8737291212781408
       },
-      "regression_line_auc": 0.7488198983297023
+      "regression_line_auc": 0.74779109174534
     }
   },
   "holdout": {
     "n": 409,
-    "coverage": 0.8117359413202934,
-    "interval_score_log1p": 3.519755456160318,
-    "median_width": 15.707313290394177,
+    "coverage": 0.8068459657701712,
+    "interval_score_log1p": 3.5529329563877785,
+    "median_width": 15.61367971574903,
     "coverage_by_predicted_category": {
       "[0,5)": {
-        "n": 161,
-        "coverage": 0.7701863354037267
+        "n": 160,
+        "coverage": 0.75625
       },
       "[5,20)": {
-        "n": 176,
-        "coverage": 0.8579545454545454
+        "n": 178,
+        "coverage": 0.8539325842696629
       },
       "[20,inf)": {
-        "n": 72,
-        "coverage": 0.7916666666666666
+        "n": 71,
+        "coverage": 0.8028169014084507
       }
     },
     "coverage_by_site": {
       "Cannon Beach": 1.0,
-      "Clatsop Beach": 0.7916666666666666,
+      "Clatsop Beach": 0.8125,
       "Coos Bay": 0.8285714285714286,
       "Copalis": 0.95,
-      "Gold Beach": 0.45,
+      "Gold Beach": 0.425,
       "Kalaloch": 0.9714285714285714,
-      "Long Beach": 0.9318181818181818,
-      "Newport": 0.4791666666666667,
+      "Long Beach": 0.9090909090909091,
+      "Newport": 0.4583333333333333,
       "Quinault": 0.9636363636363636,
       "Twin Harbors": 0.8809523809523809
     },
@@ -162,33 +162,33 @@
       "coverage": 0.4074074074074074
     },
     "coverage_other_levels": {
-      "0.5": 0.5207823960880196,
-      "0.9": 0.9168704156479217
+      "0.5": 0.5134474327628362,
+      "0.9": 0.9193154034229829
     },
     "onsets": {
       "band": {
         "n_onsets": 27,
         "n_quiet": 292,
-        "onsets_caught": 17,
-        "onset_recall": 0.6296296296296297,
-        "quiet_alarm_rate": 0.2568493150684932,
-        "onset_auc": 0.7055428716387621
+        "onsets_caught": 16,
+        "onset_recall": 0.5925925925925926,
+        "quiet_alarm_rate": 0.2465753424657534,
+        "onset_auc": 0.6852486047691526
       },
       "hybrid_alert": {
         "n_onsets": 27,
         "n_quiet": 292,
-        "onsets_caught": 20,
-        "onset_recall": 0.7407407407407407,
+        "onsets_caught": 19,
+        "onset_recall": 0.7037037037037037,
         "quiet_alarm_rate": 0.3047945205479452,
         "onset_auc": 0.7731481481481481
       },
-      "regression_line_auc": 0.7244419076610857
+      "regression_line_auc": 0.7232369355657027
     },
     "auc_band_minus_classifier": {
-      "difference": -0.06760527650938608,
+      "difference": -0.08789954337899553,
       "ci95": [
-        -0.17942196618136197,
-        0.03590056525180893
+        -0.2011334745762712,
+        0.02054120725471394
       ]
     }
   },

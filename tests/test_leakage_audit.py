@@ -75,6 +75,8 @@ def _make_site_df(n_rows: int = 20, site: str = "Newport") -> pd.DataFrame:
         "date": dates,
         "da_raw": rng.uniform(0, 30, n_rows),
         "da": rng.uniform(0, 30, n_rows),
+        # every row has a last known value: rows without one are not trained on
+        "last_observed_da_raw": 1.0,
     })
 
 
@@ -431,3 +433,32 @@ def test_test_row_persistence_uses_only_samples_up_to_anchor():
     obs = engine._observations_up_to("Clatsop Beach", anchor)
     assert obs["date"].max() <= anchor
     assert obs["da_raw"].iloc[-1] == 9.6
+
+
+# ---------------------------------------------------------------------------
+# Training rows without DA history are left out
+# ---------------------------------------------------------------------------
+
+def test_training_rows_need_a_last_known_value(monkeypatch):
+    """The weeks up to a site's first measurement are not trained on: their history
+    features are empty, the imputer would fill them with the median, and the first
+    measured week (here 80) would pass for a quiet one."""
+    import config
+
+    dates = pd.date_range("2015-01-05", periods=16, freq="7D")
+    processed = pd.DataFrame({"site": "Newport", "date": dates,
+                              "da": [0.0, 0.0, 80.0] + [1.0] * 13})
+    weekly = pd.DataFrame({"site": "Newport", "date": dates,
+                           "da_raw": [np.nan, np.nan, 80.0] + [1.0] * 13})
+    ff = build_raw_feature_frame(processed, weekly)
+    anchor = dates[-1] + pd.Timedelta(days=6)
+
+    monkeypatch.setattr(config, "TRAIN_REQUIRE_HISTORY", True)
+    kept = get_site_training_frame(ff, "Newport", anchor)
+    assert kept["date"].min() == dates[3]
+    assert kept["last_observed_da_raw"].notna().all()
+    assert 80.0 not in kept["da_raw"].tolist()
+
+    monkeypatch.setattr(config, "TRAIN_REQUIRE_HISTORY", False)
+    every = get_site_training_frame(ff, "Newport", anchor)
+    assert len(every) == 16 and every["last_observed_da_raw"].isna().sum() == 3

@@ -23,6 +23,8 @@ set -euo pipefail
 
 export MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-sqlite:////gscratch/stf/ac283/datect-mlflow/mlflow.db}
 export DATECT_USE_PER_SITE_MODELS=${DATECT_USE_PER_SITE_MODELS:-true}
+# ...with the training rows it was tuned on (before history-less weeks were left out)
+export DATECT_TRAIN_REQUIRE_HISTORY=${DATECT_TRAIN_REQUIRE_HISTORY:-false}
 RESULTS_SUBDIR=tuning_provenance/retune_weights
 source "$SLURM_SUBMIT_DIR/datect_spark/hyak_stage.sh"
 mkdir -p "results/$RESULTS_SUBDIR"

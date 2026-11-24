@@ -7,8 +7,10 @@ work found. The OAD model itself is described in
 [`../oad/RESULTS.md`](../oad/RESULTS.md).
 
 **Checkpoint:** `ae_3d_l32_c4_t4_s42_mae070` (3D masked autoencoder, 70% mask
-ratio). DATect switched to it from `ae_3d_l32_c4_t4_s42_mae050` in October 2026;
-every OAD effect measured below used `mae050`, and the evaluation is being re-run.
+ratio). DATect switched to it from `ae_3d_l32_c4_t4_s42_mae050` in October 2026. The
+effects in sections 7 and 8 were measured with `mae050`; the `mae070` effect was measured
+afterwards and is in [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md) (component ablation)
+and [`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md) (§3, §3b).
 
 **Numbers:** the OAD ablation (with vs without OAD features) and all other
 metrics are reported only in [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md).
@@ -21,13 +23,17 @@ metrics are reported only in [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md).
   regional anomaly scores with an extra 5-day lag so no MODIS composite overlaps
   the forecast window.
 - With the `mae050` checkpoint, removing the OAD features changed beach-level
-  skill by less than the seed-to-seed noise: OAD added no measurable skill for
-  shellfish DA. The `mae070` effect is being re-measured.
+  skill by less than the seed-to-seed noise. With `mae070` the effect of removing them is
+  still small and changes sign: ΔR² −0.026 on one 20% sample, +0.009 on 2019–2021 and
+  −0.016 on 2015–2018, all for the per-site model since retired. OAD gives no reliable
+  gain for shellfish DA.
 - The OAD score does track *Pseudo-nitzschia* cell density at the offshore NEMO
   mooring (OAD_STORYLINE Chapter 9). The signal is present offshore but does not
   reach the beach forecast, which points to onshore transport and shellfish
-  uptake as the missing link. The planned transport-aware work is in
-  [`superpowers/`](superpowers/).
+  uptake as the missing link. A hand-built version of that idea (wind reversals, the
+  mooring, lagged offshore scores) was tested in November 2026 and none of seven variants
+  passed (branch `claude/transport-trigger`, §7). The learned transport model of
+  [`superpowers/`](superpowers/) was never built.
 
 ## 2. Data flow
 
@@ -81,14 +87,15 @@ Site-to-region mapping (`SITE_TO_REGION` in `forecasting/oad_features.py`):
 | Central Oregon | Newport, Coos Bay |
 | Southern OR / N CA | Gold Beach |
 
-**Which sites use them:** all 10. Nine list all 16 features in their
-`feature_subset` in `config/tuned_hyperparameters.json`; Clatsop Beach has no
-subset and so trains on every column.
+**Which sites use them:** all 10. The served model trains on every feature at every
+beach. (In the retired per-site configuration nine beaches listed all 16 in their
+`feature_subset` and Clatsop Beach had no subset.)
 
 ## 4. Leakage analysis
 
-DATect rows are weekly (Monday). A forecast for `test_date` uses the row R
-fetched by `get_site_anchor_row()` with R ≤ `anchor_date = test_date − 7`.
+DATect rows are weekly (Monday). A forecast for `test_date` uses the latest row R
+whose week ends by the anchor (`get_site_anchor_row()`: R + 6 ≤ `anchor_date =
+test_date − 7`).
 MODIS 8-day composites are centered: the composite labeled D covers roughly
 [D − 4, D + 4]. Every OAD feature therefore anchors at D ≤ R − 5
 (`LEAK_SHIFT_DAYS = 5`):
@@ -96,19 +103,19 @@ MODIS 8-day composites are centered: the composite labeled D covers roughly
 | Step | Constraint | Range |
 |---|---|---|
 | Forecast window | (anchor_date, test_date] | (test_date − 7, test_date] |
-| Anchor row R | R ≤ anchor_date, weekly rows | [test_date − 13, test_date − 7] |
-| Latest OAD day D | D = R − 5 | [test_date − 18, test_date − 12] |
-| Latest MODIS day in that composite | D + 4 | [test_date − 14, test_date − 8] |
+| Anchor row R | R + 6 ≤ anchor_date, weekly rows | [test_date − 19, test_date − 13] |
+| Latest OAD day D | D = R − 5 | [test_date − 24, test_date − 18] |
+| Latest MODIS day in that composite | D + 4 | [test_date − 20, test_date − 14] |
 
-In the worst case (R = test_date − 7) the newest satellite pixel behind any OAD
-feature is from test_date − 8, one day before the anchor. The 30-day window and
+In the worst case (R = test_date − 13) the newest satellite pixel behind any OAD
+feature is from test_date − 14, seven days before the anchor. The 30-day window and
 the cloud fraction end at the same D; the day-of-year z-score uses only earlier
 years. `tests/test_oad_features.py` covers the feature construction.
 
 The shift also determines how much signal is left. The score's own
 1-day-ahead skill is inflated by composite overlap; at a 7-day lead it is modest
 and by 14 days it is near zero (`oad/RESULTS.md`, Caveat 1). DATect's newest OAD
-value is 12–18 days before the target date.
+value is 18–24 days before the target date.
 
 ## 5. Coverage
 
@@ -120,10 +127,8 @@ fully covered.
 ## 6. Measuring the OAD effect
 
 - `scripts/eval/paper_ablation_study.py` includes a "No OAD regional anomaly
-  features" run, which drops all 16 columns via `DATECT_EXTRA_DROP_FEATURES`.
-  Its "With OAD also on small-N sites" run (`DATECT_OAD_ON_SMALL_N`) no longer
-  changes anything, because Coos Bay, Cannon Beach, Gold Beach and Newport now
-  include the OAD features by default.
+  features" run, which drops all 16 columns via `DATECT_EXTRA_DROP_FEATURES` (it pins the retired
+  per-site configuration).
 - For any other comparison, set `DATECT_EXTRA_DROP_FEATURES` to the
   comma-separated OAD columns (`OAD_FEATURES_ALL` in `forecasting/oad_features.py`)
   in a fresh process.
@@ -132,7 +137,7 @@ fully covered.
 
 ## 7. Findings from the integration work
 
-These were measured with the `mae050` checkpoint and the pre-cleanup dataset.
+Items 1–5 were measured with the `mae050` checkpoint and the pre-cleanup dataset.
 They are recorded as qualitative conclusions; the analyses behind items 2–3 were
 one-off and are not in the repo.
 
@@ -167,13 +172,15 @@ one-off and are not in the repo.
 - A constrained grid over the three dimensions that matter (ensemble weights,
   clip quantile, clip maximum) with 3-fold chronological CV on pre-2022 data
   held up on the holdout. Its winners were promoted to
-  `config/tuned_hyperparameters.json` (commit `cdc2a32c`) and are the current
+  `config/tuned_hyperparameters.json` (commit `cdc2a32c`) and are the retired
   per-site configuration (`scripts/eval/grid_search_weights_clip.py`, since
   removed in favor of `datect_spark/retune.py`; per-site outputs in
   `results/tuning_provenance/grid_search_results/`).
 - The earlier hand-tuned values had been chosen on a seed-42 sample spanning all
-  years, so they had indirectly seen part of the validation window. The leak-free
-  grid removes that dependence.
+  years, so they had indirectly seen part of the validation window (and of 2022–2023).
+  The leak-free grid removed that dependence for the weights; the shared settings the
+  served model uses date from that period (`CORRECTED_NUMBERS.md`, "How often the holdout
+  has been read").
 
 The resulting rules (tune only those three dimensions; never report tuned skill
 without the holdout check) are in `CLAUDE.md`.

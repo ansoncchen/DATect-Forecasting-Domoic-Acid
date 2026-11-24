@@ -9,17 +9,19 @@
 
 DATect forecasts domoic acid (DA), the harmful-algal-bloom toxin, in shellfish at 10 monitoring beaches on the Washington and Oregon coast, one week ahead. It combines satellite ocean data, climate indices, river discharge and past toxin measurements, with strict safeguards against using future data.
 
+**Live demo:** https://datect.onrender.com (Render's free plan: the first load after a pause takes about a minute). The data ends in November 2023, so it shows past weeks and is not a live forecast.
+
 - 10 monitoring sites, 2003–2023
 - One random forest at every beach, with the same features and settings everywhere, retrained for each forecast on past weeks only; XGBoost and Ridge are reported as competitors and naive persistence as a baseline
 - Observation-order lag features for sparse, irregular measurements
 - Leak-free evaluation: `_verify_no_data_leakage()` runs on every prediction, and models are scored only on real DA measurements
-- Three-window chronological protocol: training before each anchor, validation 2019–2021, untouched holdout 2022–2023; a 5-seed bootstrap (seeds 42–46) confirms the holdout result
+- Three-window chronological protocol: training before each anchor, validation 2019–2021, holdout 2022–2023; a 5-seed bootstrap (seeds 42–46) is reported beside it. The holdout has not been a tuning objective since the protocol was fixed in May 2026, but it is not untouched ([how often it has been read](docs/CORRECTED_NUMBERS.md#how-often-the-holdout-has-been-read))
 - All tuned values in one file, `config/tuned_hyperparameters.json`, with provenance for each key
 
 ## Performance
 
-One-week-ahead forecasts on the untouched 2022–2023 holdout, scored against every
-real DA measurement in the window (N = 409, no sampling):
+One-week-ahead forecasts on the 2022–2023 holdout, scored against every real DA
+measurement in the window (N = 409, no sampling):
 
 | Metric | Value |
 |---|---|
@@ -125,20 +127,22 @@ DATect-Forecasting-Domoic-Acid/
 ├── config/
 │   └── tuned_hyperparameters.json  # All tuned values + provenance
 ├── forecasting/                    # Forecasting engine
-│   ├── raw_forecast_engine.py      # Ensemble pipeline, leakage checks, retrospective evaluation
+│   ├── raw_forecast_engine.py      # Forecast pipeline, leakage checks, retrospective evaluation
 │   ├── raw_data_forecaster.py      # Raw DA loading, feature frames, leak-free test rows
 │   ├── raw_data_processor.py       # Observation-order lag features
-│   ├── per_site_models.py          # Per-site configuration (read from the tuned JSON)
+│   ├── per_site_models.py          # Served weights (one forest); the retired per-site configuration
 │   ├── tuned_config.py             # Loader for config/tuned_hyperparameters.json
 │   ├── measurements.py             # Raw DA / PN / date parsing (shared by data, eval and API)
 │   ├── metrics.py                  # Spike detection and bootstrap metrics
+│   ├── conformal.py                # Error band and category chances
 │   ├── oad_features.py             # OAD ocean-anomaly features (16 per row, leak-safe)
 │   ├── classification_adapter.py   # Risk categories and the spike classifier
 │   ├── raw_model_factory.py        # Model builders (XGBoost, RF, Ridge)
 │   ├── feature_utils.py            # Temporal features + transformers
 │   ├── logging_config.py
 │   └── validation.py               # Startup checks
-├── backend/                        # FastAPI server (api.py, visualizations.py, precomputed.py)
+├── backend/                        # FastAPI server (api.py, precomputed.py, band.py, track_record.py,
+│                                   #  records.py, visualizations.py)
 ├── frontend/                       # React + Vite dashboard
 ├── data/
 │   ├── raw/da-input/, raw/pn-input/  # Raw toxin and Pseudo-nitzschia measurements (one CSV per site)
@@ -147,8 +151,8 @@ DATect-Forecasting-Domoic-Acid/
 │   ├── eval/                       # Evaluation, ablation, golden baseline
 │   └── data/                       # Offline dataset rebuild, OAD feature export
 ├── results/                        # Committed outputs behind reported numbers
-│                                   # (chronological, multi_seed, paper_metrics, final_verification,
-│                                   #  holdout_validation, ablation, tuning_provenance)
+│                                   # (chronological, multi_seed, paper_metrics, conformal_band,
+│                                   #  spark_lake, serving, store, ablation, tuning_provenance, ...)
 ├── datect_spark/                   # Spark + Delta Lake + MLflow on Hyak (re-tune, MODIS lake, serving)
 ├── oad/                            # Ocean Anomaly Detection subproject (MODIS autoencoder)
 ├── papers/                         # datect/, oad_mdpi/, oad_cvpr/, poster/
@@ -203,7 +207,7 @@ L="-o $HOME/datect-spark-logs/%x-%j.out -e $HOME/datect-spark-logs/%x-%j.err"
 sbatch $L datect_spark/modis_lake.sbatch                                  # MODIS NetCDFs -> bronze/silver/gold Delta
 sbatch $L --export=ALL,STEPS=reference datect_spark/modis_lake.sbatch     # time the reference cube scripts
 sbatch $L --export=ALL,MAIN_SHA=$(git rev-parse origin/main) datect_spark/serving.sbatch  # latency, precompute, parity
-sbatch datect_spark/retune.sbatch                                         # weights x clip re-tune (from a worktree)
+sbatch datect_spark/retune.sbatch                                         # weight re-tune of the retired per-site configuration
 ```
 
 Every job checks its output against the existing pipeline exactly. Measurements, parity checks and caveats are in [datect_spark/RESULTS.md](datect_spark/RESULTS.md).
@@ -218,7 +222,7 @@ Every job checks its output against the existing pipeline exactly. Measurements,
 
 ## Temporal Safeguards
 
-1. **Chronological training**: each forecast trains only on rows with `date <= anchor_date` (anchor = target date − 7 days)
+1. **Chronological training**: each forecast trains only on weeks that end by the anchor (`date + 6 days <= anchor_date`; anchor = target date − 7 days) and that have a last known value
 2. **Forward-only gap-filling**: training targets between real measurements decay from past observations only
 3. **Satellite buffer**: 7-day processing delay
 4. **Climate buffer**: 2-month reporting delay
@@ -226,7 +230,7 @@ Every job checks its output against the existing pipeline exactly. Measurements,
 6. **Observation-order lags**: past-only shifts over real measurements
 7. **Persistence features**: recomputed from real observations only, not gap-filled values
 8. **Fresh model per test point**: no shared state between forecasts
-9. **`_verify_no_data_leakage()`**: raises `AssertionError` on every violation
+9. **`_verify_no_data_leakage()`**: raises `AssertionError` if a training week ends after the anchor or the test date is not after it
 
 ## Documentation
 
@@ -235,15 +239,18 @@ Every job checks its output against the existing pipeline exactly. Measurements,
 | [CLAUDE.md](CLAUDE.md) | Project conventions, environment variables, mechanical gotchas |
 | [AGENTS.md](AGENTS.md) | Pointer for coding agents |
 | [docs/CORRECTED_NUMBERS.md](docs/CORRECTED_NUMBERS.md) | All reported numbers and their history |
-| [docs/QUICKSTART_FOR_REVIEWERS.md](docs/QUICKSTART_FOR_REVIEWERS.md) | Reproducing the paper's claims; evaluation and tuning script index |
+| [docs/FORECAST_EXPERIMENTS.md](docs/FORECAST_EXPERIMENTS.md) | Forecast audit and declared experiments, including what did not help |
+| [docs/ERROR_BAND.md](docs/ERROR_BAND.md) | The 80% conformal band: protocol and results |
+| [docs/QUICKSTART_FOR_REVIEWERS.md](docs/QUICKSTART_FOR_REVIEWERS.md) | Tracing and reproducing the reported numbers; evaluation and tuning script index |
 | [docs/PIPELINE_DEEP_DIVE.md](docs/PIPELINE_DEEP_DIVE.md) | Forecast pipeline, temporal safeguards, API flow |
 | [docs/DATA_PIPELINE_DETAILED.md](docs/DATA_PIPELINE_DETAILED.md) | `dataset-creation.py` |
 | [docs/OAD_INTEGRATION_RESULTS.md](docs/OAD_INTEGRATION_RESULTS.md) | How OAD features enter DATect and what was learned |
 | [docs/HYAK_SETUP.md](docs/HYAK_SETUP.md) | Hyak (UW Klone) cluster workflow |
+| [docs/DATA_ENGINEERING.md](docs/DATA_ENGINEERING.md) | Overview of the data systems: lake, training runs, batch forecasts, reproducibility |
 | [datect_spark/RESULTS.md](datect_spark/RESULTS.md) | Spark, Delta Lake and MLflow on Hyak: re-tune, MODIS lake, forecast serving; parity, sizes, timings |
 | [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Store rebuild on Hyak; Render (free) and Cloud Run deploys |
 | [docs/VISUALIZATIONS_GUIDE.md](docs/VISUALIZATIONS_GUIDE.md) | Reading the dashboard charts |
-| [docs/superpowers/](docs/superpowers/) | Design spec and plan for the upcoming transport-aware forecasting work |
+| [docs/superpowers/](docs/superpowers/) | Dated design specs and plans (transport-aware forecasting, never built as designed; dashboard; engine cleanup) |
 | [oad/README.md](oad/README.md), [oad/RESULTS.md](oad/RESULTS.md), [oad/OAD_STORYLINE.md](oad/OAD_STORYLINE.md) | OAD subproject: workflow, results, narrative |
 
 ## Deployment
@@ -252,7 +259,7 @@ The app runs as one container (API, built frontend and the precomputed store) on
 
 1. Build the store on Hyak at the commit you deploy and attach it to a GitHub prerelease `store-<commit>` as `store.tar.gz`.
 2. `gh workflow run publish-image.yml -f store_tag=store-<commit>` builds the image (refusing a stale store), checks that it serves a precomputed forecast and pushes `ghcr.io/ansoncchen/datect`.
-3. Render runs that image as the free web service defined in `render.yaml`.
+3. The workflow's last step triggers the Render deploy (with the `RENDER_DEPLOY_HOOK` secret set); Render runs that image as the free web service defined in `render.yaml`, live at https://datect.onrender.com.
 
 The Google Cloud Run path needs billing enabled. Copy the Hyak-built store into `./store` first, built at the commit you deploy; the deploy script bakes it into the image and stops if `./store` is missing or empty. Then:
 
@@ -278,7 +285,7 @@ The script enables the required APIs, builds with Cloud Build (`deploy/cloudbuil
 
 ## License
 
-Code is released under the [MIT License](LICENSE). If you use DATect in published research, please cite the manuscript (`papers/datect/datect_paper_mdpi.tex`, PDF alongside) and acknowledge the data providers listed above.
+Code is released under the [MIT License](LICENSE). If you use DATect in published research, please cite it (`CITATION.cff`) and acknowledge the data providers listed above. The manuscript in `papers/datect/` is a draft that still describes the retired per-site model (its numbers are from `a2de8dac`); for numbers use [docs/CORRECTED_NUMBERS.md](docs/CORRECTED_NUMBERS.md).
 
 ## Acknowledgments
 

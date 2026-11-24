@@ -123,7 +123,7 @@ function TrackRecordPage({ config }) {
               {scope ? `${scope.n} lab measurements. ` : ''}
               {shownName === 'validation'
                 ? `${label} was used to tune the model, so these numbers flatter it.`
-                : `${label} was never used to tune the model.`}
+                : `${label} was held out when the model was chosen, and has been checked many times since.`}
             </p>
             {scope ? (
               <>

@@ -72,7 +72,7 @@ Every evaluation that backs a reported number can be snapshotted for a git ref a
 bash scripts/eval/golden_baseline.sh <git-ref> [label]
 ```
 
-This creates a detached worktree at `${GOLDEN_ROOT:-/gscratch/scrubbed/$USER/golden}/<label>` (label defaults to the short SHA) and submits `scripts/eval/golden_baseline.sbatch` inside it (ckpt, 32 cores, 96 GB, 6 h). The job records `golden_sha.txt` and runs, with the default (headline) config:
+This creates a detached worktree at `${GOLDEN_ROOT:-/gscratch/scrubbed/$USER/golden}/<label>` (label defaults to the short SHA) and submits `scripts/eval/golden_baseline.sbatch` inside it (ckpt, 16 cores, 32 GB, 6 h limit; about 2 h in practice). The job records `golden_sha.txt` and runs, with the default (headline) config:
 
 1. `chronological_eval.py` on the validation window `2019-01-01:2022-01-01` and the holdout `2022-01-01:2024-01-01`;
 2. `multi_seed_baseline.py` for seeds 42–46 (into `golden_multi_seed/`);

@@ -24,7 +24,7 @@ Why both protocols exist:
 Default windows match the rest of the project:
 
     validation = [2019-01-01, 2022-01-01)   # used for tuning objectives
-    holdout    = [2022-01-01, 2024-01-01)   # the unbiased headline
+    holdout    = [2022-01-01, 2024-01-01)   # the headline
 
 Usage:
     python scripts/eval/chronological_eval.py

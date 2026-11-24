@@ -175,8 +175,9 @@ re-tune's 2,990 runs.
 - end to end, all 20 timed responses are identical to `main`'s on-demand responses
   (sha256 of the body without `source`/`model_version`);
 - an ad hoc laptop check (not committed) found Spark workers' single-threaded
-  XGBoost identical to the API's multithreaded XGBoost on 8 forecasts. The 50-entry
-  check above covers this on Hyak;
+  XGBoost identical to the API's multithreaded XGBoost on 8 forecasts. A later store
+  build showed the limit of that: at 16 threads one entry in 50 differed in the last
+  float32 bit, so every model now trains on one thread (#31, parity 50 of 50 again);
 - none of the 21,900 stored entries carried a bootstrap-fallback interval (measured then;
   the bootstrap and the quantile columns have since been removed from the engine).
 
@@ -201,18 +202,20 @@ measurement of this change.
 **Caveats.**
 - Only weekly dates (the Mondays in the data) and the `ensemble` model are served
   from the table. Any other date, or `naive`/`linear`, falls back to computing on
-  demand at the old latency. The dashboard's default date (dataset end minus 30 days,
-  2023-11-25, a Saturday) is a miss, so a uniformly random calendar date hits about
-  one time in seven.
+  demand. A uniformly random calendar date hits about one time in seven. (The dashboard's
+  default date was a Saturday, so a miss, when this ran; since #23 it is the latest weekly
+  row, which the store holds.)
+- The "before" column ran two model calls per request, regression and classification; a
+  request now runs one, and the endpoint has since gained the error band. Neither column
+  was measured again, and neither is the live site's latency.
 - `linear` was not precomputed: when measured, its regression interval was a bootstrap
   drawn from the process-global NumPy RNG, so its on-demand output changed from call to
   call. The bootstrap has since been removed; `linear` is still computed on demand.
 - Any change to `forecasting/`, `config.py`, the tuned JSON, the data bytes or the
   library versions changes the config hash. The table then goes stale and serves
-  nothing until `precompute` is re-run; the conformal error band in progress will do
-  this. The hash is conservative: setting a `DATECT_*` variable to its default value
-  also counts as a change. Stale rows are logged at WARNING and reported on
-  `/health`.
+  nothing until `precompute` is re-run. The hash is conservative: setting a `DATECT_*`
+  variable to its default value also counts as a change. Stale rows are logged at WARNING
+  and reported on `/health`.
 - These runs set `DATECT_FORECAST_TABLE` to the table. It is now
   `DATECT_PRECOMPUTED_DIR`, the store directory (section 4), and the image ships the
   store. Unset, every forecast is computed as before. Responses still gain
@@ -301,12 +304,13 @@ tables take 1.2 MB (`results/store/saved_store.json`).
   holds. Before, it was a Saturday, and `new Date()` shifted it a day in US time zones.
 - The image build refuses a store that is not complete and current for the image
   (`python -m backend.precomputed check`). A stale store would otherwise make every
-  retrospective request recompute on Cloud Run, which takes minutes. The image uses
+  retrospective request recompute on the server, which takes minutes. The image uses
   Python 3.10 like the Hyak env, and the env's packages are frozen in
   `datect_spark/env-freeze.txt`.
-- The production table is not rebuilt here. `main`'s config hash changed when #19
-  added `forecasting/conformal.py`, and the forecasting rework that follows will change
-  it again. The store is rebuilt once after that lands, before the next deploy.
+- The production table was not rebuilt in #23. It was built after the engine cleanup and
+  the one-thread fix (`f0241b2a`, live on Render 2026-11-12) and again at `edf64987` (live
+  2026-11-17): 10,950 regression forecasts, parity 50 of 50 both times, 0 stale rows on
+  the live `/health`.
 
 ## Environment notes (Hyak)
 
@@ -343,20 +347,25 @@ parity, latency before/after), `results/tuning_provenance/retune_weights/` (tune
   13.9 GB of MODIS NetCDF (2,563 files) into 1.96 billion pixel rows; the gold table
   matches the legacy xarray output on all 23,460 rows and now writes that file
   byte-identically.
-- Applied Delta OPTIMIZE, Z-ORDER and VACUUM: bronze went from 2,584 to 130 files, and
-  Delta file statistics show regional filters can skip 22–67% of silver's bytes.
+- Applied Delta OPTIMIZE, Z-ORDER and VACUUM: bronze went from 2,584 to 130 files
+  (35% more bytes), and Delta file statistics show regional filters can skip 22–67% of silver's bytes.
 - Trained 1,990 leak-free XGBoost + Random Forest model pairs on Spark, one task per
   forecast (7,362 s of task time in 815 s wall on 16 cores), tracking 2,040 runs in
   MLflow; predictions exactly match the reference evaluation on all 1,044 rows that
   have one.
-- Built a Spark batch-inference job precomputing 10,950 site-weeks (21,900 entries)
-  into a Delta table tagged with an MLflow-registered model version; FastAPI loads it
-  through delta-rs, cutting benchmarked latency on precomputed dates from 3.28 s to
+- Built a Spark batch-inference job precomputing 10,950 site-weeks (21,900 entries in the
+  measured run, 10,950 now) into a Delta table tagged with an MLflow-registered model
+  version; FastAPI loads it through delta-rs, cutting benchmarked latency on precomputed dates from 3.28 s to
   0.12 s at p50 and 10.6 s to 0.13 s at p95, with all 20 timed responses and 50 of 50
   sampled entries matching on-demand output.
 - Added a config hash over code, data and library versions so the API never serves
   stale rows and the image build refuses a stale store; moving the dashboard cache to
   Delta left 29 of 29 endpoint responses unchanged.
+- Deployed the app as one container (FastAPI, React, the Delta store) on Render's free
+  plan, live at https://datect.onrender.com since 2026-11-12: one GitHub Actions workflow
+  builds the image, refuses a stale store, checks that a forecast is served from Delta,
+  pushes to GHCR and triggers the deploy (2 min 2 s on 2026-11-17); the site serves 10,950
+  precomputed forecasts with 0 stale rows.
 
 All of this ran on open-source Spark on a university HPC cluster (UW Hyak), one
 16-core node per job, not on Databricks.
@@ -364,4 +373,6 @@ All of this ran on open-source Spark on a university HPC cluster (UW Hyak), one
 These runs do not support: "distributed" or multi-node; "speedup" for the 8.7×, 9.0×
 or 11.9× ratios (summed task time ÷ wall, with no serial run); Spark being faster than
 xarray; Z-ORDER making a timed query faster; latency gains beyond precomputed weekly
-dates; time travel, lineage or production serving; a re-tune improving the model.
+dates, or 0.12 s as the live site's latency; time travel or lineage; users, uptime, load or
+real-time forecasts (the site is a free-tier demo on past weeks, data to November 2023,
+that sleeps when idle); a re-tune improving the model.

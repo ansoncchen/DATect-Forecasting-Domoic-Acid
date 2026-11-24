@@ -4,7 +4,7 @@ DATect forecasts domoic acid (DA), a shellfish toxin, one week ahead at 10 Pacif
 Northwest beaches. Behind the model sits a set of data systems:
 
 - a Delta Lake over 13.9 GB of MODIS satellite imagery;
-- forecasting models trained in parallel on Spark and tracked in MLflow;
+- forecasting models trained in parallel on Spark (one node) and tracked in MLflow;
 - a batch-inference path that serves precomputed forecasts from Delta;
 - the reproducibility, leakage and data-quality work that makes the numbers trustworthy.
 
@@ -25,12 +25,12 @@ maps each piece to its Databricks equivalent.
 | MODIS → Delta Lake (bronze / silver / gold) | 13.90 GB, 2,563 NetCDF files → 1.96 billion pixel rows → 374 million cube rows → 23,460 region rows | Gold equals the existing pipeline's output exactly (23,460 / 23,460 rows); five sampled dates are bitwise identical to the existing `cube.zarr` |
 | OPTIMIZE + Z-ORDER | File statistics let a region filter skip 22–67% of silver's bytes; the one timed query got no faster; bronze file count 2,584 → 130 | Counted from the Delta transaction log, not from measured reads |
 | Parallel training on one node + MLflow | 1,990 XGBoost + Random Forest pairs, 7,362 s of task time in 815 s wall on 16 cores, 2,040 MLflow runs | The 1,044 predictions that have a reference equal the committed evaluation exactly (max abs diff 0.0) |
-| Batch inference | 21,900 entries (21,680 forecasts, 220 too early to forecast) in 2.19 h wall (26.0 h of task time, 11.9× the wall time), 16.9 MB Delta table | 50 / 50 random entries equal a fresh on-demand run in every value and type |
-| Serving from Delta | API latency on precomputed dates p50 3.28 s → 0.12 s, p95 10.6 s → 0.13 s (20 sequential requests on a Hyak node) | All 20 timed responses equal the on-demand API's (sha256 of the body without `source` and `model_version`) |
+| Batch inference | Measured run: 21,900 entries (21,680 forecasts, 220 too early to forecast) in 2.19 h wall (26.0 h of task time, 11.9× the wall time), 16.9 MB Delta table. Now regression only: 10,950 entries, rebuilt at `edf64987` (job 43283814, 1 h 17 min) | 50 / 50 random entries equal a fresh on-demand run in every value and type, in the measured run and again at `edf64987` |
+| Serving from Delta | Live at https://datect.onrender.com (Render's free plan) since 2026-11-12: 10,950 entries, 0 stale rows. API latency on precomputed dates p50 3.28 s → 0.12 s, p95 10.6 s → 0.13 s (20 sequential requests on a Hyak node, 2026-11-03; not the live site) | All 20 timed responses equal the on-demand API's (sha256 of the body without `source` and `model_version`) |
 | Reproducibility | Every behavior-neutral refactor reproduced the golden baseline byte for byte | `scripts/eval/compare_golden.py` on Hyak |
-| Leakage audit | Two train/test leaks and one train/test feature mismatch found and fixed; headline holdout R² 0.516 [0.308, 0.654] after them; 0.482 [0.218, 0.647] since one random forest replaced the per-site configuration (a tie) and stopped training on weeks with no last known value | `tests/test_leakage_audit.py`, deterministic chronological evaluation |
-| Data quality | 339 non-detects, 1,604 PN counts with thousands separators, ~1,200 duplicate site-days handled | The published holdout R² of 0.485 is shown to come from file order (0.419 once fixed) |
-| Dashboard | JavaScript 5.07 MB → 2.40 MB; first page load 1,586 KB → 56 KB gzipped | `vite build` |
+| Leakage audit | Two training-data problems (a target copied into a training feature, which never entered a score; weeks that held days after the anchor) and one train/test feature mismatch found and fixed; headline holdout R² 0.516 [0.308, 0.654] after them; 0.482 [0.218, 0.647] since one random forest replaced the per-site configuration (a tie) and stopped training on weeks with no last known value | `tests/test_leakage_audit.py`, deterministic chronological evaluation |
+| Data quality | 339 non-detects, 1,604 PN counts with thousands separators, 1,184 site-days with several samples (982 disagree) handled | The holdout R² of 0.485 reported until October 2026 is shown to come from file order (0.419 once fixed) |
+| Dashboard | JavaScript 5.07 MB → 2.40 MB (2.29 MB on 2026-11-16) | `vite build` |
 
 ## Architecture
 
@@ -52,7 +52,7 @@ flowchart TB
   features --> engine["Forecast engine<br/>leak-free, retrains per anchor"]
   engine -- joblib --> evals["Evaluation<br/>golden baselines"]
   engine -- Spark tasks --> retune["Re-tune<br/>1,990 model pairs"]
-  engine -- Spark tasks --> pre["Precompute<br/>21,900 entries"]
+  engine -- Spark tasks --> pre["Precompute<br/>10,950 forecasts"]
   retune --> mlflow[("MLflow<br/>runs + model registry")]
   pre --> table[("Delta<br/>gold/forecasts")]
   mlflow -. model_version .-> table
@@ -199,9 +199,9 @@ anchor date (that's what makes it leak-free), so each request took seconds: p50
 **MLflow Model Registry.** `datect-forecaster` version 1 is a pyfunc that wraps the
 forecast procedure. It's a procedure rather than a fixed fitted model, because DATect
 retrains for every anchor. Its tags record the config hash, git SHA, grid, Delta table
-version, entry count and wall time. Every table row carries
-`model_version = datect-forecaster/1`, so any forecast on the dashboard traces back to
-a registered version and a commit.
+version, entry count and wall time. In the measured run every table row carried
+`model_version = datect-forecaster/1`; each stored forecast carries the version it was
+built with, so it traces back to a registered version and a commit.
 
 | `POST /api/forecast/enhanced`, same 20 requests, same node | Before (on demand) | After (Delta) |
 |---|---:|---:|
@@ -215,8 +215,9 @@ a registered version and a commit.
 - the registered pyfunc reproduces 3 of 3 entries;
 - all 20 timed responses equal `main`'s (sha256 of the body without `source` and
   `model_version`);
-- the 50-entry check ran with the API's threading, so it also shows that
-  single-threaded XGBoost on Spark workers matches the API's multithreaded XGBoost;
+- the 50-entry check ran with the API's threading of the time. A later build found one
+  entry in 50 that differed in the last float32 bit at 16 threads, so every model now
+  trains on one thread and the check is 50 of 50 again (#31);
 - no stored entry used the random bootstrap interval fallback when measured (the
   bootstrap has since been removed from the engine).
 
@@ -259,11 +260,12 @@ Each forecast for date *t* is anchored at *t* − 7 days. Training rows and the 
 row use only weeks that end by the anchor (`date + 6 days <= anchor`). Persistence
 features and the naive baseline come from raw daily measurements dated on or before
 the anchor. Test points are raw measurements only, never gap-filled values. An audit
-found two leaks and one train/test feature mismatch, each fixed in its own commit:
+found two training-data problems and one train/test feature mismatch, each fixed in its
+own commit. Only `2688fb8d` let future information into a forecast:
 
 | Commit | Problem | Effect |
 |---|---|---|
-| `e14db2eb` | Training rows' "last observation" included the row's own target (equal on all 4,447 real-measurement rows) | The model learned to copy it and lagged every onset. Fixing it raised holdout R² 0.419 → 0.458 |
+| `e14db2eb` | Training rows' "last observation" included the row's own target (equal on all 4,447 real-measurement rows). A copy of the target in training, never in a score | The model learned to copy it and lagged every onset. Fixing it raised holdout R² 0.419 → 0.458 |
 | `2688fb8d` | Weekly rows dated on or before the anchor held up to six days after it | Removed real future information (about 23% of evaluation points' PN maximum) |
 | `c099f20b` | Not a leak: forecast rows' lags stopped 13–19 days before the target, unlike training rows | Rebuilt like training rows; exact on 2,977 of 2,977 sampled rows; onsets caught 18 → 19 of 27 |
 
@@ -278,10 +280,10 @@ found two leaks and one train/test feature mismatch, each fixed in its own commi
   - Pseudo-nitzschia counts like `"12,345"` → 12345 (1,604 values that were dropped
     before);
   - whitespace stripped from dates.
-- **Same-day duplicates.** About 1,200 site-days have several samples that disagree
+- **Same-day duplicates.** 1,184 site-days have several samples and 982 of those disagree
   (Gold Beach on 2019-01-24 recorded 0 and 190 µg/g), and the CSVs say nothing about
   which is right. The evaluation used to score whichever sample sorted first, so the
-  published holdout R² of 0.485 depended on file order. Scoring each site-day at its
+  holdout R² of 0.485 reported until October 2026 depended on file order. Scoring each site-day at its
   maximum, like the weekly maximum used everywhere else, gives 0.419. The model was
   not worse; the target had been arbitrary.
 - **Offline rebuild, no re-download.** `scripts/data/rebuild_final_output.py` rebuilds
@@ -295,11 +297,12 @@ found two leaks and one train/test feature mismatch, each fixed in its own commi
 A 3D convolutional autoencoder (`oad/`, four frames of context) learns normal ocean
 states from the four-channel MODIS cube and scores how anomalous each of five coastal
 regions looks. Scores are lagged so the 8-day composite behind them ends before the
-anchor (score at test date − 12 days). The in-region valid-pixel fraction (section 1)
+anchor (newest score at test date − 18 days). The in-region valid-pixel fraction (section 1)
 is a parallel feature, because the anomaly score correlates with cloud cover. The
-honest result: the scores track *Pseudo-nitzschia* at the offshore mooring but add
-no forecast skill at the beaches, and the ablation keeps them only because they do
-no harm.
+honest result: the scores track *Pseudo-nitzschia* modestly at the one offshore mooring
+(Spearman 0.28) but add no reliable forecast skill at the beaches, and they are kept only
+because they do no harm. The autoencoder's own comparison with PCA has known problems
+([`../oad/RESULTS.md`](../oad/RESULTS.md)).
 
 ## 8. Running on an HPC cluster (Hyak)
 
@@ -337,8 +340,9 @@ rule were committed before the holdout was scored.
 
 - **Smaller frontend bundle.** Only the four Plotly trace types the app draws are
   bundled, pages are lazy-loaded, and production source maps are off. JavaScript fell
-  from 5.07 MB to 2.40 MB, the first page load from 1,586 KB to 56 KB gzipped, and the
-  deployed `dist` from 25 MB to 2.5 MB.
+  from 5.07 MB to 2.40 MB and the deployed `dist` from 25 MB to 2.5 MB (`8fdd85e9`,
+  2026-10-28). The first page was 56 KB gzipped then (from 1,586 KB); the page the app
+  opens on now draws a chart, so it also loads the 620 KB gzipped chart bundle.
 - **A non-blocking API.** All 19 handlers were `async def` with no `await`, so one long
   forecast blocked every other user. They are plain `def` now and run in FastAPI's
   thread pool.
@@ -351,11 +355,11 @@ Spark runs the batch jobs and Delta is the serving store. Evaluation stays on jo
 because it has to run on a laptop and in CI without Java, and it is the reference that
 every Spark output is checked against.
 
-| Job | Path | Status (2026-11-03) |
+| Job | Path | Status |
 |---|---|---|
 | Evaluation (headline, golden, multi-seed) | joblib engine | Final: the reference implementation |
-| Forecast serving | Delta store (`backend/precomputed.py`, `DATECT_PRECOMPUTED_DIR`), on-demand fallback | The image ships the store (#23); the production store is rebuilt after the engine cleanup |
-| Dashboard precompute (retrospective, spectral, heatmaps) | The same Delta store, built on Spark (`datect_spark/precompute_store.py`) | Done (#23): 29 of 29 endpoint bodies byte-identical to the old file cache, which is deleted |
+| Forecast serving | Delta store (`backend/precomputed.py`, `DATECT_PRECOMPUTED_DIR`), on-demand fallback | Live since 2026-11-12 (#23, #30, #31); the store is rebuilt on Hyak after each change to a hashed input, last at `edf64987` |
+| Dashboard precompute (retrospective, spectral, heatmaps) | The same Delta store, built on Spark (`datect_spark/precompute_store.py`) | Done (#23): 29 of 29 endpoint bodies equal to the old file cache's (parsed, serving fields removed), which is deleted |
 | Ensemble weight tuning | `datect_spark/retune.py` (weights only) | Done (#23): the old grid search and tuning scripts are deleted |
 | Cloud fractions for the forecast features | Delta lake `export` writes `oad_cloud_fractions.parquet` | Done (#23): byte-identical to the committed file |
 | Autoencoder training data | `cube.zarr` from `oad/scripts/02_build_cube.py` | Stays: the autoencoder trains on the dense cube |
@@ -381,16 +385,19 @@ path only after its replacement reproduced the old output exactly.
 - Every Spark job ran on one node in local mode; multi-node scaling was not measured.
 - Task time over wall time (8.7×, 9.0×, 11.9×) is not a speedup: there was no serial run.
   It is 55–74% of the 16 cores.
-- Serving from Delta is not deployed. No store at the current config hash exists, so
-  the production image build stops at its check until the store is rebuilt. CI serves
-  only a two-entry stub table.
+- Serving from Delta is live on Render's free plan (since 2026-11-12), which sleeps when
+  idle: the first request after a pause takes about a minute. There is no usage, uptime or
+  load measurement. The data ends in 2023, so it serves past weeks only. CI's `docker` job
+  serves a two-entry stub table; the publish workflow uses the real store.
 - On one node, Spark was 2× slower than xarray for the MODIS pipeline. The gain is the
   lake, not speed.
 - "13.9 GB" is the satellite imagery alone. The tabular features were not rebuilt on
   Spark, and the ERDDAP-derived columns are frozen by policy.
 - The 0.12 s latency applies to precomputed weekly dates and the `ensemble` model;
-  anything else is computed on demand at the old latency. It is 20 sequential requests
-  on a Hyak node with no other load. The gain comes from precomputing and an in-memory
+  anything else is computed on demand. It is 20 sequential requests on a Hyak node with no
+  other load, measured 2026-11-03 when a request ran two model calls (it runs one now) and
+  before the endpoint gained the error band; it was not measured again, and it is not the
+  live site's latency. The gain comes from precomputing and an in-memory
   lookup: Delta is read once, at startup.
 - The API never loads the registered MLflow model; it only reports the version string
   stored with each row.

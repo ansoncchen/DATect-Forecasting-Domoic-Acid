@@ -26,12 +26,14 @@ keywords:
 abstract: >-
   DATect is a one-week-ahead quantitative forecasting system for domoic acid (DA)
   contamination of shellfish at 10 monitoring sites along the U.S. Pacific Northwest
-  coast. It combines an XGBoost + Random Forest ensemble with per-site hyperparameter
-  customization, observation-order lag features for sparse/irregular DA measurements,
-  and a dedicated transition-focused binary classifier for early-warning alerts.
-  The system enforces leak-free retrospective validation throughout and reports
-  honest multi-seed bootstrap confidence intervals on a chronological 2022-2023
-  holdout window that was never inspected during configuration selection.
+  coast. One random forest with shared settings at every site is retrained for each
+  forecast on past weeks only, with observation-order lag features for sparse,
+  irregular DA measurements. A spike classifier pooled across sites adds an
+  early-warning alert, and an 80% conformal band gives each forecast a range.
+  Evaluation is leak-free and chronological: every real measurement in 2022-2023 is
+  scored, with bootstrap confidence intervals. That window has not been a tuning
+  objective since the protocol was fixed in May 2026, but it has been read repeatedly
+  to check changes.
 preferred-citation:
   type: article
   title: "DATect: A leak-free quantitative forecasting system for domoic acid contamination of shellfish along the U.S. Pacific Northwest coast"
@@ -39,6 +41,5 @@ preferred-citation:
     - family-names: Chen
       given-names: Anson
       affiliation: "University of Washington"
-  journal: "(submitted)"
   year: 2026
   status: in-preparation

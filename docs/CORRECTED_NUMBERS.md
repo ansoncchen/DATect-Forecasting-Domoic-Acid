@@ -2,8 +2,9 @@
 
 Every metric DATect reports, the file it comes from, and how it got there. The
 README, CLAUDE.md and the dashboard (`GET /api/metrics/summary`) quote this page;
-when a re-run changes a number, change it here first. The paper's tables still
-predate the leakage fixes and are updated from this page in one pass.
+when a re-run changes a number, change it here first. The paper draft's tables still
+predate the leakage fixes (they report `a2de8dac`) and describe the retired per-site
+configuration; they are updated from this page in one pass.
 
 Every number below comes from commit `edf64987` (one random forest with shared
 settings at every beach, trained only on weeks that have a last known value; see
@@ -132,7 +133,7 @@ predictions exactly).
 | Subset | R² mean ± std (min–max) | MAE | Spike recall | F2 |
 |---|---|---:|---:|---:|
 | All years | 0.410 ± 0.035 (0.350–0.440) | 5.99 ± 0.25 | 0.855 ± 0.022 | 0.758 ± 0.021 |
-| Holdout rows only (N 100–133 per seed) | 0.332 ± 0.137 | | | |
+| Holdout rows only (N 100–133 per seed) | 0.332 ± 0.137 (sample SD; the API's `r2_std` of 0.122 is the population SD of the same five values) | | | |
 | Validation rows only (N 171–183 per seed) | 0.579 ± 0.094 | | | |
 
 The retired per-site configuration scored 0.448 ± 0.034 (MAE 6.32) on the same
@@ -217,8 +218,9 @@ hybrid alert catches 21 of the 29 transitions (0.724; scored with the snippet in
 The forecast's mean on transition rows is 19.6 µg/g against a mean actual 50.2:
 regression shrinks toward the mean and rarely crosses 20 at onset,
 which is why the separate classifier exists. Sources:
-`results/spike_metrics_seed123/{spike_metrics_by_model,per_site_metrics,threshold_sweep}.csv`,
-log in `results/final_verification/spike_detection_eval.txt`.
+`results/spike_metrics_seed123/{spike_metrics_by_model,per_site_metrics,threshold_sweep}.csv`.
+The log `results/final_verification/spike_detection_eval.txt` is older (`c2c5e08e`, the
+retired per-site configuration: hybrid recall 0.921, transition recall 0.785).
 
 ## Exploratory analyses (full data, not out-of-sample)
 
@@ -347,7 +349,7 @@ other Oregon sites −0.36 to 0.23.
 | 1 | Single seed 42, hand-tuned config | 0.492 | ~160 | Lucky seed |
 | 2 | 5 seeds (42–46), hand-tuned | 0.386 ± 0.145 | ~160/seed | Honest seed noise; the hand-tuned values had seen part of the validation window |
 | 3 | 5 seeds, grid-search winners (leak-free) | 0.433 ± 0.092 | ~160/seed | Tuned with chronological CV on pre-2022 data only |
-| 4 | Deterministic chronological (published) | 0.485 [0.330, 0.604] | 404 | All holdout measurements; no sampling noise |
+| 4 | Deterministic chronological (reported May–October 2026) | 0.485 [0.330, 0.604] | 404 | All holdout measurements; no sampling noise |
 | 5 | Cleanup fixes (`0330150b`…`d53fb6d5`) | 0.441 [0.257, 0.571] | 409 | Spike rule, non-detects, PN parsing, mae070 OAD, classifier encoding (see below) |
 | 6 | One measurement per site-day (`a2de8dac`) | 0.419 [0.247, 0.546] | 409 | Same-day duplicates scored at their daily max |
 | 7 | Leakage fixes (`e14db2eb`, `2688fb8d`) | 0.497 [0.365, 0.601] | 409 | Training persistence features no longer contain the target; only weeks that end by the anchor (see below) |
@@ -355,9 +357,10 @@ other Oregon sites −0.36 to 0.23.
 | 9 | One random forest at every beach (`1c9206c6`) | 0.473 [0.200, 0.644] | 409 | Per-beach model picks, feature lists and hyperparameters replaced by one shared configuration; a tie with step 8 (see below) |
 | **10** | **Training rows need a last known value (`edf64987`)** | **0.482 [0.218, 0.647]** | **409** | Each beach's first measured week, with no earlier measurement to build its features from, left out of training; removes the forest's early-year over-forecast (see below) |
 
-**Why 0.485 became 0.419.** About 1,200 site-days have several same-day DA
-samples that often disagree (Gold Beach 2019-01-24 recorded 0 and 190 µg/g; the
-CSVs carry no species or station to tell them apart). Training already used the
+**Why 0.485 became 0.419.** (0.485 was the number in the README, the paper draft and
+the dashboard from May to October 2026; "published" below means that.) 1,184 site-days
+have several same-day DA samples and 982 of those disagree (Gold Beach 2019-01-24
+recorded 0 and 190 µg/g; the CSVs carry no species or station to tell them apart). Training already used the
 weekly maximum, but the evaluation scored each forecast against whichever sample
 sorted first, so the published target depended on file order. Scoring the
 unchanged pre-cleanup predictions against daily-max targets gives a holdout R² of
@@ -369,6 +372,30 @@ reordered rows. The daily max raises 123 targets (65 validation, 58 holdout),
 lowers none, and turns 16 more holdout measurements into spikes (68 → 84).
 
 The validation window followed the same path: 0.384 (published) → 0.312 → 0.329.
+
+## How often the holdout has been read
+
+No setting has used 2022–2023 as a tuning objective since the chronological protocol
+was fixed in May 2026. It is still not an untouched test:
+
+- **Early development sampled all years.** Before the protocol, settings were tried on
+  random samples of 2003–2023 (`5e381b35`), so the project defaults that are still used
+  (the forest's settings, the alert thresholds, the dropped features) may have been
+  shaped by 2022–2023 rows.
+- **Every step in the table above re-scored it**, and decisions to keep a fix were made
+  with the result known (`c099f20b` was kept although the holdout fell).
+- **Declared checks on the main line**, each read after a choice on earlier years: the
+  Optuna search (rejected, `6a3cc564`); the Spark re-tune (`e76647bd`) and the
+  weights-only tuner (`results/tuning_provenance/retune_weights/holdout_check.json`); the
+  five shortlisted changes and the pooled comparison
+  ([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md) §3b, §4); the per-site check
+  (above); the error band's three runs ([`ERROR_BAND.md`](ERROR_BAND.md)); the
+  one-algorithm comparison (`FORECAST_EXPERIMENTS.md` §3c).
+- **The onset research logged seven uses of its own** (9 to 15 November 2026), the last
+  for the training-row fix below. "Read seven times" in earlier versions of this page
+  counted only those.
+
+Describe it as an out-of-sample check that has been looked at often.
 
 ## Training rows need a last known value (`edf64987`)
 
@@ -418,8 +445,9 @@ and 3 of 141 over all years. It now alarms 13 fewer quiet weeks over all years
 research pass also tested forest leaves of at least 10 rows on top of this. That
 change was behind on validation (MAE +0.16 [−0.01, +0.41]), so it was not ported.
 **What is left:** the over-forecast after large events (2016–2018 mean error +10.7
-on weeks below 5, holdout +5.3) is not this artifact and is not fixed. The holdout
-has now been read seven times.
+on weeks below 5, holdout +5.3) is not this artifact and is not fixed. This was the
+onset research's seventh read of the holdout, and the port's re-run read it again (see
+"How often the holdout has been read").
 
 **Error band.** Re-run on the new errors, the declared protocol again chooses the
 most recent 250 errors with Mondrian calibration (validation interval score 3.516);
@@ -488,7 +516,7 @@ check. Its fixes are separate commits, evaluated with the golden runs
 |---|---|---|---|---|---|
 | Before (`c0a0b2ae`) | 0.497 [0.365, 0.601] | 0.324 [0.207, 0.450] | 0.381 ± 0.026 | 18/27, 30.5% alarmed | 24/34, 14.6% |
 | + `0f4466d2` no clip | 0.550 [0.373, 0.668] | 0.426 [0.221, 0.628] | 0.456 ± 0.033 | 18/27, 30.5% | 24/34, 14.6% |
-| + `c099f20b` forecast-row lags (current) | 0.516 [0.308, 0.654] | 0.423 [0.216, 0.626] | 0.448 ± 0.034 | 19/27, 29.8% | 27/34, 15.0% |
+| + `c099f20b` forecast-row lags (as merged in #18) | 0.516 [0.308, 0.654] | 0.423 [0.216, 0.626] | 0.448 ± 0.034 | 19/27, 29.8% | 27/34, 15.0% |
 
 **`3f9bfba6`: the classifier's safe-baseline filter did nothing.** It was meant to
 train the spike classifier only on weeks whose previous measurement was below 20,
@@ -604,9 +632,9 @@ details in [`OAD_INTEGRATION_RESULTS.md`](OAD_INTEGRATION_RESULTS.md) §7–8.
 | Five extra feature sets (lagged PN, BEUTI derivatives, NeMO mooring, ESP offshore pDA, NDBC wind) | Each \|ΔR²\| < 0.003 | Removed |
 | Per-anchor XGB grid tuning | 23% of predictions change, no skill gain | Off by default (`9c435f59`) |
 
-Two conclusions from this work still stand: OAD tracks *Pseudo-nitzschia* at the
-offshore NEMO mooring but adds nothing at the beaches (see
-[`../oad/OAD_STORYLINE.md`](../oad/OAD_STORYLINE.md), Chapter 9), and the existing
+Two conclusions from this work still stand: OAD tracks *Pseudo-nitzschia* modestly at
+the offshore NEMO mooring (one mooring, Spearman 0.28) but gives no reliable gain at the
+beaches (see [`../oad/OAD_STORYLINE.md`](../oad/OAD_STORYLINE.md), Chapter 9), and the existing
 feature set is at a flat optimum where new in-situ data, not more derived
 features, is the likely route to better skill.
 

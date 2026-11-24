@@ -5,7 +5,7 @@ validation 0.324). This page records problems found in the one-week-ahead DA for
 and many small one-change-at-a-time experiments, with their numbers at that baseline.
 `docs/CORRECTED_NUMBERS.md` stays the source of reported numbers.
 
-**Status (2026-11-03).** Four findings were ported to `main`, each in its own commit with
+**Status (2026-11-03, updated 2026-11-24).** Four findings were ported to `main`, each in its own commit with
 before/after numbers in [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md):
 
 - A2: the classifier's no-op safe-baseline filter was removed and the docs corrected
@@ -14,7 +14,9 @@ before/after numbers in [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md):
 - A1 / S4: forecast-row lags are rebuilt like training rows (`c099f20b`);
 - A5: onset scores and log-scale R² are reported (`93518c7d`).
 
-Nothing else was adopted. The experiment code (`scripts/experiments/`) and the
+Adopted later: one random forest at every beach (§3c, `1c9206c6`, #36) and, from the onset
+research, training rows that need a last known value (`edf64987`, #37). Nothing else on this
+page was adopted. The experiment code (`scripts/experiments/`) and the
 per-experiment tables (`results/experiments/`) are not on `main`; they are on the branch
 above, at commit `779d419d`.
 
@@ -25,7 +27,8 @@ crosses 20, scored on rows whose last known value at the anchor is < 20. The lev
 forecast (R², MAE) is secondary, and the user wants one model rather than per-site
 picking. Selection used validation (2019–2021) only, with 2015–2018 as a consistency check;
 the 2022–2023 holdout was run once for a shortlist fixed in advance and for the
-pre-declared pooled comparison.
+pre-declared pooled comparison (and later for §3c; every read of the holdout is listed in
+`CORRECTED_NUMBERS.md`, "How often the holdout has been read").
 
 **Top problems** (§1):
 
@@ -74,7 +77,9 @@ features** (validation-only diagnostic, §3b ablation). In the pooled models, dr
 rolling DA features lowers onset AUC in all three families (linear −0.029
 [−0.057, −0.007]). Dropping all environmental groups at once raises it (+0.032
 [+0.001, +0.068] linear, +0.013 RF, +0.029 XGBoost). The ESP offshore pDA and NEMO mooring
-sources could not be re-tested because their input files no longer exist.
+sources could not be re-tested then because their input files were missing. The mooring was
+tested later, with wind and lagged satellite features, in the transport round (branch
+`claude/transport-trigger`, §7): none of its seven variants passed.
 
 ## 1. Audit: problems found
 
@@ -405,8 +410,8 @@ in both windows. Raw outputs: `/gscratch/scrubbed/ac283/experiments/raw/` (Hyak)
   windows (+0.020 / +0.041 R²; +0.057 / +0.026 onset AUC). One number can carry most of
   the alert information without a separate output.
 - **The ESP offshore pDA and NEMO mooring sources** from the pre-cleanup experiments were
-  not re-tested: their input files (`ChaBa ESP database.xlsx`, `ChaBa_pCO2ALLdata.mat`) no
-  longer exist locally or on Hyak.
+  not re-tested: their input files (`ChaBa ESP database.xlsx`, `ChaBa_pCO2ALLdata.mat`)
+  were missing when this was run (see the Summary for the later transport round).
 
 
 ## 3b. One pooled model: declared comparison

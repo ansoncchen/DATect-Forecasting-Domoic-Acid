@@ -2,11 +2,12 @@
 """
 DATect Ablation Study for Paper
 
-Runs 4 ablation experiments, each disabling one key component:
+Runs 5 ablation experiments, each disabling one key component:
   1. No interpolated training (USE_INTERPOLATED_TRAINING=False)
   2. No per-site customization (USE_PER_SITE_MODELS=False)
   3. No observation-order lags (LAG_FEATURES=[])
   4. No derived features (drop pn_log — the only remaining derived feature)
+  5. No OAD regional anomaly features (drop all 16)
 
 Each experiment runs as a subprocess so config.py is re-imported fresh
 with the correct environment variables (required for loky/joblib workers).

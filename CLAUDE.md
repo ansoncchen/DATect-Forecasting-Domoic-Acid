@@ -20,7 +20,7 @@ python scripts/data/export_oad_features.py ae_3d_l32_c4_t4_s42_mae070  # OAD inp
 bash scripts/eval/golden_baseline.sh <git-ref> <label>
 python scripts/eval/compare_golden.py <golden_root>/<a> <golden_root>/<b>
 
-gh workflow run publish-image.yml -f store_tag=store-<commit>          # image for Render (render.yaml)
+gh workflow run publish-image.yml -f store_tag=store-<commit>          # image, then the Render deploy (datect.onrender.com)
 PROJECT_ID=<gcp-project> ./deploy/deploy_gcloud.sh                     # Cloud Run (needs billing)
 ```
 
@@ -61,11 +61,11 @@ Local Python is `.venv/bin/python` (system `python3` lacks the deps). Install wi
 - **Measurement parsing** is in `forecasting/measurements.py`: `"<1"` (below detection) is
   LOD/2 = 0.5; PN counts with thousands separators (`"12,345"`) are parsed; dates are
   stripped of whitespace. All three readers (dataset build, evaluation targets, API) use it.
-- **Same-day DA samples:** ~1,200 site-days have several samples that often disagree
+- **Same-day DA samples:** 1,184 site-days have several samples and 982 of those disagree
   (Gold Beach 2019-01-24 = [0, 190]; the CSVs record no species or station).
   `load_raw_da_measurements` returns one row per site-day at the **max**, like the weekly
   MAX used everywhere else. Never pick "the first" duplicate: it made the evaluation
-  target depend on sort order and inflated the published holdout R² (0.485 vs 0.419).
+  target depend on sort order and inflated the holdout R² reported until October 2026 (0.485 vs 0.419).
 - **Seeds:** `config.RANDOM_SEED` only chooses retrospective test points;
   `config.MODEL_SEED` (42) seeds every model. Joblib/Spark workers re-import `config`, so
   patching `config` in the parent never reaches them; vary behavior through env vars.
@@ -154,7 +154,9 @@ Backend/deploy variables (`DATECT_PRECOMPUTED_DIR`, `ALLOWED_ORIGINS`, `PORT`, `
 
 - **Three chronological windows:** training = pre-anchor data (engine-enforced); validation =
   `[2019-01-01, 2022-01-01)` (tuning objective); holdout = `[2022-01-01, 2024-01-01)`
-  (final report only, never used for selection). Defined in the tuned JSON's `eval_windows`.
+  (final report only, never a tuning objective). Defined in the tuned JSON's `eval_windows`.
+  Never call the holdout untouched: early development sampled all years (`5e381b35`) and it has
+  been read many times to check changes (`docs/CORRECTED_NUMBERS.md`, "How often the holdout has been read").
 - **Headline = deterministic chronological eval** (`scripts/eval/chronological_eval.py`):
   every real DA measurement in the window, no sampling. Confirm with the 5-seed bootstrap
   (`multi_seed_baseline.py`, seeds 42-46 at 20%). Single-seed R² at N~1,000 is noise-dominated
@@ -230,7 +232,8 @@ gap-filled DA rows; evaluation uses real raw measurements only.
 
 **OAD integration:** the AE checkpoint `ae_3d_l32_c4_t4_s42_mae070` scores 5 PNW regions;
 each site maps to one region. Scores are lagged so the centered 8-day composite ends before
-the anchor (score at `test_date - 12`), and the in-region valid-pixel fraction is a parallel
+the anchor (newest score at `test_date - 18`: the row's week must end by the anchor, and the
+score stops 5 days before the row), and the in-region valid-pixel fraction is a parallel
 feature because the score correlates with cloud cover (r ~ 0.4-0.5).
 
 ## Results

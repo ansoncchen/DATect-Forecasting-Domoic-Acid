@@ -1,7 +1,8 @@
 # Quickstart for Reviewers
 
-How to trace each claim in the DATect paper to a committed artifact, check the
-leak-free protocol, and re-run the evaluations. The numbers themselves, and
+How to trace each kind of claim in the DATect paper to a committed artifact, check the
+leak-free protocol, and re-run the evaluations. **The paper draft's own numbers are older**
+(`a2de8dac`, the retired per-site model); the artifacts below hold the current run. The numbers themselves, and
 which run each comes from, are in [`CORRECTED_NUMBERS.md`](CORRECTED_NUMBERS.md);
 this page does not repeat them.
 
@@ -19,7 +20,7 @@ Run everything from the repository root. Locally, use a virtual environment with
 | Validation-window (2019–2021) metrics | `results/chronological/chronological_regression_ensemble_20190101_20220101.{json,parquet}` |
 | 5-seed bootstrap confirmation | `results/multi_seed/baseline_seed{42..46}_predictions.parquet` |
 | Tables 1–2 and the 4-category classification table (single-seed paper sample) | `results/paper_metrics/{table1_model_comparison,table2_per_site,table3_classification}.csv`, `paper_metrics.json` |
-| Spike / transition recall, including the hybrid alert (Table 5, Figure 4) | `results/spike_metrics_seed123/{spike_metrics_by_model,per_site_metrics,threshold_sweep}.csv`, log in `results/final_verification/spike_detection_eval.txt` |
+| Spike / transition recall, including the hybrid alert (Table 5, Figure 4) | `results/spike_metrics_seed123/{spike_metrics_by_model,per_site_metrics,threshold_sweep}.csv`, (the log `results/final_verification/spike_detection_eval.txt` is an older run, `c2c5e08e`) |
 | Environmental lead signals before spikes (exploratory, full data) | `results/env_lead/{spike_events,statistical_tests}.csv`, log in `results/final_verification/spike_env_lead_analysis.txt` (`scripts/eval/spike_env_lead_analysis.py`) |
 | Persistence ceiling per site | `results/final_verification/autocorrelation_diagnostic.txt` (`scripts/eval/autocorrelation_diagnostic.py`) |
 | Component ablation (Appendix Table A1) | `results/ablation/paper_ablation_results.json`, log in `results/final_verification/paper_ablation_study.txt` |
@@ -54,8 +55,9 @@ print(f'spike recall {ov[\"spike_recall\"]:.3f}  precision {ov[\"spike_precision
 "
 ```
 
-The 5-seed confirmation is the holdout-window R² of each seed's predictions. The
-API computes it the same way (`GET /api/metrics/summary`, which the dashboard shows):
+The 5-seed confirmation is the holdout-window R² of each seed's predictions, with the
+sample standard deviation. The API reports the same mean (`GET /api/metrics/summary`,
+which the dashboard shows) with the population standard deviation (0.122 instead of 0.137):
 
 ```bash
 .venv/bin/python -c "
@@ -66,7 +68,7 @@ for p in sorted(glob.glob('results/multi_seed/*_predictions.parquet')):
     df = pd.read_parquet(p); df['date'] = pd.to_datetime(df['date'])
     h = df[(df['date'] >= '2022-01-01') & (df['date'] < '2024-01-01')]
     r2.append(r2_score(h['actual_da'], h['predicted_da']))
-print(f'{len(r2)} seeds: R2 {np.mean(r2):.3f} +/- {np.std(r2):.3f}')
+print(f'{len(r2)} seeds: R2 {np.mean(r2):.3f} +/- {np.std(r2, ddof=1):.3f}')
 "
 ```
 
@@ -94,7 +96,8 @@ assert (gap == 7).all(), gap.value_counts()
 print('all', len(df), 'rows have a 7-day horizon')
 "
 
-# 4. The split: tuning objectives use the validation window; the holdout is never inspected
+# 4. The split: tuning objectives use the validation window, never the holdout
+#    (the holdout is not untouched: docs/CORRECTED_NUMBERS.md, "How often the holdout has been read")
 .venv/bin/python -c "
 from forecasting.tuned_config import get_eval_windows
 w = get_eval_windows()
@@ -117,7 +120,11 @@ lag so the centered MODIS composites never overlap the forecast window
 ## Check a spike-detection claim
 
 ```bash
-grep -A 12 "Hypothesis Test" results/final_verification/spike_detection_eval.txt
+.venv/bin/python -c "
+import pandas as pd
+df = pd.read_csv('results/spike_metrics_seed123/spike_metrics_by_model.csv')
+print(df[['model', 'recall', 'precision', 'f2', 'transition_recall']].round(3).to_string(index=False))
+"
 ```
 
 The hybrid alert (spike classifier OR regression forecast ≥ 12 µg/g) is stored per
@@ -241,7 +248,7 @@ config/tuned_hyperparameters.json        all tuned values + per-key provenance
 papers/datect/datect_paper_mdpi.tex
    ├── Abstract, Table 3, Conclusions    results/chronological/
    ├── Tables 1-2, classification table  results/paper_metrics/
-   ├── Table 5                           results/final_verification/spike_detection_eval.txt
+   ├── Table 5                           results/spike_metrics_seed123/
    └── Appendix A1, A2                   results/ablation/, results/final_verification/
 ```
 
@@ -260,7 +267,7 @@ papers/datect/datect_paper_mdpi.tex
 | Want to inspect | Look here |
 |---|---|
 | Reported numbers and their history | `docs/CORRECTED_NUMBERS.md` |
-| Tuned per-site configuration | `config/tuned_hyperparameters.json` |
+| Shared settings, and the retired per-site configuration | `config/tuned_hyperparameters.json` |
 | Engine internals and safeguards | `docs/PIPELINE_DEEP_DIVE.md` |
 | Data pipeline | `docs/DATA_PIPELINE_DETAILED.md` |
 | DATect-side OAD integration | `docs/OAD_INTEGRATION_RESULTS.md` |

@@ -14,6 +14,11 @@
 
 ---
 
+> **Read first:** the forecast comparison in Chapters 4, 5 and 10 has known problems
+> (an unscaled penalty that probably forces PCA to zero, test years seen in training,
+> other variants positive too). They are listed at the top of [`RESULTS.md`](RESULTS.md);
+> nothing has been re-run.
+
 ## Chapter 1 — Why an unsupervised satellite anomaly detector
 
 The Pacific Northwest coast experiences harmful algal blooms (HABs) every year,
@@ -50,7 +55,7 @@ channels tensors. Architecture details (`oad/src/model3d.py`):
 
 | Element | Value | Notes |
 |---|---|---|
-| Input shape | `(channels=4, time=4 days, lat=321, lon=409)` | 4-day rolling temporal window |
+| Input shape | `(channels=4, time=4 frames, 64, 64)` patches | tiled over the 321 × 409 grid; 4-frame rolling window |
 | Channels | `[chla, Kd490, nFLH, SST]` | Standard MODIS Aqua ocean-color + thermal |
 | Latent dim | 32 | Compressed representation per window |
 | Convolutional core | 3D conv stack with stride downsampling | Symmetric encoder/decoder |
@@ -64,9 +69,8 @@ pixel masking).
 
 **Anomaly score derivation.** For a given daily 8-day composite at region $R$,
 the model produces a reconstruction. The per-pixel reconstruction error is
-averaged over the region mask, then z-scored against an in-region historical
-distribution. The resulting per-region scalar is the "OAD anomaly score" used
-in all downstream analyses.
+averaged over the region mask. That per-region scalar, which is not z-scored, is the
+"OAD anomaly score" used in all downstream analyses.
 
 ---
 
@@ -78,8 +82,8 @@ The training data is a custom-built spatiotemporal cube
 | Property | Value |
 |---|---|
 | Years covered | 2003–2024 |
-| Temporal resolution | Daily rolling 8-day composites (~4,700 frames) |
-| Spatial extent | 41–49°N × 122–127°W (U.S. PNW coastal box) |
+| Temporal resolution | Daily rolling 8-day composites from 2012 (~4,700 frames in all); about 45 frames a year in 2003–2008 and none in 2009–2011 |
+| Spatial extent | 41–49°N × 120.8–131°W (`config.py`; the paper drafts say 122–127°W) |
 | Resolution | 0.025° (stride 2 from native MODIS) |
 | Grid | 321 lat × 409 lon |
 | Channels | 4 (chla, Kd490, nFLH, SST) |
@@ -93,10 +97,10 @@ regions are an overall coastwide envelope plus four alongshore sub-bands
 | Region name | Latitude range | Notes |
 |---|---|---|
 | Overall (WA–OR–N. CA coastal) | 41–49°N | Coastwide envelope |
-| Olympic Coast (WA) | 47.0–48.5°N | Contains the NEMO mooring source region |
-| SW Washington / Long Beach | 46.0–47.0°N | Major razor clam fishery |
+| Olympic Coast (WA) | 47.0–49.0°N | Contains the NEMO mooring |
+| SW Washington / Long Beach | 45.5–47.0°N | Major razor clam fishery |
 | Central Oregon | 43.5–45.5°N | Coverage gap during major MODIS outages |
-| Southern OR / N CA | 41.5–43.5°N | Sparsest historical data |
+| Southern OR / N CA | 41.0–43.5°N | Sparsest historical data |
 
 ---
 
@@ -110,13 +114,13 @@ it is at git tag `archive/pre-cleanup`):
 |---|---|---|
 | A | Plain reconstruction loss on full input | Trained, but raw reconstruction error wasn't a useful anomaly score on its own — the model just learned to copy. |
 | B | Per-region z-score post-processing of Phase A outputs | Improved score scale, didn't change the underlying representation. |
-| C | **Masked-autoencoder pretraining (50% or 70% random pixel masking)** | The winning architecture. Forces the model to learn ocean-state regularities rather than memorize textures, because it has to *infer* hidden pixels from visible context. |
+| C | **Masked-autoencoder pretraining (50% or 70% random pixel masking)** | The architecture used. Meant to make the model learn ocean-state regularities rather than memorize textures, because it has to *infer* hidden pixels from visible context. |
 
 The two MAE variants:
 
 | Variant | Mask ratio | Strongest property | Weakest property |
 |---|---|---|---|
-| `AE_3d_l32_c4_t4_s42_mae070` | 70% | **Only variant with positive 7-day forecast skill in all five regions** (0.10–0.26) | Marginally higher cloud confound (r ≈ +0.49 vs valid-pixel fraction) |
+| `AE_3d_l32_c4_t4_s42_mae070` | 70% | Positive 7-day forecast skill in all five regions (0.10–0.26); so are the 3D 40% and the 2D 50% and 70% variants | Marginally higher cloud confound (r ≈ +0.49 vs valid-pixel fraction) |
 | `AE_3d_l32_c4_t4_s42_mae050` | 50% | Slightly cleaner cloud signature (r ≈ +0.44) | Loses multi-step skill — positive in only 3 of 5 regions at 7 days |
 
 The 1-day-ahead R² ≈ 0.87 is *real* but inflated by 8-day composite overlap
@@ -125,8 +129,8 @@ is at lead ≥ 7 days. There the two variants **diverge**, not converge: mae070
 stays positive in every region, while mae050 drops to roughly half its skill
 (SW WA +0.08 vs mae070 +0.15 at 7 days) and goes negative in two regions.
 **`mae070` is the reporting checkpoint**, chosen for that all-region 7-day
-skill; we accept its marginally higher cloud confound rather than mae050's
-skill loss.
+skill on the same test that is reported; we accept its marginally higher cloud
+confound rather than mae050's skill loss.
 
 Training itself runs on Hyak GPUs (see `hyak/` directory for the sbatch
 drivers). Multiple checkpoints are saved per variant in
@@ -138,15 +142,17 @@ drivers). Multiple checkpoints are saved per variant in
 
 The first question to ask of any unsupervised representation is whether it
 captures anything more than a simple linear compression. We compared at
-multiple lead times against three baselines:
+multiple lead times against three baselines (the PCA comparison below is not valid
+until it is re-run on scaled scores):
 
 - **PCA baseline (B3T)** — linear PCA on the same 4-channel input, matched
   dimensionality to the AE latent
 - **Climatology B1** — long-run mean field
 - **Climatology B2** — day-of-year climatology
 
-The task is per-region anomaly state prediction from the past 4 days, evaluated
-on the 2019+ held-out period. Headline result for the SW Washington region:
+The task is predicting each method's own regional score from its past 4 values,
+tested on the last 20% of the series (from about May 2022 for `mae070`; the
+autoencoder itself was trained on frames from all years). SW Washington region:
 
 | Lead time | `AE_3d_mae050` R² | `AE_3d_mae070` R² | PCA baseline R² | Climatology B2 R² |
 |-----------|------------------:|------------------:|----------------:|------------------:|
@@ -164,11 +170,11 @@ daily composites share 7 of 8 input days, so predicting tomorrow is partially a
 copy operation. The honest forecastability comparison happens at lead = 7 or
 14 days, where the composite overlap is gone.
 
-**The clean result at lead = 7 days.** The AE is the *only* method with
-positive R² in every PNW region (range 0.10–0.26 across the 5 regions),
-while PCA collapses to ≈ 0 in every region and climatology B2 actively
-anti-predicts in several regions. This is the cleanest evidence that the
-masked-autoencoder learns ocean-state structure that linear methods can't.
+**The result at lead = 7 days.** The `mae070` AE has positive R² in every PNW region
+(range 0.10–0.26 across the 5 regions), as do the three other masked variants named
+above, while climatology B2 is negative in every region. PCA is at 0, but probably
+because of the test (`RESULTS.md`, Known problems). It is not evidence that the model
+learns structure linear methods can't.
 See `RESULTS.md` for per-region E4-forecastability tables.
 
 ---
@@ -228,9 +234,8 @@ tables.
    operational use of OAD will require careful recalibration to successor
    instruments such as PACE. The 22-year archive is irreplaceable for training,
    but the live data feed will change.
-2. **MODIS coverage gap 2009–2011.** During this period the cube has near-zero
-   valid pixels in several regions. Scores from this window have correspondingly
-   wide uncertainty.
+2. **MODIS coverage gap 2009–2011.** The cube has no frames for these years, so there are
+   no scores.
 3. **Cloud confound (Chapter 6).** ~19–24% of the score variance is associated
    with cloud cover. Mitigated but not eliminated.
 4. **Single-mooring offshore validation.** The cleanest validation against
@@ -271,6 +276,9 @@ Spearman**, since Pearson is inflated by a few bloom-spike days: Olympic *Pn*
 
 ### OAD score vs ESP particulate domoic acid (90 samples, 2016–2018; mae070)
 
+(The paper drafts use 87 daily values and report Pearson +0.33 and Spearman +0.16; the
+difference in N was not resolved.)
+
 | OAD region | r | 95% CI | p |
 |---|---:|---|---:|
 | **Olympic Coast (WA)** (reported) | +0.339 | [+0.02, +0.54] | 1.1×10⁻³ |
@@ -293,15 +301,11 @@ density rises 5.1→6.4→7.6 ×10⁴ across OAD-score terciles), while the **pD
 toxin signal is not robust** (Pearson +0.34 but Spearman ρ = +0.19, p = 0.07,
 CI spanning zero — the linear correlation is carried by a few high-toxin days).
 
-**This is the validation story for the OAD subproject.** An unsupervised
+**This is the validation of the OAD subproject.** An unsupervised
 satellite autoencoder that has never seen a biology measurement tracks in-situ
 *Pn* cell density at the NEMO mooring at Spearman ρ = +0.28 (p = 0.016, CI
-excluding zero); the toxin correlation is suggestive but not rank-significant. Combined with the lead = 7 days forecastability result
-(Chapter 5), the offshore validation is what makes OAD a publishable
-standalone subproject: it is a learned satellite representation that
-demonstrably captures biological signal at the ocean source, characterized by
-its own intrinsic forecastability *and* validated against independent in-situ
-ground truth.
+excluding zero); the toxin correlation is suggestive but not rank-significant. It is
+one mooring and 76 samples, and the claim should stay that size.
 
 **The downstream beach-DA story is reported separately** — see
 [`../docs/OAD_INTEGRATION_RESULTS.md`](../docs/OAD_INTEGRATION_RESULTS.md).
@@ -327,23 +331,19 @@ any downstream integration:
    (`outputs/scores/ae_3d_l32_c4_t4_s42_mae070.parquet`) and can be consumed
    by any downstream application without re-running the convolutional model.
 
-2. **A clean lead-time forecastability comparison** showing that masked-
-   autoencoder pretraining produces a representation that outperforms PCA
-   and climatology baselines at multi-day lead times in every PNW region —
-   evidence that the unsupervised approach learns ocean-state structure that
-   linear methods cannot.
+2. **A lead-time forecastability comparison** in which the masked autoencoder's score
+   can be forecast modestly at 7 days (R² 0.10–0.26). How that compares with PCA and
+   climatology is open (`RESULTS.md`, Known problems).
 
-3. **An offshore in-situ validation** showing that the unsupervised score
-   correlates significantly with *Pn* cell density (r = +0.46) and particulate
-   DA (r = +0.35) at the NEMO mooring source region, bootstrap CIs excluding
-   zero — demonstrating that the learned representation captures biologically
-   meaningful ocean state.
+3. **An offshore in-situ check** at one mooring: the unsupervised score correlates with
+   *Pn* cell density (Pearson +0.46, Spearman +0.28, p = 0.016, N = 76); the
+   particulate-DA correlation is not significant on ranks.
 
 ---
 
 ## Companion documents
 
-- [`RESULTS.md`](RESULTS.md) — Validated numbers: per-region E4-forecastability
+- [`RESULTS.md`](RESULTS.md) — Measured numbers and known problems: per-region E4-forecastability
   tables, MAE-ratio comparison, annual-cycle plots, sanity-check caveats on
   the 1-day lead inflation
 - `IMPLEMENTATION_PLAN.md` (at git tag `archive/pre-cleanup`) — Design history

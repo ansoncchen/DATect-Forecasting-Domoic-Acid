@@ -74,7 +74,7 @@ alarmed), and the regression line itself with AUC 0.752. Pooled errors make
 P(DA >= 20) rise with the forecast, so without Mondrian calibration the band
 ranks onsets almost exactly as the line does (only the error set changes over
 time); the classifier is expected to win.
-The holdout classifier AUC (0.773) is already published; the band's holdout
+The holdout classifier AUC (0.773) was already reported; the band's holdout
 numbers were not computed before this commit.
 
 ## Results
@@ -120,7 +120,6 @@ alert: 19 at 30.5%); onset AUC 0.685 vs 0.773, difference −0.088 [−0.201,
 were required, so two of the three conditions fail again.
 
 ### Random forest (`1c9206c6`, 2026-11-15)
-
 
 The served model became one random forest at every beach
 ([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md) §3c), so the band was

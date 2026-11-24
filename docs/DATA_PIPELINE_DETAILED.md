@@ -45,7 +45,7 @@ Run the full `dataset-creation.py` only when environmental or satellite sources 
 
 ## Measurement parsing (`forecasting/measurements.py`)
 
-One implementation shared by `dataset-creation.py` (weekly `da`/`pn`), `raw_data_forecaster.load_raw_da_measurements` (evaluation targets) and the API's latest-reading lookup:
+One implementation shared by `dataset-creation.py` (weekly `da`/`pn`) and `raw_data_forecaster.load_raw_da_measurements` (evaluation targets, and every measurement the API shows):
 
 | Function | Rule |
 |---|---|
@@ -73,7 +73,7 @@ DA files use one of two schemas: `CollectDate` + `Domoic Result`, or `Harvest Mo
 
 ## Temporal safeguards
 
-Each source is lagged so that a row dated *R* holds only information available by *R*. The forecasting engine then reads environmental values from the row at or before the anchor (target date − 7 days).
+Each source is lagged so that a row dated *R* holds only information available by *R*. The forecasting engine then reads environmental values from the latest row whose week ends by the anchor (target date − 7 days).
 
 | Column(s) | How it is joined to row date *R* | Why |
 |---|---|---|

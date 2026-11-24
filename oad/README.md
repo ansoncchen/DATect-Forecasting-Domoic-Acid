@@ -192,7 +192,8 @@ Conventions and gotchas from prior runs; read before modifying the pipeline.
 - **MODIS 8-day composites are CENTERED on the labeled date** (`long_name =
   "Centered Time"`). A score at date *t* contains ~3-4 days of "future" data
   relative to *t*. Any downstream consumer must lag by ≥ 4 days beyond its own
-  anchor convention. DATect lags by 5 days (`test_date − 12` at the latest);
+  anchor convention. DATect lags by 5 days behind its weekly row (newest score at
+  `test_date − 18`);
   see `../docs/OAD_INTEGRATION_RESULTS.md`.
 - **MPS doesn't support `ConvTranspose3D`**, so on Mac the 3D ConvAE falls back
   to CPU automatically (`_select_device_for_3d`). CUDA on Hyak handles it fine.
@@ -207,26 +208,22 @@ Conventions and gotchas from prior runs; read before modifying the pipeline.
   where NNN = `round(mask_ratio * 100)`. The inference script auto-includes
   `_maeNNN` in the method name.
 
-### Headline result (validated, 22-yr cube)
+### Result (22-yr cube)
 
-`AE_3d_l32_t4_mae070` (3D ConvAE3D with Phase C MAE training at 70% pixel hiding)
-is the best AE method in SW Washington / Long Beach: **R²=+0.87, CIΔ vs matched-k
-PCA = [+0.92, +1.05]**, an entirely positive 95% bootstrap CI. Across regions,
-the optimal mask ratio is 40–70% for 3D and 50% for 2D. See `RESULTS.md`.
+`AE_3d_l32_t4_mae070` (3D ConvAE3D with Phase C MAE training at 70% pixel hiding) is
+the checkpoint DATect uses. Its score can be forecast 7 days ahead with R² 0.10–0.26 in
+the five regions and about 0 at 14 days. The 1-day-ahead R²=0.87 is inflated by 8-day composite overlap.
 
-**Strongest defensive finding** (multi-step decay): at lead=7 days,
-`AE_3d_l32_t4_mae070` is the **only method** with positive R² in every PNW
-region (0.10–0.26). Climatology baselines B1/B2 collapse to ≤ 0 (B2 goes
-*negative*), and matched-k PCA was already at 0. The 1-day-ahead
-headline R²=0.87 is partly inflated by 8-day composite overlap.
+**Do not quote a win over a baseline, "only method", or a held-out period** until the test is
+re-run: see "Known problems with the forecast comparison" at the top of `RESULTS.md`.
 
 **Cloud-cover confound**: r ≈ +0.4–0.5 with in-region valid-pixel fraction
 (~24% of variance). The AE is less confounded than PCA (+0.75) but more than
-climatology. `mae070` still wins overall because the cleaner-cloud `mae050`
+climatology. `mae070` was preferred because the cleaner-cloud `mae050`
 variant has substantially worse multi-step skill (R²=−0.17 vs +0.19 at lead=7
 in Olympic Coast). This is why DATect uses `mae070`.
 
-See "SANITY-CHECK CAVEATS" at the top of `RESULTS.md`.
+See "SANITY-CHECK CAVEATS" in `RESULTS.md`.
 
 ### Hyak sbatch templates
 

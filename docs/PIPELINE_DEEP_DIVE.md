@@ -8,15 +8,15 @@ How the forecasting engine (`forecasting/raw_forecast_engine.py`, class `RawFore
 
 | Source | Holds |
 |---|---|
-| `config/tuned_hyperparameters.json` | Single source of truth for tuned values: XGB/RF base params, spike thresholds, and every per-site block (XGB/RF overrides, feature subset, ensemble weights, clip quantile). Loaded by `forecasting/tuned_config.py`. |
+| `config/tuned_hyperparameters.json` | Single source of truth for tuned values: XGB/RF base params, spike thresholds, and the per-site blocks of the retired per-site configuration (XGB/RF overrides, feature subset, ensemble weights), used only with `DATECT_USE_PER_SITE_MODELS=true`. Loaded by `forecasting/tuned_config.py`. |
 | `config.py` | Paths, horizon (`FORECAST_HORIZON_DAYS = 7`), seeds, category bins, decay-fill constants, sampling fractions, and the `DATECT_*` env-var overrides. Reads the JSON's `global` block. |
-| `forecasting/per_site_models.py` | Exposes the JSON's `per_site` block as `SITE_SPECIFIC_CONFIGS` and applies the env-var overlays (`DATECT_FEATURE_SUBSET_MODE`, `DATECT_OAD_ON_SMALL_N`, `DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_CLIP_Q_OVERRIDE`). |
+| `forecasting/per_site_models.py` | The served weights (`SHARED_WEIGHTS`, the random forest alone), plus the JSON's `per_site` block as `SITE_SPECIFIC_CONFIGS` and the env-var overlays (`DATECT_FEATURE_SUBSET_MODE`, `DATECT_HPARAM_OVERRIDE_JSON`, `DATECT_CLIP_Q_OVERRIDE`). |
 
 Because `config.py` and `per_site_models.py` read `DATECT_*` variables at import time, experiments that change them run the engine in a fresh subprocess (`scripts/eval/_subprocess.py`).
 
 ## 1. Inputs
 
-- **Raw DA measurements** — `raw_data_forecaster.load_raw_da_measurements()` reads the 10 CSVs in `config.ORIGINAL_DA_FILES` (`data/raw/da-input/`). Two schemas are detected per file: `CollectDate` + `Domoic Result`, or `Harvest Month/Date/Year` + `Domoic Acid`. Values and dates are parsed by `forecasting/measurements.py` (below-detection `"<1"` becomes LOD/2 = 0.5; see the data pipeline doc). Several samples on one site-day (about 1,200 site-days; the CSVs record no species or station) collapse to their maximum, like the weekly MAX used for training targets. Output: `[date, site, da_raw]`, one row per site-day. These are the only evaluation targets.
+- **Raw DA measurements** — `raw_data_forecaster.load_raw_da_measurements()` reads the 10 CSVs in `config.ORIGINAL_DA_FILES` (`data/raw/da-input/`). Two schemas are detected per file: `CollectDate` + `Domoic Result`, or `Harvest Month/Date/Year` + `Domoic Acid`. Values and dates are parsed by `forecasting/measurements.py` (below-detection `"<1"` becomes LOD/2 = 0.5; see the data pipeline doc). Several samples on one site-day (1,184 site-days; the CSVs record no species or station) collapse to their maximum, like the weekly MAX used for training targets. Output: `[date, site, da_raw]`, one row per site-day. These are the only evaluation targets.
 - **Processed weekly dataset** — `data/processed/final_output.parquet` (Monday rows, environmental + satellite + OAD columns, and the gap-filled `da`/`pn`).
 
 ## 2. Feature frame (`_load_feature_frame` → `build_raw_feature_frame`)
@@ -24,21 +24,21 @@ Because `config.py` and `per_site_models.py` read `DATECT_*` variables at import
 1. `add_temporal_features` (`feature_utils.py`): `sin_day_of_year`, `cos_day_of_year`, `month`.
 2. `aggregate_raw_to_weekly`: raw DA bucketed to the Monday of its week using **MAX**, then left-joined onto the processed rows by `(site, date)`. Most rows have `da_raw = NaN`.
 3. `pn_log = log1p(pn)`.
-4. Persistence: `last_observed_da_raw` (per-site forward fill of `da_raw`) and `weeks_since_last_spike` (weeks since `da_raw >= SPIKE_THRESHOLD`; 999 if none).
-5. Rolling stats (`USE_ROLLING_FEATURES`), computed on `shift(1)` of `last_observed_da_raw` so the current row never contributes: window 4 → mean, std, max; windows 8 and 12 → std, max.
+4. Persistence: `last_observed_da_raw` (per-site forward fill of `da_raw`) and `weeks_since_last_spike` (weeks since `da_raw >= SPIKE_THRESHOLD`; 999 if none), both from observations before the row's own week, so a row never sees its own target.
+5. Rolling stats (`USE_ROLLING_FEATURES`), computed on that already shifted `last_observed_da_raw`, so the current row never contributes: window 4 → mean, std, max; windows 8 and 12 → std, max.
 6. Observation-order lags (`raw_data_processor.py`, `LAG_FEATURES = [1, 2, 3, 4]`, override with `DATECT_LAG_FEATURES`): `da_raw_prev_obs_1..4` are the Nth most recent real measurements strictly before the row date; `da_raw_prev_obs_2_weeks_ago` and `_3_weeks_ago` give their age; `da_raw_prev_obs_diff_1_2` is the latest change. Grid-shift lags would be mostly NaN on sparse sampling.
 
-After dropping metadata, targets and `ZERO_IMPORTANCE_FEATURES` (`lat`, `lon`, `modis-par`, `modis-k490`, `chla-anom`, `modis-chla`), the frame offers **44 candidate features**: 7 environmental/satellite (`oni`, `pdo`, `discharge`, `beuti`, `modis-flr`, `modis-sst`, `sst-anom`), `pn` and `pn_log`, 16 OAD columns, 3 calendar, 2 persistence, 7 rolling and 7 lag features. Per-site `feature_subset` lists then narrow this (Clatsop Beach has no subset and uses all 44).
+After dropping metadata, targets and `ZERO_IMPORTANCE_FEATURES` (`lat`, `lon`, `modis-par`, `modis-k490`, `chla-anom`, `modis-chla`), the frame offers **44 candidate features**: 7 environmental/satellite (`oni`, `pdo`, `discharge`, `beuti`, `modis-flr`, `modis-sst`, `sst-anom`), `pn` and `pn_log`, 16 OAD columns, 3 calendar, 2 persistence, 7 rolling and 7 lag features. The served model uses all 44 at every beach; the retired per-site configuration narrows them with `feature_subset` lists.
 
 ## 3. Per-prediction split
 
 Every prediction trains fresh models; nothing is pre-trained.
 
 - **Anchor** = `test_date − FORECAST_HORIZON_DAYS` (7 days). The anchor is the knowledge cutoff.
-- **Training rows** (`get_site_training_frame`): the site's rows with `date <= anchor`. With `USE_INTERPOLATED_TRAINING` (default true, `DATECT_USE_INTERPOLATED_TRAINING`), every row with a non-null gap-filled `da` is kept; the target is the real `da_raw` where one exists, otherwise `da`. `_is_interpolated` marks the filled rows. With `TRAIN_REQUIRE_HISTORY` (default true, `DATECT_TRAIN_REQUIRE_HISTORY`), rows with no last known value (`last_observed_da_raw` empty: each site's first measured week and the gap-filled weeks before it) are left out; their median-imputed features made a large first measurement look like a quiet week. At least `MIN_TRAINING_SAMPLES = 10` rows are required.
-- **Test row** (`get_site_anchor_row`): the processed row closest to, and not after, the anchor (at most 28 days earlier). Its `date` is reset to `test_date` so only the calendar features describe the target date.
+- **Training rows** (`get_site_training_frame`): the site's weeks that end by the anchor (`date + 6 days <= anchor`, `week_complete_by`; a weekly row is labelled with its Monday but holds Monday–Sunday). With `USE_INTERPOLATED_TRAINING` (default true, `DATECT_USE_INTERPOLATED_TRAINING`), every row with a non-null gap-filled `da` is kept; the target is the real `da_raw` where one exists, otherwise `da`. `_is_interpolated` marks the filled rows. With `TRAIN_REQUIRE_HISTORY` (default true, `DATECT_TRAIN_REQUIRE_HISTORY`), rows with no last known value (`last_observed_da_raw` empty: each site's first measured week and the gap-filled weeks before it) are left out; their median-imputed features made a large first measurement look like a quiet week. At least `MIN_TRAINING_SAMPLES = 10` rows are required.
+- **Test row** (`get_site_anchor_row`): the latest processed row whose week ends by the anchor, so its Monday is 13–19 days before `test_date` (a row more than 28 days before the anchor is refused). Its `date` is reset to `test_date` so only the calendar features describe the target date.
 - **Persistence recompute** (`recompute_test_row_persistence_features`): every persistence feature (`last_observed_da_raw`, `weeks_since_last_spike`, the observation-order lags and the rolling statistics) is rebuilt from real daily measurements dated on or before the anchor, exactly as `build_raw_feature_frame` builds the training row of the target's week: weekly maxima of the weeks before it, where the anchor's week holds only the days up to the anchor. The anchor row's own lags stop one to two weeks earlier, so they are not used (`tests/test_leakage_audit.py::TestTestRowMatchesTrainingRows`).
-- **Leak check** (`_verify_no_data_leakage`): raises if any training date is after the anchor or the test date is not after it.
+- **Leak check** (`_verify_no_data_leakage`): raises if any training week ends after the anchor or the test date is not after it.
 
 ## 4. Preprocessing (`create_transformer`)
 
@@ -46,35 +46,22 @@ Drop `date`, `site`, `da_raw`, `da`, `_is_interpolated`, the zero-importance lis
 
 ## 5. Models (`raw_model_factory.py`)
 
-All fitted models are seeded with `config.MODEL_SEED` (42).
+All fitted models are seeded with `config.MODEL_SEED` (42). The served forecast is the random forest alone; XGBoost and Ridge are fitted for comparison, and the XGBoost spike classifier (section 8) drives the alert.
 
 | Model | Details |
 |---|---|
-| XGBoost | `global.xgb_base_params` merged with the site's `xgb_params`. With `USE_MONOTONIC_CONSTRAINTS` (default true), non-decreasing constraints on `last_observed_da_raw`, `raw_obs_roll_max_4`, `raw_obs_roll_mean_4`. |
-| Random Forest | `global.rf_base_params` merged with the site's `rf_params` (set for Coos Bay, Cannon Beach, Gold Beach, Newport). |
+| XGBoost | `global.xgb_base_params` (merged with the site's `xgb_params` only in the retired per-site configuration). With `USE_MONOTONIC_CONSTRAINTS` (default true), non-decreasing constraints on `last_observed_da_raw`, `raw_obs_roll_max_4`, `raw_obs_roll_mean_4`. |
+| Random Forest (served) | `global.rf_base_params`: 400 trees, depth 12, leaf 3, the same at every beach (merged with the site's `rf_params` only in the retired per-site configuration). |
 | Naive persistence | Last real DA at or before the anchor (`PERSISTENCE_MAX_DAYS = None`, no age cap). External baseline, never blended. If a site has no prior real measurement the point is dropped. |
 | Ridge (`linear`) | `LINEAR_REGRESSION_ALPHA` on the full preprocessed feature set; a competitor, not part of the ensemble. |
 
 **Post-processing** (`_postprocess`, applied to XGB, RF and Ridge): floor at 0. There is no upper clip: `prediction_clip_q`, `prediction_clip_max` and `PREDICTION_CLIP_Q` are null. The clip they once set capped forecasts at a quantile of the training `da_raw`, which is mostly gap-filled (Coos Bay q95 81 µg/g vs 145 over real measurements), and removing it raised R² in every window (`docs/CORRECTED_NUMBERS.md`). `DATECT_CLIP_Q_OVERRIDE=<q>` restores a clip at quantile *q* for ablations.
 
-## 6. Ensemble weights
+## 6. Weights
 
-`ensemble = w_xgb · XGB + w_rf · RF` with per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` is always 0). They are winners of the constrained grid search in the since-removed `scripts/eval/grid_search_weights_clip.py` (promoted in `cdc2a32c`), which chose them jointly with the clip quantiles that were later removed. The weight tuner is now `datect_spark/retune.py` (weights only, yearly folds 2015–2021). Current values:
+`ensemble = w_xgb · XGB + w_rf · RF + w_naive · naive`, served by `RawForecastEngine._ensemble_weights()` to evaluation, the spike alert and the API. At every beach the weights are `SHARED_WEIGHTS = (0, 1, 0)`: the random forest alone, chosen over XGBoost alone on 2019–2021 in a declared comparison ([`FORECAST_EXPERIMENTS.md`](FORECAST_EXPERIMENTS.md) §3c, `1c9206c6`). The API still calls the model `ensemble`.
 
-| Site | w_xgb | w_rf |
-|---|---|---|
-| Copalis | 1.00 | 0.00 |
-| Quinault | 1.00 | 0.00 |
-| Long Beach | 1.00 | 0.00 |
-| Clatsop Beach | 1.00 | 0.00 |
-| Newport | 1.00 | 0.00 |
-| Gold Beach | 1.00 | 0.00 |
-| Twin Harbors | 0.25 | 0.75 |
-| Kalaloch | 0.00 | 1.00 |
-| Coos Bay | 0.00 | 1.00 |
-| Cannon Beach | 0.00 | 1.00 |
-
-The JSON is authoritative; re-check it after any re-tune. `RawForecastEngine._ensemble_weights()` serves these to evaluation, the spike alert and the API. With `USE_PER_SITE_MODELS=false` every site uses 0.5 / 0.5.
+**Retired per-site weights.** `DATECT_USE_PER_SITE_MODELS=true` restores the per-site `(w_xgb, w_rf, w_naive)` from the JSON (`w_naive` always 0): XGBoost alone at Copalis, Quinault, Long Beach, Clatsop Beach, Newport and Gold Beach; the random forest alone at Kalaloch, Coos Bay and Cannon Beach; 0.25 / 0.75 at Twin Harbors. They are winners of the constrained grid search in the since-removed `scripts/eval/grid_search_weights_clip.py` (promoted in `cdc2a32c`), which chose them jointly with clip quantiles that were later removed. Their tuner is `datect_spark/retune.py` (weights only, yearly folds 2015–2021); it proposes and never adopts.
 
 ## 7. One per-point forecast (per-anchor tuning removed)
 
@@ -102,16 +89,16 @@ The engine computes no prediction interval. `/api/forecast/enhanced` draws the 8
 1. Candidates: raw measurements on or after `MIN_TEST_DATE` whose site already has at least `max(ceil(HISTORY_REQUIREMENT_FRACTION · site total), MIN_TRAINING_SAMPLES)` measurements on or before the anchor (`HISTORY_REQUIREMENT_FRACTION = 0.33`).
 2. Per-site sample of `ceil(TEST_SAMPLE_FRACTION · site total)` points (`TEST_SAMPLE_FRACTION = 0.20`), drawn with `RandomState(config.RANDOM_SEED)`.
 3. Each point runs `_point_forecast` in parallel (`joblib`, `N_JOBS = -1`, backend `PARALLEL_BACKEND`, default `loky`).
-4. The ensemble column is blended with the per-site weights, `predicted_da` is set from the requested `model_type`, categories are derived, and duplicate `(date, site)` rows are dropped.
+4. The ensemble column is blended with the weights of section 6, `predicted_da` is set from the requested `model_type`, categories are derived, and duplicate `(date, site)` rows are dropped.
 
 `scripts/eval/chronological_eval.py` instead scores every real measurement in a date window (validation `[2019-01-01, 2022-01-01)`, holdout `[2022-01-01, 2024-01-01)`, from the JSON's `eval_windows`).
 
-**Seeds.** `RANDOM_SEED` (42) only chooses test points; evaluation scripts set it per run (123 for the paper sample, 42–46 for multi-seed). `MODEL_SEED` (42) seeds every fitted model, so serial, joblib-parallel and distributed runs train identical models regardless of the sampling seed.
+**Seeds.** `RANDOM_SEED` (42) only chooses test points; evaluation scripts set it per run (123 for the paper sample, 42–46 for multi-seed). `MODEL_SEED` (42) seeds every fitted model, so serial, joblib and Spark runs train identical models regardless of the sampling seed.
 
 ## Leakage safeguards (summary)
 
-- Training rows satisfy `date <= anchor`; `_verify_no_data_leakage` asserts it for every prediction.
-- Test-row environmental features come from the last processed row at or before the anchor; satellite, climate-index and OAD columns carry their own reporting lags from dataset creation.
+- Training weeks end by the anchor (`date + 6 days <= anchor`); `_verify_no_data_leakage` asserts it for every prediction.
+- Test-row environmental features come from the last processed row whose week ends by the anchor; satellite, climate-index and OAD columns carry their own reporting lags from dataset creation.
 - `da_raw` and `da` never enter the feature matrix.
 - Lags and rolling stats use only observations strictly before the row; test-row persistence and the naive baseline use real measurements only.
 - Gap-filled `da` is a past-only exponential decay (see the data pipeline doc) and is used only as a training target, never as a test target.

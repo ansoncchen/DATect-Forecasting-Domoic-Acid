@@ -1,8 +1,36 @@
 # OAD results
 
-Validated numbers for the OAD autoencoder: sanity-check caveats, the Phase C
-mask-ratio sweep and the full 22-year Hyak run, followed by the early smoke runs
-that first exercised the pipeline.
+Measured numbers for the OAD autoencoder: known problems, sanity-check caveats, the
+Phase C mask-ratio sweep and the full 22-year Hyak run, followed by the early smoke
+runs that first exercised the pipeline.
+
+## Known problems with the forecast comparison (found 2026-11-24, not re-run)
+
+Read these before quoting any R² on this page or in the paper drafts, which predate them.
+
+1. **The PCA and plain-autoencoder zeros probably come from the test.** It fits
+   `Lasso(alpha=0.1)` on unscaled scores (`src/evaluate.py`,
+   `scripts/08_multistep_forecast.py`). When the covariance between a series and its
+   lags is below the penalty, Lasso sets every coefficient to 0 and R² is about 0 at
+   every lead. PCA scores at k = 32 have standard deviation 0.17–0.28 (variance at most
+   0.08) and the plain 3D autoencoder 0.13–0.25, against 14–31 for the 70%-masked model
+   (`RESULTS_summary_full.txt` at git tag `archive/pre-cleanup`). PCA at k = 4, whose
+   scores are larger, does reach R² 0.21–0.22 in Southern OR. Baseline B1 (standard
+   deviation 0.50–0.83) is shrunk by the penalty too. A fair comparison needs scaled
+   scores.
+2. **"Only method positive in every region" is false.** At a 7-day lead the
+   40%-masked 3D model (0.15–0.28) and the 50%- and 70%-masked 2D models (0.01–0.10 and
+   0.06–0.31) are also positive in all five regions (`E4_multistep.parquet`, same tag).
+   What the table shows is that only some masked autoencoders are.
+3. **The test years are not unseen.** The autoencoder trains on a random 80% of frames
+   from all years (`split_frames` in `src/train.py`). The forecast test is the last 20%
+   of each score series, from about May 2022 for `mae070`, not "2019+".
+4. **The 70% mask ratio was chosen with this same test.**
+5. **Each method forecasts its own score,** so the R² values are not for one shared
+   target, and composites 7 days apart still share one day of input.
+6. **The score is not z-scored.** It is the mean per-pixel reconstruction error in the
+   region (`src/regions.py::aggregate_to_regions`); the exported `mae070` scores have
+   regional means of 12–28.
 
 ## ⚠️ SANITY-CHECK CAVEATS (added after Phase C — read this before quoting numbers)
 
@@ -37,21 +65,21 @@ Comparison to all baselines at lead=7 (the critical informative-horizon test):
 | **B1** (chl climatology) | 0.00 | 0.00 | 0.00 | −0.03 | +0.05 |
 | **B3T_pca_k32_t4** | 0.00 | −0.01 | −0.13 | 0.00 | 0.00 |
 
-**This is the strongest defensive result in the project.** `AE_3d_mae070`
-is the **only method** with positive R² in every region at lead=7 days. The
+**Of the methods in this table**, `AE_3d_mae070` is the only one with positive R²
+in every region at lead=7 days (other masked variants are too, and the PCA row is
+probably an artifact: Known problems 1 and 2). The
 climatology baselines (B1, B2) that dominated at lead=1 collapse — B2 goes
 *negative* everywhere (anti-predicts its own next-week value, because
 climatology measures static deviation, not dynamics). PCA was already at zero.
 
 Why this matters: B1/B2 winning at lead=1 was the weakest part of the headline.
-At lead=7+ — the regime that actually matters for integration into a real
-forecast — they are useless. The AE is **uniquely retaining structure** at
-informative horizons.
+At lead=7+, the regime that matters for a real forecast, B2 is negative everywhere
+and B1 is near 0 (+0.05 in Southern OR).
 
 **Takeaway**: rephrase the headline from "AE has 0.87 R²" to:
-**"AE_3d_mae070 is the only method that retains positive 1-week-ahead
-forecasting skill (R² 0.10–0.26) in every PNW region; matched-k PCA and
-climatology baselines (B1, B2) collapse to ≤ 0 by lead=7."**
+**"The masked autoencoder's score can be forecast a week ahead with modest skill
+(R² 0.10–0.26 in the five regions, about 0 at two weeks). How that compares with PCA
+and climatology is not settled."**
 
 ### Caveat 2 — moderate cloud-cover confound (~24% of variance)
 
@@ -82,9 +110,9 @@ but it should be disclosed.
 
 > The 3D MAE-trained autoencoder produces an ocean anomaly score that retains
 > modest forecasting skill at 1-week-ahead leads (R² = 0.10–0.26 across the 5
-> PNW regions), where the matched linear PCA baseline degrades to R² ≈ 0.
-> At the trivial 1-day-ahead lead — inflated by 8-day composite overlap —
-> R² = 0.87 in SW Washington / Long Beach, vs PCA R² ≈ 0. The AE score
+> PNW regions) and none at two weeks. At the trivial 1-day-ahead lead, inflated
+> by 8-day composite overlap, R² = 0.87 in SW Washington / Long Beach. No claim
+> against a baseline holds until the test is re-run on scaled scores. The AE score
 > shows partial sensitivity to cloud-cover variability (r ≈ +0.4–0.5 with
 > valid-pixel fraction); downstream applications should either condition on
 > minimum valid coverage or regress out cloud fraction before use.
@@ -93,15 +121,15 @@ but it should be disclosed.
 
 1. **DATect uses `ae_3d_l32_c4_t4_s42_mae070`** (exported to
    `data/processed/oad_scores.parquet` by `scripts/data/export_oad_features.py`;
-   before October 2026 it used `mae050`). It's the only
-   method retaining skill at lead=7+ days, which is the regime DATect actually
-   needs given its `anchor = test_date − 7` convention plus the centered-composite
-   lag (`test_date − 12`). The cleaner-cloud variant `mae050` collapses faster
+   before October 2026 it used `mae050`). It was picked for its 7-day skill, though
+   DATect's own lag is longer: its newest score is 18 days before the target (the
+   row's week must end by the anchor, and the score stops 5 days before the row),
+   where this skill is about 0. The cleaner-cloud variant `mae050` collapses faster
    at long leads (R²=−0.17 vs +0.19 at lead=7 in Olympic Coast), so the cloud
    tradeoff isn't worth the multi-step penalty.
-2. **Set integration lag = `test_date − 12`** (required by the centered-composite
-   leakage caveat; this analysis confirms lead=7+ is also where the "real"
-   signal lives, so the leakage-safe lag is also the informative-skill lag).
+2. **Set the integration lag so composites end before the anchor** (required by the
+   centered-composite leakage caveat; now `test_date − 18` at the latest, see
+   `../docs/OAD_INTEGRATION_RESULTS.md` §4).
 3. **Add the valid-pixel fraction as a parallel feature** so the XGBoost model
    can learn to discount cloudy weeks — easier than pre-regressing. DATect does
    this with `oad_valid_frac` and `oad_overall_valid_frac`.
@@ -138,9 +166,9 @@ climatology baselines.
 | B1_chla_zscore | +0.6508 | — |
 | AE_2d_l32_mae070 | +0.5144 | [+0.648, +0.795] ✅ |
 
-**Takeaway**: the AE-trained-with-pixel-hiding decisively beats both linear PCA
-and climatology baselines once the mask ratio is high enough (40-70% for 3D,
-50% for 2D). At mask=0.30 (our original Phase C config) the win was real but
+**Takeaway** (1-day-ahead numbers, inflated by composite overlap; see Known problems
+for the PCA intervals): with a high enough mask ratio (40-70% for 3D, 50% for 2D) the
+AE trained with pixel hiding beats the climatology baselines here. At mask=0.30 (our original Phase C config) the win was real but
 the model was under-regularized; the sweep revealed it.
 
 Why heavier masking helps: with 70% of pixels hidden each step, the model
@@ -171,7 +199,7 @@ best AE method in **every region** by a wide margin over the vanilla 3D AE:
 | Central Oregon | -0.0004 | **+0.4258** | +0.43 |
 | Southern OR / N CA | -0.0023 | **+0.4341** | +0.44 |
 
-### Statistically significant AE-beats-PCA wins (95% bootstrap CI entirely positive)
+### AE-over-PCA intervals (95% bootstrap CI entirely positive; not valid until re-run, Known problem 1)
 
 | Region | Method | CIΔ vs matched-k PCA |
 |---|---|---|
@@ -199,7 +227,7 @@ with strong upwelling dynamics that climatology can't capture).
 
 ### Pipeline scale
 
-- 22 AE checkpoints (bottleneck sweep + channel ablations + MAE)
+- 22 AE checkpoints (bottleneck sweep + channel ablations + MAE); 30 after the mask-ratio sweep
 - 12 baseline methods (B1, B2, B3 at 5 k values, B3T at 5 k values)
 - 34 method × 5 region × 4692 dates = **~800K rows of anomaly scores** in `all_scores.parquet`
 - 22 figures (E1/E2/E4/E5/sanity drift × 5 regions, plus E4_forecastability + annual_cycle)

@@ -2,6 +2,8 @@
 
 DATect deploys as one container: the FastAPI backend serves the API and the built React app from the same origin, with the precomputed store baked into the image. It runs on Render's free tier (no billing account); the Google Cloud Run path (§3b) needs billing enabled.
 
+**Live:** https://datect.onrender.com since 2026-11-12, now with the store built at `edf64987` (deployed 2026-11-17 by the publish workflow). The earlier Cloud Run services are not running (billing was disabled when last checked, 2026-11-05) and the Vercel projects were deleted.
+
 ```
 Hyak (Spark)                     GitHub                                     Render (free)
 datect_spark/store.sbatch  ──→   prerelease store-<commit>/store.tar.gz ──→  web service from
@@ -119,7 +121,7 @@ Read by the server code (`backend/`), `run_datect.py` and the image:
 | Variable | Read by | Effect |
 |---|---|---|
 | `DATECT_PRECOMPUTED_DIR` | `backend/precomputed.py`, `run_datect.py` | Directory of the store's Delta tables. Unset → every request is computed on demand. `run_datect.py` sets it to `<repo>/store` when that exists; the image sets `/app/store`. |
-| `ALLOWED_ORIGINS` | `backend/api.py` | Comma-separated CORS origins. Unset → `http://localhost:3000`, `http://localhost:5173`. Not needed for the single-origin Cloud Run deploy; set it if another origin calls the API. |
+| `ALLOWED_ORIGINS` | `backend/api.py` | Comma-separated CORS origins. Unset → `http://localhost:3000`, `http://localhost:5173`. Not needed for a single-origin deploy (Render or Cloud Run); set it if another origin calls the API. |
 | `PORT` | Docker `CMD`, `backend/api.py` | Listen port: 8080 in the image; `python -m backend.api` defaults to 8000. |
 | `DATECT_USE_GRANIAN` | Docker `CMD`, `backend/api.py` | `1` (default) Granian, otherwise Uvicorn. |
 | `WORKERS` | `backend/api.py` | Granian worker count, only when started with `python -m backend.api` (default 1). The Docker `CMD` does not read it. |

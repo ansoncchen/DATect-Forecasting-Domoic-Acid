@@ -15,7 +15,7 @@ export default function WindowSelector({ config, windowName, site, onWindow, onS
           <select id="window" value={windowName} onChange={(e) => onWindow(e.target.value)} className={select}>
             {['holdout', 'validation'].map((n) => (
               <option key={n} value={n}>
-                {config.windows[n].label} ({n === 'holdout' ? 'never used for tuning' : 'used for tuning'})
+                {config.windows[n].label} ({n === 'holdout' ? 'held out' : 'used for tuning'})
               </option>
             ))}
           </select>

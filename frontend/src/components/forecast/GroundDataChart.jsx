@@ -66,7 +66,7 @@ export default function GroundDataChart({ site, week, forecast, config, loading 
           </p>
           <p className="text-xs text-gray-500 max-w-3xl mt-1">
             Ticks under the chart mark Watch and Warning weeks. Forecasts before {holdout.start.slice(0, 4)} overlap the years used
-            to tune the model; {holdout.label} was never used for tuning.
+            to tune the model; {holdout.label} was held out when the model was chosen.
           </p>
         </div>
         <div className="ml-auto flex text-xs border border-gray-300 rounded overflow-hidden divide-x divide-gray-300">

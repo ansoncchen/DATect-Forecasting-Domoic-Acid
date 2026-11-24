@@ -94,7 +94,7 @@ function AboutPage({ config }) {
       <Section title="How well it works">
         {holdout ? (
           <p>
-            In {holdoutLabel}, years never used to tune the models, forecasts were off by{' '}
+            In {holdoutLabel}, years held out when the model was chosen, forecasts were off by{' '}
             {mae ? `${formatValue(mae.value)} µg/g` : 'a few µg/g'} on average. The alert caught {holdout.overall.onsets.caught}{' '}
             of {holdout.overall.onsets.n} sudden rises to {threshold} µg/g, and {holdout.overall.alarms.followed} of its{' '}
             {holdout.overall.alarms.n} alarms were followed by one; {holdout.overall.alarms.falseNearMiss} of the other{' '}
